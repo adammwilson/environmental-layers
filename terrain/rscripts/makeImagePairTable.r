@@ -15,9 +15,9 @@ makeImagePairTable <- function()
 require(raster)
 require(rgdal)
 
-inputCgiarRaster  <- raster("/data/project/organisms/rcr/AsterCgiarMerge/mergeCgiarAsterBdySRTM_BL.tif")
-inputAsterRaster  <- raster("/data/project/organisms/rcr/AsterCgiarMerge/mergeCgiarAsterBdyASTER_BL.tif")
-inputMosaicRaster <- raster("/data/project/organisms/rcr/AsterCgiarMerge/mergeCgiarAsterBdyFinalBL.tif")
+inputCgiarRaster  <- raster("/data/project/organisms/rcr/AsterCgiarMerge/mergeCgiarAsterBdySRTM_BLEven.tif")
+inputAsterRaster  <- raster("/data/project/organisms/rcr/AsterCgiarMerge/mergeCgiarAsterBdyASTER_BLEven.tif")
+inputMosaicRaster <- raster("/data/project/organisms/rcr/AsterCgiarMerge/mergeCgiarAsterBdyFinalBLEven.tif")
 inputCDEMRaster   <- raster("/data/project/organisms/rcr/ValidateBoundary/CDEMMosCgiarAsterBdy_BLEven.tif")
 #
 # Difference image for entire merged image takes a while to create, 
@@ -52,7 +52,7 @@ rEdgeRegionCDEM <- crop(inputCDEMRaster,eTestAreaExtent)
 
 # Compute the difference image  for the entire study area, and for the region along
 # the boundary (narrow, maybe 10 pixels either side)
-extent(rEdgeRegionMosaic) = extent(rEdgeRegionCDEM) # raster package author suggests this to resolve slight extent differences
+#extent(rEdgeRegionMosaic) = extent(rEdgeRegionCDEM) # raster package author suggests this to resolve slight extent differences
 rEdgeRegionDelta <- rEdgeRegionMosaic - rEdgeRegionCDEM  
 
 # get a vector of random column index numbers, constrained by column dimension of image
@@ -115,6 +115,6 @@ for (iNextCol in colsToGet)
 
 message("end of loop - hit key to write output table..")
 browser()
-write.csv(mOutTable,file="/data/project/organisms/rcr/tableForRic2000_5_8.csv",row.names=FALSE)
+write.csv(mOutTable,file="/data/project/organisms/rcr/tableForRick2000_5_8Even.csv",row.names=FALSE)
 #
 }
