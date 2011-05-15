@@ -18,7 +18,7 @@ require(rgdal)
 inputCgiarRaster  <- raster("/data/project/organisms/rcr/AsterCgiarMerge/mergeCgiarAsterBdySRTM_BLEven.tif")
 inputAsterRaster  <- raster("/data/project/organisms/rcr/AsterCgiarMerge/mergeCgiarAsterBdyASTER_BLEven.tif")
 inputMosaicRaster <- raster("/data/project/organisms/rcr/AsterCgiarMerge/mergeCgiarAsterBdyFinalBLEven.tif")
-inputCDEMRaster   <- raster("/data/project/organisms/rcr/ValidateBoundary/CDEMMosCgiarAsterBdy_BLEven.tif")
+inputCDEMRaster   <- raster("/data/project/organisms/rcr/ValidateBoundary/CDemMosSundayClipMergeSpaceEven.tif")
 #
 # Difference image for entire merged image takes a while to create, 
 # so we created it once, now read it back in.
@@ -34,7 +34,8 @@ rDeltaWhole@data@values <-getValues(rDeltaWhole)
 # the ASTER and SRTM/CGIAR image components are merged at the 60 Deg N Latitude line.
 
 #eTestAreaExtent <- extent(-135.2,-100.2, 59.997,60.001) # Creates a 5 row subimage
-eTestAreaExtent <- extent(-135.0,-105.0, 59.995,60.005) # Creates a 12 row subimage
+eTestAreaExtent <- extent(-135.2,-100.2, 59.995,60.005) # Creates a 12 row subimage
+#eTestAreaExtent <- extent(-135.0,-105.0, 59.990,60.010) # Creates a 24 row subimage
 
 # Extract a sub image corresponding to the selected extent.
 # Two different alternatives:
