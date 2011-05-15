@@ -1,6 +1,6 @@
 ##############################################################################################
 #
-# makeMarkTable.r
+# makeImagePairTable.r
 # 
 # R script generates table of adjacent ASTER / SRTM / Mosaic Border / CDEM pixel values
 # to be used to generate plots of 'delta elevation' vs 'pixel pair proximity' and 'elevation'
@@ -10,15 +10,15 @@
 # May 4, 2011
 ##############################################################################################
 #
-makeMarkTable <- function()
+makeImagePairTable <- function()
 {
 require(raster)
 require(rgdal)
 
 inputCgiarRaster  <- raster("/data/project/organisms/rcr/AsterCgiarMerge/mergeCgiarAsterBdySRTM_BL.tif")
 inputAsterRaster  <- raster("/data/project/organisms/rcr/AsterCgiarMerge/mergeCgiarAsterBdyASTER_BL.tif")
-inputMosaicRaster <- raster("/data/project/organisms/rcr/ValidateBoundary/mergeCgiarAsterBdyTuesdayClip.tif")
-inputCDEMRaster   <- raster("/data/project/organisms/rcr/ValidateBoundary/CDemMosTuesdayClipMergeSpace.tif")
+inputMosaicRaster <- raster("/data/project/organisms/rcr/AsterCgiarMerge/mergeCgiarAsterBdyFinalBL.tif")
+inputCDEMRaster   <- raster("/data/project/organisms/rcr/ValidateBoundary/CDEMMosCgiarAsterBdy_BLEven.tif")
 #
 # Difference image for entire merged image takes a while to create, 
 # so we created it once, now read it back in.
@@ -34,7 +34,7 @@ rDeltaWhole@data@values <-getValues(rDeltaWhole)
 # the ASTER and SRTM/CGIAR image components are merged at the 60 Deg N Latitude line.
 
 #eTestAreaExtent <- extent(-135.2,-100.2, 59.997,60.001) # Creates a 5 row subimage
-eTestAreaExtent <- extent(-135.2,-100.2, 59.995,60.005) # Creates a 12 row subimage
+eTestAreaExtent <- extent(-135.0,-105.0, 59.995,60.005) # Creates a 12 row subimage
 
 # Extract a sub image corresponding to the selected extent.
 # Two different alternatives:
@@ -52,14 +52,15 @@ rEdgeRegionCDEM <- crop(inputCDEMRaster,eTestAreaExtent)
 
 # Compute the difference image  for the entire study area, and for the region along
 # the boundary (narrow, maybe 10 pixels either side)
-
-rEdgeRegionDelta <- rEdgeRegionMosaic - rEdgeRegionCDEM  # not used in this version (yet)
+extent(rEdgeRegionMosaic) = extent(rEdgeRegionCDEM) # raster package author suggests this to resolve slight extent differences
+rEdgeRegionDelta <- rEdgeRegionMosaic - rEdgeRegionCDEM  
 
 # get a vector of random column index numbers, constrained by column dimension of image
 # Loop three times, sampling pixel pairs from above, below, across the border
 
-nColsToGet <- 4000
+nColsToGet <- 2000
 iDiffVecNorth <- vector(mode="integer",length=nColsToGet)
+
 iDiffVecBorder <- vector(mode="integer",length=nColsToGet)
 iDiffVecSouth <- vector(mode="integer",length=nColsToGet)
 
@@ -79,12 +80,7 @@ for (iNextCol in colsToGet)
 {
 #message(sprintf("in col sample loop getting col sample %d - hit key..",iNextCol))
 #browser()
-# slight misalignement in the Aster and Cgiar edge regions, getting NAs wheen extracting values. 
-# For now, get values on both sides of border from the mosaic
-#   rColVecAster  <- cellFromRowCol(rEdgeRegionAster,iFirstRow:(iLastRow),iNextCol:iNextCol) # figure out the actual row numbers for mosaic components LATER
-#   rColVecCgiar  <- cellFromRowCol(rEdgeRegionCgiar,iFirstRow:(iLastRow),iNextCol:iNextCol)
-#   rColVecAster  <- cellFromRowCol(rEdgeRegionMosaic,iFirstRow:(iLastRow),iNextCol:iNextCol) # approximation is the Cgiar/Aster area in mosaic.
-#   rColVecCgiar  <- cellFromRowCol(rEdgeRegionMosaic,iFirstRow:(iLastRow),iNextCol:iNextCol)
+
    rColVecMosaic <- cellFromRowCol(rEdgeRegionMosaic,iFirstRow:(iLastRow),iNextCol:iNextCol)
    rColVecCDEM   <- cellFromRowCol(rEdgeRegionCDEM,iFirstRow:(iLastRow),iNextCol:iNextCol)  
   
@@ -119,6 +115,6 @@ for (iNextCol in colsToGet)
 
 message("end of loop - hit key to write output table..")
 browser()
-write.csv(mOutTable,file="tableForMark4000_5_8.csv",row.names=FALSE)
+write.csv(mOutTable,file="/data/project/organisms/rcr/tableForRic2000_5_8.csv",row.names=FALSE)
 #
 }
