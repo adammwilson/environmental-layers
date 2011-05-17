@@ -31,21 +31,21 @@
 # TODO: add symbol legend to each plot.
 # Author: Rick Reeves, NCEAS
 # May 14, 2011
+# May 17, 2011: This version generates 'delta scatterplots' specified by Mark and Jim.
 ##############################################################################################
-CreateImageDiffPlotsNew <- function(plotSampFact = 100)
+CreateImageDiffPlots <- function(plotSampFact = 1)
 {
 # Check plotSampleFact range  
 
    if (plotSampFact < 1)
       plotSampFact = 1
       
-   if (plotSampFact > 100)
-      plotSampFact = 100
+#   if (plotSampFact > )
+#      plotSampFact = 100
  
 # Read input table that was sorted OFFLINE in Excel on the first column (ColumnID)
 
-   pointTable <-read.csv("tableForMark4000_5_8_SortColID.csv")
-
+   pointTable <-read.csv("pixelPairs36000_5_8EvenSortCol1.csv")
 # Table created by randomly sampling from two superimposed 
 # image: 
 #  1) DOM mosaic image comprised of ASTER and SRTM components.
@@ -136,59 +136,81 @@ browser()
 
 # We need to tailor the plot 'triplet' X and Y axes to the dynamic ranges of all three data sets.
 
-   par(mfrow=c(1,3)) # Create a three column multi-plot
 
-# Create values for the 'delta across pixel boundaries' plot
+
+# Create values for the three 'delta across pixel boundaries' plots: 
+#  1) Y-Axis: columnIDs 
+#  2) Y-Axis: CDEM elevations
+#  3) Y-Axis: 
 
    deltaBoundaryASTER <- northRowTbl$diffNorthMosaicCDEM - northRowTbl$diffSouthMosaicCDEM
    deltaBoundaryBorder <- borderRowTbl$diffNorthMosaicCDEM - borderRowTbl$diffSouthMosaicCDEM  
    deltaBoundarySRTM <- southRowTbl$diffNorthMosaicCDEM - southRowTbl$diffSouthMosaicCDEM   
+   
+   normDeltaBoundaryASTER <-  (deltaBoundaryASTER / northRowTbl$cdemNorth * 100)
+   normDeltaBoundaryBorder <- (deltaBoundaryBorder / borderRowTbl$cdemNorth * 100)  
+   normDeltaBoundarySRTM <-   (deltaBoundarySRTM / southRowTbl$cdemNorth * 100)
+   
+   par(mfrow=c(1,3)) # Create a three column multi-plot
+   
    commonXAxis <- c(0,max(pointTable$ColumnID))   
    commonYAxis <- range(c(deltaBoundarySRTM,deltaBoundaryBorder,deltaBoundaryASTER),na.rm=TRUE)   
    
    xAxisLbl <- sprintf("M/SD: ASTER: %.2f / %.2f",mean(deltaBoundaryASTER,na.rm=TRUE),sd(deltaBoundaryASTER,na.rm=TRUE))
-   plot(northRowTbl$ColumnID,deltaBoundaryASTER,xlim=commonXAxis, ylim=commonYAxis,main="Difference along Row Boundary: ASTER",xlab=xAxisLbl,col="red",pch=plotCh1)
+   plot(northRowTbl$ColumnID,deltaBoundaryASTER,xlim=commonXAxis, ylim=commonYAxis,main="Row Boundary Delta: ASTER",xlab=xAxisLbl,col="red",pch=plotCh1)
 
    xAxisLbl <- sprintf("M/SD: BORDER: %.2f / %.2f",mean(deltaBoundaryBorder,na.rm=TRUE),sd(deltaBoundaryBorder,na.rm=TRUE))
-   plot(northRowTbl$ColumnID,deltaBoundaryBorder,xlim=commonXAxis, ylim=commonYAxis,main="Difference along Row Boundary: Border",xlab=xAxisLbl,col="darkgreen",pch=plotCh2)
+   plot(northRowTbl$ColumnID,deltaBoundaryBorder,xlim=commonXAxis, ylim=commonYAxis,main="Row Boundary Delta: Border",sub="E-W Col",xlab=xAxisLbl,col="darkgreen",pch=plotCh2)
 
    xAxisLbl <- sprintf("M/SD: SRTM: %.2f / %.2f",mean(deltaBoundarySRTM,na.rm=TRUE),sd(deltaBoundarySRTM,na.rm=TRUE))
-   plot(northRowTbl$ColumnID,deltaBoundarySRTM,main="Difference along Row Boundary: SRTM",xlim=commonXAxis, ylim=commonYAxis,xlab=xAxisLbl,col="blue",pch=plotCh3)
-message("Three-Plot done")
+   plot(northRowTbl$ColumnID,deltaBoundarySRTM,main="Row Boundary Delta: SRTM",xlim=commonXAxis, ylim=commonYAxis,xlab=xAxisLbl,col="blue",pch=plotCh3)
+   
+message("ColumnID-X-Axis is done")
 browser()
-dev.new()
-   deltaBoundary <- southRowTbl$diffNorthMosaicCDEM - southRowTbl$diffSouthMosaicCDEM
-   xAxisLbl <- sprintf("M/SD: SRTM: %.2f / %.2f",mean(deltaBoundary,na.rm=TRUE),sd(deltaBoundary,na.rm=TRUE))
-   plot(northRowTbl$ColumnID,deltaBoundary,main="Difference along Row Boundary: Border",xlab=xAxisLbl,col="red",pch=plotCh1)
-browser()
-   xAxisLbl <- sprintf("M/SD: AST: %.2f / %.2f BRD: %.2f / %.2f STM: %.2f / %.2f",mean(northRowTbl$elevSouth,na.rm=TRUE),sd(northRowTbl$elevSouth,na.rm=TRUE),
-                                                                            mean(borderRowTbl$elevSouth,na.rm=TRUE),sd(borderRowTbl$elevSouth,na.rm=TRUE),
-                                                                            mean(southRowTbl$elevSouth,na.rm=TRUE),sd(southRowTbl$elevSouth,na.rm=TRUE))
-   plot(northRowTbl$ColumnID,northRowTbl$elevSouth,main="South Mosaic Pixel Elev: ASTER (red) Border (green) SRTM (blue)",xlab=xAxisLbl,col="red",pch=plotCh1)
-   points(borderRowTbl$ColumnID,borderRowTbl$elevSouth,col="darkgreen",pch=plotCh2)
-   points(southRowTbl$ColumnID,southRowTbl$elevSouth,col="blue",pch=plotCh3)
-browser()
-dev.new()
-# Second plot pair: North/South CDEM pixel elevation for North/South subsets 'distance East from Western edge'.
+#dev.new()
 
-   xAxisLbl <- sprintf("M/SD: AST: %.2f / %.2f BRD: %.2f / %.2f STM: %.2f / %.2f",mean(northRowTbl$cdemNorth,na.rm=TRUE),sd(northRowTbl$cdemNorth,na.rm=TRUE),
-                                                                            mean(borderRowTbl$cdemNorth,na.rm=TRUE),sd(borderRowTbl$cdemNorth,na.rm=TRUE),
-                                                                            mean(southRowTbl$cdemNorth,na.rm=TRUE),sd(southRowTbl$cdemNorth,na.rm=TRUE))
-   plot(northRowTbl$ColumnID,northRowTbl$cdemNorth,main="North CDEM Pixel Elev ASTER (r) Border (g) SRTM (b)",xlab=xAxisLbl,col="red",pch=plotCh1)
-   points(borderRowTbl$ColumnID,borderRowTbl$cdemNorth,col="darkgreen",pch=plotCh2)
-   points(southRowTbl$ColumnID,southRowTbl$cdemNorth,col="blue",pch=plotCh3)
-browser()   
-dev.new()
-   xAxisLbl <- sprintf("M/SD: AST: %.2f / %.2f BRD: %.2f / %.2f STM: %.2f / %.2f",mean(northRowTbl$cdemSouth,na.rm=TRUE),sd(northRowTbl$cdemSouth,na.rm=TRUE),
-                                                                            mean(borderRowTbl$cdemSouth,na.rm=TRUE),sd(borderRowTbl$cdemSouth,na.rm=TRUE),
-                                                                            mean(southRowTbl$cdemSouth,na.rm=TRUE),sd(southRowTbl$cdemSouth,na.rm=TRUE))   
-   plot(northRowTbl$ColumnID,northRowTbl$cdemSouth,main="South CDEM Pixel Elev ASTER (r) Border (g) SRTM (b)",xlab=xAxisLbl,col="red",pch=plotCh1)
-   points(borderRowTbl$ColumnID,borderRowTbl$cdemSouth,col="darkgreen",pch=plotCh2)
-   points(southRowTbl$ColumnID,southRowTbl$cdemSouth,col="blue",pch=plotCh3)
-browser()
-dev.new()
+   par(mfrow=c(1,3)) # Create a three column multi-plot pointTable$diffNorthMosaicCDEM/pointTable$elevNorth * 100))
+   
+   commonXAxis <- c(0,max(pointTable$cdemNorth))   
+   commonYAxis <- range(c(deltaBoundarySRTM,deltaBoundaryBorder,deltaBoundaryASTER),na.rm=TRUE)   
+   
+   xAxisLbl <- sprintf("M/SD: ASTER: %.2f / %.2f",mean(deltaBoundaryASTER,na.rm=TRUE),sd(deltaBoundaryASTER,na.rm=TRUE))
+   plot(northRowTbl$cdemNorth,deltaBoundaryASTER,xlim=commonXAxis, ylim=commonYAxis,main="Boundary Delta (CDEM Elev): ASTER",xlab=xAxisLbl,col="red",pch=plotCh1)
 
-message("All plots created - hit key to delete them...")
+   xAxisLbl <- sprintf("M/SD: BORDER: %.2f / %.2f",mean(deltaBoundaryBorder,na.rm=TRUE),sd(deltaBoundaryBorder,na.rm=TRUE))
+   plot(northRowTbl$cdemNorth,deltaBoundaryBorder,xlim=commonXAxis, ylim=commonYAxis,main="Boundary Delta (CDEM Elev): Border",sub="vs Elev",xlab=xAxisLbl,col="darkgreen",pch=plotCh2)
+
+   xAxisLbl <- sprintf("M/SD: SRTM: %.2f / %.2f",mean(deltaBoundarySRTM,na.rm=TRUE),sd(deltaBoundarySRTM,na.rm=TRUE))
+   plot(northRowTbl$cdemNorth,deltaBoundarySRTM,main="Boundary Delta (CDEM Elev): SRTM",xlim=commonXAxis, ylim=commonYAxis,xlab=xAxisLbl,col="blue",pch=plotCh3)
+message("ColumnID-CDEM Elevation done")
+browser()
+   commonXAxis <- c(0,max(pointTable$cdemNorth))   
+   commonYAxis <- range(c(normDeltaBoundarySRTM,normDeltaBoundaryBorder,normDeltaBoundaryASTER),na.rm=TRUE)   
+   
+   xAxisLbl <- sprintf("M/SD: ASTER: %.2f / %.2f",mean(normDeltaBoundaryASTER,na.rm=TRUE),sd(normDeltaBoundaryASTER,na.rm=TRUE))
+   plot(northRowTbl$cdemNorth,normDeltaBoundaryASTER,xlim=commonXAxis, ylim=commonYAxis,main="Norm Bdry Delta (CDEM Elev): ASTER",xlab=xAxisLbl,col="red",pch=plotCh1)
+
+   xAxisLbl <- sprintf("M/SD: BORDER: %.2f / %.2f",mean(normDeltaBoundaryBorder,na.rm=TRUE),sd(normDeltaBoundaryBorder,na.rm=TRUE))
+   plot(northRowTbl$cdemNorth,normDeltaBoundaryBorder,xlim=commonXAxis, ylim=commonYAxis,main="Norm Bdry Delta (CDEM Elev): Border",sub="vs Elev",xlab=xAxisLbl,col="darkgreen",pch=plotCh2)
+
+   xAxisLbl <- sprintf("M/SD: SRTM: %.2f / %.2f",mean(normDeltaBoundarySRTM,na.rm=TRUE),sd(normDeltaBoundarySRTM,na.rm=TRUE))
+   plot(northRowTbl$cdemNorth,normDeltaBoundarySRTM,main="Norm Bdry Delta (CDEM Elev): SRTM",xlim=commonXAxis, ylim=commonYAxis,xlab=xAxisLbl,col="blue",pch=plotCh3)
+message("NORMALIZED ColumnID-CDEM Elevation done")
+browser()
+   commonXAxis <- c(0,max(pointTable$ColumnID))   
+   commonYAxis <- range(c(normDeltaBoundarySRTM,normDeltaBoundaryBorder,normDeltaBoundaryASTER),na.rm=TRUE)   
+   
+   xAxisLbl <- sprintf("M/SD: ASTER: %.2f / %.2f",mean(normDeltaBoundaryASTER,na.rm=TRUE),sd(normDeltaBoundaryASTER,na.rm=TRUE))
+   plot(northRowTbl$ColumnID,normDeltaBoundaryASTER,xlim=commonXAxis, ylim=commonYAxis,main="Norm Bdry Delta: ASTER",xlab=xAxisLbl,col="red",pch=plotCh1)
+
+   xAxisLbl <- sprintf("M/SD: BORDER: %.2f / %.2f",mean(normDeltaBoundaryBorder,na.rm=TRUE),sd(normDeltaBoundaryBorder,na.rm=TRUE))
+   plot(northRowTbl$ColumnID,normDeltaBoundaryBorder,xlim=commonXAxis, ylim=commonYAxis,main="Norm Bdry Delta: Border",sub="E-W Col",xlab=xAxisLbl,col="darkgreen",pch=plotCh2)
+
+   xAxisLbl <- sprintf("M/SD: SRTM: %.2f / %.2f",mean(normDeltaBoundarySRTM,na.rm=TRUE),sd(normDeltaBoundarySRTM,na.rm=TRUE))
+   plot(northRowTbl$ColumnID,normDeltaBoundarySRTM,main="Norm Bdry Delta: SRTM",xlim=commonXAxis, ylim=commonYAxis,xlab=xAxisLbl,col="blue",pch=plotCh3)
+   
+message("NORMALIZED ColumnID-X-Axis is done...")
+message("...All plots created - hit key to delete them...")
 browser()
 graphics.off()
 } 
