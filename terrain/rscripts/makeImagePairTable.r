@@ -8,6 +8,10 @@
 #
 # Author: Rick Reeves, NCEAS
 # May 4, 2011
+# May 17: This version includes raster() extents and input
+#         image names used to create the (normalized)boundary  
+#         area Difference Image scatterplots used in the most
+#         recent 'boundary analysis'
 ##############################################################################################
 #
 makeImagePairTable <- function()
@@ -34,8 +38,7 @@ rDeltaWhole@data@values <-getValues(rDeltaWhole)
 # the ASTER and SRTM/CGIAR image components are merged at the 60 Deg N Latitude line.
 
 #eTestAreaExtent <- extent(-135.2,-100.2, 59.997,60.001) # Creates a 5 row subimage
-eTestAreaExtent <- extent(-135.2,-100.2, 59.995,60.005) # Creates a 12 row subimage
-#eTestAreaExtent <- extent(-135.0,-105.0, 59.990,60.010) # Creates a 24 row subimage
+eTestAreaExtent <- extent(-135.0,-105.0, 59.995,60.005) # Creates a 12 row, 36000 col subimage
 
 # Extract a sub image corresponding to the selected extent.
 # Two different alternatives:
@@ -59,7 +62,8 @@ rEdgeRegionDelta <- rEdgeRegionMosaic - rEdgeRegionCDEM
 # get a vector of random column index numbers, constrained by column dimension of image
 # Loop three times, sampling pixel pairs from above, below, across the border
 
-nColsToGet <- 2000
+nColsToGet <- 36000 # Latest input images on even boundary have 36000 columns
+
 iDiffVecNorth <- vector(mode="integer",length=nColsToGet)
 
 iDiffVecBorder <- vector(mode="integer",length=nColsToGet)
@@ -116,6 +120,6 @@ for (iNextCol in colsToGet)
 
 message("end of loop - hit key to write output table..")
 browser()
-write.csv(mOutTable,file="/data/project/organisms/rcr/tableForRick2000_5_8Even.csv",row.names=FALSE)
+write.csv(mOutTable,file="/data/project/organisms/rcr/ValidateBoundary/pixelPairs36000_5_8Even.csv",row.names=FALSE)
 #
 }
