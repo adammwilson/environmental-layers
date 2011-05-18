@@ -11,7 +11,8 @@
 #   1) Comma Separated Value (CSV) table containing randomly-sampled elevation value pairs,
 #      extracted from ASTER/CGIAR mosaic and CDEM images, created by the R script: makeImagePairTable.r
 #      Note: At present, be sure that this file has been sorted by column 1 (ColumnID) in Excel
-#      before using in this program.
+#      before using in this program. 
+#      NOTE: This filename is set in the body of the script.
 #
 #   2) sampling factor: integer (range=1 to number of recors in input table. Determines
 #      the size of randomly-selected sampe of total table record 'triplets' (north, border,
@@ -19,7 +20,8 @@
 #           sampling factor = 1  : plot every table record
 #                             10 : plot a random sample containing 1/10th of records
 #                            100 : plot random sample containing 1/100th of records.
-# 
+#   3) JpgPlotFileFlag: Set to TRUE to have *individual* plots written to JPG files.
+#
 # To run:
 #
 #  1) place this file and the input file "tableForMark4000_5_8_SortColID.csv" in folder
@@ -32,20 +34,19 @@
 # Author: Rick Reeves, NCEAS
 # May 14, 2011
 # May 17, 2011: This version generates 'delta scatterplots' specified by Mark and Jim.
+# May 18, 2011: If JpgPlotFlag set, write individual plot files to JPG files.
 ##############################################################################################
-CreateImageDiffPlots <- function(plotSampFact = 1)
+CreateImageDiffPlots <- function(plotSampFact = 1,JpgPlotFileFlag = TRUE)
 {
-# Check plotSampleFact range  
+
+# Check plotSampleFact range
 
    if (plotSampFact < 1)
       plotSampFact = 1
       
-#   if (plotSampFact > )
-#      plotSampFact = 100
- 
 # Read input table that was sorted OFFLINE in Excel on the first column (ColumnID)
 
-   pointTable <-read.csv("pixelPairs36000_5_8EvenSortCol1.csv")
+   pointTable <-read.csv("pixelPairs36000_5_8_TS.csv")
 # Table created by randomly sampling from two superimposed 
 # image: 
 #  1) DOM mosaic image comprised of ASTER and SRTM components.
@@ -136,8 +137,6 @@ browser()
 
 # We need to tailor the plot 'triplet' X and Y axes to the dynamic ranges of all three data sets.
 
-
-
 # Create values for the three 'delta across pixel boundaries' plots: 
 #  1) Y-Axis: columnIDs 
 #  2) Y-Axis: CDEM elevations
@@ -151,48 +150,39 @@ browser()
    normDeltaBoundaryBorder <- (deltaBoundaryBorder / borderRowTbl$cdemNorth * 100)  
    normDeltaBoundarySRTM <-   (deltaBoundarySRTM / southRowTbl$cdemNorth * 100)
    
-   par(mfrow=c(1,3)) # Create a three column multi-plot
+   par(mfrow=c(3,1)) # Create a set of three column multi-plots
    
    commonXAxis <- c(0,max(pointTable$ColumnID))   
    commonYAxis <- range(c(deltaBoundarySRTM,deltaBoundaryBorder,deltaBoundaryASTER),na.rm=TRUE)   
-   
+
    xAxisLbl <- sprintf("M/SD: ASTER: %.2f / %.2f",mean(deltaBoundaryASTER,na.rm=TRUE),sd(deltaBoundaryASTER,na.rm=TRUE))
    plot(northRowTbl$ColumnID,deltaBoundaryASTER,xlim=commonXAxis, ylim=commonYAxis,main="Row Boundary Delta: ASTER",xlab=xAxisLbl,col="red",pch=plotCh1)
-
    xAxisLbl <- sprintf("M/SD: BORDER: %.2f / %.2f",mean(deltaBoundaryBorder,na.rm=TRUE),sd(deltaBoundaryBorder,na.rm=TRUE))
    plot(northRowTbl$ColumnID,deltaBoundaryBorder,xlim=commonXAxis, ylim=commonYAxis,main="Row Boundary Delta: Border",sub="E-W Col",xlab=xAxisLbl,col="darkgreen",pch=plotCh2)
-
    xAxisLbl <- sprintf("M/SD: SRTM: %.2f / %.2f",mean(deltaBoundarySRTM,na.rm=TRUE),sd(deltaBoundarySRTM,na.rm=TRUE))
-   plot(northRowTbl$ColumnID,deltaBoundarySRTM,main="Row Boundary Delta: SRTM",xlim=commonXAxis, ylim=commonYAxis,xlab=xAxisLbl,col="blue",pch=plotCh3)
-   
+   plot(northRowTbl$ColumnID,deltaBoundarySRTM,main="Boundary Delta: SRTM",xlim=commonXAxis, ylim=commonYAxis,xlab=xAxisLbl,col="blue",pch=plotCh3)
 message("ColumnID-X-Axis is done")
 browser()
 #dev.new()
-
-   par(mfrow=c(1,3)) # Create a three column multi-plot pointTable$diffNorthMosaicCDEM/pointTable$elevNorth * 100))
+#   par(mfrow=c(3,1)) # Create a three column multi-plot pointTable$diffNorthMosaicCDEM/pointTable$elevNorth * 100))
    
    commonXAxis <- c(0,max(pointTable$cdemNorth))   
    commonYAxis <- range(c(deltaBoundarySRTM,deltaBoundaryBorder,deltaBoundaryASTER),na.rm=TRUE)   
    
    xAxisLbl <- sprintf("M/SD: ASTER: %.2f / %.2f",mean(deltaBoundaryASTER,na.rm=TRUE),sd(deltaBoundaryASTER,na.rm=TRUE))
    plot(northRowTbl$cdemNorth,deltaBoundaryASTER,xlim=commonXAxis, ylim=commonYAxis,main="Boundary Delta (CDEM Elev): ASTER",xlab=xAxisLbl,col="red",pch=plotCh1)
-
    xAxisLbl <- sprintf("M/SD: BORDER: %.2f / %.2f",mean(deltaBoundaryBorder,na.rm=TRUE),sd(deltaBoundaryBorder,na.rm=TRUE))
    plot(northRowTbl$cdemNorth,deltaBoundaryBorder,xlim=commonXAxis, ylim=commonYAxis,main="Boundary Delta (CDEM Elev): Border",sub="vs Elev",xlab=xAxisLbl,col="darkgreen",pch=plotCh2)
-
    xAxisLbl <- sprintf("M/SD: SRTM: %.2f / %.2f",mean(deltaBoundarySRTM,na.rm=TRUE),sd(deltaBoundarySRTM,na.rm=TRUE))
    plot(northRowTbl$cdemNorth,deltaBoundarySRTM,main="Boundary Delta (CDEM Elev): SRTM",xlim=commonXAxis, ylim=commonYAxis,xlab=xAxisLbl,col="blue",pch=plotCh3)
 message("ColumnID-CDEM Elevation done")
 browser()
    commonXAxis <- c(0,max(pointTable$cdemNorth))   
    commonYAxis <- range(c(normDeltaBoundarySRTM,normDeltaBoundaryBorder,normDeltaBoundaryASTER),na.rm=TRUE)   
-   
    xAxisLbl <- sprintf("M/SD: ASTER: %.2f / %.2f",mean(normDeltaBoundaryASTER,na.rm=TRUE),sd(normDeltaBoundaryASTER,na.rm=TRUE))
    plot(northRowTbl$cdemNorth,normDeltaBoundaryASTER,xlim=commonXAxis, ylim=commonYAxis,main="Norm Bdry Delta (CDEM Elev): ASTER",xlab=xAxisLbl,col="red",pch=plotCh1)
-
    xAxisLbl <- sprintf("M/SD: BORDER: %.2f / %.2f",mean(normDeltaBoundaryBorder,na.rm=TRUE),sd(normDeltaBoundaryBorder,na.rm=TRUE))
    plot(northRowTbl$cdemNorth,normDeltaBoundaryBorder,xlim=commonXAxis, ylim=commonYAxis,main="Norm Bdry Delta (CDEM Elev): Border",sub="vs Elev",xlab=xAxisLbl,col="darkgreen",pch=plotCh2)
-
    xAxisLbl <- sprintf("M/SD: SRTM: %.2f / %.2f",mean(normDeltaBoundarySRTM,na.rm=TRUE),sd(normDeltaBoundarySRTM,na.rm=TRUE))
    plot(northRowTbl$cdemNorth,normDeltaBoundarySRTM,main="Norm Bdry Delta (CDEM Elev): SRTM",xlim=commonXAxis, ylim=commonYAxis,xlab=xAxisLbl,col="blue",pch=plotCh3)
 message("NORMALIZED ColumnID-CDEM Elevation done")
@@ -202,14 +192,79 @@ browser()
    
    xAxisLbl <- sprintf("M/SD: ASTER: %.2f / %.2f",mean(normDeltaBoundaryASTER,na.rm=TRUE),sd(normDeltaBoundaryASTER,na.rm=TRUE))
    plot(northRowTbl$ColumnID,normDeltaBoundaryASTER,xlim=commonXAxis, ylim=commonYAxis,main="Norm Bdry Delta: ASTER",xlab=xAxisLbl,col="red",pch=plotCh1)
-
    xAxisLbl <- sprintf("M/SD: BORDER: %.2f / %.2f",mean(normDeltaBoundaryBorder,na.rm=TRUE),sd(normDeltaBoundaryBorder,na.rm=TRUE))
    plot(northRowTbl$ColumnID,normDeltaBoundaryBorder,xlim=commonXAxis, ylim=commonYAxis,main="Norm Bdry Delta: Border",sub="E-W Col",xlab=xAxisLbl,col="darkgreen",pch=plotCh2)
-
    xAxisLbl <- sprintf("M/SD: SRTM: %.2f / %.2f",mean(normDeltaBoundarySRTM,na.rm=TRUE),sd(normDeltaBoundarySRTM,na.rm=TRUE))
    plot(northRowTbl$ColumnID,normDeltaBoundarySRTM,main="Norm Bdry Delta: SRTM",xlim=commonXAxis, ylim=commonYAxis,xlab=xAxisLbl,col="blue",pch=plotCh3)
-   
 message("NORMALIZED ColumnID-X-Axis is done...")
+
+# if 'plot flag' is set, send the plots to a JPG file. 
+
+if (JpgPlotFileFlag)
+{
+  message("creating JPG plot files...")
+  browser()
+jpeg(file="RowBoundaryDeltaColIDXAxisASTER.jpg")
+   xAxisLbl <- sprintf("M/SD: ASTER: %.2f / %.2f",mean(deltaBoundaryASTER,na.rm=TRUE),sd(deltaBoundaryASTER,na.rm=TRUE))
+   plot(northRowTbl$ColumnID,deltaBoundaryASTER,xlim=commonXAxis, ylim=commonYAxis,main="Row Boundary Delta: ASTER",xlab=xAxisLbl,col="red",pch=plotCh1)
+dev.off()
+jpeg(file="RowBoundaryDeltaColIDXAxisBORDER.jpg")   
+   xAxisLbl <- sprintf("M/SD: BORDER: %.2f / %.2f",mean(deltaBoundaryBorder,na.rm=TRUE),sd(deltaBoundaryBorder,na.rm=TRUE))
+   plot(northRowTbl$ColumnID,deltaBoundaryBorder,xlim=commonXAxis, ylim=commonYAxis,main="Row Boundary Delta: Border",sub="E-W Col",xlab=xAxisLbl,col="darkgreen",pch=plotCh2)
+dev.off()
+jpeg(file="RowBoundaryDeltaColIDXAxisSRTM.jpg")   
+   xAxisLbl <- sprintf("M/SD: SRTM: %.2f / %.2f",mean(deltaBoundarySRTM,na.rm=TRUE),sd(deltaBoundarySRTM,na.rm=TRUE))
+   plot(northRowTbl$ColumnID,deltaBoundarySRTM,main="Row Boundary Delta: SRTM",xlim=commonXAxis, ylim=commonYAxis,xlab=xAxisLbl,col="blue",pch=plotCh3)
+message("ColumnID-X-Axis plots are  done")
+#dev.new()
+   commonXAxis <- c(0,max(pointTable$cdemNorth))   
+   commonYAxis <- range(c(deltaBoundarySRTM,deltaBoundaryBorder,deltaBoundaryASTER),na.rm=TRUE)   
+jpeg(file="RowBoundaryDeltaCDEMElevXAxisASTER.jpg")
+   xAxisLbl <- sprintf("M/SD: ASTER: %.2f / %.2f",mean(deltaBoundaryASTER,na.rm=TRUE),sd(deltaBoundaryASTER,na.rm=TRUE))
+   plot(northRowTbl$cdemNorth,deltaBoundaryASTER,xlim=commonXAxis, ylim=commonYAxis,main="Boundary Delta (CDEM Elev): ASTER",xlab=xAxisLbl,col="red",pch=plotCh1)
+dev.off()
+jpeg(file="RowBoundaryDeltaCDEMElevXAxisBORDER.jpg")
+   xAxisLbl <- sprintf("M/SD: BORDER: %.2f / %.2f",mean(deltaBoundaryBorder,na.rm=TRUE),sd(deltaBoundaryBorder,na.rm=TRUE))
+   plot(northRowTbl$cdemNorth,deltaBoundaryBorder,xlim=commonXAxis, ylim=commonYAxis,main="Boundary Delta (CDEM Elev): Border",sub="vs Elev",xlab=xAxisLbl,col="darkgreen",pch=plotCh2)
+dev.off()
+jpeg(file="RowBoundaryDeltaCDEMElevXAxisCDEM.jpg")
+   xAxisLbl <- sprintf("M/SD: SRTM: %.2f / %.2f",mean(deltaBoundarySRTM,na.rm=TRUE),sd(deltaBoundarySRTM,na.rm=TRUE))
+   plot(northRowTbl$cdemNorth,deltaBoundarySRTM,main="Boundary Delta (CDEM Elev): SRTM",xlim=commonXAxis, ylim=commonYAxis,xlab=xAxisLbl,col="blue",pch=plotCh3)
+dev.off()
+message("ColumnID-CDEM Elevation Plots are done")
+#browser()
+   commonXAxis <- c(0,max(pointTable$cdemNorth))   
+   commonYAxis <- range(c(normDeltaBoundarySRTM,normDeltaBoundaryBorder,normDeltaBoundaryASTER),na.rm=TRUE)   
+jpeg(file="NormRowBoundaryDeltaColIDXAxisASTER.jpg")
+   xAxisLbl <- sprintf("M/SD: ASTER: %.2f / %.2f",mean(normDeltaBoundaryASTER,na.rm=TRUE),sd(normDeltaBoundaryASTER,na.rm=TRUE))
+   plot(northRowTbl$cdemNorth,normDeltaBoundaryASTER,xlim=commonXAxis, ylim=commonYAxis,main="Norm Bdry Delta (CDEM Elev): ASTER",xlab=xAxisLbl,col="red",pch=plotCh1)
+dev.off()
+jpeg(file="NormRowBoundaryDeltaColIDXAxisBORDER.jpg")
+   xAxisLbl <- sprintf("M/SD: BORDER: %.2f / %.2f",mean(normDeltaBoundaryBorder,na.rm=TRUE),sd(normDeltaBoundaryBorder,na.rm=TRUE))
+   plot(northRowTbl$cdemNorth,normDeltaBoundaryBorder,xlim=commonXAxis, ylim=commonYAxis,main="Norm Bdry Delta (CDEM Elev): Border",sub="vs Elev",xlab=xAxisLbl,col="darkgreen",pch=plotCh2)
+dev.off()
+jpeg(file="NormRowBoundaryDeltaColIDXAxisSRTM.jpg")
+   xAxisLbl <- sprintf("M/SD: SRTM: %.2f / %.2f",mean(normDeltaBoundarySRTM,na.rm=TRUE),sd(normDeltaBoundarySRTM,na.rm=TRUE))
+   plot(northRowTbl$cdemNorth,normDeltaBoundarySRTM,main="Norm Bdry Delta (CDEM Elev): SRTM",xlim=commonXAxis, ylim=commonYAxis,xlab=xAxisLbl,col="blue",pch=plotCh3)
+dev.off()
+message("NORMALIZED ColumnID-CDEM Elevation Plots are done")
+browser()
+   commonXAxis <- c(0,max(pointTable$ColumnID))   
+   commonYAxis <- range(c(normDeltaBoundarySRTM,normDeltaBoundaryBorder,normDeltaBoundaryASTER),na.rm=TRUE)   
+jpeg(file="NormRowBoundaryDeltaCDEMElevXAxisASTER.jpg")   
+   xAxisLbl <- sprintf("M/SD: ASTER: %.2f / %.2f",mean(normDeltaBoundaryASTER,na.rm=TRUE),sd(normDeltaBoundaryASTER,na.rm=TRUE))
+   plot(northRowTbl$ColumnID,normDeltaBoundaryASTER,xlim=commonXAxis, ylim=commonYAxis,main="Norm Bdry Delta: ASTER",xlab=xAxisLbl,col="red",pch=plotCh1)
+dev.off()
+jpeg(file="NormRowBoundaryDeltaCDEMElevXAxisBORDER.jpg")
+   xAxisLbl <- sprintf("M/SD: BORDER: %.2f / %.2f",mean(normDeltaBoundaryBorder,na.rm=TRUE),sd(normDeltaBoundaryBorder,na.rm=TRUE))
+   plot(northRowTbl$ColumnID,normDeltaBoundaryBorder,xlim=commonXAxis, ylim=commonYAxis,main="Norm Bdry Delta: Border",sub="E-W Col",xlab=xAxisLbl,col="darkgreen",pch=plotCh2)
+dev.off()
+jpeg(file="NormRowBoundaryDeltaCDEMElevXAxisSRTM.jpg")
+   xAxisLbl <- sprintf("M/SD: SRTM: %.2f / %.2f",mean(normDeltaBoundarySRTM,na.rm=TRUE),sd(normDeltaBoundarySRTM,na.rm=TRUE))
+   plot(northRowTbl$ColumnID,normDeltaBoundarySRTM,main="Norm Bdry Delta: SRTM",xlim=commonXAxis, ylim=commonYAxis,xlab=xAxisLbl,col="blue",pch=plotCh3)
+dev.off()   
+message("NORMALIZED ColumnID-X-Axis Plot files have been created..")
+}
 message("...All plots created - hit key to delete them...")
 browser()
 graphics.off()
