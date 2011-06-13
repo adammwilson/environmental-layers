@@ -26,8 +26,8 @@
 #
 #  1) place this file and the input file "tableForMark4000_5_8_SortColID.csv" in folder
 #  2) start R
-#  3) > source("CreateImageDiffPlotsOverlay.r")
-#  4) > CreateImageDiffPlots(sampling factor)
+#  3) > source("CreateImageDiffPlotsOverlayNewPlots.r")
+#  4) > CreateImageDiffPlots(sampling factor, JpegFlag)
 #     < press <cr> key to view plots sequentially
 #  
 # TODO: add symbol legend to each plot.
