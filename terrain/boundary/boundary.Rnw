@@ -154,7 +154,7 @@ a fused 3" ASTER/SRTM DEM. I also explored (and briefly describe below) two
 additional approaches to fusing the layers, but do not include further
 assessment of these here.
 
-\subparagraph{Simple fusion} Naive concatentation of SRTM below 60\N with
+\subparagraph{Simple fusion} Naive concatenation of SRTM below 60\N with
 ASTER above 60\N, without applying any modifications to deal with
 boundary artifacts (Figure \ref{blend-simple}).
 
@@ -199,7 +199,7 @@ document.
 
 \emph{Fused with exponential ramp north of 60\N.}
 The first step was to take the pixel-wise difference between SRTM and
-ASTER in the row immediately below 60\N (i.e., the northmost extent of
+ASTER in the row immediately below 60\N (i.e., the northernmost extent of
 SRTM). An exponentially declining fraction of this difference was then
 then added back into the ASTER values north of 60\N. This does a fine
 job of eliminating the artificial shelf and thus the appearance of a
@@ -300,7 +300,7 @@ and quartiles ranging from \Sexpr{delta.q["25%"]} to
 than SRTM for \Sexpr{round(100*mean(d.delta.vals>0))}\% of pixels (see
 Figure \ref{aster-srtm-scatter}). Thus, although adding a constant
 offset of \Sexpr{-delta.median} meters to the ASTER DEM would clearly
-center it with respect to the STRM (at least in the Canada focal
+center it with respect to the SRTM (at least in the Canada focal
 region), appreciable differences would remain. Figure
 \ref{aster-srtm-scatter} also highlights the existence of several
 obviously spurious ASTER spikes of >1000m; although not shown here,
@@ -310,7 +310,7 @@ false elevation readings associated with clouds?
 Not surprisingly, simple fusion produces an artificial $\sim$12m cliff
 in the mean elevation profile (Figure \ref{mean-elevation}). At least in
 terms of mean elevation, this artifact is completely removed by both the
-multiresolution spline and gaussian weighted average methods. The
+multiresolution spline and Gaussian weighted average methods. The
 transition is, to the eye, slightly smoother in the former case,
 although ultimately this would depend on the chosen zone of overlap and
 on the exact parameterization of the weighting function.
@@ -320,7 +320,7 @@ mean SRTM slope at all latitudes in the area of overlap, by nearly 1
 degree (Figure \ref{mean-slope}). However, the shape of the profile
 itself is nearly identical between the two. Although this may partly
 reflect inherent SRTM vs ASTER differences, my guess is that CGIAR
-postprocessing of the particular SRTM product we're using has removed
+post-processing of the particular SRTM product we're using has removed
 some of the high frequency ``noise'' that remains in ASTER?
 \textbf{\color{red}[todo: check!]}
 
@@ -386,7 +386,7 @@ the immediate boundary, the mean aspect is northward, as one would
 expect in the presence of a cliff artifact at the seam.
 
 Interestingly, the aspect layers derived from the two blended DEMs
-(muliresolution spline and Gaussian weighted average) exhibit a
+(multiresolution spline and Gaussian weighted average) exhibit a
 consistent mean northward inclination at all latitudes in their
 respective fusion zones. This pattern is visually obvious at latitudes
 between 59.95\N and 60\N in the bottom two panels of Figure
@@ -439,7 +439,7 @@ pattern previously noted in the profiles of mean slope itself, is that
 Gaussian weighted averaging produces a layer that exhibits a gradual
 transition from ASTER to SRTM, whereas the multiresolution spline yields
 an abrupt transition. Not surprisingly, the simple fused layer is even
-worse, producing not only a sudden transiton but also abberant values
+worse, producing not only a sudden transition but also aberrant values
 at the fusion seam itself; note downward (upward) spikes in correlation
 (RMSE) at 60\N in the first column of plots in Figures \ref{corr-slope}
 and \ref{rmse-slope}.
@@ -511,7 +511,7 @@ Aside from an expected flow artifact at the southern image edge, and an
 unexpected (and as-yet unexplained) negative spike at $\sim$59.95\N, the
 correlation profiles are fairly well-behaved for both blended layers,
 and don't show the same odd behavior as was the case for aspect. Again
-it is clear that the multiresultion spline results in a much more abrupt
+it is clear that the multiresolution spline results in a much more abrupt
 transition than does the Gaussian weighted average. The RMSE flow
 direction profiles echo this pattern (Figure \ref{rmse-flowdir}), and
 indeed look almost the same as those computed using aspect (Figure
