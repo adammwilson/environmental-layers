@@ -22,13 +22,13 @@ d.can <- raster(file.path(datadir, "cdem_300straddle.tif"))
 lats300 <- yFromRow(d.aster, 1:nrow(d.aster))
 lats150 <- yFromRow(d.srtm, 1:nrow(d.srtm))
 
-# initialize output pdf device driver
-pdf("elevation-assessment.pdf", height=8, width=11.5)
-
 
 #
 # plot latitudinal profiles of mean elevation
 #
+
+# initialize output pdf device driver
+pdf("elevation-assessment.pdf", height=8, width=11.5)
 
 par(mfrow=c(2,2), omi=c(1,1,1,1))
 
@@ -192,4 +192,74 @@ abline(v=60, col="red", lty=2)
 
 # close pdf device driver
 dev.off()
+
+#
+# plot pattern of ASTER-SRTM deltas as a function of ASTER elevation
+#
+
+plotMeanDeltaByElev <- function(delta.vals, elev, ...) {
+    mean.by.elev <- tapply(delta.vals, elev, mean)
+    sd.by.elev <- tapply(delta.vals, elev, sd)
+    n.by.elev <- tapply(delta.vals, elev, length)
+    se.by.elev <- sd.by.elev/sqrt(n.by.elev)
+    na.se.points <- mean.by.elev[is.na(se.by.elev)]
+    se.by.elev[is.na(se.by.elev)] <- 0
+    elev <- as.numeric(names(mean.by.elev))
+    plot(elev, mean.by.elev, pch=16,
+        xlim=c(0, max(elev)), ylim=c(min(mean.by.elev -
+        se.by.elev), max(mean.by.elev + se.by.elev)), type="n", ...)
+    segments(elev, mean.by.elev-se.by.elev,
+        as.numeric(names(mean.by.elev)), mean.by.elev+se.by.elev,
+        col="grey")
+    points(elev, mean.by.elev, pch=".")
+    points(as.numeric(names(na.se.points)), na.se.points, pch=4,
+        col="red", cex=0.5)
+}
+
+
+d.aster.crop.vals <- values(crop(d.aster, extent(d.srtm)))
+d.srtm.vals <- values(d.srtm)
+delta.vals <- d.aster.crop.vals - d.srtm.vals
+plotMeanDeltaByElev(delta.vals, d.aster.crop.vals,
+    xlab="ASTER elevation (m)", ylab="ASTER-SRTM difference (m)")
+
+plotDeltaBins <- function(delta.vals, elev, bin.min, bin.width, bin.max=1500,
+    outline=FALSE, ...) {
+    breaks <- seq(bin.min, bin.max, by=bin.width)
+    midpts <- c(
+        paste("<", bin.min, sep=""),
+        head(breaks, -1) + bin.width/2,
+        paste(">", bin.max, sep=""))
+    elev <- cut(elev, breaks=c(0, breaks, Inf), labels=midpts)
+    bp <- boxplot(delta.vals ~ elev, outline=outline, col="lightgray",
+        frame=FALSE, ...)
+    text(1:length(bp$n), bp$stats[5,], labels=round(bp$n/1000),
+        pos=3, cex=0.5, offset=0.2, font=3, col="gray")
+    #axis(3, at=seq_along(bp$n), labels=paste(round(bp$n/1000), "k", sep=""),
+    #    cex.axis=0.7, tick=FALSE, font=3, line=-1)
+    #mtext("n =", side=3, adj=0, font=3, cex=0.7)
+    abline(h=median(delta.vals), col="red", lty=2)
+    invisible(bp)
+}
+
+d.aster.crop.vals <- values(crop(d.aster, extent(d.srtm)))
+d.srtm.vals <- values(d.srtm)
+delta.vals <- d.aster.crop.vals - d.srtm.vals
+#  d.aster.crop.vals <- d.aster.crop.vals[d.srtm.vals>0]
+#  d.srtm.vals <- d.srtm.vals[d.srtm.vals>0]
+
+png("aster-srtm-bins.png", height=5, width=8, units="in", res=300)
+plotDeltaBins(delta.vals, d.aster.crop.vals, 150, 50, 1500, las=2,
+    cex.axis=0.8, xlab="Midpoints of ASTER elevation bins (m)",
+    ylab="(ASTER - SRTM)")
+dev.off()
+
+# plot scatter of aster vs srtm
+png("aster-srtm-scatter.png", height=5, width=8, units="in", res=300)
+plot(jitter(d.srtm.vals), jitter(d.aster.crop.vals), pch=".",
+    xlab="SRTM elevation (m)", ylab="ASTER elevation (m)", cex=0.5)
+abline(median(delta.vals), 1, col="red", cex=0.5)
+abline(0, 1, col="blue", lty=2, cex=0.5)
+dev.off()
+
 
