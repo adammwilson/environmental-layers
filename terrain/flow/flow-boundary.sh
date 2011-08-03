@@ -1,4 +1,6 @@
-# GRASS commands -- testing some stuff for flow direction
+# GRASS commands for running terraflow on raw and fused DEMs in the
+# 60N Canada boundary region, currently for the purposes of assessing
+# and comparing flow direction.
 #
 # Jim Regetz
 # NCEAS
@@ -18,10 +20,11 @@ r.in.gdal input=$DEMDIR/srtm_150below.tif output=srtm_150below
 r.in.gdal input=$DEMDIR/fused_300straddle.tif output=fused_300straddle
 r.in.gdal input=$DEMDIR/fused_300straddle_rampexp.tif output=fused_300straddle_rampexp
 r.in.gdal input=$DEMDIR/fused_300straddle_blendgau.tif output=fused_300straddle_blendgau
+r.in.gdal input=$DEMDIR/fused_300straddle_enblend.tif output=fused_300straddle_enblend
 
 # oops -- region is too big for terraflow default of using
 # dimension_type (i.e., short), which means nrows and ncols are both
-# capped at ~30K:
+# capped at ~30K (2^15):
 #  ERROR: [nrows=300, ncols=48000] dimension_type overflow -- change
 #         dimension_type and recompile
 # so let's restrict it to a smaller lon range for now...
@@ -41,6 +44,9 @@ r.terraflow.short elevation=fused_300straddle filled=filled_fused \
 r.terraflow.short elevation=fused_300straddle_blendgau filled=filled_fused_bg \
   direction=direction_fused_bg swatershed=swatershed_fused_bg \
   accumulation=accumulation_fused_bg tci=tci_fused_bg
+r.terraflow.short elevation=fused_300straddle_enblend filled=filled_fused_mrs \
+  direction=direction_fused_mrs swatershed=swatershed_fused_mrs \
+  accumulation=accumulation_fused_mrs tci=tci_fused_mrs
 
 # now with SFD (D8) algorithm
 # each took ~1 min on xander (22-Jun-2011)
@@ -56,8 +62,11 @@ r.terraflow.short -s elevation=fused_300straddle filled=filled_fused_sfd \
 r.terraflow.short -s elevation=fused_300straddle_blendgau filled=filled_fused_bg_sfd \
   direction=direction_fused_bg_sfd swatershed=swatershed_fused_bg_sfd \
   accumulation=accumulation_fused_bg_sfd tci=tci_fused_bg_sfd
+r.terraflow.short -s elevation=fused_300straddle_enblend filled=filled_fused_mrs_sfd \
+  direction=direction_fused_mrs_sfd swatershed=swatershed_fused_mrs_sfd \
+  accumulation=accumulation_fused_mrs_sfd tci=tci_fused_mrs_sfd
 
-# export flow dir rasters as tif
+# export flow dir rasters as geotiffs
 r.out.gdal input=direction_cdem output=$FLOWDIR/cdem_300straddle_mfd.tif
 r.out.gdal input=direction_cdem_sfd output=$FLOWDIR/cdem_300straddle_sfd.tif
 r.out.gdal input=direction_aster output=$FLOWDIR/aster_300straddle_mfd.tif
@@ -66,8 +75,10 @@ r.out.gdal input=direction_fused output=$FLOWDIR/fused_300straddle_mfd.tif
 r.out.gdal input=direction_fused_sfd output=$FLOWDIR/fused_300straddle_sfd.tif
 r.out.gdal input=direction_fused_bg output=$FLOWDIR/fused_300straddle_blendgau_mfd.tif
 r.out.gdal input=direction_fused_bg_sfd output=$FLOWDIR/fused_300straddle_blendgau_sfd.tif
+r.out.gdal input=direction_fused_mrs output=$FLOWDIR/fused_300straddle_enblend_mfd.tif
+r.out.gdal input=direction_fused_mrs_sfd output=$FLOWDIR/fused_300straddle_enblend_sfd.tif
 
-# export flow accum
+# export flow accumulation
 r.out.gdal input=accumulation_fused_bg output=$FLOWDIR/fused_300straddle_blendgau_fa.tif
 r.out.gdal input=accumulation_cdem output=$FLOWDIR/cdem_300straddle_fa.tif
 r.out.gdal input=accumulation_aster output=$FLOWDIR/aster_300straddle_fa.tif
@@ -83,6 +94,7 @@ r.terraflow.short -s elevation=srtm_150below filled=filled_srtm_sfd \
 r.out.gdal input=direction_srtm output=$FLOWDIR/srtm_150below_mfd.tif
 r.out.gdal input=direction_srtm_sfd output=$FLOWDIR/srtm_150below_sfd.tif
 r.out.gdal input=accumulation_srtm output=$FLOWDIR/srtm_150below_fa.tif
+# don't forget to set the region back to include cells above the 60N boundary...
 g.region n=60.125 s=59.875 w=-125 e=-100
 
 
