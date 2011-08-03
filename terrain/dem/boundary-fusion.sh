@@ -1,6 +1,8 @@
 # GDAL commands to produced fused DEMs in the vicinity of the 60N Canada
 # boundary, using several "boundary-corrected" variants as well as the
-# original uncorrected DEMs.
+# original uncorrected DEMs. Note that the multiresolution spline is not
+# included here, because the associated fused layer is already produced
+# in its entirety during that process.
 #
 # Jim Regetz
 # NCEAS

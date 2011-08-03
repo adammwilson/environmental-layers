@@ -4,7 +4,6 @@
 #
 # Jim Regetz
 # NCEAS
-# Created 15-Jun-2011
 
 export DEMDIR=~/media/temp/terrain/dem
 export FLOWDIR=~/media/temp/terrain/flow

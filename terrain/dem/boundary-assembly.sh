@@ -21,7 +21,6 @@
 #
 # Jim Regetz
 # NCEAS
-# Created on 08-Jun-2011
 
 # at the time of script creation, these paths were correct on vulcan
 export ASTDIR="/home/reeves/active_work/EandO/asterGdem"

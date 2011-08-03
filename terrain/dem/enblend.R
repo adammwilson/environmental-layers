@@ -11,7 +11,6 @@
 #
 # Jim Regetz
 # NCEAS
-# Created on 29-Jun-2011
 
 library(raster)
 

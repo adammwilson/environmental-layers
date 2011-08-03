@@ -4,7 +4,6 @@
 #
 # Jim Regetz
 # NCEAS
-# Created on 08-Jun-2011
 
 library(raster)
 
@@ -29,11 +28,10 @@ delta.south <- srtm.south - aster.south
 aster.north.matrix <- as.matrix(aster.north)
 ydistN <- nrow(aster.north.matrix) + 1 - row(aster.north.matrix)
 
-# 1b. linear ramp north from SRTM edge
-# -- Rick is doing this --
+# 1a. linear ramp north from SRTM edge
+# -- Rick has done this --
 
-# 2b. exponential ramp north from SRTM edge
-# -- Rick is also doing this, but here it is... --
+# 1b. exponential ramp north from SRTM edge
 r <- -0.045
 w <- exp(ydistN*r)
 aster.north.smooth <- aster.north
@@ -111,4 +109,3 @@ aster.south.smooth[] <- values(srtm.south) - as.integer(round(t(w *
     as.matrix(delta.south))))
 aster.south.smooth[aster.south.smooth<0] <- 0
 writeRaster(aster.south.smooth, file="dem_150below_blendgau.tif")
-
