@@ -288,8 +288,8 @@ but also across elevations (Figure \ref{aster-srtm}). The overall median
 difference between ASTER and SRTM (i.e., considering
 $\mbox{ASTER}_i-\mbox{SRTM}_i$ for all pixels $i$ where the two DEMs
 co-occur) is \Sexpr{delta.median} meters, with a mean of
-\Sexpr{round(delta.mean, 2)}, and this more or less holds (within a few
-meters) across the observed range of elevations (Figure
+\Sexpr{round(delta.mean, 2)} meters, and this more or less holds (within
+a few meters) across the observed range of elevations (Figure
 \ref{aster-srtm-bins}). However, while this average offset is broadly
 consistent across latitudes and across elevation zones, additional
 variation is evident at the pixel level. Again focusing on the
@@ -527,7 +527,9 @@ indeed look almost the same as those computed using aspect (Figure
 % Figure: Boundary analysis region
 %
 \begin{figure}[h]
-  \caption{Focal area}
+  \caption{Focal area used as the basis for boundary assessment. Note
+  that for flow direction, analysis was restricted to a smaller
+  longitudinal span (125\W to 100\W).}
   \centering
 <<echo=FALSE,results=hide,fig=TRUE,height=5,width=7>>=
   par(omi=c(0,0,0,0))
@@ -652,9 +654,9 @@ indeed look almost the same as those computed using aspect (Figure
   \subfloat[Pixel-wise plot of SRTM vs ASTER for all values in the 150
   latitudinal rows of overlap south of 60\N. Dashed blue line indicates
   the 1:1 diagonal, and the parallel red line is offset lower by the
-  observed median difference between SRTM and ASTER (\Sexpr{delta.median}m).
+  observed median difference between the two DEMs (\Sexpr{-delta.median}m).
   Inset histogram shows distribution of differences, excluding absolute
-  differences >60.]{
+  differences >60m.]{
     \includegraphics[width=\linewidth, trim=0 0 0 0.5in, clip=TRUE]{../dem/aster-srtm-scatter.png}
     \label{aster-srtm-scatter}
   }
@@ -812,12 +814,11 @@ indeed look almost the same as those computed using aspect (Figure
 \end{figure}
 
 
+\clearpage
+\appendix
 %-----------------------------------------------------------------------
 \section{Code listings}
 %-----------------------------------------------------------------------
-
-\clearpage
-\appendix
 
 \lstinputlisting[language=bash, caption={GDAL commands for assembling
     and resampling SRTM and ASTER tiles into GeoTIFFs for use as inputs

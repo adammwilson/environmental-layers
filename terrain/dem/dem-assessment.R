@@ -268,7 +268,7 @@ h <- hist(delta.vals[abs(delta.vals)<60], breaks=48, xlab=NA, main=NULL,
 text(10, 0.4*max(h$counts), labels=paste("Entire range:\n(",
     min(delta.vals), ", ", max(delta.vals), ")", sep=""), cex=0.6,
     adj=c(0,0))
-mtext("SRTM-ASTER (m)", side=1, cex=0.5, line=0.6)
+mtext("ASTER - SRTM (m)", side=1, cex=0.5, line=0.6)
 dev.off()
 
 
