@@ -260,6 +260,15 @@ plot(jitter(d.srtm.vals), jitter(d.aster.crop.vals), pch=".",
     xlab="SRTM elevation (m)", ylab="ASTER elevation (m)", cex=0.5)
 abline(median(delta.vals), 1, col="red", cex=0.5)
 abline(0, 1, col="blue", lty=2, cex=0.5)
+# add inset histogram of differences
+opar <- par(fig=c(0.55, 0.95, 0.1, 0.6), new=TRUE)
+h <- hist(delta.vals[abs(delta.vals)<60], breaks=48, xlab=NA, main=NULL,
+    col=grey(0.8), border=grey(0.3), yaxt="n", ylab=NA, cex.axis=0.5,
+    cex.lab=0.5, tcl=-0.25, mgp=c(3,0,0))
+text(10, 0.4*max(h$counts), labels=paste("Entire range:\n(",
+    min(delta.vals), ", ", max(delta.vals), ")", sep=""), cex=0.6,
+    adj=c(0,0))
+mtext("SRTM-ASTER (m)", side=1, cex=0.5, line=0.6)
 dev.off()
 
 
