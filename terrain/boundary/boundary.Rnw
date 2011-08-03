@@ -1,0 +1,137 @@
+% -*- mode: noweb; noweb-default-code-mode: R-mode; -*-
+%
+% Using Gregor Gorjanc's bash script:
+%   sweave -old=<pdfviewer> <filename.Rnw>
+%
+% Using my simple bash script wrapper:
+%   sweave_jr <basename>
+%
+% Using the lower level commands, in two steps: 
+%   R CMD Sweave <filename.Rnw>
+%   pdflatex <filename.tex>
+%
+% To extract R code from within R:
+%   Stangle("<filename.Rnw>", annotate=FALSE)
+\documentclass[8pt]{article}
+\usepackage[final]{pdfpages}
+\usepackage{fancyhdr}
+\usepackage[font=normalsize,singlelinecheck=false]{subfig}
+
+\title{SRTM/ASTER boundary analysis}
+\author{Jim Regetz}
+\date{Last update: 23 Jun 2011}
+
+%\SweaveOpts{echo=true}
+\usepackage[utf8]{inputenc}
+\usepackage{a4wide}
+\usepackage{verbatim}
+\usepackage[colorlinks=true,urlcolor=red]{hyperref}
+
+\topmargin 70pt
+
+\pagestyle{fancy}
+\rfoot{}
+\cfoot{\Large\thepage}
+\renewcommand {\headrulewidth}{0pt}
+\renewcommand {\footrulewidth}{0pt}
+
+\begin{document}
+
+% define custom colors for R input and output
+\definecolor{dkblue}{rgb}{0,0,0.7}
+\definecolor{dkgray}{gray}{0.25}
+
+% define simple macro for marking up inline R code
+\def\rfunc#1{\textcolor{dkblue}{\texttt{#1}}}
+\def\robj#1{\textcolor{black}{\texttt{#1}}}
+
+% nicer settings from Ross Ihaka
+\DefineVerbatimEnvironment{Sinput}{Verbatim} %  {xleftmargin=2em,formatcom=\color{dkblue},fontsize=\footnotesize}
+  {xleftmargin=2em,formatcom=\color{dkblue}}
+\DefineVerbatimEnvironment{Soutput}{Verbatim}
+%  {xleftmargin=2em,formatcom=\color{dkgray},fontsize=\footnotesize}
+  {xleftmargin=2em,formatcom=\color{dkgray}}
+\DefineVerbatimEnvironment{Scode}{Verbatim}{xleftmargin=2em}
+\fvset{listparameters={\setlength{\topsep}{0pt}}}
+\renewenvironment{Schunk}{\vspace{\topsep}}{\vspace{\topsep}}
+
+% set some specific R options that affect the output format
+<<echo=FALSE,print=FALSE>>=
+options(width=80)
+options(continue=" ")
+@
+
+\begin{figure}[htp]
+  \centering
+  \caption{Focal area}
+<<echo=FALSE,results=hide,fig=TRUE>>=
+  library(raster)
+  library(maps)
+  demdir <- "/home/regetz/media/temp/terrain/dem/"
+  dem <- raster(file.path(demdir, "fused_300straddle.tif"))
+  map("world", xlim=c(-140,-70), ylim=c(40, 70), fill=TRUE, col="grey")
+  grid(col="darkgray")
+  axis(1)
+  axis(2)
+  box()
+  plot(extent(dem), col="red", add=TRUE)
+  arrows(-110, 57, -113, 59.7, col="red", length=0.1)
+  text(-110, 57, labels="focal region", col="red", font=3, pos=1)
+@
+\end{figure}
+
+\begin{figure}[htp]
+  \caption{Weighting schemes}
+  \centering
+  \subfloat[Gaussian weighted blend]{
+<<echo=FALSE,results=hide,fig=TRUE, height=3, width=6>>=
+  par(omi=c(0,0,0,0), mar=c(4,4,1,2)+0.1)
+  curve(exp(-0.001*x^2), from=-150, to=0, xlim=c(-150, 150), col="red",
+      xaxt="n", bty="n", xlab="Latitude", ylab="Weighting")
+  curve(1+0*x, from=0, to=150, add=TRUE, col="red")
+  curve(1-exp(-0.001*x^2), from=-150, to=0, add=TRUE, col="blue")
+  #axis(1, at=seq(-150, 150, by=60), labels=seq(59.875, 60.125, by=0.05))
+  #axis(1, at=0, labels=60, col="red", cex=0.85)
+  axis(1, at=seq(-120, 120, by=60), labels=seq(59.9, 60.1, by=0.05))
+  text(-100, 0.6, labels="gaussian\nblend")
+  text(-140, 0.9, labels="SRTM", col="blue", pos=4)
+  text(-140, 0.1, labels="ASTER", col="red", pos=4)
+@
+  }\\
+  \subfloat[Multiresolution spline]{
+<<echo=FALSE,results=hide,fig=TRUE, height=3, width=6>>=
+  par(omi=c(0,0,0,0), mar=c(4,4,0,2)+0.1)
+  plot(0, xlim=c(-150, 150), ylim=c(0, 1), type="n", xaxt="n", yaxt="n",
+      bty="n", xlab="Latitude", ylab=NA)
+  rect(-75, 0, 0, 0.75, col="purple")
+  rect(-75, 0, 150, 0.75, col="red", density=5, angle=45)
+  rect(-150, 0, 0, 0.75, col="blue", density=5, angle=135)
+  #axis(1, at=seq(-150, 150, by=60), labels=seq(59.875, 60.125, by=0.05))
+  #axis(1, at=0, labels=60, col="red", cex=0.85)
+  axis(1, at=seq(-120, 120, by=60), labels=seq(59.9, 60.1, by=0.05))
+  text(-150, 0.9, labels="SRTM", pos=4, col="blue")
+  text(-37.5, 0.8, labels="overlap", pos=3, font=3)
+  text(150, 0.9, labels="ASTER", pos=2, col="red")
+@
+  }
+\end{figure}
+
+%\newpage
+%\begin{center}
+%\includegraphics[width=\linewidth]{../dem/boundary-hillshade.png}
+%\end{center}
+
+\newpage
+
+\centering
+\includepdfset{pagecommand=\thispagestyle{fancy}}
+\setkeys{Gin}{width=1.8\linewidth}
+\includepdf[landscape=true,pages=-]{../dem/elevation-assessment.pdf}
+\includepdf[landscape=true,pages=-]{../slope/slope-assessment.pdf}
+\includepdf[landscape=true,pages=-]{../aspect/aspect-assessment.pdf}
+\includepdf[landscape=true,pages=-]{../flow/flowdir-assessment.pdf}
+
+\verbatiminput{../dem/enblend.R}
+
+\end{document}
+
