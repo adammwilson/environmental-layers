@@ -61,8 +61,10 @@ abline(v=60, col="red", lty=2)
 #
 
 # simple helper function to calculate row-wise RMSEs
-rmse <- function(r1, r2, na.rm=TRUE) {
-    sqrt(rowMeans(as.matrix((r1 - r2)^2), na.rm=na.rm))
+rmse <- function(r1, r2, na.rm=TRUE, use) {
+    diffs <- abs(as.matrix(r1) - as.matrix(r2))
+    if (!missing(use)) diffs[!use] <- NA
+    sqrt(rowMeans(diffs^2, na.rm=na.rm))
 }
 
 par(mfrow=c(2,3), omi=c(1,1,1,1))
