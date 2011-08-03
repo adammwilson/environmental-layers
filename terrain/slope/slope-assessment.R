@@ -14,7 +14,7 @@ datadir <- "/home/regetz/media/temp/terrain/slope"
 s.aster <- raster(file.path(datadir, "aster_300straddle_s.tif"))
 s.srtm <- raster(file.path(datadir, "srtm_150below_s.tif"))
 s.uncor <- raster(file.path(datadir, "fused_300straddle_s.tif"))
-s.eramp <- raster(file.path(datadir, "fused_300straddle_rampexp_s.tif"))
+s.enblend <- raster(file.path(datadir, "fused_300straddle_enblend_s.tif"))
 s.bg <- raster(file.path(datadir, "fused_300straddle_blendgau_s.tif"))
 s.can <- raster(file.path(datadir, "cdem_300straddle_s.tif"))
 
@@ -31,23 +31,28 @@ pdf("slope-assessment.pdf", height=8, width=11.5)
 #
 
 par(mfrow=c(2,2), omi=c(1,1,1,1))
+
 ylim <- c(1, 6)
 
-plot(lats300, rowMeans(as.matrix(s.uncor), na.rm=TRUE), type="l",
+plot(lats300, rowMeans(as.matrix(s.can), na.rm=TRUE), type="l",
     xlab="Latitude", ylab="Mean slope", ylim=ylim)
-text(min(lats300), max(ylim)-0.5, pos=4, font=3, labels="uncorrected")
+text(min(lats300), max(ylim)-0.5, pos=4, font=3, labels="Original DEMs")
+lines(lats300, rowMeans(as.matrix(s.aster), na.rm=TRUE), col="blue")
+lines(lats150, rowMeans(as.matrix(s.srtm), na.rm=TRUE), col="red")
+legend("topright", legend=c("ASTER", "SRTM", "CDED"), col=c("blue",
+    "red", "black"), lty=c(1, 1), bty="n")
 abline(v=60, col="red", lty=2)
 mtext(expression(paste("Latitudinal profiles of mean slope (",
     136*degree, "W to ", 96*degree, "W)")), adj=0, line=2, font=2)
 
-plot(lats300, rowMeans(as.matrix(s.can), na.rm=TRUE), type="l",
+plot(lats300, rowMeans(as.matrix(s.uncor), na.rm=TRUE), type="l",
     xlab="Latitude", ylab="Mean slope", ylim=ylim)
-text(min(lats300), max(ylim)-0.5, pos=4, font=3, labels="Canada DEM")
+text(min(lats300), max(ylim)-0.5, pos=4, font=3, labels="simple fused")
 abline(v=60, col="red", lty=2)
 
-plot(lats300, rowMeans(as.matrix(s.eramp), na.rm=TRUE), type="l",
+plot(lats300, rowMeans(as.matrix(s.enblend), na.rm=TRUE), type="l",
     xlab="Latitude", ylab="Mean slope", ylim=ylim)
-text(min(lats300), max(ylim)-0.5, pos=4, font=3, labels="exponential ramp")
+text(min(lats300), max(ylim)-0.5, pos=4, font=3, labels="multires spline")
 abline(v=60, col="red", lty=2)
 
 plot(lats300, rowMeans(as.matrix(s.bg), na.rm=TRUE), type="l",
@@ -75,18 +80,18 @@ plot(lats300, rmse(s.uncor, s.aster), type="l", xlab="Latitude",
 lines(lats150, rmse(crop(s.uncor, extent(s.srtm)), s.srtm), col="blue")
 legend("topright", legend=c("ASTER", "SRTM"), col=c("black", "blue"),
     lty=c(1, 1), bty="n")
-text(min(lats300), 4.5, pos=4, font=3, labels="uncorrected")
+text(min(lats300), 4.5, pos=4, font=3, labels="simple fused")
 abline(v=60, col="red", lty=2)
 mtext(expression(paste(
     "Slope discrepancies with respect to separate ASTER/SRTM components (",
     136*degree, "W to ", 96*degree, "W)")), adj=0, line=2, font=2)
 
-plot(lats300, rmse(s.eramp, s.aster), type="l", xlab="Latitude",
+plot(lats300, rmse(s.enblend, s.aster), type="l", xlab="Latitude",
     ylab="RMSE", ylim=c(0, 5))
-lines(lats150, rmse(crop(s.eramp, extent(s.srtm)), s.srtm), col="blue")
+lines(lats150, rmse(crop(s.enblend, extent(s.srtm)), s.srtm), col="blue")
 legend("topright", legend=c("ASTER", "SRTM"), col=c("black", "blue"),
     lty=c(1, 1), bty="n")
-text(min(lats300), 4.5, pos=4, font=3, labels="exponential ramp")
+text(min(lats300), 4.5, pos=4, font=3, labels="multires spline")
 abline(v=60, col="red", lty=2)
 
 plot(lats300, rmse(s.bg, s.aster), type="l", xlab="Latitude",
@@ -100,15 +105,15 @@ abline(v=60, col="red", lty=2)
 # ...with respect to CDEM
 plot(lats300, rmse(s.uncor, s.can), type="l", xlab="Latitude",
     ylab="RMSE", ylim=c(0, 5))
-text(min(lats300), 4.5, pos=4, font=3, labels="uncorrected")
+text(min(lats300), 4.5, pos=4, font=3, labels="simple fused")
 abline(v=60, col="red", lty=2)
 mtext(expression(paste(
     "Slope discrepancies with respect to Canada DEM (",
     136*degree, "W to ", 96*degree, "W)")), adj=0, line=2, font=2)
 
-plot(lats300, rmse(s.eramp, s.can), type="l", xlab="Latitude",
+plot(lats300, rmse(s.enblend, s.can), type="l", xlab="Latitude",
     ylab="RMSE", ylim=c(0, 5))
-text(min(lats300), 4.5, pos=4, font=3, labels="exponential ramp")
+text(min(lats300), 4.5, pos=4, font=3, labels="multires spline")
 abline(v=60, col="red", lty=2)
 
 plot(lats300, rmse(s.bg, s.can), type="l", xlab="Latitude",
@@ -142,18 +147,18 @@ plot(lats300, corByLat(s.uncor, s.aster), type="l", xlab="Latitude",
 lines(lats150, corByLat(crop(s.uncor, extent(s.srtm)), s.srtm), col="blue")
 legend("bottomright", legend=c("ASTER", "SRTM"), col=c("black", "blue"),
     lty=c(1, 1), bty="n")
-text(min(lats300), min(ylim), pos=4, font=3, labels="uncorrected")
+text(min(lats300), min(ylim), pos=4, font=3, labels="simple fused")
 abline(v=60, col="red", lty=2)
 mtext(expression(paste(
     "Slope correlations with respect to separate ASTER/SRTM components (",
     136*degree, "W to ", 96*degree, "W)")), adj=0, line=2, font=2)
 
-plot(lats300, corByLat(s.eramp, s.aster), type="l", xlab="Latitude",
+plot(lats300, corByLat(s.enblend, s.aster), type="l", xlab="Latitude",
     ylab="Correlation", ylim=ylim)
-lines(lats150, corByLat(crop(s.eramp, extent(s.srtm)), s.srtm), col="blue")
+lines(lats150, corByLat(crop(s.enblend, extent(s.srtm)), s.srtm), col="blue")
 legend("bottomright", legend=c("ASTER", "SRTM"), col=c("black", "blue"),
     lty=c(1, 1), bty="n")
-text(min(lats300), min(ylim), pos=4, font=3, labels="exponential ramp")
+text(min(lats300), min(ylim), pos=4, font=3, labels="multires spline")
 abline(v=60, col="red", lty=2)
 
 plot(lats300, corByLat(s.bg, s.aster), type="l", xlab="Latitude",
@@ -167,15 +172,15 @@ abline(v=60, col="red", lty=2)
 # ...with respect to CDEM
 plot(lats300, corByLat(s.uncor, s.can), type="l", xlab="Latitude",
     ylab="Correlation", ylim=ylim)
-text(min(lats300), min(ylim), pos=4, font=3, labels="uncorrected")
+text(min(lats300), min(ylim), pos=4, font=3, labels="simple fused")
 abline(v=60, col="red", lty=2)
 mtext(expression(paste(
     "Slope correlations with respect to Canada DEM (",
     136*degree, "W to ", 96*degree, "W)")), adj=0, line=2, font=2)
 
-plot(lats300, corByLat(s.eramp, s.can), type="l", xlab="Latitude",
+plot(lats300, corByLat(s.enblend, s.can), type="l", xlab="Latitude",
     ylab="Correlation", ylim=ylim)
-text(min(lats300), min(ylim), pos=4, font=3, labels="exponential ramp")
+text(min(lats300), min(ylim), pos=4, font=3, labels="multires spline")
 abline(v=60, col="red", lty=2)
 
 plot(lats300, corByLat(s.bg, s.can), type="l", xlab="Latitude",
