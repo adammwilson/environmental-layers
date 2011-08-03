@@ -215,3 +215,125 @@ plot(crop(rampexp, window), main="north exponential ramp (hillshade)")
 plot(crop(blendgau, window), main="south gaussian blend (hillshade)")
 dev.off()
 
+
+#=======================================================================
+# R -- assess boundary artifacts with respect to slope
+#=======================================================================
+
+s.aster <- raster("aster_300straddle_s.tif")
+s.srtm <- raster("srtm_150below_s.tif")
+s.uncor <- raster("fused_300straddle_s.tif")
+s.eramp <- raster("fused_300straddle_rampexp_s.tif")
+s.bg <- raster("fused_300straddle_blendgau_s.tif")
+s.can <- raster("cdem_300straddle_s.tif")
+
+
+rmse <- function(r1, r2) {
+    sqrt(rowMeans(as.matrix((r1 - r2)^2), na.rm=TRUE))
+}
+
+pdf("slope-rmse.pdf", height=8, width=11.5)
+par(mfrow=c(2,3), omi=c(1,1,1,1))
+lats300 <- yFromRow(s.aster, 1:nrow(s.aster))
+lats150 <- yFromRow(s.srtm, 1:nrow(s.srtm))
+# Latitudinal RMSE profiles with respect to ASTER
+plot(lats300, rmse(s.uncor, s.aster), type="l", xlab="Latitude",
+    ylab="RMSE", ylim=c(0, 5))
+lines(lats150, rmse(crop(s.uncor, extent(s.srtm)), s.srtm), col="blue")
+legend("topright", legend=c("ASTER", "SRTM"), col=c("black", "blue"),
+    lty=c(1, 1), bty="n")
+text(min(lats300), 4.5, pos=4, font=3, labels="uncorrected")
+abline(v=60, col="red", lty=2)
+mtext("Slope discrepancies with respect to separate ASTER/SRTM components",
+    adj=0, line=2, font=2)
+plot(lats300, rmse(s.eramp, s.aster), type="l", xlab="Latitude",
+    ylab="RMSE", ylim=c(0, 5))
+lines(lats150, rmse(crop(s.eramp, extent(s.srtm)), s.srtm), col="blue")
+legend("topright", legend=c("ASTER", "SRTM"), col=c("black", "blue"),
+    lty=c(1, 1), bty="n")
+text(min(lats300), 4.5, pos=4, font=3, labels="exponential ramp")
+abline(v=60, col="red", lty=2)
+plot(lats300, rmse(s.bg, s.aster), type="l", xlab="Latitude",
+    ylab="RMSE", ylim=c(0, 5))
+lines(lats150, rmse(crop(s.bg, extent(s.srtm)), s.srtm), col="blue")
+legend("topright", legend=c("ASTER", "SRTM"), col=c("black", "blue"),
+    lty=c(1, 1), bty="n")
+text(min(lats300), 4.5, pos=4, font=3, labels="gaussian blend")
+abline(v=60, col="red", lty=2)
+
+# Latitudinal RMSE profiles with respect to CDEM
+plot(lats300, rmse(s.uncor, s.can), type="l", xlab="Latitude",
+    ylab="RMSE", ylim=c(0, 5))
+text(min(lats300), 4.5, pos=4, font=3, labels="uncorrected")
+abline(v=60, col="red", lty=2)
+mtext("Slope discrepancies with respect to Canada DEM",
+    adj=0, line=2, font=2)
+plot(lats300, rmse(s.eramp, s.can), type="l", xlab="Latitude",
+    ylab="RMSE", ylim=c(0, 5))
+text(min(lats300), 4.5, pos=4, font=3, labels="exponential ramp")
+abline(v=60, col="red", lty=2)
+plot(lats300, rmse(s.bg, s.can), type="l", xlab="Latitude",
+    ylab="RMSE", ylim=c(0, 5))
+text(min(lats300), 4.5, pos=4, font=3, labels="gaussian blend")
+abline(v=60, col="red", lty=2)
+dev.off()
+
+
+####
+corByLat <- function(r1, r2, rows) {
+    if (missing(rows)) {
+        rows <- 1:nrow(r1)
+    }
+    m1 <- as.matrix(r1)
+    m2 <- as.matrix(r2)
+    sapply(rows, function(row) cor(m1[row,], m2[row,],
+        use="pairwise.complete.obs"))
+}
+
+pdf("slope-corr.pdf", height=8, width=11.5)
+par(mfrow=c(2,3), omi=c(1,1,1,1))
+lats300 <- yFromRow(s.aster, 1:nrow(s.aster))
+lats150 <- yFromRow(s.srtm, 1:nrow(s.srtm))
+ylim <- c(0.65, 1)
+# Latitudinal RMSE profiles with respect to ASTER
+plot(lats300, corByLat(s.uncor, s.aster), type="l", xlab="Latitude",
+    ylab="Correlation", ylim=ylim)
+lines(lats150, corByLat(crop(s.uncor, extent(s.srtm)), s.srtm), col="blue")
+legend("bottomright", legend=c("ASTER", "SRTM"), col=c("black", "blue"),
+    lty=c(1, 1), bty="n")
+text(min(lats300), min(ylim), pos=4, font=3, labels="uncorrected")
+abline(v=60, col="red", lty=2)
+mtext("Slope correlations with separate ASTER/SRTM components",
+    adj=0, line=2, font=2)
+plot(lats300, corByLat(s.eramp, s.aster), type="l", xlab="Latitude",
+    ylab="Correlation", ylim=ylim)
+lines(lats150, corByLat(crop(s.eramp, extent(s.srtm)), s.srtm), col="blue")
+legend("bottomright", legend=c("ASTER", "SRTM"), col=c("black", "blue"),
+    lty=c(1, 1), bty="n")
+text(min(lats300), min(ylim), pos=4, font=3, labels="exponential ramp")
+abline(v=60, col="red", lty=2)
+plot(lats300, corByLat(s.bg, s.aster), type="l", xlab="Latitude",
+    ylab="Correlation", ylim=ylim)
+lines(lats150, corByLat(crop(s.bg, extent(s.srtm)), s.srtm), col="blue")
+legend("bottomright", legend=c("ASTER", "SRTM"), col=c("black", "blue"),
+    lty=c(1, 1), bty="n")
+text(min(lats300), min(ylim), pos=4, font=3, labels="gaussian blend")
+abline(v=60, col="red", lty=2)
+
+# Latitudinal correlation profiles with respect to CDEM
+plot(lats300, corByLat(s.uncor, s.can), type="l", xlab="Latitude",
+    ylab="Correlation", ylim=ylim)
+text(min(lats300), min(ylim), pos=4, font=3, labels="uncorrected")
+abline(v=60, col="red", lty=2)
+mtext("Slope correlations with Canada DEM",
+    adj=0, line=2, font=2)
+plot(lats300, corByLat(s.eramp, s.can), type="l", xlab="Latitude",
+    ylab="Correlation", ylim=ylim)
+text(min(lats300), min(ylim), pos=4, font=3, labels="exponential ramp")
+abline(v=60, col="red", lty=2)
+plot(lats300, corByLat(s.bg, s.can), type="l", xlab="Latitude",
+    ylab="Correlation", ylim=ylim)
+text(min(lats300), min(ylim), pos=4, font=3, labels="gaussian blend")
+abline(v=60, col="red", lty=2)
+dev.off()
+
