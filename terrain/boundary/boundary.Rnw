@@ -43,8 +43,8 @@
 \thispagestyle{plain}
 
 \title{SRTM/ASTER boundary analysis}
-\author{Jim Regetz}
-\date{Last update: 12 Jul 2011}
+\author{Jim Regetz, NCEAS}
+\date{Last update: 13 Jul 2011}
 
 \begin{document}
 
@@ -53,30 +53,58 @@
 % don't number document sections
 \setcounter{secnumdepth}{-1}. 
 
-\paragraph{Summary of findings}
+% first compute some values to use in the text
+<<echo=FALSE,results=hide>>=
+  # Gaussian weighted average parameters
+  gwa.r <- 0.001
+  gwa.50.pix <- round(sqrt(-log(0.5)/gwa.r))
+  gwa.50.km <- gwa.50.pix * 90 / 1000
+  gwa.01.pix <- round(sqrt(-log(0.01)/gwa.r))
+  gwa.01.km <- gwa.01.pix * 90 / 1000
+
+  # mean/median ASTER-SRTM elevation differences
+  library(raster)
+  demdir <- "/home/regetz/media/temp/terrain/dem/"
+  d.srtm <- raster(file.path(demdir, "srtm_150below.tif"))
+  d.aster <- raster(file.path(demdir, "aster_300straddle.tif"))
+  d.delta.vals <- values(crop(d.aster, extent(d.srtm))) - values(d.srtm)
+  delta.median <- median(d.delta.vals)
+  delta.mean <- mean(d.delta.vals)
+  delta.sd <- sd(d.delta.vals)
+  delta.q <- quantile(d.delta.vals, c(0.1, 0.25, 0.75, 0.9))
+@
+
+\paragraph{Brief summary of findings}
 \begin{itemize}
- \item Big SRTM vs ASTER differences:
+ \item SRTM vs ASTER differences
   \begin{itemize}
-   \item ASTER is generally lower, by 12 meters in the median case
-   \item ASTER has numerous spurious spikes
+   \item ASTER is systematically lower, by 12 meters in the median case
+   \item \ldots but with variability: standard deviation of
+     $\mbox{ASTER}_i-\mbox{SRTM}_i$ is \Sexpr{round(delta.sd, 1)}
+   \item ASTER also has numerous spurious spikes
    \item ASTER has more high-frequency variability (``texture''),
      affecting slope/aspect?
   \end{itemize}
- \item Northward exponential rampdown of boundary delta
+ \item Fusion via northward exponential rampdown of boundary delta
   \begin{itemize}
-   \item fixes seam itself
+   \item eliminates elevation cliff at 60\N
    \item leaves abrupt transition in SRTM/ASTER textural differences
-   \item introduces ridging
+   \item introduces north-south ridging artifacts
+   \item (\emph{no further treatment in this document})
   \end{itemize}
- \item Blending via multiresolution spline
+ \item Fusion via multiresolution spline
   \begin{itemize}
-   \item fixes seam itself
-   \item leaves abrupt transition in SRTM/ASTER textural differences
+   \item eliminates elevation cliff at 60\N
+   \item leaves abrupt transition in derived slope and aspect
+   \item unclear whether derived values of aspect and flow direction
+     in the transition zone are acceptable
   \end{itemize}
- \item Blending via Gaussian weighted average of SRTM/ASTER
+ \item Fusion via Gaussian weighted average of SRTM/ASTER
   \begin{itemize}
-   \item fixes seam itself
-   \item smooths transition in textural differences
+   \item eliminates elevation cliff at 60\N
+   \item also smooths transition slope and aspect
+   \item unclear whether derived values of aspect and flow direction in
+     the transition zone are acceptable
   \end{itemize}
  \item Canada DEM itself has problems
   \begin{itemize}
@@ -88,14 +116,15 @@
   \begin{itemize}
    \item N/S bias to aspect, flow direction computed on unprojected data
      at higher latitudes?
-   \item Routing will be a big ball of wax
   \end{itemize}
 \end{itemize}
 
 \paragraph{To do (possibly)}
 \begin{itemize}
- \item add constant offset to ASTER?
- \item smooth ASTER?
+ \item add constant offset of \Sexpr{-delta.median}m to ASTER
+ \item apply low pass filter to ASTER to reduce high frequency
+ variation?
+ \item apply algorithm to remove spikes (\ldots but maybe beyond scope?)
 \end{itemize}
 
 \clearpage
@@ -104,18 +133,24 @@
 \section{Terrain layer production methodology}
 %-----------------------------------------------------------------------
 
-For the purposes of assessing artifacts associated with the 60\N boundary
-between SRTM and ASTER, I used a narrow band along the 60\N boundary in
-Canada (Figure \ref{focal-area}). The latitudinal extent of this band is
-59.875\N - 60.125\N (i.e., 300 3" pixels straddling 60\N), and the
-longitudinal extent is 136\W to 96\W (i.e., 48000 pixels wide). For flow
-direction, a smaller longitudinal swath from 125\W to 100\W was used, due
-to a $\sim$30k ($2^{15}$) limit to the input raster dimension size in
-the pre-built GRASS \texttt{r.terraflow} module I used.
+For the purposes of assessing artifacts associated with the northern
+boundary between SRTM and ASTER, I focused on a narrow band along the
+60\N boundary in Canada (Figure \ref{focal-area}). The latitudinal
+extent of this band is 59.875\N - 60.125\N (i.e., 300 3" pixels
+straddling 60\N), and the longitudinal extent is 136\W to 96\W (i.e.,
+48,000 pixels wide). See Listing \ref{code-gdalwarp} for code. Within
+this focal region, I generated latitudinal profiles of mean elevation,
+slope, aspect, and flow direction, using the separate SRTM and ASTER
+component DEMs themselves, using several different fused ASTER/SRTM DEMs
+(see below), and using the Canadian Digital Elevation Data (CDED) as an
+independent reference layer
+(\url{http://www.geobase.ca/geobase/en/data/cded/index.html}). I also
+then computed latitudinal correlations and RMSEs between the fused
+layers and each of SRTM, ASTER, and CDED.
 
 \paragraph{Elevation} This document includes latitudinal
 characterizations of terrain values based on three different variants of
-a fused ASTER/SRTM DEM. I also explored (and briefly describe below) two
+a fused 3" ASTER/SRTM DEM. I also explored (and briefly describe below) two
 additional approaches to fusing the layers, but do not include further
 assessment of these here.
 
@@ -125,16 +160,17 @@ boundary artifacts (Figure \ref{blend-simple}).
 
 \subparagraph{Multiresolution spline} Application of Burt \& Adelson's
 (1983) method for blending overlapping images using multiresolution
-splines, as implemented in the \emph{enblend} software package (version
-4.0, http://enblend.sourceforge.net). Data prep and post-processing were
-handled in R (see Listing \ref{code-enblend}). As presented here, the
-ASTER and SRTM inputs were prepared such that the overlap zone is 75
-latitudinal rows (6.75km) (Figure \ref{blend-multires}).
+splines, as implemented in the \emph{Enblend} software package (version
+4.0, \url{http://enblend.sourceforge.net}). Data preparation and
+post-processing were handled in R (see Listing \ref{code-enblend}). As
+presented here, the SRTM and ASTER inputs were prepared such that the
+overlap zone is 75 latitudinal rows (6.75km) (Figure
+\ref{blend-multires}).
 
 \subparagraph{Gaussian weighted average} Blend of the two layers using
 weighted averaging such that the relative contribution of the SRTM
-elevation is zero at 60\N, and increases according to a Gaussian function
-of distance moving south away from 60\N (Equation \ref{eq-gaussian}).
+elevation is zero at 60\N, and increases as a function of distance
+moving south away from 60\N (Equation \ref{eq-gaussian}).
 \begin{eqnarray}
 \label{eq-gaussian}
 &fused_{x,y} =
@@ -149,19 +185,25 @@ of distance moving south away from 60\N (Equation \ref{eq-gaussian}).
   \mbox{ and }
   D_{y} \mbox{ is the distance from } 60^\circ \mbox{N in units of pixels.} \nonumber
 \end{eqnarray}
-For the assessment presented here, the Gaussian weighting function
-function was parameterized using $r=0.001$, which means that the ASTER
-and SRTM are equally weighted at a distance of $\sim$2.4km (26 cells)
-south of the the boundary, and the influence of ASTER is negligible by
-$\sim$5km (Figure \ref{blend-gaussian}).
+For the assessment presented here, the weighting function function was
+parameterized using $r$=\Sexpr{gwa.r}, producing equal weights for SRTM
+and ASTER at a distance of $\sim$\Sexpr{round(gwa.50.km, 1)}km
+(\Sexpr{gwa.50.pix} cells) south of the the boundary, and a relative
+weight for ASTER of only 1\% by $\sim$\Sexpr{round(gwa.01.km, 1)}km
+(\Sexpr{gwa.01.pix} cells) (Figure \ref{blend-gaussian}). See
+\texttt{OPTION 3} in Listing \ref{code-correct}.
 
-\subparagraph{Others not shown} Fused with exponential ramp north of
-60\N. The first step is to take the pixel-wise difference between ASTER
-and SRTM in the row immediately below 60\N (i.e., the northmost extent of
-SRTM). An exponentially declining fraction of this difference is then
-then added back into the ASTER values north of 60\N. This does a fine job
-of eliminating the artificial shelf and thus the appearance of a seam
-right along the 60\N boundary, but it does not address the abrupt
+\subparagraph{Others not shown} I also experimented with some additional
+fusion approaches, but have excluded them from further analysis in this
+document.
+
+\emph{Fused with exponential ramp north of 60\N.}
+The first step was to take the pixel-wise difference between SRTM and
+ASTER in the row immediately below 60\N (i.e., the northmost extent of
+SRTM). An exponentially declining fraction of this difference was then
+then added back into the ASTER values north of 60\N. This does a fine
+job of eliminating the artificial shelf and thus the appearance of a
+seam right along the 60\N boundary, but it does not address the abrupt
 transition in texture (i.e., the sudden appearance of high frequency
 variability moving north across the boundary). Additionally, it
 introduces vertical ``ridges'' running north from the boundary. These
@@ -170,35 +212,36 @@ arise because the calculated ramps are independent from one longitudinal
 from one pixel to the next lead to adjacent ramps with different
 inclines.
 
-I also tried a simple LOESS predictive model. This involved first
-calculating the difference between ASTER and SRTM everywhere south of
-60\N, and then fitting a LOESS line to these differences using the actual
-ASTER elevation as a predictor. I then used the fitted model to predict
-the ASTER-SRTM difference for ASTER cells north of 60\N, and add a
-declining fraction (based on a Gaussian curve) of this difference to the
-ASTER values north of 60\N. Conceptually, this amounts to applying an
-ASTER-predicted correction to the ASTER elevation values, where the
-correction term declines to zero according with increasing distance
-north of the bonudary. However, this method alone didn't yield
-particularly promising results in removing the 60\N seam itself,
-presumably because adding a predicted correction at the boundary does
-not close the SRTM-ASTER gap nearly as efficiently as do corrections
-that are based on the actual elevation values. I therefore haven't
+\emph{Simple LOESS predictive model.}
+This involved first calculating the difference between SRTM and ASTER
+everywhere south of 60\N, and then fitting a LOESS curve to these
+differences using the actual ASTER elevation as a predictor. I then used
+the fitted model to predict the ASTER-SRTM difference for each ASTER
+cell north of 60\N, and added a declining fraction (based on a Gaussian
+curve) of this difference to the corresponding ASTER elevation.
+Conceptually, this amounts to applying an ASTER-predicted SRTM
+correction to the ASTER elevation values, where the correction term has
+a weight that declines to zero with increasing distance (north) away
+from the boundary. However, this method alone didn't yield particularly
+promising results in removing the 60\N seam itself, presumably because
+adding a predicted correction at the boundary does not close the
+SRTM-ASTER gap nearly as efficiently as do corrections based directly on
+the observed SRTM vs ASTER elevation differences. I therefore haven't
 pursued this any further, although it (or something like it) may prove
 useful in combination with one of the other methods.
 
 \paragraph{Slope}
 For each of the three main fused DEM variants described above, slope was
-calculated using \texttt{gdaldem}:
+calculated using \texttt{gdaldem} (GDAL 1.8.0, released 2011/01/12):
 \begin{verbatim}
     $ gdaldem slope -s 111120 <input_elevation> <output_slope>
 \end{verbatim}
 Note that the scale option used here is as recommended in the
 \texttt{gdaldem} documentation:
 \begin{quote}
-  \emph{If the horizontal unit of the source DEM is degrees (e.g
-  Lat/Long WGS84 projection), you can use scale=111120 if the vertical
-  units are meters}
+  ``\emph{If the horizontal unit of the source DEM is degrees (e.g
+  Lat/Long WGS84 projection), you can use scale=111120 if the vertical'
+  units are meters}''
 \end{quote}
 The output slope raster is in units of degrees.
 
@@ -212,54 +255,57 @@ The output aspect raster values indicate angular direction in units of
 degrees, with 0=North and proceeding clockwise.
 
 \paragraph{Flow direction}
-Flow direction was calculated using the GRASS \texttt{r.terraflow}
-module; see code listing \ref{code-flowdir}. The default flow direction
-output of this module is encoded so as to indicate \emph{all} downslope
-neighbors, also known as the Multiple Flow Direction (MFD) model.
-However, to simplify post-processing and summarization, the results here
-are based on an alternative Single Flow Direction (SFD, \emph{a.k.a.}
-D8) model, which indicates the neighbor associated with the steepest
-downslope gradient. Note that this is equivalent to what ArcGIS GRID
-\texttt{flowaccumulation} command does. I then recoded the output raster
-to use the same azimuth directions used by \texttt{gdaldem aspect}, as
-described above for aspect.
+
+Flow direction was calculated using the GRASS (GRASS GIS 6.4.1)
+\texttt{r.terraflow} module; see code listing \ref{code-flowdir}.
+Because of a $\sim$30k ($2^{15}$) limit to the input raster dimension
+size in the pre-built GRASS \texttt{r.terraflow} module I used, this
+analysis was restricted to a smaller longitudinal subset of the data,
+spanning 125\W to 100\W.
+
+The default flow direction output of this module is encoded so as to
+indicate \emph{all} downslope neighbors, also known as the Multiple Flow
+Direction (MFD) model. However, to simplify post-processing and
+summarization, the results here are based on an alternative Single Flow
+Direction (SFD, \emph{a.k.a.} D8) model, which indicates the neighbor
+associated with the steepest downslope gradient. Note that this is
+equivalent to what ArcGIS GRID \texttt{flowaccumulation} command does. I
+then recoded the output raster to use the same azimuth directions used
+by \texttt{gdaldem aspect}, as described above for aspect.
 
 
 %-----------------------------------------------------------------------
 \section{Latitudinal mean terrain profiles}
 %-----------------------------------------------------------------------
 
-% first compute some values to use in the text
-<<echo=FALSE,results=hide>>=
-  library(raster)
-  demdir <- "/home/regetz/media/temp/terrain/dem/"
-  d.srtm <- raster(file.path(demdir, "srtm_150below.tif"))
-  d.aster <- raster(file.path(demdir, "aster_300straddle.tif"))
-  delta.median <- median(values(d.srtm) - values(crop(d.aster,
-      extent(d.srtm))))
-  delta.mean <- mean(values(d.srtm) - values(crop(d.aster,
-      extent(d.srtm))))
-@
 
-\paragraph{Elevation} ASTER, SRTM, and the Canada DEM all share a very
+\paragraph{Elevation} SRTM, ASTER, and CDED all share a very
 similarly shaped mean elevation profile, but with differing heights
 (Figure \ref{mean-elevation}). SRTM tends to be highest, ASTER is
-lowest, and the Canada DEM is intermediate. The magnitude of average
-difference between SRTM and ASTER is fairly consistent not only across
-latitudes, but also across elevations (Figure \ref{aster-srtm}). The
-overall median difference between ASTER and SRTM is \Sexpr{delta.median}
-meters (mean=\Sexpr{round(delta.mean, 2)}), and this more or less holds
-(within a few meters) across the observed range of elevations (Figure
-\ref{aster-srtm-bins}). However, while this \emph{average} offset is
-consistent, considerably more variation is evident at the pixel level.
-The interquartile range in ASTER-SRTM differences spans $\sim$10 meters
-(Figure \ref{aster-srtm-bins}), and there are many pixels for which the
-elevation difference is on the order of 100 meters (note width of cloud
-about the diagonal lines in Figure \ref{aster-srtm-scatter}). Figure
-\ref{aster-srtm-scatter} also highlights the existence of numerous ASTER
-spurious spikes of >1000m; although not shown here, these tend to occur
-in small clumps of pixels, perhaps corresponding to false elevation
-readings associated with clouds?
+lowest, and CDED is intermediate. The magnitude of average difference
+between SRTM and ASTER is fairly consistent not only across latitudes,
+but also across elevations (Figure \ref{aster-srtm}). The overall median
+difference between ASTER and SRTM (i.e., considering
+$\mbox{ASTER}_i-\mbox{SRTM}_i$ for all pixels $i$ where the two DEMs
+co-occur) is \Sexpr{delta.median} meters, with a mean of
+\Sexpr{round(delta.mean, 2)}, and this more or less holds (within a few
+meters) across the observed range of elevations (Figure
+\ref{aster-srtm-bins}). However, while this average offset is broadly
+consistent across latitudes and across elevation zones, additional
+variation is evident at the pixel level. Again focusing on the
+pixel-wise differences, they appear to be symmetrically distributed
+about the mean with a standard deviation of \Sexpr{round(delta.sd, 1)}
+and quartiles ranging from \Sexpr{delta.q["25%"]} to
+\Sexpr{delta.q["75%"]} meters; ASTER elevations are actually greater
+than SRTM for \Sexpr{round(100*mean(d.delta.vals>0))}\% of pixels (see
+Figure \ref{aster-srtm-scatter}). Thus, although adding a constant
+offset of \Sexpr{-delta.median} meters to the ASTER DEM would clearly
+center it with respect to the STRM (at least in the Canada focal
+region), appreciable differences would remain. Figure
+\ref{aster-srtm-scatter} also highlights the existence of several
+obviously spurious ASTER spikes of >1000m; although not shown here,
+these tend to occur in small clumps of pixels, perhaps corresponding to
+false elevation readings associated with clouds?
 
 Not surprisingly, simple fusion produces an artificial $\sim$12m cliff
 in the mean elevation profile (Figure \ref{mean-elevation}). At least in
@@ -278,19 +324,19 @@ postprocessing of the particular SRTM product we're using has removed
 some of the high frequency ``noise'' that remains in ASTER?
 \textbf{\color{red}[todo: check!]}
 
-Note that the the Canada DEM tends to be flatter than both ASTER and
-SRTM (presumably because it is at least partially derived from
-contour-based data \textbf{\color{red}[todo: check!]}. Moreover, this
-figure makes it clear that the Canada DEM has some major artifacts at
+Note that the CDED tends to be flatter than both SRTM and
+ASTER (presumably because it is at least partially derived from
+contour-based data \textbf{\color{red}[todo: check!]}). Moreover, this
+figure makes it clear that CDED has some major artifacts at
 regular intervals. The spike especially at 60\N (which coincides with
 provincial boundaries across the entirety of western Canada) means we
-probably need to scuttle our plans to use this DEM as a reference
+probably need to scuttle our plans to use this DEM as a formal reference
 dataset for boundary analysis.
 
 The simple fused layer exhibits a dramatic spike in slope at the
 immediate 60\N boundary, undoubtedly associated with the artificial
 elevation cliff. This artifact is eliminated by both the multiresolution
-spline and gaussian weighting. However, the former exhibits a sudden step
+spline and Gaussian weighting. However, the former exhibits a sudden step
 change in slope in the SRTM-ASTER overlap region, whereas the transition
 is smoothed out in the latter. This likely reflects the fact that the
 multiresolution spline effectively uses a very narrow transition zone
@@ -312,8 +358,8 @@ using a circular mean (Equation \ref{eq-cmean}).
 where $x_i$ is the aspect value (in radians) of pixel $i$.
 
 As indicated in Figure \ref{mean-aspect}, the circular mean aspect
-values of ASTER and SRTM are generally similar across all latitudes in
-the area of overlap, and mean aspect values calculated on the Canada DEM
+values of SRTM and ASTER are generally similar across all latitudes in
+the area of overlap, and mean aspect values calculated on CDED
 are similar at most but not all latitudes. The mean values at nearly all
 latitudes are directed either nearly north or nearly south, though
 almost always with a slight eastward rather than westward inclination.
@@ -340,24 +386,25 @@ the immediate boundary, the mean aspect is northward, as one would
 expect in the presence of a cliff artifact at the seam.
 
 Interestingly, the aspect layers derived from the two blended DEMs
-(muliresolution spline and weighted Gaussian average) exhibit a
+(muliresolution spline and Gaussian weighted average) exhibit a
 consistent mean northward inclination at all latitudes in their
 respective fusion zones. This pattern is visually obvious at latitudes
 between 59.95\N and 60\N in the bottom two panels of Figure
 \ref{mean-aspect}. This is almost certainly a signal of the blending of
 the lower elevation ASTER to the north with higher elevation SRTM to the
-south. 
+south, introducing a north-facing tilt (however slight) to the data
+throughout this zone. 
 
 \paragraph{Flow direction} With the exception of edge effects at the
-margins of the input rasters, mean ASTER-derived flow is northward at
-all latitudes, and SRTM-derived flow is northward at nearly all
-latitudes (Figure \ref{mean-flowdir}). This seems reasonable considering
-that most pixels in this Canada test region fall in the Arctic drainage.
-For unknown reasons, the Canada DEM produces southward mean flow
-direction at numerous latitudes, and generally seems to have a slightly
-more eastward tendency. As was the case with aspect, note that a general
-north-south bias is evident (Figure \ref{rose-diag-flowdir}), again
-likely due to use of an unprojected raster at high latitudes.
+margins of the input rasters, mean ASTER-derived flow is nearly
+northward at all latitudes, and SRTM-derived flow is nearly northward at
+all but a few latitudes (Figure \ref{mean-flowdir}). This seems
+reasonable considering that most pixels in this Canada test region fall
+in the Arctic drainage. For unknown reasons, CDED produces southward
+mean flow direction at numerous latitudes, and generally seems to have a
+slightly more eastward tendency. As was the case with aspect, note that
+a general north-south bias is evident (Figure \ref{rose-diag-flowdir}),
+again likely due to use of an unprojected raster at high latitudes.
 
 The various fused layer profiles look as one would expect (Figure
 \ref{mean-flowdir}), although the overall lack of latitudinal
@@ -369,18 +416,18 @@ layers makes it hard to say much more than that.
 %-----------------------------------------------------------------------
 
 \paragraph{Elevation}
-Correlations between ASTER and SRTM are quite high, typically >0.999,
-and RMSEs are on the order of 10-15 meters (Figures \ref{corr-elevation}
-and \ref{rmse-elevation}). Spikes (downward for correlation, upward for
-RMSE) occur at some latitudes, which I speculate are associated with
-the observed extreme spikes in the ASTER DEM itself. As expected, the
-multiresolution spline and Gaussian weighted average both produce layers
-that gradually become less similar to ASTER and more similar to SRTM
-moving south from 60\N, but in slightly different ways. This gradual
-transition is less evident when considering associations with the Canada
-DEM (bottom panels of Figures \ref{corr-elevation} and
+Pearson correlations between SRTM and ASTER are quite high, typically
+>0.999, and RMSEs are on the order of 10-15 meters (Figures
+\ref{corr-elevation} and \ref{rmse-elevation}). Spikes (downward for
+correlation, upward for RMSE) occur at some latitudes, quite possibly
+associated with the observed extreme spikes in the ASTER DEM itself. As
+expected, the multiresolution spline and Gaussian weighted average both
+produce layers that gradually become less similar to ASTER and more
+similar to SRTM moving south from 60\N, but in slightly different ways.
+This gradual transition is less evident when considering associations
+with CDED (bottom panels of Figures \ref{corr-elevation} and
 \ref{rmse-elevation}), which in general is less correlated with SRTM,
-and even less with ASTER, than those two layers are with each others.
+and even less with ASTER, than those two layers are with each other.
 
 \paragraph{Slope}
 The patterns of slope layer similarity are much like those described
@@ -393,7 +440,7 @@ Gaussian weighted averaging produces a layer that exhibits a gradual
 transition from ASTER to SRTM, whereas the multiresolution spline yields
 an abrupt transition. Not surprisingly, the simple fused layer is even
 worse, producing not only a sudden transiton but also abberant values
-right at the fusion seam; note downward (upward) spikes in correlation
+at the fusion seam itself; note downward (upward) spikes in correlation
 (RMSE) at 60\N in the first column of plots in Figures \ref{corr-slope}
 and \ref{rmse-slope}.
 
@@ -413,13 +460,13 @@ where $x_i$ and $y_i$ are aspect values (in radians) for pixel $i$, and
 $\bar{x}$ and $\bar{y}$ are circular means calculated as in Equation
 \ref{eq-cmean}.
 
-To calculate RMSEs for aspect, I did not use trigonometric properties in
-the same way as for computing correlation, but instead imposed a simple
-correction whereby all pairwise differences were computed using the
-shorter of the two paths around the compass wheel (Equation
-\ref{eq-circ-rmse}). For example, the difference between 0$^\circ$ and
-150$^\circ$ is 150$^\circ$, but the difference between 0$^\circ$ and
-250$^\circ$ is 110$^\circ$.
+To calculate RMSEs for aspect, I did not attempt to use trigonometric
+properties analogous to computation of the circular correlation, but
+instead just imposed a simple correction whereby all pairwise
+differences were computed using the shorter of the two paths around the
+compass wheel (Equation \ref{eq-circ-rmse}). For example, the difference
+between 0$^\circ$ and 150$^\circ$ is 150$^\circ$, but the difference
+between 0$^\circ$ and 250$^\circ$ is 110$^\circ$.
 
 \begin{eqnarray}
 \label{eq-circ-rmse}
@@ -433,7 +480,7 @@ typically hovering around 0.5, but dipping down towards zero at numerous
 latitudes (Figure \ref{corr-flowdir}). The corresponding RMSE is close
 to 70 at all latitudes, surprisingly high considering that the maximum
 difference between any two pixels is 180$^\circ$ (Figure
-\ref{rmse-flowdir}). Comparison of SRTM and ASTER with the Canada DEM
+\ref{rmse-flowdir}). Comparison of SRTM and ASTER with CDED
 yields similar patterns.
 
 For both of the blended layers (multiresolution spline and Gaussian
@@ -444,24 +491,23 @@ and upper right panels of Figure \ref{corr-flowdir}, correlations
 between fused aspect and aspect based on the original SRTM and ASTER
 images are substantially \emph{negative} for many latitudes in the zone
 of overlap. I don't have a good feel for what's going on here, although
-it part that may be because I don't have a great intuition for how the
-circular correlation statistic might be responding to patterns in the
-data. Note that the latitudinal profile of aspect RMSEs is less
-worrisome (upper middle and upper right panels of Figure
-\ref{rmse-flowdir}) and more closely resembles the profile of slope
-RMSEs discussed above, particularly as regards the more gradual
+it may just involve properties of the circular correlation statistic
+that I don't have a good feel for. Note that the latitudinal profile of
+aspect RMSEs is less worrisome (upper middle and upper right panels of
+Figure \ref{rmse-flowdir}) and more closely resembles the profile of
+slope RMSEs discussed above, particularly as regards the more gradual
 transition in case of Gaussian weighted averaging compared to the
 multiresolution spline.
 
 \paragraph{Flow direction}
 As with aspect, circular correlation coefficients and adjusted RMSEs
-were calculated for each latitudinal band. Flow direciton correlations
+were calculated for each latitudinal band. Flow direction correlations
 between SRTM and ASTER are slightly lower than for aspect, typically
 around 0.40 but spiking negative at a handful of latitudes (Figure
-\ref{corr-flowdir}). RMSEs hover consistenly around $\sim$75, slightly
+\ref{corr-flowdir}). RMSEs hover consistently around $\sim$75, slightly
 lower than was the case with aspect (Figure \ref{rmse-flowdir}).
 
-Aside from an expected artifact at the southern image edge, and an
+Aside from an expected flow artifact at the southern image edge, and an
 unexpected (and as-yet unexplained) negative spike at $\sim$59.95\N, the
 correlation profiles are fairly well-behaved for both blended layers,
 and don't show the same odd behavior as was the case for aspect. Again
@@ -594,21 +640,22 @@ indeed look almost the same as those computed using aspect (Figure
   \caption{ASTER vs SRTM elevation comparisons}
   \centering
   \subfloat[Boxplots of the arithmetic difference in elevations (ASTER -
-  SRTM), summarized across a series of ASTER elevation bins. Boxes
+  SRTM), summarized across a series of SRTM elevation bins. Boxes
   include the median (horizontal band), 1st and 3rd quartiles (box
-  extents), and $\pm$1.5$\times$IQR (whiskers). Gray numbers above each
-  whisker indicates how many thousands of pixels are included in the
-  corresponding summary. Dashed red line indicates the median difference
-  across all pixels south of 60\N.]{
-    \includegraphics[width=\linewidth]{../dem/aster-srtm-bins.png}
+  extents), and $\pm$1.5$\times$IQR (whiskers); outliers not shown. Gray
+  numbers above each whisker indicates how many thousands of pixels are
+  included in the corresponding summary. Dashed red line indicates the
+  median difference across all pixels south of 60\N.]{
+    \includegraphics[width=\linewidth, trim=0 0 0 0.5in, clip=TRUE]{../dem/aster-srtm-bins.png}
     \label{aster-srtm-bins}
   }\\
-  \subfloat[Pixel-wise plot of ASTER vs SRTM for all values in the 150
+  \subfloat[Pixel-wise plot of SRTM vs ASTER for all values in the 150
   latitudinal rows of overlap south of 60\N. Dashed blue line indicates
   the 1:1 diagonal, and the parallel red line is offset lower by the
-  observed median difference between ASTER and SRTM
-  (\Sexpr{delta.median}).]{
-    \includegraphics[width=\linewidth]{../dem/aster-srtm-scatter.png}
+  observed median difference between SRTM and ASTER (\Sexpr{delta.median}m).
+  Inset histogram shows distribution of differences, excluding absolute
+  differences >60.]{
+    \includegraphics[width=\linewidth, trim=0 0 0 0.5in, clip=TRUE]{../dem/aster-srtm-scatter.png}
     \label{aster-srtm-scatter}
   }
   \label{aster-srtm}
@@ -695,14 +742,14 @@ indeed look almost the same as those computed using aspect (Figure
   mtext(paste("(a)", round(yFromRow(sfd.bg, y1), 3), "degrees"))
   axis.circular(at=circular(c(pi/2, pi, 3*pi/2, 2*pi)),
       labels=c("N", "W", "S", "E"))
-  #points(mean.circular(cx[1,], na.rm=TRUE), col="red")
+  points(mean.circular(cx[1,], na.rm=TRUE), col="red")
   lines.circular(c(mean.circular(cx[1,], na.rm=TRUE), 0), c(0,-1),
       lwd=2, col="red")
   rose.diag(cx[2,], bins=1000, border="blue", ticks=FALSE, axes=FALSE)
   mtext(paste("(b)", round(yFromRow(sfd.bg, y2), 3), "degrees"))
   axis.circular(at=circular(c(pi/2, pi, 3*pi/2, 2*pi)),
       labels=c("N", "W", "S", "E"))
-  #points(mean.circular(cx[2,], na.rm=TRUE), col="red")
+  points(mean.circular(cx[2,], na.rm=TRUE), col="red")
   lines.circular(c(mean.circular(cx[2,], na.rm=TRUE), 0), c(0,-1),
       lwd=2, col="red")
 @
@@ -765,18 +812,42 @@ indeed look almost the same as those computed using aspect (Figure
 \end{figure}
 
 
-\clearpage
-\appendix
 %-----------------------------------------------------------------------
 \section{Code listings}
 %-----------------------------------------------------------------------
 
-\lstinputlisting[language=R, caption={R wrapper code for multiresolution
-    spline}, label=code-enblend]{../dem/enblend.R}
-
 \clearpage
+\appendix
+
+\lstinputlisting[language=bash, caption={GDAL commands for assembling
+    and resampling SRTM and ASTER tiles into GeoTIFFs for use as inputs
+    to the boundary correction routines described in this document.},
+    label=code-gdalwarp]{../dem/boundary-assembly.sh}
+\clearpage
+
+\lstinputlisting[language=R, caption={R code implementing several
+    SRTM-ASTER boundary corrections, including the Gaussian weighted
+    average layer discussed in this document (see \texttt{OPTION 3}, as
+    identified in code comments).},
+    label=code-correct]{../dem/boundary-correction.R}
+\clearpage
+
+\lstinputlisting[language=bash, caption={GDAL commands for assembling
+    boundary-corrected DEM components above and below 60\N, for each of
+    several correction approaches implemented in Listing
+    \ref{code-correct}. Note that multiresolution spline blending is
+    treated separately (see Listing \ref{code-enblend}).},
+    label=code-fuse]{../dem/boundary-fusion.sh}
+\clearpage
+
+\lstinputlisting[language=R, caption={R wrapper code for multiresolution
+    spline of SRTM and ASTER.}, label=code-enblend]{../dem/enblend.R}
+\clearpage
+
 \lstinputlisting[language=bash, caption={GRASS code for computing
-    flow directions}, label=code-flowdir]{../flow/flow-boundary.sh}
+    flow directions using the various fused elevation rasters and their
+    components DEMS as inputs.},
+    label=code-flowdir]{../flow/flow-boundary.sh}
 
 \end{document}
 
