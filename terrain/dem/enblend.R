@@ -51,6 +51,6 @@ system(paste("enblend --verbose=6 -o enblend.tif",
 e <- raster("enblend.tif")
 e2 <- aster
 # round to nearest integer
-e2[] <- as.integer(round(values(e2), 0))
+e2[] <- as.integer(round(values(e), 0))
 writeRaster(e2, file=file.path(demdir, "fused_300straddle_enblend.tif"),
     options="COMPRESS=NONE", datatype="INT2S")
