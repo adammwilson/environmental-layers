@@ -1,14 +1,13 @@
 # Code to produce enblended DEM (i.e., using multiresolution splines as
-# described by Burt & Adelson 1983) in the 60N boundary region.
+# described by Burt & Adelson 1983) in the 60N boundary region. After
+# appropriately preparing the SRTM and ASTER layers, this code makes a
+# system call to run 'enblend' (v. 4.0) on the inputs, then
+# post-processes the resulting image to yield a single band geotiff with
+# datatype of 16bit signed integer, matching the input data.
 #
-# This code makes a system call to run 'enblend' (v. 4.0) on the
-# prepared ASTER and SRTM layers, and then post-processes the resulting
-# image to yield a single band geotiff with datatype of 16bit signed
-# integer, matching the input data.
-#
-# Somewhat arbitrarily, in the code below I prep the input data such
-# that the area of overlap is the first 75 rows below 60N (i.e., a zone
-# extending ~6.75km south of the boundary).
+# Somewhat arbitrarily, in the code below the input DEMs are prepped
+# such that the area of SRTM/ASTER overlap is the first 75 rows below
+# 60N (i.e., a zone extending ~6.75km south of the boundary).
 #
 # Jim Regetz
 # NCEAS
@@ -42,15 +41,14 @@ alpha[151:300, ] <- 1
 writeRaster(brick(srtm, alpha), file="srtm-enblend.tif",
     options="ALPHA=YES")
 
-
-# DO ENBLEND HERE
+# run 'enblend'
 system(paste("enblend --verbose=6 -o enblend.tif",
     "aster-enblend.tif srtm-enblend.tif"))
 
 # post-process enblended DEM
 e <- raster("enblend.tif")
 e2 <- aster
-# round to nearest integer
+# round to nearest integer, and write out the result as a geotiff
 e2[] <- as.integer(round(values(e), 0))
 writeRaster(e2, file=file.path(demdir, "fused_300straddle_enblend.tif"),
     options="COMPRESS=NONE", datatype="INT2S")
