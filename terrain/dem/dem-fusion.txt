@@ -120,7 +120,7 @@ aster.north.pdelta[aster.north>max(sampdata$aster)] <- predict(lo.byaster,
 
 # 2a: exponential distance-weighting of LOESS predicted deltas
 r <- -0.045
-w <- exp(ydistN*r)
+w <- exp(r*ydistN)
 aster.north.smooth <- aster.north
 aster.north.smooth[] <- values(aster.north) + as.integer(round(t(w *
     as.matrix(aster.north.pdelta))))
@@ -128,7 +128,7 @@ writeRaster(aster.north.smooth, file="aster_150above_predexp.tif")
 
 # 2b: gaussian distance-weighting of LOESS predicted deltas
 r <- -0.001  # weight drops to 0.5 at ~26 cells, ie 2.4km at 3" res
-w <- exp(-0.001*ydistN^2)
+w <- exp(r*ydistN^2)
 aster.north.smooth <- aster.north
 aster.north.smooth[] <- values(aster.north) + as.integer(round(t(w *
     as.matrix(aster.north.pdelta))))
@@ -202,14 +202,14 @@ gdaldem hillshade -s 111120 fused_300straddle_blendgau.tif fused_300straddle_ble
 
 library(raster)
 
-uncorrected <- raster("fused_300straddle_hs.tif")
-rampexp <- raster("fused_300straddle_rampexp_hs.tif")
-blendgau <- raster("fused_300straddle_blendgau_hs.tif")
+uncorrected <- raster("fused_300straddle_h.tif")
+rampexp <- raster("fused_300straddle_rampexp_h.tif")
+blendgau <- raster("fused_300straddle_blendgau_h.tif")
 
 window <- extent(-135, -134, 59.875, 60.125)
 
-png("boundary-hillshade.png", height=8, width=8, units="in", res=600)
-par(mfrow=c(3,1))
+png("boundary-hillshade.png", height=10, width=7.5, units="in", res=600)
+par(mfrow=c(3,1), mar=c(2,4,4,2))
 plot(crop(uncorrected, window), main="uncorrected (hillshade)")
 plot(crop(rampexp, window), main="north exponential ramp (hillshade)")
 plot(crop(blendgau, window), main="south gaussian blend (hillshade)")
