@@ -249,9 +249,9 @@ delta.vals <- d.aster.crop.vals - d.srtm.vals
 #  d.srtm.vals <- d.srtm.vals[d.srtm.vals>0]
 
 png("aster-srtm-bins.png", height=5, width=8, units="in", res=300)
-plotDeltaBins(delta.vals, d.aster.crop.vals, 150, 50, 1500, las=2,
-    cex.axis=0.8, xlab="Midpoints of ASTER elevation bins (m)",
-    ylab="(ASTER - SRTM)")
+plotDeltaBins(delta.vals, d.srtm.vals, 150, 50, 1500, las=2,
+    cex.axis=0.8, xlab="Midpoints of SRTM elevation bins (m)",
+    ylab="ASTER - SRTM difference (m)")
 dev.off()
 
 # plot scatter of aster vs srtm
