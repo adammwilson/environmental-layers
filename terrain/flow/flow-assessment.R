@@ -136,7 +136,6 @@ lines(lats150, rmse(crop(sfd.enblend, extent(sfd.srtm)), sfd.srtm), col="blue")
 legend("topright", legend=c("ASTER", "SRTM"), col=c("black", "blue"),
     lty=c(1, 1), bty="n")
 text(min(lats300), max(ylim)-5, pos=4, font=3, labels="exponential ramp")
-text(mean(lats300), mean(ylim), font=3, labels="(skipped)")
 abline(v=60, col="red", lty=2)
 
 plot(lats300, rmse(sfd.bg, sfd.aster), type="l", xlab="Latitude",
@@ -159,7 +158,6 @@ mtext(expression(paste(
 plot(lats300, rmse(sfd.enblend, sfd.can), type="l", xlab="Latitude",
     ylab="RMSE", ylim=ylim)
 text(min(lats300), max(ylim)-5, pos=4, font=3, labels="exponential ramp")
-text(mean(lats300), mean(ylim), font=3, labels="(skipped)")
 abline(v=60, col="red", lty=2)
 
 plot(lats300, rmse(sfd.bg, sfd.can), type="l", xlab="Latitude",
