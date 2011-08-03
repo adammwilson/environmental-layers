@@ -17,6 +17,7 @@
 \usepackage{fancyhdr}
 \usepackage[font=normalsize,singlelinecheck=false]{subfig}
 
+
 \title{SRTM/ASTER boundary analysis}
 \author{Jim Regetz}
 \date{Last update: 23 Jun 2011}
@@ -25,15 +26,25 @@
 \usepackage[utf8]{inputenc}
 \usepackage{a4wide}
 \usepackage{verbatim}
+\usepackage{listings}
 \usepackage[colorlinks=true,urlcolor=red]{hyperref}
+\usepackage{color}
 
-\topmargin 70pt
+%\topmargin 70pt
 
 \pagestyle{fancy}
 \rfoot{}
 \cfoot{\Large\thepage}
 \renewcommand {\headrulewidth}{0pt}
 \renewcommand {\footrulewidth}{0pt}
+
+% set some listings options
+\lstset{
+  basicstyle=\small\ttfamily,
+  stringstyle=\ttfamily,
+  commentstyle=\itshape\ttfamily,
+  showstringspaces=false,
+}
 
 \begin{document}
 
@@ -61,15 +72,23 @@ options(width=80)
 options(continue=" ")
 @
 
+\paragraph{Region of analysis} For testing purposes, I used a narrow
+band along the 60N boundary in Canada (Figure \ref{focal-area}). The
+latitudinal extent of this band is 59.875N - 60.125N (i.e., 300 3"
+pixels straddling 60N), and the longitudinal extent is 136W to 96W
+(i.e., 48000 pixels wide).
+
 \begin{figure}[htp]
-  \centering
   \caption{Focal area}
-<<echo=FALSE,results=hide,fig=TRUE>>=
+  \centering
+<<echo=FALSE,results=hide,fig=TRUE,height=5,width=7>>=
+  par(omi=c(0,0,0,0))
   library(raster)
   library(maps)
   demdir <- "/home/regetz/media/temp/terrain/dem/"
   dem <- raster(file.path(demdir, "fused_300straddle.tif"))
-  map("world", xlim=c(-140,-70), ylim=c(40, 70), fill=TRUE, col="grey")
+  map("world", xlim=c(-140,-70), ylim=c(40, 70), fill=TRUE, col="grey",
+      mar=c(4,0,0,0))
   grid(col="darkgray")
   axis(1)
   axis(2)
@@ -78,12 +97,105 @@ options(continue=" ")
   arrows(-110, 57, -113, 59.7, col="red", length=0.1)
   text(-110, 57, labels="focal region", col="red", font=3, pos=1)
 @
+  \label{focal-area}
 \end{figure}
 
-\begin{figure}[htp]
-  \caption{Weighting schemes}
+\paragraph{Fusion approaches} This document includes latitudinal
+characterizations of terrain values based on three different variants of
+a fused ASTER/SRTM DEM. I also explored (and briefly describe below) two
+additional approaches to fusing the layers, but do not include further
+assessment of these here.
+
+\subparagraph{Simple fusion} Naive concatentation of SRTM below 60N with
+ASTER above 60N, without applying any modifications to deal with
+boundary artifacts (Figure \ref{blend-simple}).
+
+\subparagraph{Multiresolution spline} Application of Burt \& Adelson's
+(1983) method for blending overlapping images using multiresolution
+splines, as implmented in the \emph{enblend} software package. Data prep
+and post-processing were handled in R (see Listing \ref{code-enblend}).
+As presented here, the ASTER and SRTM inputs were prepared such that the
+overlap zone is 75 latitudinal rows (6.75km) (Figure
+\ref{blend-multires}).
+
+\subparagraph{Gaussian weighted average} Blend of the two layers using
+weighted averaging such that the relative contribution of the SRTM
+elevation is zero at 60N, and increases according to a Gaussian function
+of distance moving south away from 60N. As presented here, this function
+was parameterized such that the ASTER and SRTM are equally weighted at a
+distance of $\sim$2.4km (26 cells) from the boundary, and the influence of
+ASTER is negligible by $\sim$5km from the boundary (Figure
+\ref{blend-gaussian}).
+
+\subparagraph{Others not shown} Fused with exponential ramp north of
+60N. The first step is to take the pixel-wise difference between ASTER
+and SRTM in the row immediately below 60N (i.e., the northmost extent of
+SRTM). An exponentially declining fraction of this difference is then
+then added back into the ASTER values north of 60N. This does a fine job
+of eliminating the artificial shelf and thus the appearance of a seam
+right along the 60N boundary, but it does not address the abrupt
+transition in texture (i.e., the sudden appearance of high frequency
+variability moving north across the boundary). Additionally, it
+introduces vertical ``ridges'' running north from the boundary. These
+arise because the calculated ramps are independent from one longitudinal
+``column'' to the next, and thus any changes in the boundary difference
+from one pixel to the next lead to adjacent ramps with different
+inclines.
+
+I also tried a simple LOESS predictive model. This involved first
+calculating the difference between ASTER and SRTM everywhere south of
+60N, and then fitting a LOESS line to these differences using the actual
+ASTER elevation as a predictor. I then used the fitted model to predict
+the ASTER-SRTM difference for ASTER cells north of 60N, and add a
+declining fraction (based on a Gaussian curve) of this difference to the
+ASTER values north of 60N. Conceptually, this amounts to applying an
+ASTER-predicted correction to the ASTER elevation values, where the
+correction term declines to zero according with increasing distance
+north of the bonudary. However, this method alone didn't yield
+particularly promising results in removing the 60N seam itself,
+presumably because adding a predicted correction at the boundary does
+not close the SRTM-ASTER gap nearly as efficiently as do corrections
+that are based on the actual elevation values. I therefore haven't
+pursued this any further, although it (or something like it) may prove
+useful in combination with one of the other methods.
+
+\begin{figure}
+  \caption{SRTM/ASTER blend configurations}
   \centering
-  \subfloat[Gaussian weighted blend]{
+  \subfloat[Simple fusion]{
+    \label{blend-simple}
+<<echo=FALSE,results=hide,fig=TRUE, height=3, width=6>>=
+  par(omi=c(0,0,0,0), mar=c(4,4,0,2)+0.1)
+  plot(0, xlim=c(-150, 150), ylim=c(0, 1), type="n", xaxt="n", yaxt="n",
+      bty="n", xlab="Latitude", ylab=NA)
+  rect(0, 0, 150, 0.75, col="red", density=5, angle=45)
+  rect(-150, 0, 0, 0.75, col="blue", density=5, angle=135)
+#  axis(1, at=seq(-120, 120, by=60), labels=seq(59.9, 60.1, by=0.05))
+  axis(1, at=seq(-150, 150, by=75), labels=c(59.875, NA, 60, NA, 60.125))
+  text(-150, 0.9, labels="SRTM", pos=4, col="blue")
+  text(150, 0.9, labels="ASTER", pos=2, col="red")
+@
+  }\\
+  \subfloat[Multiresolution spline]{
+    \label{blend-multires}
+<<echo=FALSE,results=hide,fig=TRUE, height=3, width=6>>=
+  par(omi=c(0,0,0,0), mar=c(4,4,0,2)+0.1)
+  plot(0, xlim=c(-150, 150), ylim=c(0, 1), type="n", xaxt="n", yaxt="n",
+      bty="n", xlab="Latitude", ylab=NA)
+  rect(-75, 0, 0, 0.75, col="lightgray")
+  rect(-75, 0, 150, 0.75, col="red", density=5, angle=45)
+  rect(-150, 0, 0, 0.75, col="blue", density=5, angle=135)
+  #axis(1, at=seq(-150, 150, by=60), labels=seq(59.875, 60.125, by=0.05))
+  #axis(1, at=0, labels=60, col="red", cex=0.85)
+  #axis(1, at=seq(-120, 120, by=60), labels=seq(59.9, 60.1, by=0.05))
+  axis(1, at=seq(-150, 150, by=75), labels=c(59.875, NA, 60, NA, 60.125))
+  text(-150, 0.9, labels="SRTM", pos=4, col="blue")
+  text(-37.5, 0.8, labels="overlap", pos=3, font=3)
+  text(150, 0.9, labels="ASTER", pos=2, col="red")
+@
+  }\\
+  \subfloat[Gaussian weighted average]{
+    \label{blend-gaussian}
 <<echo=FALSE,results=hide,fig=TRUE, height=3, width=6>>=
   par(omi=c(0,0,0,0), mar=c(4,4,1,2)+0.1)
   curve(exp(-0.001*x^2), from=-150, to=0, xlim=c(-150, 150), col="red",
@@ -92,46 +204,162 @@ options(continue=" ")
   curve(1-exp(-0.001*x^2), from=-150, to=0, add=TRUE, col="blue")
   #axis(1, at=seq(-150, 150, by=60), labels=seq(59.875, 60.125, by=0.05))
   #axis(1, at=0, labels=60, col="red", cex=0.85)
-  axis(1, at=seq(-120, 120, by=60), labels=seq(59.9, 60.1, by=0.05))
+  #axis(1, at=seq(-120, 120, by=60), labels=seq(59.9, 60.1, by=0.05))
+  axis(1, at=seq(-150, 150, by=75), labels=c(59.875, NA, 60, NA, 60.125))
   text(-100, 0.6, labels="gaussian\nblend")
   text(-140, 0.9, labels="SRTM", col="blue", pos=4)
   text(-140, 0.1, labels="ASTER", col="red", pos=4)
 @
-  }\\
-  \subfloat[Multiresolution spline]{
-<<echo=FALSE,results=hide,fig=TRUE, height=3, width=6>>=
-  par(omi=c(0,0,0,0), mar=c(4,4,0,2)+0.1)
-  plot(0, xlim=c(-150, 150), ylim=c(0, 1), type="n", xaxt="n", yaxt="n",
-      bty="n", xlab="Latitude", ylab=NA)
-  rect(-75, 0, 0, 0.75, col="purple")
-  rect(-75, 0, 150, 0.75, col="red", density=5, angle=45)
-  rect(-150, 0, 0, 0.75, col="blue", density=5, angle=135)
-  #axis(1, at=seq(-150, 150, by=60), labels=seq(59.875, 60.125, by=0.05))
-  #axis(1, at=0, labels=60, col="red", cex=0.85)
-  axis(1, at=seq(-120, 120, by=60), labels=seq(59.9, 60.1, by=0.05))
-  text(-150, 0.9, labels="SRTM", pos=4, col="blue")
-  text(-37.5, 0.8, labels="overlap", pos=3, font=3)
-  text(150, 0.9, labels="ASTER", pos=2, col="red")
-@
   }
 \end{figure}
 
-%\newpage
-%\begin{center}
-%\includegraphics[width=\linewidth]{../dem/boundary-hillshade.png}
-%\end{center}
+\newpage
+
+%\includepdfset{pagecommand=\thispagestyle{fancy}}
+%\setkeys{Gin}{width=1.8\linewidth}
+%\captionsetup[table]{position=top}
+
+
+\paragraph{Latitudinal terrain profiles (means)}
+
+\subparagraph{Elevation} As indicated in Figure \ref{mean-elevation},
+the mean SRTM elevation is uniformly higher than the mean ASTER
+elevation at all latitudes in the area of overlap, by $\sim$11 meters.
+However, the shape of the profile itself is nearly identical between the
+two. As point of reference, the Canada DEM shares a similarly shaped
+profile, but with elevation values intermediate to the ASTER and SRTM.
+
+Not surprisingly, simple fusion produces an artificial cliff in the mean
+elevation profile. This artifact is completely removed by both the
+multiresolution spline and gaussian weighted average methods. The
+transition is, at least to the eye, slightly smoother in the former
+case, although ultimately this would depend on the chosen zone of
+overlap and on the exact parameterization of the weighting function.
+
+
+\subparagraph{Slope} As indicated in Figure \ref{mean-slope},
+the mean ASTER slope is uniformly steeper than the mean SRTM
+elevation at all latitudes in the area of overlap, by nearly 1 degree.
+However, the shape of the profile itself is nearly identical between the
+two. Although this may partly reflect inherent SRTM vs ASTER
+differences, my guess is that CGIAR postprocessing of the particular
+SRTM product we're using has removed some of the high frequency
+``noise'' that remains in ASTER.
+
+Note that the he Canada DEM tends to be flatter than both ASTER and
+SRTM (presumably because it is at least partially derived from
+contour-based data (\textbf{check!})). Moreover, this figure makes it
+clear that the Canada DEM has some major artifacts at regular intervals.
+The spike especially at 60N (which coincides with provincial boundaries
+across the entirety of western Canada) means we probably need to scuttle
+our plans to use this DEM as a reference dataset for boundary analysis.
+
+The simple fused layer exhibits a dramatic spike in slope at the
+immediate 60N boundary, undoubtedly associated with the artificial
+elevation cliff. This artifact is eliminated by both the multiresolution
+spline and gaussian weighting. However, former exhibits a sudden step
+change in slope in the SRTM-ASTER overlap region, whereas the transition
+is smoothed out in the latter. This likely reflects the fact that the
+multiresolution spline effectively uses a very narrow transition zone
+for stitching together high frequency components of the input images,
+and I surmise these are precisely the features responsible for the shift
+in mean slope. 
+
+\subparagraph{Aspect} As indicated in Figure \ref{mean-aspect},
+the mean aspect of ASTER and SRTM are quite similar across all latitudes
+in the area of overlap. However, the shape of the
+profile itself is nearly identical between the
+two. Although this may partly reflect inherent SRTM vs ASTER
+differences, my guess is that CGIAR postprocessing of the particular
+SRTM product we're using has removed some of the high frequency
+``noise'' that remains in ASTER.
+
+%TODO: recalc aspect using circular mean?
+%TODO: run flow for enblend output? or just leave what we have, and
+%discuss that? be sure to mention that we're doing flow for a smaller
+%longitudinal range
+
+%
+% Latitudinal terrain profiles (means)
+%
+\begin{figure}[t!]
+  \centering
+  \caption{Latitudinal terrain profiles}
+  \subfloat[Mean elevation (m)]{
+    \includegraphics[page=1, trim=1in 1in 1in 1in, width=\linewidth]{../dem/elevation-assessment.pdf}
+    \label{mean-elevation}
+  }\\
+  \newpage
+  \subfloat[Mean slope (degrees)]{
+    \includegraphics[page=1, trim=1in 1in 1in 1in, width=\linewidth]{../slope/slope-assessment.pdf}
+    \label{mean-slope}
+  }
+\end{figure}
+\begin{figure}[h!]
+  \ContinuedFloat
+  \centering
+  \captionsetup{position=top}
+  \subfloat[Aspect (direction, 0=East)]{
+    \includegraphics[page=1, trim=1in 1in 1in 1in, width=\linewidth]{../aspect/aspect-assessment.pdf}
+    \label{mean-aspect}
+  }\\
+  \subfloat[Flow (D8 direction, 0=East)]{
+    \includegraphics[page=1, trim=1in 1in 1in 1in, width=\linewidth]{../flow/flowdir-assessment.pdf}
+    \label{mean-flow}
+  }
+\end{figure}
+
+\paragraph{Summary of findings}
+\begin{itemize}
+ \item CDEM itself has problems
+  \begin{itemize}
+   \item 60N coincides with provincial boundaries; there are clear 60N
+     artifacts in this layer!
+   \item other evident tiling artifacts too
+  \end{itemize}
+ \item Big SRTM vs ASTER differences:
+  \begin{itemize}
+   \item ASTER is generally lower elevation
+   \item ASTER has more high-frequency variability ("texture"), which
+     affects slope/aspect?
+  \end{itemize}
+ \item Exponential ramping
+  \begin{itemize}
+   \item fixes seam itself
+   \item leaves dramatic transition in SRTM/ASTER textural differences
+   \item introduces ridging
+  \end{itemize}
+ \item Blending
+  \begin{itemize}
+   \item fixes seam itself
+   \item smooths transition in textural differences
+  \end{itemize}
+ \item Other comments
+  \begin{itemize}
+   \item Routing is a big ball of wax
+  \end{itemize}
+\end{itemize}
+
+\paragraph{To do (possibly)}
+\begin{itemize}
+ \item add constant offset to ASTER? or maybe an offset that is a
+ function of elevation? (revisit LOESS fit)
+ \item smooth ASTER?
+\end{itemize}
+
+%TODO: include and discuss the RMSE/correlation plots
+
+%\includepdf[landscape=true,pages=-]{../dem/elevation-assessment.pdf}
+%\includepdf[landscape=true,pages=-]{../slope/slope-assessment.pdf}
+%\includepdf[landscape=true,pages=-]{../aspect/aspect-assessment.pdf}
+%\includepdf[landscape=true,pages=-]{../flow/flowdir-assessment.pdf}
 
 \newpage
 
-\centering
-\includepdfset{pagecommand=\thispagestyle{fancy}}
-\setkeys{Gin}{width=1.8\linewidth}
-\includepdf[landscape=true,pages=-]{../dem/elevation-assessment.pdf}
-\includepdf[landscape=true,pages=-]{../slope/slope-assessment.pdf}
-\includepdf[landscape=true,pages=-]{../aspect/aspect-assessment.pdf}
-\includepdf[landscape=true,pages=-]{../flow/flowdir-assessment.pdf}
+\appendix
 
-\verbatiminput{../dem/enblend.R}
+\lstinputlisting[language=R, caption={R wrapper code for multiresolution
+    spline}, label=code-enblend]{../dem/enblend.R}
 
 \end{document}
 
