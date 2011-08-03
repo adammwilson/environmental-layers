@@ -1,12 +1,24 @@
-# R code to plot latitudinal profiles of mean aspect, along with both
-# RMSE and correlation coefficients comparing fused layers with both the
-# raw ASTER and with the Canada DEM
+# R code to plot latitudinal profiles of (circular) mean aspect, along
+# with both RMSE and (circular) correlation coefficients comparing fused
+# layers with both the raw ASTER and with the Canada DEM
+#
+# Aspect layers were generated from the respect DEMs in this way:
+#   $ gdaldem aspect -s 111120 <layer>.tif <layer>_a.tif
+# ...where the default azimuthal behavior produces output values ranging
+# from 0-360 where 0 is north, and proceeding clockwise
+#
+# For exploratory plotting, note the following (uses 'circular'
+# package):
+#  > cx <- circular(as.matrix(a.bg)[151,], units="degrees",
+#      rotation="clock", zero=pi/2)
+#  > rose.diag(cx, bins=8)
+#  > points(mean.circular(cx, na.rm=TRUE), col="red")
 #
 # Jim Regetz
 # NCEAS
-# Created on 08-Jun-2011
 
 library(raster)
+library(circular)
 
 datadir <- "/home/regetz/media/temp/terrain/aspect"
 
@@ -25,38 +37,51 @@ lats150 <- yFromRow(a.srtm, 1:nrow(a.srtm))
 # initialize output pdf device driver
 pdf("aspect-assessment.pdf", height=8, width=11.5)
 
-
 #
 # plot latitudinal profiles of mean aspect
 #
 
+# simple helper function to calculate row-wise means using circular
+# mean, patterned after circ.mean in the CircStats package
+rowMeansC <- function(r1, na.rm=TRUE) {
+    m1 <- as.matrix(r1)
+    m1[] <- (m1 * pi)/180
+    sinr <- rowSums(sin(m1), na.rm=na.rm)
+    cosr <- rowSums(cos(m1), na.rm=na.rm)
+    cmeans <- atan2(sinr, cosr)
+    (cmeans * 180)/pi
+}
+
 par(mfrow=c(2,2), omi=c(1,1,1,1))
+ylim <- c(-180, 180)
 
-ylim <- c(160, 180)
-
-plot(lats300, rowMeans(as.matrix(a.can), na.rm=TRUE), type="l",
+plot(lats300, rowMeansC(a.can), type="l", yaxt="n",
     xlab="Latitude", ylab="Mean aspect", ylim=ylim)
+axis(2, at=c(-180, -90, 0, 90, 180), labels=c("S", "W", "N", "E", "S"))
 text(min(lats300), min(ylim)+0.5, pos=4, font=3, labels="Original DEMs")
-lines(lats300, rowMeans(as.matrix(a.aster), na.rm=TRUE), col="blue")
-lines(lats150, rowMeans(as.matrix(a.srtm), na.rm=TRUE), col="red")
+lines(lats300, rowMeansC(a.aster), col="blue")
+lines(lats150, rowMeansC(a.srtm), col="red")
 legend("bottomright", legend=c("ASTER", "SRTM", "CDED"), col=c("blue",
     "red", "black"), lty=c(1, 1), bty="n")
 abline(v=60, col="red", lty=2)
 mtext(expression(paste("Latitudinal profiles of mean aspect (",
     136*degree, "W to ", 96*degree, "W)")), adj=0, line=2, font=2)
 
-plot(lats300, rowMeans(as.matrix(a.uncor), na.rm=TRUE), type="l",
+plot(lats300, rowMeansC(a.uncor), type="l", yaxt="n",
     xlab="Latitude", ylab="Mean aspect", ylim=ylim)
+axis(2, at=c(-180, -90, 0, 90, 180), labels=c("S", "W", "N", "E", "S"))
 text(min(lats300), min(ylim)+0.5, pos=4, font=3, labels="simple fused")
 abline(v=60, col="red", lty=2)
 
-plot(lats300, rowMeans(as.matrix(a.enblend), na.rm=TRUE), type="l",
+plot(lats300, rowMeansC(a.enblend), type="l", yaxt="n",
     xlab="Latitude", ylab="Mean aspect", ylim=ylim)
+axis(2, at=c(-180, -90, 0, 90, 180), labels=c("S", "W", "N", "E", "S"))
 text(min(lats300), min(ylim)+0.5, pos=4, font=3, labels="multires spline")
 abline(v=60, col="red", lty=2)
 
-plot(lats300, rowMeans(as.matrix(a.bg), na.rm=TRUE), type="l",
+plot(lats300, rowMeansC(a.bg), type="l", yaxt="n",
     xlab="Latitude", ylab="Mean aspect", ylim=ylim)
+axis(2, at=c(-180, -90, 0, 90, 180), labels=c("S", "W", "N", "E", "S"))
 text(min(lats300), min(ylim)+0.5, pos=4, font=3, labels="gaussian blend")
 abline(v=60, col="red", lty=2)
 
@@ -126,33 +151,32 @@ plot(lats300, rmse(a.bg, a.can), type="l", xlab="Latitude",
 text(min(lats300), max(ylim)-5, pos=4, font=3, labels="gaussian blend")
 abline(v=60, col="red", lty=2)
 
-# close pdf device driver
-dev.off()
-
-stop("not doing correlations")
 
 #
 # plot latitudinal profiles of correlation coefficients
 #
 
-# simple helper function to calculate row-wise correlation coefficients
+# simple helper function to calculate row-wise *circular* correlation
+# coefficients
 corByLat <- function(r1, r2, rows) {
     if (missing(rows)) {
         rows <- 1:nrow(r1)
     }
-    m1 <- as.matrix(r1)
-    m2 <- as.matrix(r2)
-    sapply(rows, function(row) cor(m1[row,], m2[row,],
-        use="pairwise.complete.obs"))
+    m1 <- circular(as.matrix(r1), units="degrees", rotation="clock")
+    m2 <- circular(as.matrix(r2), units="degrees", rotation="clock")
+    sapply(rows, function(row) {
+        p <- cor.circular(m1[row,], m2[row,])
+        if (is.null(p)) NA else p
+        })
 }
 
 par(mfrow=c(2,3), omi=c(1,1,1,1))
 
-ylim <- c(0, 1)
+ylim <- c(-1, 1)
 
 # ...with respect to ASTER
 plot(lats300, corByLat(a.uncor, a.aster), type="l", xlab="Latitude",
-    ylab="Correlation", ylim=ylim)
+    ylab="Circular correlation", ylim=ylim)
 lines(lats150, corByLat(crop(a.uncor, extent(a.srtm)), a.srtm), col="blue")
 legend("bottomright", legend=c("ASTER", "SRTM"), col=c("black", "blue"),
     lty=c(1, 1), bty="n")
@@ -163,7 +187,7 @@ mtext(expression(paste(
     136*degree, "W to ", 96*degree, "W)")), adj=0, line=2, font=2)
 
 plot(lats300, corByLat(a.enblend, a.aster), type="l", xlab="Latitude",
-    ylab="Correlation", ylim=ylim)
+    ylab="Circular correlation", ylim=ylim)
 lines(lats150, corByLat(crop(a.enblend, extent(a.srtm)), a.srtm), col="blue")
 legend("bottomright", legend=c("ASTER", "SRTM"), col=c("black", "blue"),
     lty=c(1, 1), bty="n")
@@ -171,7 +195,7 @@ text(min(lats300), min(ylim), pos=4, font=3, labels="multires spline")
 abline(v=60, col="red", lty=2)
 
 plot(lats300, corByLat(a.bg, a.aster), type="l", xlab="Latitude",
-    ylab="Correlation", ylim=ylim)
+    ylab="Circular correlation", ylim=ylim)
 lines(lats150, corByLat(crop(a.bg, extent(a.srtm)), a.srtm), col="blue")
 legend("bottomright", legend=c("ASTER", "SRTM"), col=c("black", "blue"),
     lty=c(1, 1), bty="n")
@@ -180,7 +204,7 @@ abline(v=60, col="red", lty=2)
 
 # ...with respect to CDEM
 plot(lats300, corByLat(a.uncor, a.can), type="l", xlab="Latitude",
-    ylab="Correlation", ylim=ylim)
+    ylab="Circular correlation", ylim=ylim)
 text(min(lats300), min(ylim), pos=4, font=3, labels="simple fused")
 abline(v=60, col="red", lty=2)
 mtext(expression(paste(
@@ -188,11 +212,14 @@ mtext(expression(paste(
     136*degree, "W to ", 96*degree, "W)")), adj=0, line=2, font=2)
 
 plot(lats300, corByLat(a.enblend, a.can), type="l", xlab="Latitude",
-    ylab="Correlation", ylim=ylim)
+    ylab="Circular correlation", ylim=ylim)
 text(min(lats300), min(ylim), pos=4, font=3, labels="multires spline")
 abline(v=60, col="red", lty=2)
 
 plot(lats300, corByLat(a.bg, a.can), type="l", xlab="Latitude",
-    ylab="Correlation", ylim=ylim)
+    ylab="Circular correlation", ylim=ylim)
 text(min(lats300), min(ylim), pos=4, font=3, labels="gaussian blend")
 abline(v=60, col="red", lty=2)
+
+# close pdf device driver
+dev.off()
