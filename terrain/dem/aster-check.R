@@ -16,7 +16,7 @@ library(rgdal)
 # coordinates
 check <- function(tilename, path=".", silent=TRUE) {
     # build expected filename
-    origin <- round(GDALinfo(file.path(path, tilename),
+    origin <- round(GDALinfo(path.expand(file.path(path, tilename)),
         silent=silent)[c("ll.x", "ll.y")])
     ly <- origin["ll.y"]
     y <- sprintf("%s%02d", if (ly>=0) "N" else "S", abs(ly))
@@ -33,9 +33,9 @@ check <- function(tilename, path=".", silent=TRUE) {
 
 # produce vector of check results, with the actual file names as vector
 # element names (takes ~12 minutes on eos)
-aster.tiles <- list.files("~organisms/DEM/asterGdem",
-    pattern="^ASTGTM.*_dem.tif$")
-tilecheck <- sapply(aster.tiles, check)
+aster.dir <- "~organisms/DEM/asterGdem"
+aster.tiles <- list.files(aster.dir, pattern="^ASTGTM.*_dem.tif$")
+tilecheck <- sapply(aster.tiles, check, path=aster.dir)
 
 # report mismatches
 data.frame(expected=tilecheck[tilecheck!="TRUE"])
