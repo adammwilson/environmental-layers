@@ -3,7 +3,7 @@
 #1)assumes that the csv file is in the current working
 #2)extract relevant variables from raster images before performing the regressions.
 #The user must provide the list of raster images in  a textile.
-#Created by Benoit Parmentier on February 15, 2012.
+#Script created by Benoit Parmentier on February 15, 2012.
 
 ###Loading r library and packages
 library(raster)                                                                        # loading the raster package
@@ -14,7 +14,10 @@ library(mgcv)
 ###Parameters and arguments
 infile1<-"ghcn_or_b_02122012_OR83M.csv"
 inlistf<-"list_files.txt"
-path<-getwd()
+path<-"C:/Data/Benoit/NCEAS/window_Oregon_data"
+#path<-getwd()
+#date<-"20101507"                                                                       #Date selected for the regression
+#prop<-0.3                                                                              #Proportion of testing retained for validation
 #list_var<-list.files()                                                                 # displaying the files in the current folder which should contain only the relevant raster images.
 #dump("list_var", file="list_var.txt")                                                  # Saving the values of list_var in a ascii text file.
 #inlistvar<-"ghcn_var_02122012.txt"
@@ -23,12 +26,12 @@ path<-getwd()
 
 ###Reading the station data
 ghcn<-read.csv(paste(path,"/",infile1, sep=""), header=TRUE)                            #The "paste" function concatenates the path and file name in common string.
-ghcn<-read.csv(infile1)                                                                 #Use read.table if the input file is space delimited or read.table(infile1, headername=TRUE, sep=',')
+#ghcn<-read.csv(infile1)                                                                 #Use read.table if the input file is space delimited or read.table(infile1, headername=TRUE, sep=',')
 names(ghcn)                                                                             #Checking that the columns are correctly labelled.
 
 ###Extracting the variables values from the raster files
 coords<- ghcn[,c('x_OR83M','y_OR83M')]                                                  #Selecting all rows for the x and y columns and packaging the output in a data frame.
-lines <-readLines(inlistf)
+lines <-readLines(paste(path,"/",inlistf, sep="")
 inlistvar<-paste(path,"/",lines,sep="")
 
 #s_raster<- stack(inlistvar)                                                            #Creating a stack of raster images from the list of variables.
@@ -36,8 +39,11 @@ inlistvar<-paste(path,"/",lines,sep="")
 #create a shape file and data_frame with names??
 
 ###Creating a validation dataset by creating training and testing datasets (%30)
+#ghcn1507 <-subset(ghcn,ghcn$date_== date)
+ghcn1507 <-subset(ghcn,ghcn$date_=="20100715")
 n<-nrow(ghcn1507)
 ns<-n-round(n*0.3)  #Create a sample from the data frame with 70% of the rows
+#ns<-n-round(n*prop)  #Create a sample from the data frame with 70% of the rows
 ind.training <- sample(nrow(ghcn1507), size=ns, replace=FALSE) #This selects the index position for 70% of the rows taken randomly
 ind.testing <- setdiff(1:nrow(ghcn1507), ind.training)
 ghcn1507_s <- ghcn1507[ind.training, ]
@@ -46,32 +52,62 @@ ghcn1507_v <- ghcn1507[ind.testing, ]
 ############ REGRESSION ###############
 
 ###Regression part 1: linear models
-lm_PRISM1=lm(tmax~lat+lon+ELEV_SRTM+ASPECT+DISTOC, data=ghcn)
-lm_ANUSPLIN1=lm(tmax~lat+lon+ELEV_SRTM, data=ghcn)
+
+lm_ANUSPLIN1=lm(tmax~lat+lon+ELEV_SRTM, data=ghcn1507_s)
+lm_PRISM1=lm(tmax~lat+lon+ELEV_SRTM+ASPECT+DISTOC, data=ghcn1507_s) #Note that a variable on inversion is missing
 summary(lm_ANUSPLIN1)
 summary(lm_PRISM1)
 
-#Regression part2: linear model on a specific date.
-ghcn1507 <-subset(ghcn,ghcn$date_=="20100715")
-lm_PRISM2=lm(tmax~lat+lon+ELEV_SRTM+ASPECT+DISTOC, data=ghcn1507)
-lm_ANUSPLIN2=lm(tmax~lat+lon+ELEV_SRTM, data=ghcn1507)
-
-
-###Regression part 3: GAM models
-GAM1<-gam(tmax~ s(lat) + s (lon) + s (elev), data=ghcn1507)
-
-
+###Regression part 2: GAM models
+GAM_PRISM1<-gam(tmax~ s(lat) + s (lon) + s (ELEV_SRTM), data=ghcn1507_s)
+GAM_ANUSPLIN1<-gam(tmax~ s(lat) + s (lon) + s (ELEV_SRTM), data=ghcn1507_s)
 #use the s() for smoothing function
 
 ###Compare the models
 #Show AIC, Cook distance, p values and residuals plot
 ###Access the R2 and significance to give a report
 
-AIC (lm_ANUSPLIN1,lm_ANUSPLIN2,GAM1) #list the AIC and for the results
-anova(lm_ANUSPLIN1, lm_ANUSPLIN2,GAM1,test="F") #compare the different models in terms of F; a reference model should be set for comparison.
-#GAM plot of partial residuals
-gam.check(GAM1)   #This will produce basic plots of residuals
+AIC (lm_ANUSPLIN1,GAM_ANUSPLIN1) #list the AIC and for the results
+AIC (lm_PRISM1,GAM_PRISM1) #list the AIC and for the results
+anova(lm_ANUSPLIN1, GAM_ANUSPLIN1,test="F") #compare the different models in terms of F; a reference model should be set for comparison.
+anova(lm_PRISM1, GAM_PRISM1,test="F")
 
+#GAM plot of partial residuals
+gam.check(GAM_PRISM1)   #This will produce basic plots of residuals
+gam.check(GAM_ANUSPLIN1)
+
+#Prediction checking the results using the testing data
+y_plANUSPLIN1<- predict(lm_ANUSPLIN1, newdata=ghcn1507_v, se.fit = TRUE)
+y_pgANUSPLIN1<- predict(GAM_ANUSPLIN1, newdata=ghcn1507_v, se.fit = TRUE)
+y_plPRISM1<- predict(lm_PRISM1, newdata=ghcn1507_v, se.fit = TRUE)
+y_pgPRISM1<- predict(GAM_PRISM1, newdata=ghcn1507_v, se.fit = TRUE)
+
+res_yplA1<- ghcn1507_v$tmax - y_plANUSPLIN1$fit
+res_ypgA1<- ghcn1507_v$tmax - y_pgANUSPLIN1$fit
+res_yplP1<- ghcn1507_v$tmax - y_plPRISM1$fit   #Residuals for lm model that resembles the PRISM interpolation
+res_ypgP1<- ghcn1507_v$tmax - y_pgPRISM1$fit   #Residuals for GAM model that resembles the PRISM interpolation
+
+RMSE_yplA1 <- sqrt(sum(res_yplA1^2))
+#RMSE_ypgA1 <- sqrt(sum(res_ypgA1^2))
+RMSE_ypgA1 <- sqrt(sum(res_ypgA1^2))
+RMSE_yplP1 <- sqrt(sum(res_yplP1^2))
+RMSE_ypgP1 <- sqrt(sum(res_ypgP1^2))
+
+#Printing the RMSE values for the different models
+RMSE_yplA1
+RMSE_ypgA1
+RMSE_yplP1
+RMSE_ypgP1
+
+RMSE_all<-c(RMSE_yplA1,RMSE_ypgA1,RMSE_yplP1,RMSE_ypgP1)
+mod_name<-c("yplA1","ypgA1","yplP1","ypgP1")
+mod_type<-c("lm_ANUSPLIN1","GAM_ANUSPLIN1","lm_PRISM1","GAM_PRISM1")
+AIC_all<-AIC(lm_ANUSPLIN1,GAM_ANUSPLIN1,lm_PRISM1,GAM_PRISM1)
+results<-data.frame(model=mod_name,RMSE=RMSE_all,df=AIC_all$df,AIC=AIC_all$AIC)
+
+
+#dump("results", file= paste(path,"/","results_reg1507.txt",sep=""))
+write.csv(results, file= paste(path,"/","results_reg1507.txt",sep=""))
 
 ##End of script
 
