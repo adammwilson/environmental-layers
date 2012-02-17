@@ -7,7 +7,7 @@
 
 ###Loading r library and packages
 library(raster)                                                                        # loading the raster package
-library(gtools)                                                                       l# loading ...
+library(gtools)                                                                        # loading ...
 library(sp)
 library(mgcv)
 
@@ -53,14 +53,14 @@ ghcn1507_v <- ghcn1507[ind.testing, ]
 
 ###Regression part 1: linear models
 
-lm_ANUSPLIN1=lm(tmax~lat+lon+ELEV_SRTM, data=ghcn1507_s)
-lm_PRISM1=lm(tmax~lat+lon+ELEV_SRTM+ASPECT+DISTOC, data=ghcn1507_s) #Note that a variable on inversion is missing
+lm_ANUSPLIN1<-lm(tmax~lat+lon+ELEV_SRTM, data=ghcn1507_s)
+lm_PRISM1<-lm(tmax~lat+lon+ELEV_SRTM+ASPECT+DISTOC, data=ghcn1507_s) #Note that a variable on inversion is missing
 summary(lm_ANUSPLIN1)
 summary(lm_PRISM1)
 
 ###Regression part 2: GAM models
-GAM_PRISM1<-gam(tmax~ s(lat) + s (lon) + s (ELEV_SRTM), data=ghcn1507_s)
 GAM_ANUSPLIN1<-gam(tmax~ s(lat) + s (lon) + s (ELEV_SRTM), data=ghcn1507_s)
+GAM_PRISM1<-gam(tmax~ s(lat) + s (lon) + s (ELEV_SRTM) + s (ASPECT)+ s(DISTOC), data=ghcn1507_s)
 #use the s() for smoothing function
 
 ###Compare the models
@@ -104,7 +104,6 @@ mod_name<-c("yplA1","ypgA1","yplP1","ypgP1")
 mod_type<-c("lm_ANUSPLIN1","GAM_ANUSPLIN1","lm_PRISM1","GAM_PRISM1")
 AIC_all<-AIC(lm_ANUSPLIN1,GAM_ANUSPLIN1,lm_PRISM1,GAM_PRISM1)
 results<-data.frame(model=mod_name,RMSE=RMSE_all,df=AIC_all$df,AIC=AIC_all$AIC)
-
 
 #dump("results", file= paste(path,"/","results_reg1507.txt",sep=""))
 write.csv(results, file= paste(path,"/","results_reg1507.txt",sep=""))
