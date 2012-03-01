@@ -1,9 +1,10 @@
-#This script interpolates station value for the Oregon case study. This program loads the station data from a csv file 
+####################Interpolation of Tmax for on3 day.#####################
+#This script interpolates station values for the Oregon case study. This program loads the station data from a csv file 
 #and perform two types  of regression: multiple linear model and general additive model (GAM). Note that this program:
 #1)assumes that the csv file is in the current working 
 #2)extract relevant variables from raster images before performing the regressions. 
 #The user must provide the list of raster images in  a textile.
-#Script created by Benoit Parmentier on February 28, 2012. 
+#Script created by Benoit Parmentier on March 1, 2012. 
 
 ###Loading r library and packages                                                                       # loading the raster package
 library(gtools)                                                                        # loading ...
