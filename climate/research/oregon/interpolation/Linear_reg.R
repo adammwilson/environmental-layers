@@ -22,30 +22,19 @@ infile2<-"dates_interpolation_03012012.txt"  # list of 10 dates
 
 ###Reading the station data
 ghcn<-read.csv(paste(path,"/",infile1, sep=""), header=TRUE)                            #The "paste" function concatenates the path and file name in common string. 
-#ghcn<-read.csv(infile1)                                                                #Use read.table if the input file is space delimited or read.table(infile1, headername=TRUE, sep=',')                                                                            #Checking that the columns are correctly labelled.
 dates <-readLines(paste(path,"/",infile2, sep=""))
                   
 ###Creating a validation dataset by creating training and testing datasets (%30)
-#ghcn1507 <-subset(ghcn,ghcn$date_== date)
-#for loops
-ddat <- as.list(rep("", length(dates)))
+
+
+ghcn.subsets <-lapply(dates, function(d) subset(ghcn, date_==d))
 
 for(i in 1:length(dates)){
-  #assign(paste("ddat",i,sep="_"),data)
-  data_name<-cat("ghcn_",dates[[1]],sep="")
-  #data<-as.data.frame(data)
-  #ddat[[i]] <- data.frame(subset(ghcn,ghcn$date_==dates[[i]]))
-  #data<-subset(ghcn,ghcn$date_==dates[[i]])
-  data<-subset(ghcn,ghcn$date_==is.numeric(dates[[i]])
+  #data_name<-cat("ghcn_",dates[[i]],sep="")
+  data_name<-paste("ghcn_",dates[[i]],sep="")
+  data<-subset(ghcn,ghcn$date_==dates[[i]])
   assign(data_name,data)
-  n<-nrow(data[[i]])
-  ns<-n-round(n*0.3)  #Create a sample from the data frame with 70% of the rows
-  #ns<-n-round(n*prop)  #Create a sample from the data frame with 70% of the rows
-  ind.training <- sample(nrow(data), size=ns, replace=FALSE) #This selects the index position for 70% of the rows taken randomly
-  ind.testing <- setdiff(1:nrow(data), ind.training)
-  data_s <- data[ind.training, ]
-  data_v <- data[ind.testing, ]
-  }
+  }                                                   #This loops creates 2 subsets of ghcn based on dates and reassign the names using the date
 
 # ############ REGRESSION ###############
 # 
