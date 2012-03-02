@@ -31,11 +31,14 @@ dates <-readLines(paste(path,"/",infile2, sep=""))
 ddat <- as.list(rep("", length(dates)))
 
 for(i in 1:length(dates)){
-  data<-cat("ghcn_",dates[[1]],sep="")
-  data<-as.data.frame(data)
-  ddat[[i]] <- data.frame(subset(ghcn,ghcn$date_==dates[[i]]))
+  #assign(paste("ddat",i,sep="_"),data)
+  data_name<-cat("ghcn_",dates[[1]],sep="")
+  #data<-as.data.frame(data)
+  #ddat[[i]] <- data.frame(subset(ghcn,ghcn$date_==dates[[i]]))
   #data<-subset(ghcn,ghcn$date_==dates[[i]])
-  n<-nrow(data)
+  data<-subset(ghcn,ghcn$date_==is.numeric(dates[[i]])
+  assign(data_name,data)
+  n<-nrow(data[[i]])
   ns<-n-round(n*0.3)  #Create a sample from the data frame with 70% of the rows
   #ns<-n-round(n*prop)  #Create a sample from the data frame with 70% of the rows
   ind.training <- sample(nrow(data), size=ns, replace=FALSE) #This selects the index position for 70% of the rows taken randomly
