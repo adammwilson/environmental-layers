@@ -4,7 +4,7 @@
 #1)assumes that the csv file is in the current working 
 #2)extract relevant variables from raster images before performing the regressions. 
 #The user must provide the list of raster images in  a textile.
-#Script created by Benoit Parmentier on March 1, 2012. 
+#Script created by Benoit Parmentier on March 3, 2012. 
 
 ###Loading r library and packages                                                                       # loading the raster package
 library(gtools)                                                                        # loading ...
@@ -14,62 +14,101 @@ library(mgcv)
 infile1<-"ghcn_or_b_02122012_OR83M.csv"
 path<-"C:/Data/Benoit/NCEAS/window_Oregon_data"
 setwd(path)
-infile2<-"dates_interpolation_03012012.txt"  # list of 10 dates
-#dates<-"20101507"  # list of 10 dates in a textfile                                   #Date selected for the regression 
-#prop<-0.3                                                                            #Proportion of testing retained for validation   
+#infile2<-"dates_interpolation_03012012.txt"  # list of 10 dates for the regression
+infile2<-"dates_interpolation_03032012.txt"
+prop<-0.3                                                                            #Proportion of testing retained for validation   
+out_prefix<-"_03022012_r3"
 
 #######START OF THE SCRIPT #############
 
-###Reading the station data
+###Reading the station data and setting up for models' comparison
 ghcn<-read.csv(paste(path,"/",infile1, sep=""), header=TRUE)                            #The "paste" function concatenates the path and file name in common string. 
 dates <-readLines(paste(path,"/",infile2, sep=""))
-                  
-###Creating a validation dataset by creating training and testing datasets (%30)
 
+results <- matrix(1,length(dates),10)            #This is a matrix containing the diagnostic measures from the GAM models.
+ghcn.subsets <-lapply(dates, function(d) subset(ghcn, date_==d)) #this creates a list of 10 subsets data
 
-ghcn.subsets <-lapply(dates, function(d) subset(ghcn, date_==d))
+## looping through the dates...
 
-for(i in 1:length(dates)){
-  #data_name<-cat("ghcn_",dates[[i]],sep="")
-  data_name<-paste("ghcn_",dates[[i]],sep="")
-  data<-subset(ghcn,ghcn$date_==dates[[i]])
-  assign(data_name,data)
-  }                                                   #This loops creates 2 subsets of ghcn based on dates and reassign the names using the date
+for(i in 1:length(dates)){            # start of the for loop #1
+  
+  ###Regression part 1: Creating a validation dataset by creating training and testing datasets
+  
+  n<-nrow(ghcn.subsets[[i]])
+  ns<-n-round(n*prop)  #Create a sample from the data frame with 70% of the rows
+  nv<-n-ns             #create a sample for validation with prop of the rows
+  #ns<-n-round(n*prop)  #Create a sample from the data frame with 70% of the rows
+  ind.training <- sample(nrow(ghcn.subsets[[i]]), size=ns, replace=FALSE) #This selects the index position for 70% of the rows taken randomly
+  ind.testing <- setdiff(1:nrow(ghcn.subsets[[i]]), ind.training)
+  data_s <- ghcn.subsets[[i]][ind.training, ]
+  data_v <- ghcn.subsets[[i]][ind.testing, ]
+  
+  ####Regression part 2: GAM models
 
-# ############ REGRESSION ###############
-# 
-# ###Regression part 1: linear models
-# 
-# lm_ANUSPLIN1<-lm(tmax~lat+lon+ELEV_SRTM, data=ghcn1507_s)
-# lm_PRISM1<-lm(tmax~lat+lon+ELEV_SRTM+ASPECT+DISTOC, data=ghcn1507_s) #Note that a variable on inversion is missing
-# summary(lm_ANUSPLIN1)
-# summary(lm_PRISM1)
-# 
-# ###Regression part 2: GAM models
-# GAM_ANUSPLIN1<-gam(tmax~ s(lat) + s (lon) + s (ELEV_SRTM), data=ghcn1507_s)
-# GAM_PRISM1<-gam(tmax~ s(lat) + s (lon) + s (ELEV_SRTM) + s (ASPECT)+ s(DISTOC), data=ghcn1507_s)
-# #use the s() for smoothing function
-# 
-# ###Compare the models
-# #Show AIC, Cook distance, p values and residuals plot
-# ###Access the R2 and significance to give a report
-# 
-# AIC (lm_ANUSPLIN1,GAM_ANUSPLIN1) #list the AIC and for the results
-# AIC (lm_PRISM1,GAM_PRISM1) #list the AIC and for the results
-# 
-# GCVA1<-GAM_ANUSPLIN1$gcv.ubre
-# GCVP1<-GAM_PRISM1$gcv.ubre
-# 
-# DevianceA1<-GAM_ANUSPLIN1$deviance
-# DevianceP1<-GAM_PRISM1$deviance
-# 
-# anova(lm_ANUSPLIN1, GAM_ANUSPLIN1,test="F") #compare the different models in terms of F; a reference model should be set for comparison. 
-# anova(lm_PRISM1, GAM_PRISM1,test="F")
-# 
-# summary(lm_ANUSPLIN1)$r.squared
-# summary(GAM_ANUSPLIN1)$r.squared
-# summary(lm_PRISM1)$r.squared                
-# summary(GAM_PRISM1)$r.squared
+  GAM_ANUSPLIN1<-gam(tmax~ s(lat) + s (lon) + s (ELEV_SRTM), data=data_s)
+  GAM_PRISM1<-gam(tmax~ s(lat) + s (lon) + s (ELEV_SRTM) + s (ASPECT)+ s(DISTOC), data=data_s)
+  
+  ####Regression part 3: Calculating and storing diagnostic measures
+  
+  results[i,1]<- dates[i]  #storing the interpolation dates in the first column
+  results[i,2]<- ns        #number of stations used in the training stage
+  
+  results[i,5]<- AIC (GAM_ANUSPLIN1)
+  results[i,6]<- AIC (GAM_PRISM1)
+  GCVA1<-GAM_ANUSPLIN1$gcv.ubre
+  results[i,7]<- GCVA1
+  GCVP1<-GAM_PRISM1$gcv.ubre
+  results[i,8]<- GCVP1
+  
+  results[i,9]<-GAM_ANUSPLIN1$deviance
+  results[i,10]<-GAM_PRISM1$deviance
+  
+  #####VALIDATION: Prediction checking the results using the testing data########
+ 
+  y_pgANUSPLIN1<- predict(GAM_ANUSPLIN1, newdata=data_v, se.fit = TRUE) #Using the coeff to predict new values.
+  y_pgPRISM1<- predict(GAM_PRISM1, newdata=data_v, se.fit = TRUE)            
+           
+  res_ypgA1<- data_v$tmax - y_pgANUSPLIN1$fit #Residuals for GMA model that resembles the ANUSPLIN interpolation
+  res_ypgP1<- data_v$tmax - y_pgPRISM1$fit   #Residuals for GAM model that resembles the PRISM interpolation                               
+                             
+  RMSE_ypgA1 <- sqrt(sum(res_ypgA1^2)/nv)          
+  RMSE_ypgP1 <- sqrt(sum(res_ypgP1^2)/nv)
+  
+  results[i,3]<-RMSE_ypgA1
+  results[i,4]<-RMSE_ypgP1
+  
+  # end of the for loop #1
+  }
+
+## Plotting and saving diagnostic measures
+
+results_num <-results
+mode(results_num)<- "numeric"
+# Make it numeric first
+# Now turn it into a data.frame...
+
+results_table<-as.data.frame(results_num)
+colnames(results_table)<-c("dates","ns","RMSE_A1", "RMSE_P1", "AIC_A1", "AIC_P1", "GCV_A1", "GCV_P1", "Deviance_A1", "Deviance_P1")
+
+win.graph()
+barplot(results_table$RMSE_A1,main="RMSE for the A1 models",names.arg=results_table$dates,ylab="Temp (0.1 X deg. C)",xlab="interolated date")
+savePlot(paste("GAM_ANUSPLIN1_RMSE",out_prefix,".emf", sep=""), type="emf")
+win.graph()
+barplot(results_table$RMSE_P1,main="RMSE for the P1 models",names.arg=results_table$dates,ylab="Temp (0.1 X deg. C)",xlab="interolated date")
+savePlot(paste("GAM_PRISM1_RMSE",out_prefix,".emf", sep=""), type="emf")
+win.graph()
+barplot(results_table$AIC_P1,main="AIC for the P1 models",names.arg=results_table$dates,ylab="Temp (0.1 X deg. C)",xlab="interolated date")
+savePlot(paste("GAM_PRISM1_RMSE",out_prefix,".emf", sep=""), type="emf")
+win.graph()
+barplot(results_table$AIC_A1,main="AIC for the A1 models",names.arg=results_table$dates,ylab="Temp (0.1 X deg. C)",xlab="interolated date")
+savePlot(paste("GAM_PRISM1_RMSE",out_prefix,".emf", sep=""), type="emf")
+
+write.csv(results_table, file= paste(path,"/","results_GAM_Assessment",out_prefix,".txt",sep=""))
+
+# End of script##########
+
+# ###############################
+
 # 
 # ############Diagnostic GAM plots#############
 # win.graph()
@@ -89,34 +128,11 @@ for(i in 1:length(dates)){
 # vis.gam(GAM_ANUSPLIN1, view=c("lat","ELEV_SRTM"))
 # #vis.gam(GAM_ANUSPLIN1, view=c("lat","ELEV_SRTM", theta=100,phi=200))
 # savePlot("GAM_ANUSPLIN1_prediction2.emf", type="emf")
-# 
-# ####VALIDATION: Prediction checking the results using the testing data########
-# y_plANUSPLIN1<- predict(lm_ANUSPLIN1, newdata=ghcn1507_v, se.fit = TRUE)
-# y_pgANUSPLIN1<- predict(GAM_ANUSPLIN1, newdata=ghcn1507_v, se.fit = TRUE) #Using the coeff to predict new values.
-# y_plPRISM1<- predict(lm_PRISM1, newdata=ghcn1507_v, se.fit = TRUE)
-# y_pgPRISM1<- predict(GAM_PRISM1, newdata=ghcn1507_v, se.fit = TRUE)            
-#          
-# res_yplA1<- ghcn1507_v$tmax - y_plANUSPLIN1$fit
-# res_ypgA1<- ghcn1507_v$tmax - y_pgANUSPLIN1$fit
-# res_yplP1<- ghcn1507_v$tmax - y_plPRISM1$fit   #Residuals for lm model that resembles the PRISM interpolation
-# res_ypgP1<- ghcn1507_v$tmax - y_pgPRISM1$fit   #Residuals for GAM model that resembles the PRISM interpolation                               
-# 
+#
 # #results_val <-c(res_yplA1,res_ypgA1,res_yplP1,res_ypgP1)
 # results_val<-data.frame(res_yplA1=res_yplA1,res_ypgA1=res_ypgA1,res_yplP1=res_yplP1,res_ypgP1=res_ypgP1)
 # nv<- nrow(ghcn1507_v)
-#                   
-# RMSE_yplA1 <- sqrt(sum(res_yplA1^2)*1/nv)            
-# #RMSE_ypgA1 <- sqrt(sum(res_ypgA1^2)/nv)
-# RMSE_ypgA1 <- sqrt(sum(res_ypgA1^2)/nv)
-# RMSE_yplP1 <- sqrt(sum(res_yplP1^2)/nv)            
-# RMSE_ypgP1 <- sqrt(sum(res_ypgP1^2)/nv)
-#       
-# #Printing the RMSE values for the different models                  
-# RMSE_yplA1             
-# RMSE_ypgA1 
-# RMSE_yplP1          
-# RMSE_ypgP1
-# 
+#                    
 # mod_name<-c("yplA1","ypgA1","yplP1","ypgP1")
 # mod_type<-c("lm_ANUSPLIN1","GAM_ANUSPLIN1","lm_PRISM1","GAM_PRISM1")
 # 
@@ -136,15 +152,8 @@ for(i in 1:length(dates)){
 # #dump("results", file= paste(path,"/","results_reg1507.txt",sep=""))
 # write.csv(results, file= paste(path,"/","results_reg1507_Assessment.txt",sep=""))
 # #write.csv(results_val, file= paste(path,"/","results_reg1507_val.txt",sep=""))
-# 
 #                 
-# library(lattice)                 
-# g <- expand.grid(x = ghcn1507_v$lon, y = ghcn1507_v$lat)
-# g$z <- y_plANUSPLIN1$fit
-# wireframe(z ~ x * y, data = g)                   
-# 
-# #####End of script##########
-# ###############################
+
 
 
 
