@@ -11,22 +11,27 @@ library(gtools)                                                                 
 library(mgcv)
 
 ###Parameters and arguments
-infile1<-"ghcn_or_b_02122012_OR83M.csv"
+#infile1<-"ghcn_or_b_02122012_OR83M.csv"
+infile1<-"ghcn_or_tmax_b_03032012_OR83M.csv"
 path<-"C:/Data/Benoit/NCEAS/window_Oregon_data"
 setwd(path)
 #infile2<-"dates_interpolation_03012012.txt"  # list of 10 dates for the regression
 infile2<-"dates_interpolation_03032012.txt"
 prop<-0.3                                                                            #Proportion of testing retained for validation   
-out_prefix<-"_03022012_r3"
+out_prefix<-"_03042012_r1"
 
 #######START OF THE SCRIPT #############
 
 ###Reading the station data and setting up for models' comparison
 ghcn<-read.csv(paste(path,"/",infile1, sep=""), header=TRUE)                            #The "paste" function concatenates the path and file name in common string. 
+ghcn = transform(ghcn,Northness_w = sin(slope)*cos(ASPECT)) #Adding a variable to the dataframe
+ghcn = transform(ghcn,Eastness_w = sin(slope)*sin(ASPECT))  #adding variable to the dataframe.
+set.seed(100)
 dates <-readLines(paste(path,"/",infile2, sep=""))
 
 results <- matrix(1,length(dates),10)            #This is a matrix containing the diagnostic measures from the GAM models.
-ghcn.subsets <-lapply(dates, function(d) subset(ghcn, date_==d)) #this creates a list of 10 subsets data
+ghcn.subsets <-lapply(dates, function(d) subset(ghcn, date==d)) #this creates a list of 10 subsets data
+#note that compare to the previous version date_ column was changed to date
 
 ## looping through the dates...
 
@@ -47,6 +52,8 @@ for(i in 1:length(dates)){            # start of the for loop #1
 
   GAM_ANUSPLIN1<-gam(tmax~ s(lat) + s (lon) + s (ELEV_SRTM), data=data_s)
   GAM_PRISM1<-gam(tmax~ s(lat) + s (lon) + s (ELEV_SRTM) + s (ASPECT)+ s(DISTOC), data=data_s)
+  GAM_PRISM2<-gam(tmax~ s(lat) + s (lon) + s (ELEV_SRTM) + s (Northness_w)+ s (Eastness_w) + s(DISTOC), data=data_s)
+  
   
   ####Regression part 3: Calculating and storing diagnostic measures
   
@@ -102,8 +109,14 @@ savePlot(paste("GAM_PRISM1_RMSE",out_prefix,".emf", sep=""), type="emf")
 win.graph()
 barplot(results_table$AIC_A1,main="AIC for the A1 models",names.arg=results_table$dates,ylab="Temp (0.1 X deg. C)",xlab="interolated date")
 savePlot(paste("GAM_PRISM1_RMSE",out_prefix,".emf", sep=""), type="emf")
-
+win.graph()
+barplot(results_table$Deviance_A1,main="Deviance for the A1 models",names.arg=results_table$dates,ylab="Temp (0.1 X deg. C)",xlab="interolated date")
+savePlot(paste("GAM_ANUSPLIN1_Deviance",out_prefix,".emf", sep=""), type="emf")
+win.graph()
+barplot(results_table$Deviance_P1,main="Deviance for the P1 models",names.arg=results_table$dates,ylab="Temp (0.1 X deg. C)",xlab="interolated date")
+savePlot(paste("GAM_PRISM1_Deviance",out_prefix,".emf", sep=""), type="emf")
 write.csv(results_table, file= paste(path,"/","results_GAM_Assessment",out_prefix,".txt",sep=""))
+
 
 # End of script##########
 
