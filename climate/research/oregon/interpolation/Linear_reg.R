@@ -19,6 +19,8 @@ setwd(path)
 infile2<-"dates_interpolation_03052012.txt"
 prop<-0.3                                                                            #Proportion of testing retained for validation   
 out_prefix<-"_03042012_r1"
+infile3<-"models_interpolation_03052012.txt"
+
 
 #######START OF THE SCRIPT #############
 
@@ -31,13 +33,19 @@ ghcn = transform(ghcn,Northness_w = sin(slope)*cos(ASPECT)) #Adding a variable t
 ghcn = transform(ghcn,Eastness_w = sin(slope)*sin(ASPECT))  #adding variable to the dataframe.
 set.seed(100)
 dates <-readLines(paste(path,"/",infile2, sep=""))
+models <-readLines(paste(path,"/",infile3, sep=""))
 
 results <- matrix(1,length(dates),14)            #This is a matrix containing the diagnostic measures from the GAM models.
+
+results_AIC<- matrix(1,length(dates),length(models)+3)  
+results_GCV<- matrix(1,length(dates),length(models)+3)
+results_RMSE<- matrix(1,length(dates),length(models)+3)
 
 ghcn.subsets <-lapply(dates, function(d) subset(ghcn, date==d)) #this creates a list of 10 subsets data
 #note that compare to the previous version date_ column was changed to date
 
 ## looping through the dates...
+#Change this into  a nested loop, looping through the number of models
 
 for(i in 1:length(dates)){            # start of the for loop #1
   
@@ -54,45 +62,75 @@ for(i in 1:length(dates)){            # start of the for loop #1
   
   ####Regression part 2: GAM models
 
-  GAM_ANUSPLIN1<-gam(tmax~ s(lat) + s (lon) + s (ELEV_SRTM), data=data_s)
-  GAM_PRISM1<-gam(tmax~ s(lat) + s (lon) + s (ELEV_SRTM) +  s (Northness)+ s (Eastness) + s(DISTOC), data=data_s)
-  GAM_PRISM2<-gam(tmax~ s(lat) + s (lon) + s (ELEV_SRTM) + s (Northness_w)+ s (Eastness_w) + s(DISTOC), data=data_s)
+  mod1<-gam(tmax~ s(lat) + s (lon) + s (ELEV_SRTM), data=data_s)
+  mod2<- gam(tmax~ s(lat,lon,ELEV_SRTM), data=data_s)
+  mod3<-gam(tmax~ s(lat) + s (lon) + s (ELEV_SRTM) +  s (Northness)+ s (Eastness) + s(DISTOC), data=data_s)
+  mod4<-gam(tmax~ s(lat) + s (lon) + s (ELEV_SRTM) + s (Northness_w)+ s (Eastness_w) + s(DISTOC), data=data_s)
+  mod5<- gam(tmax~ s(lat) + s (lon) + s (ELEV_SRTM, Northness) + s (Eastness) + s(DISTOC), data=data_s)
+  mod6<- gam(tmax~ s(lat,lon) + s (ELEV_SRTM, Northness) + s (Eastness) + s(DISTOC), data=data_s)
   
   
   ####Regression part 3: Calculating and storing diagnostic measures
   
-  results[i,1]<- dates[i]  #storing the interpolation dates in the first column
-  results[i,2]<- ns        #number of stations used in the training stage
+  results_AIC[i,1]<- dates[i]  #storing the interpolation dates in the first column
+  results_AIC[i,2]<- ns        #number of stations used in the training stage
+  results_AIC[i,3]<- AIC (mod1)
+  results_AIC[i,4]<- AIC (mod2)
+  results_AIC[i,5]<- AIC (mod3)
+  results_AIC[i,6]<- AIC (mod4)
+  results_AIC[i,7]<- AIC (mod5)
+  results_AIC[i,8]<- AIC (mod6)
   
-  results[i,6]<- AIC (GAM_ANUSPLIN1)
-  results[i,7]<- AIC (GAM_PRISM1)
-  results[i,8]<- AIC (GAM_PRISM2)
+  results_GCV[i,1]<- dates[i]  #storing the interpolation dates in the first column
+  results_GCV[i,2]<- ns        #number of stations used in the training stage
+  results_GCV[i,3]<- mod1$gcv.ubre
+  results_GCV[i,4]<- mod2$gcv.ubre
+  results_GCV[i,5]<- mod3$gcv.ubre
+  results_GCV[i,6]<- mod4$gcv.ubre
+  results_GCV[i,7]<- mod5$gcv.ubre
+  results_GCV[i,8]<- mod6$gcv.ubre
   
-  results[i,9]<- GAM_ANUSPLIN1$gcv.ubre
-  results[i,10]<- GAM_PRISM1$gcv.ubre
-  results[i,11]<- GAM_PRISM2$gcv.ubre
-  
-  results[i,12]<-GAM_ANUSPLIN1$deviance
-  results[i,13]<-GAM_PRISM1$deviance
-  results[i,14]<-GAM_PRISM2$deviance
+  results_DEV[i,1]<- dates[i]  #storing the interpolation dates in the first column
+  results_DEV[i,2]<- ns        #number of stations used in the training stage
+  results_DEV[i,3]<- mod1$deviance
+  results_DEV[i,4]<- mod2$deviance
+  results_DEV[i,5]<- mod3$deviance
+  results_DEV[i,6]<- mod4$deviance
+  results_DEV[i,7]<- mod5$deviance
+  results_DEV[i,8]<- mod6$deviance
   
   #####VALIDATION: Prediction checking the results using the testing data########
  
-  y_pgANUSPLIN1<- predict(GAM_ANUSPLIN1, newdata=data_v, se.fit = TRUE) #Using the coeff to predict new values.
-  y_pgPRISM1<- predict(GAM_PRISM1, newdata=data_v, se.fit = TRUE)            
-  y_pgPRISM2<- predict(GAM_PRISM2, newdata=data_v, se.fit = TRUE) 
+  y_mod1<- predict(mod1, newdata=data_v, se.fit = TRUE) #Using the coeff to predict new values.
+  y_mod2<- predict(mod2, newdata=data_v, se.fit = TRUE)            
+  y_mod3<- predict(mod3, newdata=data_v, se.fit = TRUE) 
+  y_mod4<- predict(mod4, newdata=data_v, se.fit = TRUE) 
+  y_mod5<- predict(mod5, newdata=data_v, se.fit = TRUE) 
+  y_mod5<- predict(mod6, newdata=data_v, se.fit = TRUE)
   
-  res_ypgA1<- data_v$tmax - y_pgANUSPLIN1$fit #Residuals for GMA model that resembles the ANUSPLIN interpolation
-  res_ypgP1<- data_v$tmax - y_pgPRISM1$fit   #Residuals for GAM model that resembles the PRISM interpolation                               
-  res_ypgP2<- data_v$tmax - y_pgPRISM2$fit  
+  res_mod1<- data_v$tmax - y_mod1$fit #Residuals for GMA model that resembles the ANUSPLIN interpolation
+  res_mod2<- data_v$tmax - y_mod2$fit   #Residuals for GAM model that resembles the PRISM interpolation                               
+  res_mod3<- data_v$tmax - y_mod3$fit  
+  res_mod4<- data_v$tmax - y_mod4$fit
+  res_mod5<- data_v$tmax - y_mod5$fit
+  res_mod6<- data_v$tmax - y_mod6$fit
   
-  RMSE_ypgA1 <- sqrt(sum(res_ypgA1^2)/nv)          
-  RMSE_ypgP1 <- sqrt(sum(res_ypgP1^2)/nv)
-  RMSE_ypgP2 <- sqrt(sum(res_ypgP2^2)/nv)
+  RMSE_mod1 <- sqrt(sum(res_mod1^2)/nv)          
+  RMSE_mod2 <- sqrt(sum(res_mod2^2)/nv)
+  RMSE_mod3 <- sqrt(sum(res_mod3^2)/nv)
+  RMSE_mod4 <- sqrt(sum(res_mod4^2)/nv)
+  RMSE_mod5 <- sqrt(sum(res_mod5^2)/nv)
+  RMSE_mod6 <- sqrt(sum(res_mod6^2)/nv)
   
-  results[i,3]<-RMSE_ypgA1
-  results[i,4]<-RMSE_ypgP1
-  results[i,5]<-RMSE_ypgP2
+
+  results_RMSE[i,1]<- dates[i]  #storing the interpolation dates in the first column
+  results_RMSE[i,2]<- ns        #number of stations used in the training stage
+  results_RMSE[i,3]<- RMSE_mod1
+  results_RMSE[i,4]<- RMSE_mod2
+  results_RMSE[i,5]<- RMSE_mod3
+  results_RMSE[i,6]<- RMSE_mod4
+  results_RMSE[i,7]<- RMSE_mod5
+  results_RMSE[i,8]<- RMSE_mod6
   
   data_name<-paste("ghcn_v_",dates[[i]],sep="")
   assign(data_name,data_v)
@@ -103,13 +141,13 @@ for(i in 1:length(dates)){            # start of the for loop #1
 
 ## Plotting and saving diagnostic measures
 
-results_num <-results
-mode(results_num)<- "numeric"
+results_RMSEnum <-results_RMSE
+mode(results_RMSEnum)<- "numeric"
 # Make it numeric first
 # Now turn it into a data.frame...
 
-results_table<-as.data.frame(results_num)
-colnames(results_table)<-c("dates","ns","RMSE_A1", "RMSE_P1","RMSE_P2", "AIC_A1", "AIC_P1", "AIC_P2", "GCV_A1", "GCV_P1", "GCV_P2", "Deviance_A1", "Deviance_P1", "Deviance_P2")
+results_table_RMSE<-as.data.frame(results_RMSEnum)
+colnames(results_table_RMSE)<-c("dates","ns","mod1", "mod2","mod3", "mod4", "mod5", "mod6")
 
 win.graph()
 barplot(results_table$RMSE_A1/10,main="RMSE for the A1 models",names.arg=results_table$dates,ylab="Temp (deg. C)",xlab="interpolated date")
