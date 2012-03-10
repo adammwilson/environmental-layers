@@ -1,0 +1,19 @@
+#This script was used to clip SRTM mosaics to 1) the same exents as Aster GDEM2 tiles 
+#(59 to 60 degrees North latitude) in the overlap zone, for better blending of the
+# data types, and 2) N55 to 59, for mosaicing back with blended N59 to 60. 
+
+#Natalie Robinson 
+#Created on Feb. 2, 2012 
+
+
+#Clip SRTM Eastern and Western hemisphere files to N59 to 60 for Gaussian Blending
+gdalwarp -te 0 59 180 60 -srcnodata "-9999" -dstnodata "-9999" /data/project/organisms/DEM/cgiarSrtm/SRTM_90m_ASCII_4_1/Tiles_Resampled/Mosaiced/N55to60E000_180.tif /data/project/organisms/DEM/cgiarSrtm/SRTM_90m_ASCII_4_1/Tiles_Resampled/Mosaiced/SRTM_N59to60E000_180.tif
+
+gdalwarp -te -180 59 0 60 -srcnodata "-9999" -dstnodata "-9999" /data/project/organisms/DEM/cgiarSrtm/SRTM_90m_ASCII_4_1/Tiles_Resampled/Mosaiced/N55to60W180_000.tif /data/project/organisms/DEM/cgiarSrtm/SRTM_90m_ASCII_4_1/Tiles_Resampled/Mosaiced/SRTM_N59to60W180_000.tif
+
+
+
+#Clip SRTM Eastern and Western hemi. files to N55 to 59 to be mosaiced to blended tiles
+gdalwarp -te 0 55 180 59 -srcnodata "-9999" -dstnodata "-9999" /data/project/organisms/DEM/cgiarSrtm/SRTM_90m_ASCII_4_1/Tiles_Resampled/Mosaiced/N55to60E000_180.tif /data/project/organisms/DEM/cgiarSrtm/SRTM_90m_ASCII_4_1/Tiles_Resampled/Mosaiced/SRTM_N55to59E000_180.tif
+
+gdalwarp -te -180 55 0 59 -srcnodata "-9999" -dstnodata "-9999" /data/project/organisms/DEM/cgiarSrtm/SRTM_90m_ASCII_4_1/Tiles_Resampled/Mosaiced/N55to60W180_000.tif /data/project/organisms/DEM/cgiarSrtm/SRTM_90m_ASCII_4_1/Tiles_Resampled/Mosaiced/SRTM_N55to59W180_000.tif

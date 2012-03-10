@@ -875,3 +875,47 @@ chgrp -R layers $LAYERS/data
 find $LAYERS/data -type f -exec chmod 640 {} \;
 find $LAYERS/data -type d -exec chmod g-s {} \;
 find $LAYERS/data -type d -exec chmod 750 {} \;
+
+
+#=======================================================================
+# now migrate code into git repository clone
+#=======================================================================
+
+# nunokawa terrain scripts
+mkdir terrain/research/gtopo30
+mv -i code/terrain/nunokawa-scripts/toProduceData/clipUSGS.r terrain/research/gtopo30/
+mv -i code/terrain/nunokawa-scripts/toAnalyzeData/check.r terrain/tests/
+mv -i code/terrain/nunokawa-scripts/toAnalyzeData/meanElv_OnlyN59.r terrain/research/north-60/
+rm code/terrain/nunokawa-scripts/toAnalyzeData/meanElv.r 
+rm code/terrain/nunokawa-scripts/toAnalyzeData/Deltas.r~
+mv -i code/terrain/nunokawa-scripts/toAnalyzeData/Deltas.r terrain/research/north-60/
+rm code/terrain/nunokawa-scripts/toAnalyzeData/rmse_cor.r~ 
+mv -i code/terrain/nunokawa-scripts/toAnalyzeData/rmse_cor.r terrain/research/north-60/
+rm code/terrain/nunokawa-scripts/toAnalyzeData/slope.r~
+mv -i code/terrain/nunokawa-scripts/toAnalyzeData/{aspect,slope}.r terrain/research/north-60/
+mv -i code/terrain/nunokawa-scripts/toAnalyzeData/negativeTable.r terrain/research/north-60/
+mv -i code/terrain/nunokawa-scripts/toProduceData/*.{r,r~} terrain/research/north-60/
+
+# robinson terrain scripts
+mv -i code/terrain/DEM_ProcessingScripts/Aster_CheckMosaicedTilesExtents.py terrain/tests/
+mv -i code/terrain/DEM_ProcessingScripts/CheckPixelValuesAtOverlapZones.txt terrain/tests/
+mv -i code/terrain/DEM_ProcessingScripts/Aster\&SRTM_* terrain/tests/
+mv -i code/terrain/DEM_ProcessingScripts/Gaussian_Blend.r terrain/procedures/
+mv -i terrain/tests/Aster\&SRTM_* terrain/procedures/
+mv -i code/terrain/DEM_ProcessingScripts/SRTM_ClipToN59to60.txt terrain/procedures/
+mv -i code/terrain/DEM_ProcessingScripts/Mosaicing_AllTiles_East\&WestHemispheres.txt terrain/procedures/
+mv -i code/terrain/DEM_ProcessingScripts/AsterMosaicingScripts terrain/procedures/
+
+# robinson land-cover check
+mv -i code/land-cover/CheckForNoDataValues_LandCoverFiles.txt land-cover/tests/
+
+# robinson/donoghue Oregon MODIS LST processing code
+mkdir climate/research/oregon
+mkdir climate/research/oregon/modis-lst
+mv -i code/climate/modis-lst-oregon/*.{r,R,py} climate/research/oregon/modis-lst/
+
+# misc old (authorless) climate code
+mv -i code/climate/cru_3.0_data_extract.r climate/procedures/
+mv -i code/climate/gdd-worldclim-tmean-map-algebra.txt climate/extra/
+
+# TODO: set all file permissions to 644 before committing

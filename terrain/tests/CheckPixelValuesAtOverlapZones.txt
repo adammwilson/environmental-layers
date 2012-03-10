@@ -1,0 +1,136 @@
+#Check of mismatched data in overlap zone for AsterGDEM2
+
+#Datasets:    c=N60E005
+#             a=N59E005    b=N59E006
+
+import os
+import sys
+import osgeo
+from osgeo import gdal
+from osgeo.gdalconst import *
+
+a= gdal.Open ('/data/project/organisms/DEM/asterGdem2/ASTGTM2_N59E005_dem.tif', GA_ReadOnly)
+
+b= gdal.Open ('/data/project/organisms/DEM/asterGdem2/ASTGTM2_N59E006_dem.tif', GA_ReadOnly)
+
+c= gdal.Open ('/data/project/organisms/DEM/asterGdem2/ASTGTM2_N60E005_dem.tif', GA_ReadOnly)
+
+arraya=a.ReadAsArray(0,0,a.RasterXSize,a.RasterYSize)
+arrayb=b.ReadAsArray(0,0,b.RasterXSize,b.RasterYSize)
+arrayc=c.ReadAsArray(0,0,b.RasterXSize,c.RasterYSize)
+
+for i in range(0,3600):
+   if arraya[i,3600] != arrayb[i,0]:
+       print i
+
+for i in range(0,3600):
+   if arraya[i,3600] != arrayb[i,0]:
+       print arraya[i,3600]
+
+for i in range(0,3600):
+   if arraya[i,3600] != arrayb[i,0]:
+       print arrayb[i,0]
+
+arraya[553,3600]
+arrayb[553,0]
+
+for i in range (0,3600):
+   if arraya[0,i]!= arrayc[3600,i]:
+      print i
+
+for i in range (0,3600):
+   if arraya[0,i]!= arrayc[3600,i]:
+      print arraya[0,i]
+
+for i in range (0,3600):
+   if arraya[0,i]!= arrayc[3600,i]:
+      print arrayc[3600,i]
+
+#---------------------------------------------------------------------------
+gdalinfo /data/project/organisms/DEM/asterGdem2/ASTGTM2_N59E005_dem.tif
+gdalinfo /data/project/organisms/SRTM_90m_ASCII_v4.1/srtm_01_15.tif 
+gdalinfo /data/project/organisms/DEM/cgiarSrtm/SRTM_90m_ASCII_4_1/srtm_01_15.asc 
+gdalinfo /data/project/organisms/DEM/cgiarSrtm/SRTM_90m_ASCII_4_1/srtm_01_16.asc 
+gdalinfo /data/project/organisms/DEM/cgiarSrtm/SRTM_90m_ASCII_4_1/srtm_02_15.asc
+
+#----------------------------------------------------------------------------
+#Check of mismatched data in overlap zone for SRTM 90m
+
+#Datasets:    q=12_03    r=13_03
+#             s=12_04
+
+q= gdal.Open ('/data/project/organisms/DEM/cgiarSrtm/SRTM_90m_ASCII_4_1/srtm_12_03.asc', GA_ReadOnly)
+r= gdal.Open ('/data/project/organisms/DEM/cgiarSrtm/SRTM_90m_ASCII_4_1/srtm_13_03.asc', GA_ReadOnly)
+s= gdal.Open ('/data/project/organisms/DEM/cgiarSrtm/SRTM_90m_ASCII_4_1/srtm_12_04.asc', GA_ReadOnly)
+
+arrayq=q.ReadAsArray(0,0,q.RasterXSize,q.RasterYSize)
+arrayr=r.ReadAsArray(0,0,r.RasterXSize,r.RasterYSize)
+arrays=s.ReadAsArray(0,0,s.RasterXSize,s.RasterYSize)
+
+for i in range (0,6000):
+   if arrayq[i,6000]!= arrayr[i,0]:
+      print i
+
+for i in range (0,6000):
+   if arrayq[i,6000]!= arrayr[i,0]:
+      print arrayq[i,6000]
+
+for i in range (0,6000):
+   if arrayq[i,6000]!= arrayr[i,0]:
+      print arrayr[i,0]
+
+for i in range (0,6000):
+   if arrayq[6000,i]!= arrays[0,i]:
+      print i
+
+for i in range (0,6000):
+   if arrayq[6000,i]!= arrays[0,i]:
+      print arrayq[6000,i]
+
+for i in range (0,6000):
+   if arrayq[6000,i]!= arrays[0,i]:
+      print arrays[0,i]
+
+#No errors- do a few manual checks- ALL CAME OUT OK 
+
+arrayq[6000,5120]
+arrays[0,5120]
+
+#---------------------------------------------------------------------------------------
+a= gdal.Open ('/data/project/organisms/DEM/asterGdem2/ASTGTM2_N66E068_dem.tif', GA_ReadOnly)
+
+b= gdal.Open ('/data/project/organisms/DEM/asterGdem2/ASTGTM2_N66E067_dem.tif', GA_ReadOnly)
+
+c= gdal.Open ('/data/project/organisms/DEM/asterGdem2/ASTGTM2_N67E068_dem.tif', GA_ReadOnly)
+
+arraya=a.ReadAsArray(0,0,a.RasterXSize,a.RasterYSize)
+arrayb=b.ReadAsArray(0,0,b.RasterXSize,b.RasterYSize)
+arrayc=c.ReadAsArray(0,0,b.RasterXSize,c.RasterYSize)
+
+for i in range(0,3600):
+   if arrayb[i,3600] != arraya[i,0]:
+       print i
+
+for i in range(0,3600):
+   if arrayb[i,3600] != arraya[i,0]:
+       print arraya[i,3600]
+
+for i in range(0,3600):
+   if arrayb[i,3600] != arraya[i,0]:
+       print arrayb[i,0]
+
+arraya[553,3600]
+arrayb[553,0]
+
+for i in range (0,3600):
+   if arraya[0,i]!= arrayc[3600,i]:
+      print i
+
+for i in range (0,3600):
+   if arraya[0,i]!= arrayc[3600,i]:
+      print arraya[0,i]
+
+for i in range (0,3600):
+   if arraya[0,i]!= arrayc[3600,i]:
+      print arrayc[3600,i]
+

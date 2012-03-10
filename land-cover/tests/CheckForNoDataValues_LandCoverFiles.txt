@@ -1,0 +1,103 @@
+import sys
+import osgeo
+from osgeo import gdal
+import os
+import numpy
+import pysci
+import scipy
+from gdalconst import *
+import osr
+
+#Check for Nodata values (-2147800000) in each layer of final multiband raster
+ds= gdal.Open('/data/project/organisms/LandCover/Final_Multiband_SinuGrid.bil', GA_ReadOnly)
+
+band1=ds.GetRasterBand(1)
+band2=ds.GetRasterBand(2)
+band3=ds.GetRasterBand(3)
+band4=ds.GetRasterBand(4)
+band5=ds.GetRasterBand(5)
+band6=ds.GetRasterBand(6)
+band7=ds.GetRasterBand(7)
+band8=ds.GetRasterBand(8)
+band9=ds.GetRasterBand(9)
+band10=ds.GetRasterBand(10)
+
+#play around with commands
+min1 = band1.GetMinimum()
+max1 = band1.GetMaximum()
+if min1 is None or max1 is None:
+   (min1,max1) = band1.ComputeRasterMinMax(1)
+   print 'Min=%.3f, Max=%.3f' % (min1,max1)
+
+
+cols=ds.RasterXSize
+rows=ds.RasterYSize
+
+array1=band1.ReadAsArray(0,0,cols,rows)
+array2=band2.ReadAsArray(0,0,cols,rows)
+array3=band3.ReadAsArray(0,0,cols,rows)
+array4=band4.ReadAsArray(0,0,cols,rows)
+array5=band5.ReadAsArray(0,0,cols,rows)
+array6=band6.ReadAsArray(0,0,cols,rows)
+array7=band7.ReadAsArray(0,0,cols,rows)
+array8=band8.ReadAsArray(0,0,cols,rows)
+array9=band9.ReadAsArray(0,0,cols,rows)
+array10=band10.ReadAsArray(0,0,cols,rows)
+
+ND_band1=numpy.where(array1==-2147800000)
+ND_band2=numpy.where(array2==-2.1478e+09)
+ND_band3=numpy.where(array3==-2.1478e+09)
+ND_band4=numpy.where(array4==-2.1478e+09)
+ND_band5=numpy.where(array5==-2.1478e+09)
+ND_band6=numpy.where(array6==-2.1478e+09)
+ND_band7=numpy.where(array7==-2.1478e+09)
+ND_band8=numpy.where(array8==-2.1478e+09)
+ND_band9=numpy.where(array9==-2.1478e+09)
+ND_band10=numpy.where(array10==-2.1478e+09)
+
+ND_band1
+ND_band2
+ND_band3
+ND_band4
+ND_band5
+ND_band6
+ND_band7
+ND_band8
+ND_band9
+ND_band10
+
+#None found
+
+#Check for nodata values individually in each layer/clip file from original LandCover data download, these files being un-processed (i.e. nodata value unchanged)
+
+test= gdal.Open('/data/project/organisms/LandCover/Layer10_Clip3.tif', GA_ReadOnly)
+ncol=test.RasterXSize
+nrow=test.RasterYSize
+testarray= test.ReadAsArray(0,0,ncol, nrow)
+numpy.where(testarray== 255)
+
+#Final check= test for max value in each layer/clip file. Look for instances of 255
+
+y= gdal.Open('/data/project/organisms/LandCover/Layer10_Clip1.tif', GA_ReadOnly)
+nco= y.RasterXSize
+nro= y.RasterYSize
+ta= y.ReadAsArray(0,0,nco,nro)
+ta.min()
+ta.max()
+
+u= gdal.Open('/data/project/organisms/LandCover/Layer10_Clip2.tif', GA_ReadOnly)
+o= u.RasterXSize
+i= u.RasterYSize
+ua= u.ReadAsArray(0,0,o,i)
+ua.min()
+ua.max()
+
+x= gdal.Open('/data/project/organisms/LandCover/Layer10_Clip3.tif', GA_ReadOnly)
+c= x.RasterXSize
+d= x.RasterYSize
+xa= x.ReadAsArray(0,0,c,d)
+xa.min()
+xa.max()
+
+#NO NoData FOUND IN ANY FILES
+

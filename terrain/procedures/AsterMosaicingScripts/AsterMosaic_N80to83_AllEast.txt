@@ -1,0 +1,85 @@
+#This script was used to mosaic Aster tiles at the N80 to 83 band, for the eastern #hemisphere. Resulting tiles are 3 degree lat and 5 degrees lon for coregistering #with SRTM tiles
+
+#Natalie Robinson 
+#Created on Jan. 25, 2012
+
+#N80 to 82 E95 to 99 
+gdal_merge.py -init 0 -ul_lr 95 83 100 80 -o /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E095to100.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E095_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N81E095_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E096_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N81E096_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E097_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E098_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E099_ReSample.tif
+gdal_translate -a_nodata "-9999" /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E095to100.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E095_100.tif 
+rm /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E095to100.tif
+
+#N80 to 82 E90 to 94
+gdal_merge.py -init 0 -ul_lr 90 83 95 80 -o /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E090to095.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N81E090_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E091_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N81E091_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E092_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E093_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N81E093_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E094_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N81E094_ReSample.tif
+gdal_translate -a_nodata "-9999" /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E090to095.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E090_095.tif 
+rm /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E090to095.tif
+
+#N80 to 82 E80 to 84
+gdal_merge.py -init 0 -ul_lr 80 83 85 80 -o /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E080to085.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E080_ReSample.tif
+gdal_translate -a_nodata "-9999" /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E080to085.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E080_085.tif 
+rm /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E080to085.tif
+
+#N80 to 82 E75 to 79
+gdal_merge.py -init 0 -ul_lr 75 83 80 80 -o /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E075to080.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E079_ReSample.tif
+gdal_translate -a_nodata "-9999" /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E075to080.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E075_080.tif 
+rm /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E075to080.tif
+
+#N80 to 82 E65 to 69
+gdal_merge.py -init 0 -ul_lr 65 83 70 80 -o /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E065to070.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E065_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N81E065_ReSample.tif
+gdal_translate -a_nodata "-9999" /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E065to070.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E065_070.tif 
+rm /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E065to070.tif
+
+#N80 to 82 E60 to 64
+gdal_merge.py -init 0 -ul_lr 60 83 65 80 -o /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E060to065.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E060_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N81E060_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E061_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N81E061_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E062_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N81E062_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E063_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N81E063_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E064_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N81E064_ReSample.tif
+gdal_translate -a_nodata "-9999" /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E060to065.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E060_065.tif 
+rm /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E060to065.tif
+
+#N80 to 82 E55 to 59
+gdal_merge.py -init 0 -ul_lr 55 83 60 80 -o /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E055to060.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E055_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N81E055_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E056_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N81E056_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E057_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N81E057_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E058_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N81E058_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E059_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N81E059_ReSample.tif
+gdal_translate -a_nodata "-9999" /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E055to060.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E055_060.tif 
+rm /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E055to060.tif
+
+#N80 to 82 E50 to 54
+gdal_merge.py -init 0 -ul_lr 50 83 55 80 -o /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E050to055.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E050_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N81E050_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E051_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N81E051_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E052_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E053_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E054_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N81E054_ReSample.tif
+gdal_translate -a_nodata "-9999" /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E050to055.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E050_055.tif 
+rm /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E050to055.tif
+
+#N80 to 82 E45 to 49
+gdal_merge.py -init 0 -ul_lr 45 83 50 80 -o /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E045to050.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E045_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E046_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E047_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E048_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E049_ReSample.tif
+gdal_translate -a_nodata "-9999" /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E045to050.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E045_050.tif 
+rm /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E045to050.tif
+
+#N80 to 82 E40 to 44
+gdal_merge.py -init 0 -ul_lr 40 83 45 80 -o /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E040to045.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E044_ReSample.tif
+gdal_translate -a_nodata "-9999" /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E040to045.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E040_045.tif 
+rm /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E040to045.tif
+
+#N80 to 82 E35 to 39
+gdal_merge.py -init 0 -ul_lr 35 83 40 80 -o /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E035to040.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E036_ReSample.tif
+gdal_translate -a_nodata "-9999" /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E035to040.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E035_040.tif 
+rm /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E035to040.tif
+
+#N80 to 82 E30 to 34
+gdal_merge.py -init 0 -ul_lr 30 83 35 80 -o /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E030to035.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E031_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E032_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E033_ReSample.tif
+gdal_translate -a_nodata "-9999" /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E030to035.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E030_035.tif 
+rm /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E030to035.tif
+
+#N80 to 82 E25 to 29
+gdal_merge.py -init 0 -ul_lr 25 83 30 80 -o /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E025to030.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E025_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E026_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E027_ReSample.tif
+gdal_translate -a_nodata "-9999" /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E025to030.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E025_030.tif 
+rm /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E025to030.tif
+
+#N80 to 82 E20 to 24
+gdal_merge.py -init 0 -ul_lr 20 83 25 80 -o /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E020to025.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E020_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E021_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E022_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E023_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E024_ReSample.tif
+gdal_translate -a_nodata "-9999" /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E020to025.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E020_025.tif 
+rm /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E020to025.tif
+
+#N80 to 82 E15 to 19
+gdal_merge.py -init 0 -ul_lr 15 83 20 80 -o /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E015to020.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E016_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E017_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E018_ReSample.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E019_ReSample.tif
+gdal_translate -a_nodata "-9999" /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E015to020.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E015_020.tif 
+rm /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E015to020.tif
+
+#N80 to 82 E10 to 14
+gdal_merge.py -init 0 -ul_lr 10 83 15 80 -o /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E010to015.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/N80E014_ReSample.tif
+gdal_translate -a_nodata "-9999" /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E010to015.tif /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E010_015.tif 
+rm /data/project/organisms/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N80to83E010to015.tif
+
