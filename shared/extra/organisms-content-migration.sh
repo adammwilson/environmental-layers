@@ -102,6 +102,50 @@ mv $ORGANISMS/DEM/cgiarSrtm/README.txt $LAYERS/documentation/terrain/cgiar-srtm-
 rmdir $ORGANISMS/DEM/cgiarSrtm
 
 #
+# ASTER GDEM1
+#
+
+# --- first do cleanup ---
+# remove duplicate files (confirmed by diffing)
+rm $ORGANISMS/DEM/asterGdem/ListOfEurasiaDropouts.txt
+rm $ORGANISMS/DEM/asterGdem/BadFileCheckLogVulcanAfterNewFiles.txt
+rm $ORGANISMS/DEM/asterGdem/BadFileCheckLogBeforeCorrection.txt
+# remove misc trivial/obsolete scripts
+rm $ORGANISMS/DEM/asterGdem/translateToImg.sh
+rm $ORGANISMS/DEM/asterGdem/incorrectTilesJuly2011/replacedJuly4/copyDownTifs.sh
+rm $ORGANISMS/DEM/asterGdem/incorrectTilesJuly2011/checkBadAsterGDEMFiles.sh
+# remove file listings and/or gdalinfo output with insufficient context
+rm $ORGANISMS/DEM/asterGdem/incorrectTilesJuly2011/BadFileCheckLogVulcanAfterNewFiles.txt
+rm $ORGANISMS/DEM/asterGdem/incorrectTilesJuly2011/ListOfEurasiaDropouts.txt
+rm $ORGANISMS/DEM/asterGdem/incorrectTilesJuly2011/BadFileCheckLogBeforeCorrection.txt
+rm $ORGANISMS/DEM/asterGdem/incorrectTilesJuly2011/replacedJuly4/Juy4NumFiles.txt
+rm $ORGANISMS/DEM/asterGdem/incorrectTilesJuly2011/replacedJuly4/July4NumFiles.txt
+rm $ORGANISMS/DEM/asterGdem/incorrectTilesJuly2011/replacedJuly4/July4Files.txt
+# remove now-empty directory
+rmdir $ORGANISMS/DEM/asterGdem/incorrectTilesJuly2011/replacedJuly4
+# remove reeves-generated ArcGIS aux/rrd files
+find $ORGANISMS/DEM/asterGdem/ -name "*.aux" -exec rm {} \;
+find $ORGANISMS/DEM/asterGdem/ -name "*.rrd" -exec rm {} \;
+# remove gdal-generated metadata files
+find $ORGANISMS/DEM/asterGdem/ -name "*.tif.aux.xml" -exec rm {} \;
+find $ORGANISMS/DEM/asterGdem/ -name "*.dem.aux.xml" -exec rm {} \;
+# remove img tiles (for which we have the original tifs in all cases)
+rm $ORGANISMS/DEM/asterGdem/TilesBelowN59/*.{img,img.aux.xml}
+
+# migrate Robinson R scripts
+mv -i $ORGANISMS/DEM/asterGdem/R_files \
+      $LAYERS/code/terrain/asterGdem
+# migrate Robinson GDEM1 assessment docs (incl QGIS project files)
+mkdir $LAYERS/experimental/terrain/gdem-v1
+mv -i $ORGANISMS/DEM/asterGdem/*.ods \
+      $LAYERS/experimental/terrain/gdem-v1/
+find $ORGANISMS/DEM/asterGdem -name "*.qgs" -exec mv {} \
+      $LAYERS/experimental/terrain/gdem-v1/ \;
+# migrate remaining tree as the GDEM v1 dataset itself
+mv $ORGANISMS/DEM/asterGdem \
+   $LAYERS/data/terrain/dem-aster-gdem1-30m-orig
+
+#
 # ASTER GDEM2
 #
 
@@ -126,12 +170,6 @@ mv $ORGANISMS/DEM/asterGdem2-90m_NoPixelOffset-Mosaiced \
    $LAYERS/data/terrain/dem-aster-gdem2-90m-resamp-mosaic-N60to83
 mv $ORGANISMS/DEM/asterGdem2-90m_NoPixelOffset-Mosaiced-N59to60 \
    $LAYERS/data/terrain/dem-aster-gdem2-90m-resamp-mosaic-N59to60
-
-#
-# ASTER GDEM1
-#
-
-#TODO
 
 #
 # CDED
@@ -234,10 +272,58 @@ mv $ORGANISMS/DEM/GlobalProduct $LAYERS/data/terrain/dem-fused
 # GTOPO30
 #
 
+# migrate Nunokawa-clipped data -- first version
+mkdir $LAYERS/data/terrain/dem-usgs-gtopo30-clipped-nunokawa-v1
+find $ORGANISMS/DEM/usgsGTOPO30 -name "*_Clipped.dem" \
+     -exec mv {} $LAYERS/data/terrain/dem-usgs-gtopo30-clipped-nunokawa-v1 \;
+# migrate Nunokawa-clipped data -- second version
+mv -i $ORGANISMS/DEM/Yuni/Data/GTOPO30 \
+      $LAYERS/data/terrain/dem-usgs-gtopo30-clipped-nunokawa-v2
+
+# migrate Robinson-clipped data
+mkdir $LAYERS/data/terrain/dem-usgs-gtopo30-clipped-robinson
+mv $ORGANISMS/DEM/asterGdem/N59to81_E20to59/e020n90/E020N90_clipped.dem \
+   $LAYERS/data/terrain/dem-usgs-gtopo30-clipped-robinson/
+mv $ORGANISMS/DEM/asterGdem/N59to81_E140to179/e140n90/E140N90_clipped.dem \
+   $LAYERS/data/terrain/dem-usgs-gtopo30-clipped-robinson/
+mv $ORGANISMS/DEM/asterGdem/N59to81_W140to101/w140n90/W140N90_clipped.dem \
+   $LAYERS/data/terrain/dem-usgs-gtopo30-clipped-robinson/
+mv $ORGANISMS/DEM/asterGdem/N59to81_E60to99/USGS_ErosDEM_N59to81E60to99/E060N90_clipped.dem \
+   $LAYERS/data/terrain/dem-usgs-gtopo30-clipped-robinson/
+mv $ORGANISMS/DEM/asterGdem/N59to81_W60to21/w060n90/W060N90_clipped.dem \
+   $LAYERS/data/terrain/dem-usgs-gtopo30-clipped-robinson/
+mv $ORGANISMS/DEM/asterGdem/N59to81_W100to61/w100n90/W100N90_clipped.dem \
+   $LAYERS/data/terrain/dem-usgs-gtopo30-clipped-robinson/
+mv $ORGANISMS/DEM/asterGdem/N59to81_E100to139/e100n90/E100N90_clipped.dem \
+   $LAYERS/data/terrain/dem-usgs-gtopo30-clipped-robinson/
+mv $ORGANISMS/DEM/asterGdem/N59to81_W180to141/w180n90/W180N90_clipped.dem \
+   $LAYERS/data/terrain/dem-usgs-gtopo30-clipped-robinson/
+mv $ORGANISMS/DEM/asterGdem/N59to81_W20toE19/w020n90/W020N90_clipped.dem \
+   $LAYERS/data/terrain/dem-usgs-gtopo30-clipped-robinson/
+# remove mysterious extra GeoTIFF (sans extension) with timestamp similar to
+# the above, but that was mysteriously the same as the like-named
+# clipped-nunokawa-v1 file (created months later)
+rm $ORGANISMS/DEM/asterGdem/N59to81_E60to99/USGS_ErosDEM_N59to81E60to99/E060N90_Clipped
+
 # remove gdal-generated metadata file
 rm $ORGANISMS/DEM/usgsGTOPO30/e020n90/*.aux.xml
-# now migrate to ~layers
+# remove Mac OS X file metadata cruft
+find $ORGANISMS/DEM/usgsGTOPO30 -name ".DS_Store" -exec rm {} \;
+find $ORGANISMS/DEM/usgsGTOPO30 -name "._*" -exec rm {} \;
+# now migrate original (?) GTOPO30 data
 mv $ORGANISMS/DEM/usgsGTOPO30 $LAYERS/data/terrain/dem-usgs-gtopo30
+# confirmed that we had identical copies of the above GTOPO DEM data
+# # ---- bash code ---#
+# for i in `find $ORGANISMS/DEM/asterGdem -name "*.DEM" -exec basename {} \;`
+# do
+#   diff -q `find $ORGANISMS/DEM/asterGdem -name $i` \
+#           `find $LAYERS/data/terrain/dem-usgs-gtopo30 -name $i`
+# done
+# # ------------------#
+# (and in fact manually confirmed that the containing directories themselves
+#  were duplicated, albeit with different names)
+# ...so remove the duplicates...
+find $ORGANISMS/DEM/asterGdem -name "*.DEM" | sed 's/\/[EW].*//' | xargs -I+ rm -r +
 
 #
 # GMTED2010
@@ -300,8 +386,6 @@ $ORGANISMS/DEM/Yuni/Data/srtm/srtm_*_below_below_s.tif       # Flt32 59N-60N SRT
 
 $ORGANISMS/DEM/Yuni/Data/aster2/aster.vrt                    # VRT - GDEM2 from ~59N-82N (with 1/2-pixel offset)
 $ORGANISMS/DEM/Yuni/Data/srtm/srtm.vrt                       # VRT - SRTM from ~55N-60N (with 1/2-pixel offset)
-
-$ORGANISMS/DEM/Yuni/Data/GTOPO30/*.dem                       # 59N-~82N GTOPO30 elevation clipped
 
 # remove duplicate file
 rm $ORGANISMS/DEM/Yuni/Data/aster2/fused_w180w141
