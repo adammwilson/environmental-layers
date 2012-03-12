@@ -1,18 +1,23 @@
 # This scripts are to make SRTM vrt file and ASTER GDEM2 vrt file (full extent N82).
-# Then make tiff for each region (9). With ASTER, we will make two tiff for each region,
-# one for the boundary analysis purpose (_60N.tif) and the other for full-extent (_82N.tif).
-# All the files should be saved at /data/project/organisms/DEM/Yuni/vrt
+# Then make tiff for each region (9). With ASTER, we will make four tiff files for each region,
+# Three for the boundary analysis purpose [ one for above N60, one for below N60, and one for straddle (N59-61) ].
+# The forth aster tiff file is full-extent (N59 to N82), which will be used in "check" and "meanElv" analysis.
+# All the files should be saved at /data/project/organisms/DEM/Yuni/Data/
+#
+#  Dec 9th 2011 
+#  Yuina Nunokawa 
 
 
 
 
 ---------------------------------------------------------------------
+
 #SRTM
 export SRTMDIR="/data/project/organisms/DEM/Yuni/Data/srtm"
 
 
 # Create SRTM Tiff files for each region (also convert to 16bit integer)
-gdalbuildvrt $SRTMDIR/srtm2.vrt  /data/project/organisms/DEM/cgiarSrtm/SRTM_90m_ASCII_4_1/srtm_*_01.asc
+gdalbuildvrt $SRTMDIR/srtm.vrt  /data/project/organisms/DEM/cgiarSrtm/SRTM_90m_ASCII_4_1/srtm_*_01.asc
 
 
 gdalwarp -ot Int16  -te   20 59  59.99  60  -ts 48000 1200 -r bilinear  $SRTMDIR/srtm.vrt  $SRTMDIR/srtm_e020e059_below.tif
