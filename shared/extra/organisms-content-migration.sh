@@ -31,12 +31,11 @@ mkdir $LAYERS/code
 mkdir $LAYERS/code/climate
 mkdir $LAYERS/code/terrain
 mkdir $LAYERS/code/land-cover
-# create (temporary) home for other cruft that i'm not quite ready to delete
-mkdir $LAYERS/cruft
 # create (temporary?) home for everything else
 mkdir $LAYERS/experimental
 mkdir $LAYERS/experimental/terrain
 mkdir $LAYERS/experimental/land-cover
+mkdir $LAYERS/experimental/cruft
 
 #=======================================================================
 # carry out file migration, reorganization, and cleanup
@@ -150,9 +149,9 @@ mv $ORGANISMS/DEM/asterGdem \
 #
 
 # remove gdal-generated metadata files
-rm $ORGANISMS/DEM/asterGdem2/*.aux.xml
-rm $ORGANISMS/DEM/asterGdem2/90m_NoPixelOffset/*.aux.xml
-rm $ORGANISMS/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N59to60/*.aux.xml
+rm $ORGANISMS/DEM/asterGdem2/*.tif.aux.xml
+rm $ORGANISMS/DEM/asterGdem2/90m_NoPixelOffset/*.tif.aux.xml
+rm $ORGANISMS/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N59to60/*.tif.aux.xml
 
 # first flatten out directories
 mv $ORGANISMS/DEM/asterGdem2/90m_NoPixelOffset/Mosaiced/N59to60 \
@@ -264,7 +263,7 @@ rmdir $ORGANISMS/DEM/CanadaDED
 #
 
 # remove gdal-generated metadata files
-rm $ORGANISMS/DEM/GlobalProduct/*.aux.xml
+rm $ORGANISMS/DEM/GlobalProduct/*.tif.aux.xml
 # migrate to ~layers
 mv $ORGANISMS/DEM/GlobalProduct $LAYERS/data/terrain/dem-fused
 
@@ -306,7 +305,7 @@ mv $ORGANISMS/DEM/asterGdem/N59to81_W20toE19/w020n90/W020N90_clipped.dem \
 rm $ORGANISMS/DEM/asterGdem/N59to81_E60to99/USGS_ErosDEM_N59to81E60to99/E060N90_Clipped
 
 # remove gdal-generated metadata file
-rm $ORGANISMS/DEM/usgsGTOPO30/e020n90/*.aux.xml
+rm $ORGANISMS/DEM/usgsGTOPO30/e020n90/*.DEM.aux.xml
 # remove Mac OS X file metadata cruft
 find $ORGANISMS/DEM/usgsGTOPO30 -name ".DS_Store" -exec rm {} \;
 find $ORGANISMS/DEM/usgsGTOPO30 -name "._*" -exec rm {} \;
@@ -330,7 +329,7 @@ find $ORGANISMS/DEM/asterGdem -name "*.DEM" | sed 's/\/[EW].*//' | xargs -I+ rm 
 #
 
 # remove gdal-generated metadata files
-rm $ORGANISMS/GMTED2010/*.aux.xml
+rm $ORGANISMS/GMTED2010/*.tif.aux.xml
 # remove ArcMap(?) schema lock file
 rm $ORGANISMS/GMTED2010/GMTED2010_Spatial_Metadata/GMTED2010_Spatial_Metadata.shp.IGSKMNCNWK00726.6284.8844.sr.lock
 # migrate original (I think) downloaded data (OR only)
@@ -363,29 +362,25 @@ rmdir $ORGANISMS/GMTED2010
 # Nunokawa content
 #
 
-# TODO: deal with data
-$ORGANISMS/DEM/Yuni/Data/aster2/aster2_*_82N.tif             # Int16 59N-82N GDEM2 elevation
-$ORGANISMS/DEM/Yuni/Data/aster2/aster2_*_below.tif           # Int16 59N-60N GDEM2 elevation
-$ORGANISMS/DEM/Yuni/Data/aster2/aster2_*_above.tif           # Int16 60N-61N GDEM2 elevation
-$ORGANISMS/DEM/Yuni/Data/aster2/aster2_*_straddle.tif        # Int16 59N-61N GDEM2 elevation (GDEM2 above, GDEM2 below)
-$ORGANISMS/DEM/Yuni/Data/aster2/aster2_*_straddle_a.tif      # Flt32 59N-61N GDEM2-based aspect
-$ORGANISMS/DEM/Yuni/Data/aster2/aster2_*_straddle_s.tif      # Flt32 59N-61N GDEM2-based slope
-$ORGANISMS/DEM/Yuni/Data/aster2/aster2_*_below_blendgau.tif  # Flt32 59N-60N GDEM2/SRTM blended elevation
-
-$ORGANISMS/DEM/Yuni/Data/aster2/fused_*_straddle.tif         # Int16 59N-61N GDEM2/SRTM unblended elevation (GDEM2 above, SRTM below)
-$ORGANISMS/DEM/Yuni/Data/aster2/fused_*_straddle_a.tif       # Flt32 59N-61N unblended-based aspect
-$ORGANISMS/DEM/Yuni/Data/aster2/fused_*_straddle_s.tif       # Flt32 59N-61N unblended-based aspect
-
-$ORGANISMS/DEM/Yuni/Data/aster2/fused_*_blendgau.tif         # Int16 59N-61N GDEM2/SRTM blended elevation (GDEM2 above, blended below)
-$ORGANISMS/DEM/Yuni/Data/aster2/fused_*_blendgau_a.tif       # Flt32 59N-61N blend-based aspect
-$ORGANISMS/DEM/Yuni/Data/aster2/fused_*_blendgau_s.tif       # Flt32 59N-61N blend-based aspect
-
-$ORGANISMS/DEM/Yuni/Data/srtm/srtm_*_below.tif               # Int16 59N-60N SRTM elevation
-$ORGANISMS/DEM/Yuni/Data/srtm/srtm_*_below_a.tif             # Flt32 59N-60N SRTM-based aspect
-$ORGANISMS/DEM/Yuni/Data/srtm/srtm_*_below_below_s.tif       # Flt32 59N-60N SRTM-based slope
-
-$ORGANISMS/DEM/Yuni/Data/aster2/aster.vrt                    # VRT - GDEM2 from ~59N-82N (with 1/2-pixel offset)
-$ORGANISMS/DEM/Yuni/Data/srtm/srtm.vrt                       # VRT - SRTM from ~55N-60N (with 1/2-pixel offset)
+# regetz notes about nunokawa boundary datasets
+# aster2/aster2_*_82N.tif             # Int16 59N-82N GDEM2 elevation
+# aster2/aster2_*_below.tif           # Int16 59N-60N GDEM2 elevation
+# aster2/aster2_*_above.tif           # Int16 60N-61N GDEM2 elevation
+# aster2/aster2_*_straddle.tif        # Int16 59N-61N GDEM2 elevation (GDEM2 above, GDEM2 below)
+# aster2/aster2_*_straddle_a.tif      # Flt32 59N-61N GDEM2-based aspect
+# aster2/aster2_*_straddle_s.tif      # Flt32 59N-61N GDEM2-based slope
+# aster2/aster2_*_below_blendgau.tif  # Flt32 59N-60N GDEM2/SRTM blended elevation
+# aster2/fused_*_straddle.tif         # Int16 59N-61N GDEM2/SRTM unblended elevation (GDEM2 above, SRTM below)
+# aster2/fused_*_straddle_a.tif       # Flt32 59N-61N unblended-based aspect
+# aster2/fused_*_straddle_s.tif       # Flt32 59N-61N unblended-based aspect
+# aster2/fused_*_blendgau.tif         # Int16 59N-61N GDEM2/SRTM blended elevation (GDEM2 above, blended below)
+# aster2/fused_*_blendgau_a.tif       # Flt32 59N-61N blend-based aspect
+# aster2/fused_*_blendgau_s.tif       # Flt32 59N-61N blend-based aspect
+# srtm/srtm_*_below.tif               # Int16 59N-60N SRTM elevation
+# srtm/srtm_*_below_a.tif             # Flt32 59N-60N SRTM-based aspect
+# srtm/srtm_*_below_below_s.tif       # Flt32 59N-60N SRTM-based slope
+# aster2/aster.vrt                    # VRT - GDEM2 from ~59N-82N (with 1/2-pixel offset)
+# srtm/srtm.vrt                       # VRT - SRTM from ~55N-60N (with 1/2-pixel offset)
 
 # remove duplicate file
 rm $ORGANISMS/DEM/Yuni/Data/aster2/fused_w180w141
@@ -399,7 +394,8 @@ rm $ORGANISMS/DEM/Yuni/scripts/toProduceData/assembling.r~
 rm $ORGANISMS/DEM/Yuni/scripts/toProduceData/gaussian.r~
 rm $ORGANISMS/DEM/Yuni/scripts/toProduceData/mkVrt_Tiff.r~
 rm $ORGANISMS/DEM/Yuni/scripts/toProduceData/slope_aspect.r~
-# migrate scripts files
+
+# migrate scripts
 mv $ORGANISMS/DEM/Yuni/scripts \
    $LAYERS/code/terrain/nunokawa-scripts
 # migrate documents
@@ -409,6 +405,13 @@ mv -i $ORGANISMS/DEM/Yuni/missing_gdem2_tiles.txt \
       $LAYERS/documentation/terrain/nunokawa-documents/
 mv -i $ORGANISMS/DEM/Yuni/metadata.txt \
       $LAYERS/documentation/terrain/nunokawa-documents/
+# migrate remaining Data contents to 60N boundary dir
+mv -i $ORGANISMS/DEM/Yuni/Data \
+      $LAYERS/experimental/terrain/north-60
+
+# remove now-empty directories
+rmdir $ORGANISMS/DEM/Yuni
+rmdir $ORGANISMS/DEM
 
 #
 # Remaining DEM content
@@ -419,8 +422,8 @@ mv $ORGANISMS/DEM/ReadMeInProgress.txt $LAYERS/documentation/terrain/misc-partia
 
 
 rm $ORGANISMS/DEM/checklog
-mv $ORGANISMS/DEM/checkBadAsterGDEMFiles.sh $LAYERS/cruft/
-mv $ORGANISMS/DEM/CheckGDEMLog.txt $LAYERS/cruft/
+mv $ORGANISMS/DEM/checkBadAsterGDEMFiles.sh $LAYERS/experimental/cruft/
+mv $ORGANISMS/DEM/CheckGDEMLog.txt $LAYERS/experimental/cruft/
 
 
 #=========#
@@ -651,9 +654,9 @@ mv -i $ORGANISMS/MODIS_LST_Oregon/ClearDayGDAL/NewClearDay_MonthlyAvgs_Tiles/Mon
 
 # move last few things...
 mv -i $ORGANISMS/MODIS_LST_Oregon/hdf.txt \
-      $LAYERS/cruft/clim-MOD11A1.004-OR-orig-hdf.txt
+      $LAYERS/experimental/cruft/clim-MOD11A1.004-OR-orig-hdf.txt
 mv -i $ORGANISMS/MODIS_LST_Oregon/SDS_PctFills.txt \
-      $LAYERS/cruft/clim-MOD11A1.004-OR-orig-SDS_PctFills.txt
+      $LAYERS/experimental/cruft/clim-MOD11A1.004-OR-orig-SDS_PctFills.txt
 
 # remove all the now-empty directories...
 # tree $ORGANISMS/MODIS_LST_Oregon
@@ -829,14 +832,14 @@ mv $ORGANISMS/ReProjection_To_MODIS $LAYERS/documentation/
 mv $ORGANISMS/README.txt $LAYERS/documentation/organisms-homedir-readme.txt
 mv $ORGANISMS/CHANGES.txt $LAYERS/documentation/organisms-homedir-changes.txt
 # move old file extension summary
-mv -i $ORGANISMS/file-extension-summary.txt $LAYERS/cruft/
+mv -i $ORGANISMS/file-extension-summary.txt $LAYERS/experimental/cruft/
 
 #
 # Desktop
 #
 
 # move MRT installer to cruft
-mv $ORGANISMS/Desktop/MRT_download_Linux $LAYERS/cruft/
+mv $ORGANISMS/Desktop/MRT_download_Linux $LAYERS/experimental/cruft/
 # remove orphaned bil metadata file
 rm $ORGANISMS/Desktop/ASTER_Test.bil.aux.xml
 # remove empty Desktop dir
@@ -847,7 +850,7 @@ rmdir $ORGANISMS/Desktop
 #
 
 # move pyhdf package to cruft
-mv $ORGANISMS/pyhdf $LAYERS/cruft/
+mv $ORGANISMS/pyhdf $LAYERS/experimental/cruft/
 
 #
 # GIS/GDD
@@ -927,7 +930,8 @@ rmdir $ORGANISMS/GIS
 # Oregon
 #
 
-# TODO
+# for now just migrate to experimental area
+mv $ORGANISMS/Oregon $LAYERS/experimental/oregon
 
 #
 # steph
@@ -965,41 +969,70 @@ find $LAYERS/data -type d -exec chmod 750 {} \;
 # now migrate code into git repository clone
 #=======================================================================
 
+export REPO="."
+
 # nunokawa terrain scripts
 mkdir terrain/research/gtopo30
-mv -i code/terrain/nunokawa-scripts/toProduceData/clipUSGS.r terrain/research/gtopo30/
-mv -i code/terrain/nunokawa-scripts/toAnalyzeData/check.r terrain/tests/
-mv -i code/terrain/nunokawa-scripts/toAnalyzeData/meanElv_OnlyN59.r terrain/research/north-60/
+mv -i code/terrain/nunokawa-scripts/toProduceData/clipUSGS.r \
+      $REPO/terrain/research/gtopo30/
+mv -i code/terrain/nunokawa-scripts/toAnalyzeData/check.r \
+      $REPO/terrain/tests/
+mv -i code/terrain/nunokawa-scripts/toAnalyzeData/meanElv_OnlyN59.r
+      $REPO/terrain/research/north-60/
 rm code/terrain/nunokawa-scripts/toAnalyzeData/meanElv.r 
 rm code/terrain/nunokawa-scripts/toAnalyzeData/Deltas.r~
-mv -i code/terrain/nunokawa-scripts/toAnalyzeData/Deltas.r terrain/research/north-60/
+mv -i code/terrain/nunokawa-scripts/toAnalyzeData/Deltas.r \
+      $REPO/terrain/research/north-60/
 rm code/terrain/nunokawa-scripts/toAnalyzeData/rmse_cor.r~ 
-mv -i code/terrain/nunokawa-scripts/toAnalyzeData/rmse_cor.r terrain/research/north-60/
+mv -i code/terrain/nunokawa-scripts/toAnalyzeData/rmse_cor.r \
+      $REPO/terrain/research/north-60/
 rm code/terrain/nunokawa-scripts/toAnalyzeData/slope.r~
-mv -i code/terrain/nunokawa-scripts/toAnalyzeData/{aspect,slope}.r terrain/research/north-60/
-mv -i code/terrain/nunokawa-scripts/toAnalyzeData/negativeTable.r terrain/research/north-60/
-mv -i code/terrain/nunokawa-scripts/toProduceData/*.{r,r~} terrain/research/north-60/
+mv -i code/terrain/nunokawa-scripts/toAnalyzeData/{aspect,slope}.r
+      $REPO/terrain/research/north-60/
+mv -i code/terrain/nunokawa-scripts/toAnalyzeData/negativeTable.r \
+      $REPO/terrain/research/north-60/
+mv -i code/terrain/nunokawa-scripts/toProduceData/*.{r,r~} \
+      $REPO/terrain/research/north-60/
 
 # robinson terrain scripts
-mv -i code/terrain/DEM_ProcessingScripts/Aster_CheckMosaicedTilesExtents.py terrain/tests/
-mv -i code/terrain/DEM_ProcessingScripts/CheckPixelValuesAtOverlapZones.txt terrain/tests/
-mv -i code/terrain/DEM_ProcessingScripts/Aster\&SRTM_* terrain/tests/
-mv -i code/terrain/DEM_ProcessingScripts/Gaussian_Blend.r terrain/procedures/
-mv -i terrain/tests/Aster\&SRTM_* terrain/procedures/
-mv -i code/terrain/DEM_ProcessingScripts/SRTM_ClipToN59to60.txt terrain/procedures/
-mv -i code/terrain/DEM_ProcessingScripts/Mosaicing_AllTiles_East\&WestHemispheres.txt terrain/procedures/
-mv -i code/terrain/DEM_ProcessingScripts/AsterMosaicingScripts terrain/procedures/
+mv -i code/terrain/DEM_ProcessingScripts/Aster_CheckMosaicedTilesExtents.py \
+      $REPO/terrain/tests/
+mv -i code/terrain/DEM_ProcessingScripts/CheckPixelValuesAtOverlapZones.txt \
+      $REPO/terrain/tests/
+mv -i code/terrain/DEM_ProcessingScripts/Aster\&SRTM_* \
+      $REPO/terrain/tests/
+mv -i code/terrain/DEM_ProcessingScripts/Gaussian_Blend.r \
+      $REPO/terrain/procedures/
+mv -i terrain/tests/Aster\&SRTM_* \
+      $REPO/terrain/procedures/
+mv -i code/terrain/DEM_ProcessingScripts/SRTM_ClipToN59to60.txt \
+      $REPO/terrain/procedures/
+mv -i code/terrain/DEM_ProcessingScripts/Mosaicing_AllTiles_East\&WestHemispheres.txt \
+      $REPO/terrain/procedures/
+mv -i code/terrain/DEM_ProcessingScripts/AsterMosaicingScripts \
+      $REPO/terrain/procedures/
 
 # robinson land-cover check
-mv -i code/land-cover/CheckForNoDataValues_LandCoverFiles.txt land-cover/tests/
+mv -i code/land-cover/CheckForNoDataValues_LandCoverFiles.txt \
+      $REPO/land-cover/tests/
 
 # robinson/donoghue Oregon MODIS LST processing code
 mkdir climate/research/oregon
 mkdir climate/research/oregon/modis-lst
-mv -i code/climate/modis-lst-oregon/*.{r,R,py} climate/research/oregon/modis-lst/
+mv -i code/climate/modis-lst-oregon/*.{r,R,py} \
+      $REPO/climate/research/oregon/modis-lst/
 
 # misc old (authorless) climate code
-mv -i code/climate/cru_3.0_data_extract.r climate/procedures/
-mv -i code/climate/gdd-worldclim-tmean-map-algebra.txt climate/extra/
+mv -i code/climate/cru_3.0_data_extract.r \
+      $REPO/climate/procedures/
+mv -i code/climate/gdd-worldclim-tmean-map-algebra.txt \
+      $REPO/climate/extra/
 
-# TODO: set all file permissions to 644 before committing
+mv -i $LAYERS/code/terrain/R_files/AsterCheck_demAndnum.r \
+      $REPO/terrain/test/
+mv -i $LAYERS/code/terrain/R_files/PctNoLand.r \
+      $REPO/terrain/research/gtopo30/
+
+# set all file permissions to 644 before committing
+find $REPO -type f -exec ^Cmod 644 {} \;
+
