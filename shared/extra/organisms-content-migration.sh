@@ -32,10 +32,10 @@ mkdir $LAYERS/code/climate
 mkdir $LAYERS/code/terrain
 mkdir $LAYERS/code/land-cover
 # create (temporary?) home for everything else
-mkdir $LAYERS/experimental
-mkdir $LAYERS/experimental/terrain
-mkdir $LAYERS/experimental/land-cover
-mkdir $LAYERS/experimental/cruft
+mkdir $LAYERS/commons
+mkdir $LAYERS/commons/terrain
+mkdir $LAYERS/commons/land-cover
+mkdir $LAYERS/commons/cruft
 
 #=======================================================================
 # carry out file migration, reorganization, and cleanup
@@ -135,11 +135,11 @@ rm $ORGANISMS/DEM/asterGdem/TilesBelowN59/*.{img,img.aux.xml}
 mv -i $ORGANISMS/DEM/asterGdem/R_files \
       $LAYERS/code/terrain/asterGdem
 # migrate Robinson GDEM1 assessment docs (incl QGIS project files)
-mkdir $LAYERS/experimental/terrain/gdem-v1
+mkdir $LAYERS/commons/terrain/gdem-v1
 mv -i $ORGANISMS/DEM/asterGdem/*.ods \
-      $LAYERS/experimental/terrain/gdem-v1/
+      $LAYERS/commons/terrain/gdem-v1/
 find $ORGANISMS/DEM/asterGdem -name "*.qgs" -exec mv {} \
-      $LAYERS/experimental/terrain/gdem-v1/ \;
+      $LAYERS/commons/terrain/gdem-v1/ \;
 # migrate remaining tree as the GDEM v1 dataset itself
 mv $ORGANISMS/DEM/asterGdem \
    $LAYERS/data/terrain/dem-aster-gdem1-30m-orig
@@ -189,27 +189,27 @@ mv -i $ORGANISMS/DEM/CanadaDED/Monday/1*.zip \
 mv -i $ORGANISMS/DEM/CanadaDED/CanadaDEDTechRefManual.pdf \
       $LAYERS/documentation/terrain/cded-TechRefManual.pdf
 # migrate some stuff to experimental, for now...
-mkdir $LAYERS/experimental/terrain/dem-cded
+mkdir $LAYERS/commons/terrain/dem-cded
 # ... vrt files, what the heck
 mv -i $ORGANISMS/DEM/CanadaDED/*demFile.vrt \
-      $LAYERS/experimental/terrain/dem-cded/
+      $LAYERS/commons/terrain/dem-cded/
 # ... misc scripts and log files
 mv -i $ORGANISMS/DEM/CanadaDED/in*DemFile.txt \
-      $LAYERS/experimental/terrain/dem-cded/
+      $LAYERS/commons/terrain/dem-cded/
 mv -i $ORGANISMS/DEM/CanadaDED/unzipFiles.sh \
-      $LAYERS/experimental/terrain/dem-cded/unzipFiles_0.sh
+      $LAYERS/commons/terrain/dem-cded/unzipFiles_0.sh
 mv -i $ORGANISMS/DEM/CanadaDED/Monday/unzipFiles.sh \
-      $LAYERS/experimental/terrain/dem-cded/unzipFiles_1.sh
+      $LAYERS/commons/terrain/dem-cded/unzipFiles_1.sh
 mv -i $ORGANISMS/DEM/CanadaDED/{.,/Monday}/*.sh \
-      $LAYERS/experimental/terrain/dem-cded/
+      $LAYERS/commons/terrain/dem-cded/
 mv -i $ORGANISMS/DEM/CanadaDED/*.log \
-      $LAYERS/experimental/terrain/dem-cded/
+      $LAYERS/commons/terrain/dem-cded/
 mv -i $ORGANISMS/DEM/CanadaDED/moscomps \
-      $LAYERS/experimental/terrain/dem-cded/
+      $LAYERS/commons/terrain/dem-cded/
 mv -i $ORGANISMS/DEM/CanadaDED/Monday/filesToMosaic \
-      $LAYERS/experimental/terrain/dem-cded/
+      $LAYERS/commons/terrain/dem-cded/
 mv -i $ORGANISMS/DEM/CanadaDED/Monday/*Log \
-      $LAYERS/experimental/terrain/dem-cded/
+      $LAYERS/commons/terrain/dem-cded/
 # remove extracted data (no plans to use it), after determining that these are
 # the set of files matching globs "*.dem" or "*_fgdc_*.{xml,html}"
 # # ---- bash code ---#
@@ -407,7 +407,7 @@ mv -i $ORGANISMS/DEM/Yuni/metadata.txt \
       $LAYERS/documentation/terrain/nunokawa-documents/
 # migrate remaining Data contents to 60N boundary dir
 mv -i $ORGANISMS/DEM/Yuni/Data \
-      $LAYERS/experimental/terrain/north-60
+      $LAYERS/commons/terrain/north-60
 
 # remove now-empty directories
 rmdir $ORGANISMS/DEM/Yuni
@@ -422,8 +422,8 @@ mv $ORGANISMS/DEM/ReadMeInProgress.txt $LAYERS/documentation/terrain/misc-partia
 
 
 rm $ORGANISMS/DEM/checklog
-mv $ORGANISMS/DEM/checkBadAsterGDEMFiles.sh $LAYERS/experimental/cruft/
-mv $ORGANISMS/DEM/CheckGDEMLog.txt $LAYERS/experimental/cruft/
+mv $ORGANISMS/DEM/checkBadAsterGDEMFiles.sh $LAYERS/commons/cruft/
+mv $ORGANISMS/DEM/CheckGDEMLog.txt $LAYERS/commons/cruft/
 
 
 #=========#
@@ -654,9 +654,9 @@ mv -i $ORGANISMS/MODIS_LST_Oregon/ClearDayGDAL/NewClearDay_MonthlyAvgs_Tiles/Mon
 
 # move last few things...
 mv -i $ORGANISMS/MODIS_LST_Oregon/hdf.txt \
-      $LAYERS/experimental/cruft/clim-MOD11A1.004-OR-orig-hdf.txt
+      $LAYERS/commons/cruft/clim-MOD11A1.004-OR-orig-hdf.txt
 mv -i $ORGANISMS/MODIS_LST_Oregon/SDS_PctFills.txt \
-      $LAYERS/experimental/cruft/clim-MOD11A1.004-OR-orig-SDS_PctFills.txt
+      $LAYERS/commons/cruft/clim-MOD11A1.004-OR-orig-SDS_PctFills.txt
 
 # remove all the now-empty directories...
 # tree $ORGANISMS/MODIS_LST_Oregon
@@ -727,7 +727,7 @@ rmdir $ORGANISMS/WorldClim
 #
 
 # for now, just move the whole thing as-is
-mv $ORGANISMS/GLCNMO $LAYERS/experimental/land-cover/
+mv $ORGANISMS/GLCNMO $LAYERS/commons/land-cover/
 
 #
 # GlobCover
@@ -832,14 +832,14 @@ mv $ORGANISMS/ReProjection_To_MODIS $LAYERS/documentation/
 mv $ORGANISMS/README.txt $LAYERS/documentation/organisms-homedir-readme.txt
 mv $ORGANISMS/CHANGES.txt $LAYERS/documentation/organisms-homedir-changes.txt
 # move old file extension summary
-mv -i $ORGANISMS/file-extension-summary.txt $LAYERS/experimental/cruft/
+mv -i $ORGANISMS/file-extension-summary.txt $LAYERS/commons/cruft/
 
 #
 # Desktop
 #
 
 # move MRT installer to cruft
-mv $ORGANISMS/Desktop/MRT_download_Linux $LAYERS/experimental/cruft/
+mv $ORGANISMS/Desktop/MRT_download_Linux $LAYERS/commons/cruft/
 # remove orphaned bil metadata file
 rm $ORGANISMS/Desktop/ASTER_Test.bil.aux.xml
 # remove empty Desktop dir
@@ -850,7 +850,7 @@ rmdir $ORGANISMS/Desktop
 #
 
 # move pyhdf package to cruft
-mv $ORGANISMS/pyhdf $LAYERS/experimental/cruft/
+mv $ORGANISMS/pyhdf $LAYERS/commons/cruft/
 
 #
 # GIS/GDD
@@ -921,7 +921,7 @@ rmdir $ORGANISMS/GIS/GDD
 # remove empty test directory
 rmdir $ORGANISMS/GIS/terrain/test
 # for now just migrate everything else to experimental area
-mv $ORGANISMS/GIS/terrain $LAYERS/experimental/terrain/arcgis
+mv $ORGANISMS/GIS/terrain $LAYERS/commons/terrain/arcgis
 
 # remove empty directory
 rmdir $ORGANISMS/GIS
@@ -931,7 +931,7 @@ rmdir $ORGANISMS/GIS
 #
 
 # for now just migrate to experimental area
-mv $ORGANISMS/Oregon $LAYERS/experimental/oregon
+mv $ORGANISMS/Oregon $LAYERS/commons/oregon
 
 #
 # steph
@@ -952,7 +952,7 @@ mv $ORGANISMS/topo $LAYERS/experimental/
 #
 
 # for now just migrate to experimental area
-mv $ORGANISMS/temp_benoit $LAYERS/experimental/
+mv $ORGANISMS/temp_benoit $LAYERS/commons/
 
 
 #=======================================================================
