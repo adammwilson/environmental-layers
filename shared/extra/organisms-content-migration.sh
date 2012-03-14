@@ -11,6 +11,7 @@
 
 export ORGANISMS="/home/organisms"
 export LAYERS="/home/layers"
+export REPO="."
 
 #=======================================================================
 # set up some directories
@@ -944,8 +945,77 @@ rm -rf $ORGANISMS/steph
 # topo
 #
 
-# for now just migrate to experimental area
-mv $ORGANISMS/topo $LAYERS/experimental/
+# first migrate the whole thing to new commons area
+mv $ORGANISMS/topo $LAYERS/commons/
+# consolidate first set of dirs
+mkdir $LAYERS/commons/topo/v1
+mv -i $LAYERS/commons/topo/{experimental,scripts,tiles} \
+      $LAYERS/commons/topo/v1/
+# consolidate second set of dirs
+mv -i $LAYERS/commons/topo/experimental_2/topo \
+      $LAYERS/commons/topo/v2
+rmdir $LAYERS/commons/topo/experimental_2
+
+# remove ArcToolbox temporary files
+rm $LAYERS/commons/topo/v2/topo/xx00003024.s
+rm $LAYERS/commons/topo/v2/experimental/xx00013916.x
+rm $LAYERS/commons/topo/v2/experimental/xx00003916.s
+rm $LAYERS/commons/topo/v2/experimental/xx00013916.s
+
+# consolidate first set of scripts into git repo
+mv -i $LAYERS/commons/topo/v1/experimental/layers.aml \
+      $REPO/terrain/research/oregon/arcgis/v1/
+mv -i $LAYERS/commons/topo/v1/experimental/aggregate.aml \
+      $REPO/terrain/research/oregon/arcgis/v1/
+mv -i $LAYERS/commons/topo/v1/experimental/multiscalesmooth9a_clean.aml \
+      $REPO/terrain/research/oregon/arcgis/v1/
+mv -i $LAYERS/commons/topo/v1/experimental/tilemerge_oregon1.aml \
+      $REPO/terrain/research/oregon/arcgis/v1/
+mv -i $LAYERS/commons/topo/v1/scripts/unpacktiles.aml \
+      $REPO/terrain/research/oregon/arcgis/v1/
+mv -i $LAYERS/commons/topo/v1/scripts/unziptiles.py \
+      $REPO/terrain/research/oregon/arcgis/v1/
+mv -i $LAYERS/commons/topo/v1/scripts/mrvbf/mrvbf6g-a3.aml \
+      $REPO/terrain/research/oregon/arcgis/v1/
+mv -i $LAYERS/commons/topo/v1/scripts/mrvbf/pctl.aml \
+      $REPO/terrain/research/oregon/arcgis/v1/
+mv -i $LAYERS/commons/topo/v1/scripts/mrvbf/chunkproc.aml \
+      $REPO/terrain/research/oregon/arcgis/v1/
+mv -i $LAYERS/commons/topo/v1/scripts/mrvbf/pctl-limits.aml \
+      $REPO/terrain/research/oregon/arcgis/v1/
+mv -i $LAYERS/commons/topo/v1/scripts/mrvbf/gauss3 \
+      $REPO/terrain/research/oregon/arcgis/v1/
+# for now keep this mysterioud Windows binary around...
+mv -i $LAYERS/commons/topo/v1/scripts/mrvbf/pctl.exe \
+      $LAYERS/commons/topo/v1/
+# remove now-empty scripts directory
+rmdir $LAYERS/commons/topo/v1/scripts/mrvbf
+rmdir $LAYERS/commons/topo/v1/scripts
+
+# consolidate second set of scripts into git repo
+mv -i $LAYERS/commons/topo/v2/experimental/layers.aml \
+      $REPO/terrain/research/oregon/arcgis/v2/
+mv -i $LAYERS/commons/topo/v2/experimental/aggregate.aml \
+      $REPO/terrain/research/oregon/arcgis/v2/
+mv -i $LAYERS/commons/topo/v2/experimental/multiscalesmooth9a_clean.aml \
+      $REPO/terrain/research/oregon/arcgis/v2/
+mv -i $LAYERS/commons/topo/v2/experimental/tilemerge_oregon1.aml \
+      $REPO/terrain/research/oregon/arcgis/v2/
+mv -i $LAYERS/commons/topo/v2/scripts/unpacktiles.aml \
+      $REPO/terrain/research/oregon/arcgis/v2/
+mv -i $LAYERS/commons/topo/v2/scripts/unziptiles.py \
+      $REPO/terrain/research/oregon/arcgis/v2/
+mv -i $LAYERS/commons/topo/v2/topo/mrvbf6g-a3.aml \
+      $REPO/terrain/research/oregon/arcgis/v2/
+mv -i $LAYERS/commons/topo/v2/topo/pctl.aml \
+      $REPO/terrain/research/oregon/arcgis/v2/
+mv -i $LAYERS/commons/topo/v2/topo/chunkproc.aml \
+      $REPO/terrain/research/oregon/arcgis/v2/
+mv -i $LAYERS/commons/topo/v2/topo/pctl-limits.aml \
+      $REPO/terrain/research/oregon/arcgis/v2/
+mv -i $LAYERS/commons/topo/v2/topo/gauss3 \
+      $REPO/terrain/research/oregon/arcgis/v2/
+
 
 #
 # temp_benoit
@@ -968,8 +1038,6 @@ find $LAYERS/data -type d -exec chmod 750 {} \;
 #=======================================================================
 # now migrate code into git repository clone
 #=======================================================================
-
-export REPO="."
 
 # nunokawa terrain scripts
 mkdir terrain/research/gtopo30

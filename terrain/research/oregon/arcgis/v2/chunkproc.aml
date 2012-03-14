@@ -1,0 +1,132 @@
+/* Invoke another AML on a grid to produce a grid
+/* Other AML takes arguments: gridname outgridname otherargs
+
+&args targetaml gridname outgridname otherargs:REST
+
+
+/* targetaml-limits.aml takes same arguments as target.aml (except for
+/* output file) and sets maximum number of cells and overlap required
+&run %targetaml%-limits %gridname% [unquote %otherargs%]
+
+&describe %gridname%
+&sv gridxmin = %grd$xmin%
+&sv gridxmax = %grd$xmax%
+&sv gridymin = %grd$ymin%
+&sv gridymax = %grd$ymax%
+&sv gridncols = %grd$ncols%
+&sv gridnrows = %grd$nrows%
+&sv cellsize = %grd$dx%
+
+/****** TEMPORARY *******/
+/* setcell %cellsize%
+/**** END TEMPORARY *****/
+
+&sv ncells = %grd$ncols% * %grd$nrows%
+&type %ncells% cells in %gridname%
+
+&if %ncells% <= %.maxcells% &then &do
+  /* no need to do chunks, just invoke target AML
+  &type Process as single chunk
+  &run %targetaml% %gridname% %outgridname% [unquote %otherargs%]
+  &return
+&end
+
+/* need to do chunks
+&type Process in multiple chunks
+/* &type X: %gridxmin% %gridxmax% (%gridncols%) 
+/* &type Y: %gridymin% %gridymax% (%gridnrows%) 
+/* &type %ncells% cells, %.maxcells% max, %.border% border
+
+&sv nchunks = [truncate [calc %ncells% / %.maxcells%]] + 1
+&type Need at least %nchunks% chunks
+&sv chunkdim = [sqrt %.maxcells%] + 2 * %.border%
+
+&if %gridncols% < %chunkdim% &then
+  &do
+    &sv colchunks = 1
+    &sv rowchunks = %nchunks%
+    &sv chunkncols = %gridncols%
+    &sv chunknrows = [truncate [calc %gridnrows% / %rowchunks%]] + 1
+  &end
+&else &if %gridnrows% < %chunkdim% &then
+  &do
+    &sv rowchunks = 1
+    &sv colchunks = %nchunks%
+    &sv chunkncols = [truncate [calc %gridncols% / %colchunks%]] + 1
+  &end
+&else 
+  &do
+    &sv rowchunks = [truncate [calc %gridnrows% / %chunkdim%]] + 1
+    &sv colchunks = [truncate [calc %gridncols% / %chunkdim%]] + 1
+    &sv chunkncols = [truncate [calc %gridncols% / %colchunks%]] + 1
+    &sv chunknrows = [truncate [calc %gridnrows% / %rowchunks%]] + 1
+  &end
+
+
+&type %colchunks% colchunks, %rowchunks% rowchunks
+&type Chunk size %chunkncols% cols by %chunknrows% rows
+
+&sv qtrcell = %cellsize% / 4
+&sv halfcell = %cellsize% / 2
+&sv colist
+
+&sv chunki = 1
+&do &while %chunki% <= %colchunks%
+  &sv chunkj = 1
+  &sv colist_col
+  &do &while %chunkj% <= %rowchunks%
+    &type Chunk %chunki% %chunkj%
+
+    &sv coxmin = %gridxmin% + ( %chunki% - 1 ) * %chunkncols% * %cellsize% - %qtrcell%
+    &sv coxmax = %coxmin% + %chunkncols% * %cellsize% + %halfcell%
+    &sv coymin = %gridymin% + ( %chunkj% - 1 ) * %chunknrows% * %cellsize% - %qtrcell%
+    &sv coymax = %coymin% + %chunknrows% * %cellsize% + %halfcell%
+
+    /* &type Output X: %coxmin% %coxmax%
+    /* &type Output Y: %coymin% %coymax%
+
+    &if %chunki% = 1 &then &sv chunkxmin = %coxmin%
+    &else &sv chunkxmin = %coxmin% - %.border% * %cellsize%
+    &if %chunki% = %colchunks% &then &sv chunkxmax = %coxmax%
+    &else &sv chunkxmax = %coxmax% + %.border% * %cellsize%
+
+    &if %chunkj% = 1 &then &sv chunkymin = %coymin%
+    &else &sv chunkymin = %coymin% - %.border% * %cellsize%
+    &if %chunkj% = %rowchunks% &then &sv chunkymax = %coymax%
+    &else &sv chunkymax = %coymax% + %.border% * %cellsize%
+
+    /* &type Chunk X: %chunkxmin% %chunkxmax%
+    /* &type Chunk Y: %chunkymin% %chunkymax%
+
+    /* clip input file to chunk (with borders)
+    setwindow %chunkxmin% %chunkymin% %chunkxmax% %chunkymax% %gridname%
+    &if [exists chunk -grid] &then kill chunk
+    chunk = %gridname%  
+    &if [exists co_tmp -grid] &then kill co_tmp
+    &run %targetaml% chunk co_tmp [unquote %otherargs%]
+    kill chunk
+
+    /* clip output file to chunk (without borders)
+    setwindow %coxmin% %coymin% %coxmax% %coymax% %gridname%
+    &if [exists co_%chunki%_%chunkj% -grid] &then kill co_%chunki%_%chunkj%
+    co_%chunki%_%chunkj% = co_tmp
+    kill co_tmp
+
+    &if %chunkj% = 1 &then &sv colist_col = co_%chunki%_%chunkj%
+    &else &sv colist_col = %colist_col%, co_%chunki%_%chunkj%
+
+    &sv chunkj = %chunkj% + 1
+  &end
+  setwindow maxof
+  &if [exists co_%chunki% -grid] &then kill co_%chunki%
+  co_%chunki% = merge(%colist_col%)
+  kill (!%colist_col%!)
+  &if %chunki% = 1 &then &sv colist = co_%chunki%
+  &else &sv colist = %colist%, co_%chunki%
+  &sv chunki = %chunki% + 1
+&end
+
+setwindow maxof
+&if [exists %outgridname% -grid] &then kill %outgridname%
+%outgridname% = merge(%colist%)
+kill (!%colist%!)

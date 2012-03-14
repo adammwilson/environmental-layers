@@ -1,0 +1,25 @@
+/* merge 9 tiles in Oregon around Portland for testing methods
+
+
+&if %:program%_ eq ARC_ &then grid
+&if %:program%_ ne GRID_ &then
+&return This program must be run from ARC or GRID.
+
+&sv tiledir \\jupiter\\organisms\topo\tiles
+&sv outdir \\jupiter\\organisms\topo\experimental
+&sv name srtmv41
+&sv vernum 1
+
+/* This can be extended to larger areas (beyond 3x3 used here) but at some stage the
+/* tilelist variable is going to get too long - AML has a limited line length
+/* At this point, it would be better to tile by longitude band i.e. do a merge for
+/* each value of w, then merge the resulting strips as a separate step
+&sv tilelist
+&do w = 122 &to 124
+  &do n = 44 &to 46
+    &sv tilelist %tilelist%, %tiledir%\w%w%\n%n%\%vernum%\%name%\w%w%n%n%
+  &end
+&end
+
+%outdir%\srtmv41 = merge(%tilelist%)
+:q

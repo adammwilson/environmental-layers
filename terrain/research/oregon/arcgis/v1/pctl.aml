@@ -1,0 +1,15 @@
+&args dem pctlname radius geographic
+
+&type Running pctl %dem% %pctlname% %radius% %geographic%
+
+&if [exists demtmp.flt -file] &then [delete demtmp.flt -file]
+demtmp.flt = gridfloat(%dem%)
+&if %geographic% &then &sys pctl -ud %radius% demtmp.flt pctl.flt
+&else &sys pctl %radius% demtmp.flt pctl.flt
+&if [delete demtmp.flt -file] ^= 0 &then &type ERROR deleting demtmp.flt
+&if [delete demtmp.hdr -file] ^= 0 &then &type ERROR deleting demtmp.hdr
+&if [delete demtmp.prj -file] ^= 0 &then &type ERROR deleting demtmp.prj
+&if [exists %pctlname% -grid] &then kill %pctlname%
+%pctlname% = floatgrid(pctl.flt)
+&if [delete pctl.flt -file] ^= 0 &then &type ERROR deleting pctl.flt
+&if [delete pctl.hdr -file] ^= 0 &then &type ERROR deleting pctl.hdr

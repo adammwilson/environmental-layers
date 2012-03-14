@@ -1,0 +1,67 @@
+/* merge x tiles in Oregon around Portland for testing methods
+
+
+&if %:program%_ eq ARC_ &then grid
+&if %:program%_ ne GRID_ &then
+&return This program must be run from ARC or GRID.
+
+/*note the directory path
+&sv tiledir I:\NCEAS\topo\tiles
+&sv outdir I:\NCEAS\topo\experimental
+&sv name srtmv41
+&sv vernum 1
+
+/* This can be extended to larger areas (beyond 3x3 used here) but at some stage the
+/* tilelist variable is going to get too long - AML has a limited line length
+/* At this point, it would be better to tile by longitude band i.e. do a merge for
+/* each value of w, then merge the resulting strips as a separate step
+
+/* can be more elegant, loop across lat band then merge
+
+&sv tilelist
+&do w = 115 &to 117
+  &do n = 42 &to 46
+    &sv tilelist %tilelist%, %tiledir%\w%w%\n%n%\%vernum%\%name%\w%w%n%n%
+  &end
+&end
+
+%outdir%\srtmv41_OR1 = merge(%tilelist%)
+
+&sv tilelist
+&do w = 117 &to 119
+  &do n = 42 &to 46
+    &sv tilelist %tilelist%, %tiledir%\w%w%\n%n%\%vernum%\%name%\w%w%n%n%
+  &end
+&end
+
+%outdir%\srtmv41_OR2 = merge(%tilelist%)
+
+&sv tilelist
+&do w = 119 &to 121
+  &do n = 42 &to 46
+    &sv tilelist %tilelist%, %tiledir%\w%w%\n%n%\%vernum%\%name%\w%w%n%n%
+  &end
+&end
+
+%outdir%\srtmv41_OR3 = merge(%tilelist%)
+
+&sv tilelist
+&do w = 121 &to 123
+  &do n = 42 &to 46
+    &sv tilelist %tilelist%, %tiledir%\w%w%\n%n%\%vernum%\%name%\w%w%n%n%
+  &end
+&end
+
+%outdir%\srtmv41_OR4 = merge(%tilelist%)
+
+&sv tilelist
+&do w = 123 &to 125
+  &do n = 42 &to 46
+    &sv tilelist %tilelist%, %tiledir%\w%w%\n%n%\%vernum%\%name%\w%w%n%n%
+  &end
+&end
+
+%outdir%\srtmv41_OR5 = merge(%tilelist%)
+
+%outdir%\srtmv41_OR = merge(srtmv41_OR1, srtmv41_OR2, srtmv41_OR3, srtmv41_OR4, srtmv41_OR5)
+

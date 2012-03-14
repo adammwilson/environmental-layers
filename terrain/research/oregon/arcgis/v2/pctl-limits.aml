@@ -1,0 +1,15 @@
+&args gridname radius geographic
+
+&describe %gridname%
+
+&if %geographic% &then &sv xyfactor [calc 110000 * [cos [calc ( %grd$ymin% + %grd$ymax% ) / 2 / 57.2958] ]  ]
+&else &sv xyfactor 1
+
+
+&sv radiuscells = [calc %radius% / ( %grd$dx% * %xyfactor% )]
+
+&type radius = %radiuscells% cells
+
+&sv .maxcells 50000000
+/* &sv .maxcells 500000 /* Testing on Kyeamba 
+&sv .border [calc %radiuscells% + 1]

@@ -1,0 +1,39 @@
+/* using srtmv41 3x3 degree patch smoothed to srtmv41_smth
+
+&describe srtmv41_smth
+&sv cellsize %grd$dx% * 111000
+dzdx = (srtmv41_smth(1,0) - srtmv41_smth(-1,0)) / (2 * %cellsize% * cos($$ymap / deg))
+dzdy = (srtmv41_smth(0,-1) - srtmv41_smth(0,1)) / (2 * %cellsize%)
+slope = sqrt(sqr(dzdx) + sqr(dzdy))
+slopedeg = atan(slope) * deg
+/* use scaling factor that is average of x and y scaling factors, 0.707 and 1 ~= 0.85
+/* and 0.85 / 111000 ~ 0.0000107
+arcslope = slope(srtmv41_smth, 0.0000107, degree)
+hillshade = hillshade(srtmv41_smth, 300, 30, shade, 0.00001)
+
+aspect1 = atan2(0 - dzdy, 0 - dzdx) * deg
+aspect = con(aspect1 > 90, 450 - aspect1, 90 - aspect1)
+kill aspect1
+
+/*use elevation 
+flowdir = flowdirection(srtmv41_smth)
+
+/*cell area to account for latitudinal area effects, smallest area near pole
+setwindow srtmv41_smth
+setcell srtmv41_smth 
+cellarea = sqr(%cellsize%) * cos($$ymap / deg)
+flowacc = flowaccumulation(flowdir, cellarea)
+
+/*account for sinks
+/*change # defaulto z limit
+/*caution fill is a command not function
+/*fill srtmv41_smth srtmv41_fill sink # flowdir_fill
+
+flowacc_fill = flowaccumulation(flowdir_fill, cellarea)
+
+/*scatch_fill is specific catchment area in m 
+scatch_fill = flowacc_fill / sqrt(cellarea) + sqrt(cellarea) / 2
+/*setting the min slope to 0.1
+adjslope = tan(max(slopedeg, 0.1) / deg)
+
+twi_fill = ln(scatch_fill / adjslope)

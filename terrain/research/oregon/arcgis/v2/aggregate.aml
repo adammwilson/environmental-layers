@@ -1,0 +1,25 @@
+/* need to ensure that the aggregation boxes are consistent across the whole set of layers
+/* so might need a setwindow here to enforce the correct location
+
+/* Question about 1km Behrman version - should that be projected from 30" stats, or
+/* should data be projected to Behrman and aggregated over 1km cell. Far from the equator
+/* these will give quite different results
+
+/* elevation - derive mean, min, max, std. dev, skew
+elev_mean = aggregate(srtm_or_smth, 10, mean)
+elev_min = aggregate(srtm_or_smth, 10, min)
+elev_max = aggregate(srtm_or_smth, 10, max)
+elev_range = elev_max - elev_min
+
+/* stupid arc doesn't have a standard deviation function for aggregation
+elev_sd = sqrt(aggregate(sqr(srtm_or_smth - elev_mean), 10, sum) / 100)
+
+
+/* slope - just mean and standard deviation
+slopedeg_mean = aggregate(slopedeg, 10, mean)
+slopedeg_sd = sqrt(aggregate(sqr(slopdeg - slopedeg_mean), 10, sum) / 100)
+
+/* wetness index - mean and standard deviation
+/* twi not done yet
+twi_fill_mean = aggregate(twi_fill, 10, mean)
+twi_fill_sd = sqrt(aggregate(sqr(twi_fill - twi_fill_mean), 10, sum) / 100)
