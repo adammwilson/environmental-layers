@@ -1,0 +1,17 @@
+
+&setvar fileunit = [open lc_list.txt openstatus -read] 
+&do loop = 1 &to 72 &by 1
+  &setvar lc_%loop% = [read %fileunit% readstatus]
+&end
+  &setvar close = [close %fileunit%]
+
+&do loop = 50 &to 72 &by 1
+
+cw I:\NCEAS\GLCNMO\lc%loop%\lc%loop%
+
+w I:\NCEAS\GLCNMO\lc%loop%\lc%loop%
+
+IMAGEGRID lc%loop% lc%loop%
+
+&end
+

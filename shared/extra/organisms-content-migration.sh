@@ -730,6 +730,17 @@ rmdir $ORGANISMS/WorldClim
 # for now, just move the whole thing as-is
 mv $ORGANISMS/GLCNMO $LAYERS/commons/land-cover/
 
+# now remove some cruft
+rm $LAYERS/commons/land-cover/GLCNMO/lc11/lc11/Thumbs.db
+# migrate AML scripts into repository
+mkdir $REPO/land-cover/research/GLCNMO
+mv -i $LAYERS/commons/land-cover/GLCNMO/merge_lc1.aml \
+      $REPO/land-cover/research/GLCNMO/
+mv -i $LAYERS/commons/land-cover/GLCNMO/merge_lc.aml \
+      $REPO/land-cover/research/GLCNMO/
+mv -i $LAYERS/commons/land-cover/GLCNMO/tiffgrid.aml \
+      $REPO/land-cover/research/GLCNMO/
+
 #
 # GlobCover
 #
