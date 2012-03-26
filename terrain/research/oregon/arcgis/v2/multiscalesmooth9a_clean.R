@@ -40,162 +40,159 @@
 
 library(raster)
 
-&args ingrid sd prob bbox:rest
-
 #&type NB - using standard deviation as noise specification now, not variance!
 
-function(ingrid, sd, prob, bbox) {
-# ingrid: grid to smooth
-# sd: stdev
-# prob: prob
-# bbox: optional extent object used to subset ingrid
+multiscalesmooth <- function(ingrid, sd=0.0001 , prob=0.05, bbox) {
+    # ingrid: grid to smooth
+    # sd: stdev
+    # prob: prob
+    # bbox: optional extent object used to subset ingrid
 
-# set up chisq parameters
-chisqa <- 2.807 - 0.6422 * log10(prob) - 3.410 * prob^0.3411
-chisqb <- -5.871 - 3.675 * log10(prob) + 4.690 * prob^0.3377
-#&type chisq parameters %chisqa% %chisqb%
+    # set up chisq parameters
+    chisqa <- 2.807 - 0.6422 * log10(prob) - 3.410 * prob^0.3411
+    chisqb <- -5.871 - 3.675 * log10(prob) + 4.690 * prob^0.3377
+    message("chisq parameters: (", chisqa, ", ", chisqb, ")")
 
-# snap bbox to ingrid
-bboxgrid <- alignExtent(bbox, ingrid)
-# then union this with the ingrid extent
-workgrid <- unionExtent(ingrid, bbox.aligned)
-setwindow workgrid
+    # subset ingrid if desired
+    if (!missing(bbox)) {
+        ingrid <- crop(ingrid, bbox)
+    }
 
-# naming:
-#  h - the value being smoothed/interpolated
-#  vg - total variance of group of data, or of individual measurement
-#  v_bg - variance between groups
-#  v_wg - variance within groups
-#  wa - weighting for aggregation, based on total variance
-#  vm - variance of the calculated mean
-#  mv - mean of finer scale variances
-#  n - effective number of measurements
+    # set number of levels of aggregation
+    NUM.LEVELS <- 4
+    # set aggregation factor
+    AGG.FACTOR <- 3
 
+    # naming:
+    #  h - the value being smoothed/interpolated
+    #  vg - total variance of group of data, or of individual measurement
+    #  v_bg - variance between groups
+    #  v_wg - variance within groups
+    #  wa - weighting for aggregation, based on total variance
+    #  vm - variance of the calculated mean
+    #  mv - mean of finer scale variances
+    #  n - effective number of measurements
 
-# NB - only calculating sample variances here, not variances of estimated means.
-# Also note that v0_bg is an uncertainty, not a sample variance
-# and v1_bg is total variances, but both are labelled as "between-group" to simplify the smoothing
+    # NB - only calculating sample variances here, not variances of estimated means.
+    # Also note that v0_bg is an uncertainty, not a sample variance
+    # and v1_bg is total variances, but both are labelled as "between-group" to simplify the smoothing
 
-h[0] <- ingrid
-v[0] <- calc(h[0], function(x) ifelse(!is.na(x), sd^2, NA))
-vg[0] = v[0]
-w[0] <- calc(v[0], function(x) ifelse(is.na(x), 0, 1/x))
-wsq[0] = w[0]^2
-n[0] <- calc(h[0], function(x) ifelse(!is.na(x), 1, 0))
+    # expand grid to accommodate integer number of cells at coarsest
+    # level, by adding roungly equal number of cells on either side
+    # (with on extra on top/right if an odd number of cells needs to be
+    # added)
+    max.size <- AGG.FACTOR^NUM.LEVELS
+    addx <- if (0 < (extra<-ncol(ingrid)%%max.size)) {
+            (max.size-extra)/2
+        } else {
+            0
+        }
+    addy <- if (0 < (extra<-nrow(ingrid)%%max.size)) {
+            (max.size-extra)/2
+        } else {
+            0
+        }
+    h <- list(expand(ingrid, extent(
+        xmin(ingrid)-floor(addx)*xres(ingrid),
+        xmax(ingrid)+ceiling(addx)*xres(ingrid),
+        ymin(ingrid)-floor(addy)*yres(ingrid),
+        ymax(ingrid)+ceiling(addy)*yres(ingrid)
+        )))
+    v <- list(calc(h[[1]], function(x) ifelse(!is.na(x), sd^2, NA)))
 
-bigvar <- cellStats(v[0], max)
+    vg = v[[1]]
+    w <- calc(v[[1]], function(x) ifelse(is.na(x), 0, 1/x))
+    wsq = w^2
+    n <- calc(h[[1]], function(x) ifelse(!is.na(x), 1, 0))
 
-setcell minof
+    bigvar <- cellStats(v[[1]], max)
 
-# aggregate to broader scales
-i <- 1
-done <- FALSE
+    #setcell minof
 
-while(!done) {
+    # aggregate to broader scales
+    for (i in 1+seq.int(NUM.LEVELS)) {
 
-  j <- i-1
+        message("Aggregate from ", i-1, " to ", i)
 
-  message("Aggregate from ", j, " to ", i)
+        vg.prev <- vg
+        w.prev <- w
+        wsq.prev <- wsq
+        n.prev <- n
 
-  cell3  <- xres(h[j]) * 3
-  nx0 <- round(xmin(h[0] / cell3 - 0.5)
-  ny0 <- round(ymin(h[0] / cell3 - 0.5)
-  nx1 <- round(xmax(h[0] / cell3 + 0.5)
-  ny1 <- round(ymax(h[0] / cell3 + 0.5)
-  x0 <- (nx0 - 0.5) * cell3
-  y0 <- (ny0 - 0.5) * cell3
-  x1 <- (nx1 + 0.5) * cell3
-  y1 <- (ny1 + 0.5) * cell3
-  setwindow x0 y0 x1 y1
- #todo:
- #  w? <- expand(w?, 1)
+        w <- aggregate(w.prev, 3, sum)
+        wsq <- aggregate(wsq.prev, 3, sum)
+        n <- aggregate(n.prev, 3, sum)
+        neff <- w^2 / wsq
+        h[[i]] <- aggregate(w.prev * h[[i-1]], 3, sum) / w
+        hdiff <- h[[i-1]] - disaggregate(h[[i]], 3)
+        vbg <- aggregate(w.prev * hdiff^2, 3, sum) / w
+        if (i==1) {
+            vwg <- n - n # zero, but with window and cell size set for us
+        } else {
+            vwg <- aggregate(w.prev * vg.prev, 3, sum) / w
+        }
+        vg <- vbg + vwg
+        vm <- 1 / w
+        mv <- n / w
 
-  w[i] = aggregate(w[j], 3, sum)
-  wsq[i] = aggregate(wsq[j], 3, sum)
-  n[i] = aggregate(n[j], 3, sum)
-  neff = w[i] * w[i] / wsq[i]
-  h[i] = aggregate(w[j] * h[j], 3, sum) / w[i]
-  vbg = aggregate(w[j] * sqr(h[j] - h[i]), 3, sum) / w[i]
-  if (i==1) {
-      vwg = n[i] - n[i] # zero, but with window and cell size set for us
-  } else {
-      vwg = aggregate(w[j] * vg[j], 3, sum) / w[i]
-  }
-  vg[i] = vbg + vwg
-  vm = 1 / w[i]
-  mv = n[i] / w[i]
+        chisq <- 1 + chisqa / sqrt(neff - 1) + chisqb / (neff - 1)
+        v[[i]] <- overlay(vg, chisq, mv, vm,
+            fun=function(vg, chisq, mv, vm) ifelse(vg/chisq < mv, vm, vg))
 
-  chisq = 1 + chisqa / sqrt(neff - 1) + chisqb / (neff - 1)
-  v[i] = con(vg[i] / chisq < mv, vm, vg[i])
+    }
 
-  # remove everything except h[i] and v[i]
-  kill w[j]
-  kill wsq[j]
-  kill n[j]
-  kill vg[j]
+    bigvar  <- bigvar * 10
 
-  if (i==4) done <- TRUE
+    #copy h[NUM.LEVELS] hs[NUM.LEVELS]
+    #copy v[NUM.LEVELS] vs[NUM.LEVELS]
+    #kill h[NUM.LEVELS]
+    #kill v[NUM.LEVELS]
+    #setcell hs[NUM.LEVELS]
+    #setwindow hs[NUM.LEVELS]
 
-  i <- i + 1
+    # smooth, refine and combine each layer in turn
+    #hs <- h[[NUM.LEVELS+1]]
+    #vs <- v[[NUM.LEVELS+1]]
+    hs <- h
+    vs <- v
+    #todo: is this the same as circle with radius 2 in arc???
+    #circle2 <- matrix(c(0,1,0, 1,1,1, 0,1,0), nrow=3)
+    circle2 <- matrix(c(0,0,1,0,0, 0,1,1,1,0, 1,1,1,1,1, 0,1,1,1,0, 0,0,1,0,0), nrow=5)
+    circle2[circle2==0] <- NA
+
+    for (j in 1+rev(seq.int(NUM.LEVELS))) {
+
+        message("Refine from ", j, " to ", j-1)
+
+        # for the first stage where the coarser grid is refined and smoothed, set window to the coarse grid
+        #setcell h[j-1]
+        #setwindow maxof
+
+        # create smoothed higher resolution versions of h and v_bg, hopefully with no nulls!
+        # [suppressing warnings to avoid .couldBeLonLat complaints]
+        suppressWarnings({
+            hs.tmp <- disaggregate(focal(hs[[j]], w=circle2, fun=mean,
+                pad=TRUE, padValue=NA, na.rm=TRUE), 3)
+            vs.tmp <- disaggregate(focal(vs[[j]], w=circle2, fun=mean,
+               pad=TRUE, padValue=NA, na.rm=TRUE), 3)
+        })
+
+        # create no-null version of finer h and v
+        h_c <- calc(h[[j-1]], function(x) ifelse(is.na(x), 0, x))
+        v_c <- calc(v[[j-1]], function(x) ifelse(is.na(x), bigvar, x))
+
+        # combine two values using least variance
+        hs[[j-1]] <- (h_c/v_c + hs.tmp/vs.tmp ) / (1/v_c + 1/vs.tmp)
+        vs[[j-1]] <- 1 / (1/v_c + 1/vs.tmp)
+
+#todo: mimic all the AML setwindow/setcell stuff???
+#        hs[[j-1]] <- expand(hs[[j-1]], 4)
+#        vs[[j-1]] <- expand(vs[[j-1]], 4)
+
+    }
+
+    result <- crop(stack(hs[[1]], vs[[1]]), extent(ingrid))
+    layerNames(result) <- c("hs", "vs")
+    return(result)
+
 }
-
-
-maxstep <- i - 1
-bigvar  <- bigvar * 10
-
-kill w[maxstep]
-kill wsq[maxstep]
-kill n[maxstep]
-kill vg[maxstep]
-
-# smooth, refine and combine each layer in turn
-
-
-copy h[maxstep] hs[maxstep]
-copy v[maxstep] vs[maxstep]
-kill h[maxstep]
-kill v[maxstep]
-setcell hs[maxstep]
-setwindow hs[maxstep]
-
-
-circle2 <- matrix(c(0,1,1,0, 1,1,1,1, 1,1,1,1, 0,1,1,0), nrow=4)
-
-for (j in maxstep:1) {
-  i <- j-1
-
-  message("Refine from ", j, " to ", i)
-
-  # for the first stage where the coarser grid is refined and smoothed, set window to the coarse grid
-  setcell h[i]
-  setwindow maxof
-
-  # create smoothed higher resolution versions of h and v_bg, hopefully with no nulls!
-  hs[j][i] = focal(hs[j], w=circle2, mean)
-  vs[j][i] = focal(vs[j], w=circle2, mean)
-
-  setcell h[i]
-  cellsize <- xres(h[i])
-  setwindow [xmin(bboxgrid) - 4 * cellsize] [ymin(bboxgrid) - 4 * cellsize] [xmax(bboxgrid) + 4 * cellsize] [ymax(bboxgrid) + 4 * cellsize] h[i]
-
-  # create no-null version of finer h and v
-  h_c = con(isnull(h[i]), 0, h[i])
-  v_c = con(isnull(v[i]), bigvar, v[i])
-
-  # combine two values using least variance
-  hs[i] = (h_c / v_c + hs[j][i] / vs[j][i] ) / (1.0 / v_c + 1.0 / vs[j][i])
-  vs[i] = 1 / (1.0 / v_c + 1.0 / vs[j][i])
-
-  kill v_c
-  kill h_c
-  kill v[i]
-  kill h[i]
-  kill vs[j][i]
-  kill hs[j][i]
-  kill hs[j]
-  kill vs[j]
-}
-
-# result is hs[0], with variance vs[0]
-
-kill bboxgrid
