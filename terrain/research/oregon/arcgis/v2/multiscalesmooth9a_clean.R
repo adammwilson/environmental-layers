@@ -52,11 +52,6 @@ multiscalesmooth <- function(ingrid, sd=0.0001 , prob=0.05, bbox) {
     # prob: prob
     # bbox: optional extent object used to subset ingrid
 
-    # set up chisq parameters
-    chisqa <- 2.807 - 0.6422 * log10(prob) - 3.410 * prob^0.3411
-    chisqb <- -5.871 - 3.675 * log10(prob) + 4.690 * prob^0.3377
-    message("chisq parameters: (", chisqa, ", ", chisqb, ")")
-
     # subset ingrid if desired
     if (!missing(bbox)) {
         ingrid <- crop(ingrid, bbox)
@@ -161,7 +156,9 @@ multiscalesmooth <- function(ingrid, sd=0.0001 , prob=0.05, bbox) {
         # calc mean noise variance (mean of finer scale variances)
         mv <- n / w
 
-        chisq <- 1 + chisqa / sqrt(n.eff - 1) + chisqb / (n.eff - 1)
+        # calc chisq critical values
+        chisq <- calc(n.eff, function(n) qchisq(0.05, n-1,
+            lower=FALSE)/(n-1))
         # set coarsened cell variances: if group variance is small
         # relative to noise variance, use variance of the mean instead
         # of group variance
