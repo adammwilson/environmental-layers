@@ -82,19 +82,37 @@ multiscalesmooth <- function(ingrid, sd=0.0001 , prob=0.05, bbox) {
         } else {
             0
         }
-    z <- list(expand(ingrid, extent(
+    full.extent <- extent(
         xmin(ingrid)-floor(addx)*xres(ingrid),
         xmax(ingrid)+ceiling(addx)*xres(ingrid),
         ymin(ingrid)-floor(addy)*yres(ingrid),
         ymax(ingrid)+ceiling(addy)*yres(ingrid)
-        )))
-    v <- list(calc(z[[1]], function(x) ifelse(!is.na(x), sd^2, NA)))
+        )
 
     # create grids
 
     # NB - only calculating sample variances here, not variances of estimated means.
     # Also note that v0_bg is an uncertainty, not a sample variance
     # and v1_bg is total variances, but both are labelled as "between-group" to simplify the smoothing
+
+    # create lists to hold the series of successively coarsened grids of
+    # values and variances, respectively; the first element of each is
+    # the grid at the original input resolution
+    # ...insert initial grid of values, but expanded to full extent
+    z <- list(expand(ingrid, full.extent))
+    # ...insert initial grid of variances
+    if (is.numeric(sd) && length(sd)==1) {
+        v <- list(calc(z[[1]], function(x) ifelse(!is.na(x), sd^2, NA)))
+    } else if (class(sd)=="RasterLayer") {
+        if (identical(extent(sd), extent(ingrid))) {
+            v <- list(overlay(z[[1]], sd, fun=function(z, sd)
+                ifelse(!is.na(z), sd^2, NA)))
+        } else {
+            stop("sd raster extent differs from ingrid extent")
+        }
+    } else {
+        stop("sd must be a single number or a RasterLayer")
+    }
 
     # set initial "group variance" to individual msmt variance (noise)
     v.g = v[[1]]
