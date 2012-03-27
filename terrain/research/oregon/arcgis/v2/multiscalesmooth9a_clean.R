@@ -67,23 +67,9 @@ multiscalesmooth <- function(ingrid, sd=0.0001 , prob=0.05, bbox) {
     # set aggregation factor
     AGG.FACTOR <- 3
 
-    # naming:
-    #  h - the value being smoothed/interpolated
-    #  vg - total variance of group of data, or of individual measurement
-    #  v_bg - variance between groups
-    #  v_wg - variance within groups
-    #  wa - weighting for aggregation, based on total variance
-    #  vm - variance of the calculated mean
-    #  mv - mean of finer scale variances
-    #  n - effective number of measurements
-
-    # NB - only calculating sample variances here, not variances of estimated means.
-    # Also note that v0_bg is an uncertainty, not a sample variance
-    # and v1_bg is total variances, but both are labelled as "between-group" to simplify the smoothing
-
     # expand grid to accommodate integer number of cells at coarsest
     # level, by adding roungly equal number of cells on either side
-    # (with on extra on top/right if an odd number of cells needs to be
+    # (with one extra on top/right if an odd number of cells needs to be
     # added)
     max.size <- AGG.FACTOR^NUM.LEVELS
     addx <- if (0 < (extra<-ncol(ingrid)%%max.size)) {
@@ -96,18 +82,27 @@ multiscalesmooth <- function(ingrid, sd=0.0001 , prob=0.05, bbox) {
         } else {
             0
         }
-    h <- list(expand(ingrid, extent(
+    z <- list(expand(ingrid, extent(
         xmin(ingrid)-floor(addx)*xres(ingrid),
         xmax(ingrid)+ceiling(addx)*xres(ingrid),
         ymin(ingrid)-floor(addy)*yres(ingrid),
         ymax(ingrid)+ceiling(addy)*yres(ingrid)
         )))
-    v <- list(calc(h[[1]], function(x) ifelse(!is.na(x), sd^2, NA)))
+    v <- list(calc(z[[1]], function(x) ifelse(!is.na(x), sd^2, NA)))
 
-    vg = v[[1]]
+    # create grids
+
+    # NB - only calculating sample variances here, not variances of estimated means.
+    # Also note that v0_bg is an uncertainty, not a sample variance
+    # and v1_bg is total variances, but both are labelled as "between-group" to simplify the smoothing
+
+    # set initial "group variance" to individual msmt variance (noise)
+    v.g = v[[1]]
+    # weighting for aggregation, based on total variance
     w <- calc(v[[1]], function(x) ifelse(is.na(x), 0, 1/x))
     wsq = w^2
-    n <- calc(h[[1]], function(x) ifelse(!is.na(x), 1, 0))
+    # effective number of measurements
+    n <- calc(z[[1]], function(x) ifelse(!is.na(x), 1, 0))
 
     bigvar <- cellStats(v[[1]], max)
 
@@ -118,46 +113,58 @@ multiscalesmooth <- function(ingrid, sd=0.0001 , prob=0.05, bbox) {
 
         message("Aggregate from ", i-1, " to ", i)
 
-        vg.prev <- vg
+        # make copies of previous (finer scale) grids
+        v.g.prev <- v.g
         w.prev <- w
         wsq.prev <- wsq
         n.prev <- n
 
+        # calc neighborhood weights, num cells, effective num cells
         w <- aggregate(w.prev, 3, sum)
         wsq <- aggregate(wsq.prev, 3, sum)
         n <- aggregate(n.prev, 3, sum)
-        neff <- w^2 / wsq
-        h[[i]] <- aggregate(w.prev * h[[i-1]], 3, sum) / w
-        hdiff <- h[[i-1]] - disaggregate(h[[i]], 3)
-        vbg <- aggregate(w.prev * hdiff^2, 3, sum) / w
+        n.eff <- w^2 / wsq
+        # calc variance-weighted neighborhood mean
+        z[[i]] <- aggregate(w.prev * z[[i-1]], 3, sum) / w
+        # calc between-cell variance, taken over neighborhood
+        hdiff <- z[[i-1]] - disaggregate(z[[i]], 3)
+        v.bg <- aggregate(w.prev * hdiff^2, 3, sum) / w
+        # calc wtd avg of within-cell variance, taken over neighborhood
         if (i==2) {
-            vwg <- n - n # zero, but with window and cell size set for us
+            v.wg <- n - n # zero, but with window and cell size set for us
         } else {
-            vwg <- aggregate(w.prev * vg.prev, 3, sum) / w
+            v.wg <- aggregate(w.prev * v.g.prev, 3, sum) / w
         }
-        vg <- vbg + vwg
-        vm <- 1 / w
+        # calc total group variance
+        # ~ total variance of cell values in the underlying neighborhood
+        v.g <- v.bg + v.wg
+        # calc variance of the mean for the neighborhood
+        v.m <- 1 / w
+        # calc mean noise variance (mean of finer scale variances)
         mv <- n / w
 
-        chisq <- 1 + chisqa / sqrt(neff - 1) + chisqb / (neff - 1)
-        v[[i]] <- overlay(vg, chisq, mv, vm,
-            fun=function(vg, chisq, mv, vm) ifelse(vg/chisq < mv, vm, vg))
+        chisq <- 1 + chisqa / sqrt(n.eff - 1) + chisqb / (n.eff - 1)
+        # set coarsened cell variances: if group variance is small
+        # relative to noise variance, use variance of the mean instead
+        # of group variance
+        v[[i]] <- overlay(v.g, chisq, mv, v.m,
+            fun=function(v.g, chisq, mv, v.m) ifelse(v.g/chisq < mv, v.m, v.g))
 
     }
 
     bigvar  <- bigvar * 10
 
-    #copy h[NUM.LEVELS] hs[NUM.LEVELS]
+    #copy z[NUM.LEVELS] hs[NUM.LEVELS]
     #copy v[NUM.LEVELS] vs[NUM.LEVELS]
-    #kill h[NUM.LEVELS]
+    #kill z[NUM.LEVELS]
     #kill v[NUM.LEVELS]
     #setcell hs[NUM.LEVELS]
     #setwindow hs[NUM.LEVELS]
 
     # smooth, refine and combine each layer in turn
-    #hs <- h[[NUM.LEVELS+1]]
+    #hs <- z[[NUM.LEVELS+1]]
     #vs <- v[[NUM.LEVELS+1]]
-    hs <- h
+    hs <- z
     vs <- v
     #todo: is this the same as circle with radius 2 in arc???
     #circle2 <- matrix(c(0,1,0, 1,1,1, 0,1,0), nrow=3)
@@ -169,10 +176,10 @@ multiscalesmooth <- function(ingrid, sd=0.0001 , prob=0.05, bbox) {
         message("Refine from ", j, " to ", j-1)
 
         # for the first stage where the coarser grid is refined and smoothed, set window to the coarse grid
-        #setcell h[j-1]
+        #setcell z[j-1]
         #setwindow maxof
 
-        # create smoothed higher resolution versions of h and v_bg, hopefully with no nulls!
+        # create smoothed higher resolution versions of z and v_bg, hopefully with no nulls!
         # [suppressing warnings to avoid .couldBeLonLat complaints]
         suppressWarnings({
             hs.tmp <- disaggregate(focal(hs[[j]], w=circle2, fun=mean,
@@ -181,8 +188,8 @@ multiscalesmooth <- function(ingrid, sd=0.0001 , prob=0.05, bbox) {
                pad=TRUE, padValue=NA, na.rm=TRUE), 3)
         })
 
-        # create no-null version of finer h and v
-        h_c <- calc(h[[j-1]], function(x) ifelse(is.na(x), 0, x))
+        # create no-null version of finer z and v
+        h_c <- calc(z[[j-1]], function(x) ifelse(is.na(x), 0, x))
         v_c <- calc(v[[j-1]], function(x) ifelse(is.na(x), bigvar, x))
 
         # combine two values using least variance
