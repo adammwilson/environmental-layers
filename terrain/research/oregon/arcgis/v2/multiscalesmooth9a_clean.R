@@ -38,6 +38,10 @@
 # bbox can be either a grid name or the 'xmin ymin xmax ymax' parameters
 # for setwindow
 
+# REGETZ NOTES
+# - it looks like Ming used sd=0.001 (based on the Arc 'log' file in the
+#   topo experimental directory)
+
 library(raster)
 
 #&type NB - using standard deviation as noise specification now, not variance!
@@ -126,7 +130,7 @@ multiscalesmooth <- function(ingrid, sd=0.0001 , prob=0.05, bbox) {
         h[[i]] <- aggregate(w.prev * h[[i-1]], 3, sum) / w
         hdiff <- h[[i-1]] - disaggregate(h[[i]], 3)
         vbg <- aggregate(w.prev * hdiff^2, 3, sum) / w
-        if (i==1) {
+        if (i==2) {
             vwg <- n - n # zero, but with window and cell size set for us
         } else {
             vwg <- aggregate(w.prev * vg.prev, 3, sum) / w
