@@ -8,7 +8,10 @@ library(sp)
 library(spdep)
 library(rgdal)
 library(spgwr)
-
+library(gpclib)
+library(PBSmapping)
+library(maptools)
+library(gstat)
 ###Parameters and arguments
 
 infile1<-"ghcn_or_tmax_b_03032012_OR83M.shp" 
@@ -17,10 +20,26 @@ setwd(path)
 #infile2<-"dates_interpolation_03012012.txt"  # list of 10 dates for the regression
 infile2<-"dates_interpolation_03052012.txt"
 prop<-0.3
-out_prefix<-"_03132012_0"
+out_prefix<-"_03272012_Res_fit"
 
-###Reading the shapefile from the local directory
+###Reading the shapefile and raster image from the local directory
+
+mean_LST<- readGDAL("mean_day244_rescaled.rst")  #This reads the whole raster in memory and provide a grid for kriging
 ghcn<-readOGR(".", "ghcn_or_tmax_b_03032012_OR83M") 
+proj4string(ghcn) #This retrieves the coordinate system for the SDF
+CRS_ghcn<-proj4string(ghcn) #this can be assigned to mean_LST!!!
+proj4string(mean_LST)<-CRS_ghcn #Assigning coordinates information
+
+# Creating state outline from county
+
+orcnty<-readOGR(".", "orcnty24_OR83M")
+proj4string(orcnty) #This retrieves the coordinate system for the SDF
+lps <-getSpPPolygonsLabptSlots(orcnty)  #Getting centroids county labels
+IDOneBin <- cut(lps[,1], range(lps[,1]), include.lowest=TRUE)  #Creating one bin var
+gpclibPermit() #Set the gpclib to True to allow union
+OR_state <- unionSpatialPolygons(orcnty ,IDOneBin) #Dissolve based on bin var
+
+# Adding variables for the regression
 
 ghcn$Northness<- cos(ghcn$ASPECT) #Adding a variable to the dataframe
 ghcn$Eastness <- sin(ghcn$ASPECT)  #adding variable to the dataframe.
@@ -35,25 +54,13 @@ dates <-readLines(paste(path,"/",infile2, sep=""))
 results <- matrix(1,length(dates),3)            #This is a matrix containing the diagnostic measures from the GAM models.
 
 #Screening for bad values
-#tmax~ lon + lat + ELEV_SRTM + Eastness + Northness + DISTOC
 #tmax range: min max)
 ghcn_test<-subset(ghcn,ghcn$tmax>-150 & ghcn$tmax<400)
 ghcn_test2<-subset(ghcn_test,ghcn_test$ELEV_SRTM>0)
 ghcn<-ghcn_test2
-#lon range
-#lat range
-#ELEV_SRTM
-#Eastness
-#Northness
 
 #ghcn.subsets <-lapply(dates, function(d) subset(ghcn, date==as.numeric(d)))#this creates a list of 10 subsets data
 ghcn.subsets <-lapply(dates, function(d) subset(ghcn, ghcn$date==as.numeric(d)))
-
-#ghcn.subsets <-subset(ghcn,ghcn$date=="20100101")
-#summary(lm(y~x,data=df,weights=(df$wght1)^(3/4))
-#ggwr.sel: find the bandwith from the data
-
-
 
 ###Regression part 1: Creating a validation dataset by creating training and testing datasets
 for(i in 1:length(dates)){            # start of the for loop #1
@@ -86,6 +93,29 @@ for(i in 1:length(dates)){            # start of the for loop #1
   results[i,1]<- dates[i]  #storing the interpolation dates in the first column
   results[i,2]<- ns        #number of stations used in the training stage
   results[i,3]<- RMSE_f
+  
+  #Kriging residuals!!
+  X11()
+  hscat(residuals~1,data_s,(0:9)*20000) # 9 lag classes with 20,000m width
+  v<-variogram(residuals~1, data_s)
+  plot(v)
+  tryCatch(v.fit<-fit.variogram(v,vgm(1,"Sph", 150000,1)),error=function()next)
+  gwr_res_krige<-krige(residuals~1, data_s,mean_LST, v.fit)#mean_LST provides the data grid/raster image for the kriging locations.
+
+  # GWR visualization of Residuals fit over space
+  grays = gray.colors(5,0.45, 0.95)
+  image(gwr_res_krige,col=grays) #needs to change to have a bipolar palette !!!
+  
+  #image(mean_LST, col=grays,breaks = c(185,245,255,275,315,325))
+
+  plot(OR_state, axes = TRUE, add=TRUE)
+  plot(data_s, pch=1, col="red", cex= abs(data_s$residuals)/10, add=TRUE) #Taking the absolute values because residuals are 
+  LegVals<- c(0,20,40,80,110)
+  legend("topleft", legend=LegVals,pch=1,col="red",pt.cex=LegVals/10,bty="n",title= "residuals")
+  legend("left", legend=c("275-285","285-295","295-305", "305-315","315-325"),fill=grays, bty="n", title= "LST mean DOY=244")
+
+  savePlot(paste(data_name,out_prefix,".png", sep=""), type="png")
+  dev.off()
   }
   
 ## Plotting and saving diagnostic measures
@@ -98,6 +128,7 @@ results_table<-as.data.frame(results_num)
 colnames(results_table)<-c("dates","ns","RMSE_gwr1")
 
 write.csv(results_table, file= paste(path,"/","results_GWR_Assessment",out_prefix,".txt",sep=""))
+
 
 # End of script##########
 
