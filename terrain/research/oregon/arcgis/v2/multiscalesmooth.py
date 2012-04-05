@@ -219,13 +219,17 @@ def multiscalesmooth(input, smooth, sd, alpha=0.05):
     tmp_rast.add('v.smooth')
     tmp_rast.remove('v%d' % NUM_LEVELS)
 
-    # smooth, refine and combine each layer in turn
+    # refine, smooth, and combine each layer in turn
     for j in reversed(range(NUM_LEVELS)):
 
         i = j + 1
         gs.message('Refining from %d to %d' % (i, j), flag='i')
 
         refine_region()
+        gs.run_command('r.resample', input=smooth, output=smooth,
+            overwrite=True, quiet=True)
+        gs.run_command('r.resample', input='v.smooth', output='v.smooth',
+            overwrite=True, quiet=True)
 
         # create smoothed higher resolution versions of z and v
         #TODO: is this the same as circle with radius 2 in arc?
