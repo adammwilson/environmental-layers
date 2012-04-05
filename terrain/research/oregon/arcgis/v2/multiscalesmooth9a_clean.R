@@ -195,13 +195,10 @@ multiscalesmooth <- function(ingrid, sd=0.0001 , prob=0.05, bbox) {
         #setwindow maxof
 
         # create smoothed higher resolution versions of z and v_bg, hopefully with no nulls!
-        # [suppressing warnings to avoid .couldBeLonLat complaints]
-        suppressWarnings({
-            hs.tmp <- disaggregate(focal(hs[[j]], w=circle2, fun=mean,
-                pad=TRUE, padValue=NA, na.rm=TRUE), 3)
-            vs.tmp <- disaggregate(focal(vs[[j]], w=circle2, fun=mean,
-               pad=TRUE, padValue=NA, na.rm=TRUE), 3)
-        })
+        hs.tmp <- focal(disaggregate(hs[[j]], 3), w=circle2, fun=mean,
+            pad=TRUE, padValue=NA, na.rm=TRUE)
+        vs.tmp <- focal(disaggregate(vs[[j]], 3), w=circle2, fun=mean,
+           pad=TRUE, padValue=NA, na.rm=TRUE)
 
         # create no-null version of finer z and v
         h_c <- calc(z[[j-1]], function(x) ifelse(is.na(x), 0, x))
