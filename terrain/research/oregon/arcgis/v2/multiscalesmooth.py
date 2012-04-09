@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 ############################################################################
-# MODULE:   r.plane for GRASS 5.7; based on r.plane for GRASS 5
+# MODULE:   r.multiscalesmooth for GRASS
 # AUTHOR(S):    Original algorithm and AML implementation by John
 #               Gallant. Translation to GRASS/Python by Jim Regetz.
 # REFERENCES:
@@ -61,18 +61,10 @@ import grass.script as gs
 # create set to store names of temporary maps to be deleted upon exit
 tmp_rast = set()
 
-#@atexit.register
 def cleanup():
     gs.message("Removing temporary files...", flag='i')
     for rast in tmp_rast:
         gs.run_command("g.remove", rast=rast, quiet=True)
-
-def report():
-    gs.debug("raster report...")
-    for rast in tmp_rast:
-        info = gs.raster_info(rast)
-        gs.debug('%s: %s (%f-%f)' % (rast, info['datatype'],
-            info['min'], info['max']))
 
 def coarsen_region(factor=3):
     gs.run_command('g.region',
@@ -91,19 +83,19 @@ def multiscalesmooth(input, smooth, sd, alpha=0.05):
     chisqb = (-5.871 - 3.675 * math.log10(alpha) + 4.690 *
         math.pow(alpha, 0.3377))
 
-    # set number of aggregation levels and neighborhood size
-    NUM_LEVELS = 4
-    NUM_CELLS = 3
-
     gs.message("Preparing initial grids", flag='i')
 
     # create copy of initial grid of values using current region
     gs.mapcalc('z0 = ${input}', input=input, quiet=True)
     tmp_rast.add('z0')
 
+    # set number of aggregation levels and neighborhood size
+    NUM_LEVELS = 4
+    NUM_CELLS = 3
+
     # expand region to accommodate integer number of cells at coarsest
-    # level, by adding cells to all sides (with one extra on top/right
-    # if an odd number of cells needs to be added)
+    # level, by adding roungly equal number of cells on either side
+    # (with one extra on top/right if an odd number of cells is needed)
     max_size = NUM_CELLS**NUM_LEVELS
     region = gs.region()
     extra = region['cols'] % max_size
@@ -117,10 +109,10 @@ def multiscalesmooth(input, smooth, sd, alpha=0.05):
     else:
         addy = 0.0
     gs.run_command('g.region', flags='a',
-        w = region['w']-math.floor(addx)*region['ewres'],
-        e = region['e']+math.ceil(addx)*region['ewres'],
-        s = region['s']-math.floor(addy)*region['nsres'],
-        n = region['n']+math.ceil(addy)*region['nsres'])
+        w = region['w'] - math.floor(addx) * region['ewres'],
+        e = region['e'] + math.ceil(addx) * region['ewres'],
+        s = region['s'] - math.floor(addy) * region['nsres'],
+        n = region['n'] + math.ceil(addy) * region['nsres'])
     gs.debug('\n'.join(gs.parse_command('g.region', 'up').keys()))
 
     # create initial grid of variances; sd can be a raster or a constant
@@ -207,7 +199,7 @@ def multiscalesmooth(input, smooth, sd, alpha=0.05):
             vm = '(1.0/w)', mv = '(n/w)', quiet=True)
         tmp_rast.add('v%d' % i)
 
-    # arbitrary value used to fill null variance cells
+    # get arbitrarily large value to fill null variance cells
     bigvar = gs.raster_info('v0')['max'] * 10
 
     # prep for refinement phase
@@ -232,9 +224,7 @@ def multiscalesmooth(input, smooth, sd, alpha=0.05):
             overwrite=True, quiet=True)
 
         # create smoothed higher resolution versions of z and v
-        #TODO: is this the same as circle with radius 2 in arc?
-        #TODO: what's happening at the edges here???
-        #TODO: is order of ops faithful to aml w.r.t resolution changes?
+        # using weight matrix equivalent to ArcGIS circle with radius 2
         gs.run_command('r.neighbors', flags='c', input=smooth,
             output='zs', method='average', size=5, overwrite=True,
             quiet=True)
@@ -252,9 +242,6 @@ def multiscalesmooth(input, smooth, sd, alpha=0.05):
             smooth=smooth, z_c=z_c, v_c=v_c, quiet=True)
         gs.mapcalc('v.smooth = 1 / (1/${v_c} + 1/vs)', v_c = v_c,
             quiet=True)
-
-    if (1 <= gs.debug_level):
-        report()
 
     cleanup()
     return None
