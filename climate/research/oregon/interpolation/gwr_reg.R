@@ -1,7 +1,7 @@
 ####################GWR of Tmax for 10 dates.#####################
-#This script generate station values for the Oregon case study. This program loads the station data from a shp file 
-#and performs a GWR regression. 
-#Script created by Benoit Parmentier on March 13, 2012. 
+#This script generates predicted values from station values for the Oregon case study. This program loads the station data from a shp file 
+#and performs a GWR regression and a kriged surface of residuals.
+#Script created by Benoit Parmentier on April 3, 2012. 
 
 ###Loading r library and packages
 library(sp)
@@ -9,7 +9,7 @@ library(spdep)
 library(rgdal)
 library(spgwr)
 library(gpclib)
-library(PBSmapping)
+data
 library(maptools)
 library(gstat)
 ###Parameters and arguments
@@ -101,21 +101,32 @@ for(i in 1:length(dates)){            # start of the for loop #1
   plot(v)
   tryCatch(v.fit<-fit.variogram(v,vgm(1,"Sph", 150000,1)),error=function()next)
   gwr_res_krige<-krige(residuals~1, data_s,mean_LST, v.fit)#mean_LST provides the data grid/raster image for the kriging locations.
+ 
+  # GWR visualization of Residuals using histograms and over space
+  X11()
+  title=paste("Histogram of residuals of ",data_name, sep="")
+  hist(data_s$residuals,main=title)
+  savePlot(paste("Histogram_",data_name,out_prefix,".png", sep=""), type="png")
+  dev.off()  
 
-  # GWR visualization of Residuals fit over space
-  grays = gray.colors(5,0.45, 0.95)
-  image(gwr_res_krige,col=grays) #needs to change to have a bipolar palette !!!
-  
-  #image(mean_LST, col=grays,breaks = c(185,245,255,275,315,325))
+  X11(width=20,height=20)
+  topo = cm.colors(9)
+  image(gwr_res_krige,col=topo) #needs to change to have a bipolar palette !!! 
 
   plot(OR_state, axes = TRUE, add=TRUE)
   plot(data_s, pch=1, col="red", cex= abs(data_s$residuals)/10, add=TRUE) #Taking the absolute values because residuals are 
-  LegVals<- c(0,20,40,80,110)
-  legend("topleft", legend=LegVals,pch=1,col="red",pt.cex=LegVals/10,bty="n",title= "residuals")
-  legend("left", legend=c("275-285","285-295","295-305", "305-315","315-325"),fill=grays, bty="n", title= "LST mean DOY=244")
+  LegVals<- c(0,10,20,30,40,50,110)
+  legend(-98000,510000, legend=LegVals,pch=1,col="red",pt.cex=LegVals/10,bty="n",title= "residuals",cex=1.6)
+  #legend("left", legend=c("275-285","285-295","295-305", "305-315","315-325"),fill=grays, bty="n", title= "LST mean DOY=244")
+  legend(-98000,290000, legend=c("-60 -30","-30 -20","-20 -10", "-10 0"," 0  10"," 10  20", " 20  30"," 30  60"),fill=topo, bty="n", title= "Kriged RMSE",cex=1.6)
+  title(paste("Kriging of residuals of ",data_name, sep=""),cex=2)
 
-  savePlot(paste(data_name,out_prefix,".png", sep=""), type="png")
-  dev.off()
+  krig_raster_name<-paste("Kriged_res_",data_name,out_prefix,".tif", sep="")
+  #writeGDAL(gwr_res_krige,fname=krig_raster_name, driver="GTiff", type="Float32",options ="INTERLEAVE=PIXEL")
+
+  savePlot(paste("Kriged_res_",data_name,out_prefix,".png", sep=""), type="png")
+  dev.off()  
+
   }
   
 ## Plotting and saving diagnostic measures
@@ -134,8 +145,38 @@ write.csv(results_table, file= paste(path,"/","results_GWR_Assessment",out_prefi
 
 # ###############################
 
+#  # GWR visualization of Residuals fit over space
+# X11()
+# title=paste("Histogram of residuals of ",data_name, sep="")
+# hist(data_s$residuals,main=title)
+# savePlot(paste("Histogram_",data_name,out_prefix,".png", sep=""), type="png")
+# dev.off()  
+# 
+# 
+data_s<-ghcn_s20100901
+X11(width=20,height=20)
+topo = cm.colors(9)
+image(gwr_res_krige,col=topo) #needs to change to have a bipolar palette !!!
   
-  
+#image(mean_LST, col=grays,breaks = c(185,245,255,275,315,325))
+
+plot(OR_state, axes = TRUE, add=TRUE)
+plot(data_s, pch=1, col="red", cex= abs(data_s$residuals)/10, add=TRUE) #Taking the absolute values because residuals are 
+LegVals<- c(0,10,20,30,40,50,110)
+legend(-98000,510000, legend=LegVals,pch=1,col="red",pt.cex=LegVals/10,bty="n",title= "residuals",cex=1.6)
+#legend("left", legend=c("275-285","285-295","295-305", "305-315","315-325"),fill=grays, bty="n", title= "LST mean DOY=244")
+legend(-98000,290000, legend=c("-60 -30","-30 -20","-20 -10", "-10 0"," 0  10"," 10  20", " 20  30"," 30  60"),fill=topo, bty="n", title= "Kriged RMSE",cex=1.6)
+title(paste("Kriging of residuals of ",data_name, sep=""),cex=2)
+
+krig_raster_name<-paste("Kriged_res_",data_name,out_prefix,".rst", sep="")
+writeGDAL(gwr_res_krige,fname="test_krige.tif", driver="GTiff", type="Float32",options ="INTERLEAVE=PIXEL")
+
+savePlot(paste("Kriged_res_",data_name,out_prefix,".png", sep=""), type="png")
+dev.off()  
+
+
+
+
 #Compare the coefficients and residuals using both 30 and 100%
 #coefficients are stored in gwrG$SDF$lon
 #write out a new shapefile (including .prj component)
