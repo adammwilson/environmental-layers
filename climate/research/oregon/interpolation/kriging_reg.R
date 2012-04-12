@@ -52,8 +52,8 @@ ghcn$Eastness_w  <- sin(ghcn$slope)*sin(ghcn$ASPECT)  #Adding variable to the da
 set.seed(100)                                 #This set a seed number for the random sampling to make results reproducible.
 
 dates <-readLines(paste(path,"/",infile2, sep=""))  #Reading dates in a list from the textile.
-#results <- matrix(1,length(dates),4)            #This is a matrix containing the diagnostic measures from the GAM models.
-#results_mod_n<-matrix(1,length(dates),3)
+results <- matrix(1,length(dates),4)            #This is a matrix containing the diagnostic measures from the GAM models.
+results_mod_n<-matrix(1,length(dates),3)
 
 #Screening for bad values and setting the valid range
 
@@ -64,90 +64,107 @@ ghcn<-ghcn_test2
 ###CREATING SUBSETS BY INPUT DATES AND SAMPLING
 ghcn.subsets <-lapply(dates, function(d) subset(ghcn, ghcn$date==as.numeric(d)))   #Producing a list of data frame, one data frame per date.
 
-i<-3                                           #Date 10 is used to test kriging
-n<-nrow(ghcn.subsets[[i]])
-ns<-n-round(n*prop)                             #Create a sample from the data frame with 70% of the rows
-nv<-n-ns                                        #create a sample for validation with prop of the rows
-ind.training <- sample(nrow(ghcn.subsets[[i]]), size=ns, replace=FALSE)  #This selects the index position for 70% of the rows taken randomly
-ind.testing <- setdiff(1:nrow(ghcn.subsets[[i]]), ind.training)         #This selects the index position for testing subset stations.
-data_s <- ghcn.subsets[[i]][ind.training, ]
-data_v <- ghcn.subsets[[i]][ind.testing, ]
-
-###STEP 2 KRIGING###
-
-#Kriging tmax
-
-hscat(tmax~1,data_s,(0:9)*20000)                       # 9 lag classes with 20,000m width
-v<-variogram(tmax~1, data_s)                           # This plots a sample varigram for date 10 fir the testing dataset
-plot(v)
-v.fit<-fit.variogram(v,vgm(2000,"Sph", 150000,1000))   #Model variogram: sill is 2000, spherical, range 15000 and nugget 1000
-plot(v, v.fit)                                         #Compare model and sample variogram via a graphical plot
-tmax_krige<-krige(tmax~1, data_s,mean_LST, v.fit)      #mean_LST provides the data grid/raster image for the kriging locations to be predicted.
-
-#Cokriging tmax
-g<-gstat(NULL,"tmax", tmax~1, data_s)                   #This creates a gstat object "g" that acts as container for kriging specifications.
-g<-gstat(g, "SRTM_elev",ELEV_SRTM~1,data_s)            #Adding variables to gstat object g
-g<-gstat(g, "Eastness", Eastness~1,data_s)
-g<-gstat(g, "Northness", Northness~1, data_s)
-
-vm_g<-variogram(g)                                     #Visualizing multivariate sample variogram.
-vm_g.fit<-fit.lmc(vm_g,g,vgm(2000,"Sph", 100000,1000)) #Fitting variogram for all variables at once.
-plot(vm_g,vm_g.fit)                                    #Visualizing variogram fit and sample
-vm_g.fit$set <-list(nocheck=1)                         #Avoid checking and allow for different range in variogram
-co_kriged_surf<-predict(vm_g.fit,mean_LST) #Prediction using co-kriging with grid location defined from input raster image.
-#co_kriged_surf$tmax.pred                              #Results stored in SpatialGridDataFrame with tmax prediction accessible in dataframe.
+for(i in 1:length(dates)){            # start of the for loop #1
+#i<-3                                           #Date 10 is used to test kriging
+  n<-nrow(ghcn.subsets[[i]])
+  ns<-n-round(n*prop)                             #Create a sample from the data frame with 70% of the rows
+  nv<-n-ns                                        #create a sample for validation with prop of the rows
+  ind.training <- sample(nrow(ghcn.subsets[[i]]), size=ns, replace=FALSE)  #This selects the index position for 70% of the rows taken randomly
+  ind.testing <- setdiff(1:nrow(ghcn.subsets[[i]]), ind.training)         #This selects the index position for testing subset stations.
+  data_s <- ghcn.subsets[[i]][ind.training, ]
+  data_v <- ghcn.subsets[[i]][ind.testing, ]
   
+  ###STEP 2 KRIGING###
+  
+  #Kriging tmax
+  
+  hscat(tmax~1,data_s,(0:9)*20000)                       # 9 lag classes with 20,000m width
+  v<-variogram(tmax~1, data_s)                           # This plots a sample varigram for date 10 fir the testing dataset
+  plot(v)
+  v.fit<-fit.variogram(v,vgm(2000,"Sph", 150000,1000))   #Model variogram: sill is 2000, spherical, range 15000 and nugget 1000
+  plot(v, v.fit)                                         #Compare model and sample variogram via a graphical plot
+  tmax_krige<-krige(tmax~1, data_s,mean_LST, v.fit)      #mean_LST provides the data grid/raster image for the kriging locations to be predicted.
+  
+  #Cokriging tmax
+  g<-gstat(NULL,"tmax", tmax~1, data_s)                   #This creates a gstat object "g" that acts as container for kriging specifications.
+  g<-gstat(g, "SRTM_elev",ELEV_SRTM~1,data_s)            #Adding variables to gstat object g
+  g<-gstat(g, "Eastness", Eastness~1,data_s)
+  g<-gstat(g, "Northness", Northness~1, data_s)
+  
+  vm_g<-variogram(g)                                     #Visualizing multivariate sample variogram.
+  vm_g.fit<-fit.lmc(vm_g,g,vgm(2000,"Sph", 100000,1000)) #Fitting variogram for all variables at once.
+  plot(vm_g,vm_g.fit)                                    #Visualizing variogram fit and sample
+  vm_g.fit$set <-list(nocheck=1)                         #Avoid checking and allow for different range in variogram
+  co_kriged_surf<-predict(vm_g.fit,mean_LST) #Prediction using co-kriging with grid location defined from input raster image.
+  #co_kriged_surf$tmax.pred                              #Results stored in SpatialGridDataFrame with tmax prediction accessible in dataframe.
+  
+  
+  #spplot.vcov(co_kriged_surf)                           #Visualizing the covariance structure
+  
+  tmax_krig1_s <- overlay(tmax_krige,data_s)             #This overlays the kriged surface tmax and the location of weather stations
+  tmax_cokrig1_s<- overlay(co_kriged_surf,data_s)        #This overalys the cokriged surface tmax and the location of weather stations
+  tmax_krig1_v <- overlay(tmax_krige,data_v)             #This overlays the kriged surface tmax and the location of weather stations
+  tmax_cokrig1_v<- overlay(co_kriged_surf,data_v)
+  
+  data_s$tmax_kr<-tmax_krig1_s$var1.pred                 #Adding the results back into the original dataframes.
+  data_v$tmax_kr<-tmax_krig1_v$var1.pred  
+  data_s$tmax_cokr<-tmax_cokrig1_s$tmax.pred    
+  data_v$tmax_cokr<-tmax_cokrig1_v$tmax.pred
+  
+  #Co-kriging only on the validation sites for faster computing
+  
+  cokrig1_dv<-predict(vm_g.fit,data_v)
+  cokrig1_ds<-predict(vm_g.fit,data_s)
+  data_s$tmax_cokr<-cokrig1_ds$tmax.pred    
+  data_v$tmax_cokr<-cokrig1_dv$tmax.pred
+  
+  #Calculate RMSE and then krig the residuals....!
+  
+  res_mod1<- data_v$tmax - data_v$tmax_kr              #Residuals from kriging.
+  res_mod2<- data_v$tmax - data_v$tmax_cokr                #Residuals from cokriging.
+  
+  RMSE_mod1 <- sqrt(sum(res_mod1^2,na.rm=TRUE)/(nv-sum(is.na(res_mod1))))                  #RMSE from kriged surface.
+  RMSE_mod2 <- sqrt(sum(res_mod2^2,na.rm=TRUE)/(nv-sum(is.na(res_mod2))))                  #RMSE from co-kriged surface.
+  #(nv-sum(is.na(res_mod2)))       
 
-#spplot.vcov(co_kriged_surf)                           #Visualizing the covariance structure
-         
-tmax_krig1_s <- overlay(tmax_krige,data_s)             #This overlays the kriged surface tmax and the location of weather stations
-tmax_cokrig1_s<- overlay(co_kriged_surf,data_s)        #This overalys the cokriged surface tmax and the location of weather stations
-tmax_krig1_v <- overlay(tmax_krige,data_v)             #This overlays the kriged surface tmax and the location of weather stations
-tmax_cokrig1_v<- overlay(co_kriged_surf,data_v)
-            
-data_s$tmax_kr<-tmax_krig1_s$var1.pred                 #Adding the results back into the original dataframes.
-data_v$tmax_kr<-tmax_krig1_v$var1.pred  
-data_s$tmax_cokr<-tmax_cokrig1_s$tmax.pred    
-data_v$tmax_cokr<-tmax_cokrig1_v$tmax.pred
+  #Saving the subset in a dataframe
+  data_name<-paste("ghcn_v_",dates[[i]],sep="")
+  assign(data_name,data_v)
+  data_name<-paste("ghcn_s_",dates[[i]],sep="")
+  assign(data_name,data_s)
+  
+  krig_raster_name<-paste("coKriged_tmax_",data_name,out_prefix,".tif", sep="")
+  writeGDAL(co_kriged_surf,fname=krig_raster_name, driver="GTiff", type="Float32",options ="INTERLEAVE=PIXEL")
+  krig_raster_name<-paste("Kriged_tmax_",data_name,out_prefix,".tif", sep="")
+  writeGDAL(tmax_krige,fname=krig_raster_name, driver="GTiff", type="Float32",options ="INTERLEAVE=PIXEL")
+  X11()
+  plot(raster(co_kriged_surf))
+  title(paste("Tmax cokriging for date ",dates[[i]],sep=""))
+  savePlot(paste("Cokriged_tmax",data_name,out_prefix,".png", sep=""), type="png")
+  dev.off()
+  X11()
+  plot(raster(tmax_krige))
+  title(paste("Tmax Kriging for date ",dates[[i]],sep=""))
+  savePlot(paste("Kriged_res_",data_name,out_prefix,".png", sep=""), type="png")
+  dev.off()
+  
+  results[i,1]<- dates[i]  #storing the interpolation dates in the first column
+  results[i,2]<- ns     #number of stations in training
+  results[i,3]<- RMSE_mod1
+  results[i,4]<- RMSE_mod2  
+  
+  results_mod_n[i,1]<-dates[i]
+  results_mod_n[i,2]<-(nv-sum(is.na(res_mod1)))
+  results_mod_n[i,3]<-(nv-sum(is.na(res_mod2)))
+  }
 
-# #Co-kriging only on the validation sites for faster computing
-# 
-# cokrig1_dv<-predict(vm_g.fit,data_v)
-# cokrig1_ds<-predict(vm_g.fit,data_s)
-# data_s$tmax_cokr<-cokrig1_ds$tmax.pred    
-# data_v$tmax_cokr<-cokrig1_dv$tmax.pred
+## Plotting and saving diagnostic measures
+results_num <-results
+mode(results_num)<- "numeric"
+# Make it numeric first
+# Now turn it into a data.frame...
 
-#Calculate RMSE and then krig the residuals....!
+results_table<-as.data.frame(results_num)
+colnames(results_table)<-c("dates","ns","RMSE_gwr1")
 
-res_mod1<- data_v$tmax - data_v$tmax_kr              #Residuals from kriging.
-res_mod2<- data_v$tmax - data_v$tmax_cokr                #Residuals from cokriging.
-
-RMSE_mod1 <- sqrt(sum(res_mod1^2,na.rm=TRUE)/(nv-sum(is.na(res_mod1))))                  #RMSE from kriged surface.
-RMSE_mod2 <- sqrt(sum(res_mod2^2,na.rm=TRUE)/(nv-sum(is.na(res_mod2))))                  #RMSE from co-kriged surface.
-                  #(nv-sum(is.na(res_mod2)))       
-# #######
-# #Kriging residuals!!
-# 
-# hscat(residuals~1,data_s,(0:9)*20000) # 9 lag classes with 20,000m width
-# v<-variogram(residuals~1, data_s)
-# plot(v)
-# v.fit<-fit.variogram(v,vgm(1,"Sph", 150000,1))
-# gwr_res_krige<-krige(residuals~1, data_s,mean_LST, v.fit)#mean_LST provides the data grid/raster image for the kriging locations.
-# image(gwr_res_krige,col=grays) #needs to change to have a bipolar palette !!!
-# grays = gray.colors(5,0.45, 0.95)
-# #image(mean_LST, col=grays,breaks = c(185,245,255,275,315,325))
-
-#Saving the subset in a dataframe
-data_name<-paste("ghcn_v_",dates[[i]],sep="")
-assign(data_name,data_v)
-data_name<-paste("ghcn_s_",dates[[i]],sep="")
-assign(data_name,data_s)
-         
-results[i,1]<- dates[i]  #storing the interpolation dates in the first column
-results[i,2]<- ns     #number of stations in training
-results[i,3]<- RMSE_mod1
-results[i,4]<- RMSE_mod2  
-         
-results_mod_n[i,1]<-dates[i]
-results_mod_n[i,2]<-(nv-sum(is.na(res_mod1)))
-results_mod_n[i,3]<-(nv-sum(is.na(res_mod2)))
+write.csv(results_table, file= paste(path,"/","results_GWR_Assessment",out_prefix,".txt",sep=""))
