@@ -24,9 +24,9 @@ setwd(path)
 #infile2<-"dates_interpolation_03012012.txt"  # list of 10 dates for the regression
 infile2<-"dates_interpolation_03052012.txt"
 prop<-0.3                                                                            #Proportion of testing retained for validation   
-out_prefix<-"_04032012_LST_r1"
+out_prefix<-"_04032012_LST_r4"
 infile3<-"LST_dates_var_names.txt"
-infile4<-"models_interpolation_04032012.txt"
+infile4<-"models_interpolation_04032012b.txt"
 
 
 #######START OF THE SCRIPT #############
@@ -70,6 +70,8 @@ for(i in 1:length(dates)){            # start of the for loop #1
   
   mod <-ghcn.subsets[[i]][,match(LST_dates[i], names(ghcn.subsets[[i]]))]
   ghcn.subsets[[i]] = transform(ghcn.subsets[[i]],LST = mod)
+  #Screening LST values
+  #ghcn.subsets[[i]]<-subset(ghcn.subsets[[i]],ghcn.subsets[[i]]$LST> 258 & ghcn.subsets[[i]]$LST<313)
   n<-nrow(ghcn.subsets[[i]])
   ns<-n-round(n*prop)  #Create a sample from the data frame with 70% of the rows
   nv<-n-ns             #create a sample for validation with prop of the rows
@@ -89,7 +91,7 @@ for(i in 1:length(dates)){            # start of the for loop #1
   mod4<- gam(tmax~ s(lat) + s (lon) + s(ELEV_SRTM) + s(Northness) + s (Eastness) + s(DISTOC) + s(LST), data=data_s)
   mod5<- gam(tmax~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST), data=data_s)
   mod6<- gam(tmax~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST,LC1), data=data_s)
-  
+  mod7<- gam(tmax~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST,LC3), data=data_s)
   
   ####Regression part 3: Calculating and storing diagnostic measures
   results_AIC[i,1]<- dates[i]  #storing the interpolation dates in the first column
@@ -100,6 +102,7 @@ for(i in 1:length(dates)){            # start of the for loop #1
   results_AIC[i,6]<- AIC (mod4)
   results_AIC[i,7]<- AIC (mod5)
   results_AIC[i,8]<- AIC (mod6)
+  results_AIC[i,9]<- AIC (mod7)
   
   results_GCV[i,1]<- dates[i]  #storing the interpolation dates in the first column
   results_GCV[i,2]<- ns        #number of stations used in the training stage
@@ -109,6 +112,7 @@ for(i in 1:length(dates)){            # start of the for loop #1
   results_GCV[i,6]<- mod4$gcv.ubre
   results_GCV[i,7]<- mod5$gcv.ubre
   results_GCV[i,8]<- mod6$gcv.ubre
+  results_GCV[i,9]<- mod7$gcv.ubre
   
   results_DEV[i,1]<- dates[i]  #storing the interpolation dates in the first column
   results_DEV[i,2]<- ns        #number of stations used in the training stage
@@ -118,6 +122,7 @@ for(i in 1:length(dates)){            # start of the for loop #1
   results_DEV[i,6]<- mod4$deviance
   results_DEV[i,7]<- mod5$deviance
   results_DEV[i,8]<- mod6$deviance
+  results_DEV[i,9]<- mod6$deviance
   
   #####VALIDATION: Prediction checking the results using the testing data########
  
@@ -127,6 +132,7 @@ for(i in 1:length(dates)){            # start of the for loop #1
   y_mod4<- predict(mod4, newdata=data_v, se.fit = TRUE) 
   y_mod5<- predict(mod5, newdata=data_v, se.fit = TRUE) 
   y_mod6<- predict(mod6, newdata=data_v, se.fit = TRUE)
+  y_mod7<- predict(mod7, newdata=data_v, se.fit = TRUE)
   
   res_mod1<- data_v$tmax - y_mod1$fit #Residuals for GMA model that resembles the ANUSPLIN interpolation
   res_mod2<- data_v$tmax - y_mod2$fit   #Residuals for GAM model that resembles the PRISM interpolation                               
@@ -134,6 +140,7 @@ for(i in 1:length(dates)){            # start of the for loop #1
   res_mod4<- data_v$tmax - y_mod4$fit
   res_mod5<- data_v$tmax - y_mod5$fit
   res_mod6<- data_v$tmax - y_mod6$fit
+  res_mod7<- data_v$tmax - y_mod7$fit
   
   RMSE_mod1 <- sqrt(sum(res_mod1^2)/nv)          
   RMSE_mod2 <- sqrt(sum(res_mod2^2)/nv)
@@ -141,7 +148,7 @@ for(i in 1:length(dates)){            # start of the for loop #1
   RMSE_mod4 <- sqrt(sum(res_mod4^2)/nv)
   RMSE_mod5 <- sqrt(sum(res_mod5^2)/nv)
   RMSE_mod6 <- sqrt(sum(res_mod6^2)/nv)
-  
+  RMSE_mod7 <- sqrt(sum(res_mod7^2)/nv)
 
   results_RMSE[i,1]<- dates[i]  #storing the interpolation dates in the first column
   results_RMSE[i,2]<- ns        #number of stations used in the training stage
@@ -151,7 +158,7 @@ for(i in 1:length(dates)){            # start of the for loop #1
   results_RMSE[i,6]<- RMSE_mod4
   results_RMSE[i,7]<- RMSE_mod5
   results_RMSE[i,8]<- RMSE_mod6
-  
+  results_RMSE[i,9]<- RMSE_mod7
   #Saving dataset in dataframes
   data_name<-paste("ghcn_v_",dates[[i]],sep="")
   assign(data_name,data_v)
@@ -165,73 +172,32 @@ for(i in 1:length(dates)){            # start of the for loop #1
 ## Plotting and saving diagnostic measures
 
 results_RMSEnum <-results_RMSE
+results_AICnum <-results_AIC
 mode(results_RMSEnum)<- "numeric"
+mode(results_AICnum)<- "numeric"
 # Make it numeric first
 # Now turn it into a data.frame...
 
 results_table_RMSE<-as.data.frame(results_RMSEnum)
-colnames(results_table_RMSE)<-c("dates","ns","mod1", "mod2","mod3", "mod4", "mod5", "mod6")
-
-# win.graph()
-# barplot(results_table$RMSE_A1/10,main="RMSE for the A1 models",names.arg=results_table$dates,ylab="Temp (deg. C)",xlab="interpolated date")
-# savePlot(paste("GAM_ANUSPLIN1_RMSE",out_prefix,".emf", sep=""), type="emf")
-# win.graph()
-# barplot(results_table$RMSE_P1/10,main="RMSE for the P1 models",names.arg=results_table$dates,ylab="Temp ( deg. C)",xlab="interpolated date")
-# savePlot(paste("GAM_PRISM1_RMSE",out_prefix,".emf", sep=""), type="emf")
-# win.graph()
-# barplot(results_table$RMSE_P2/10,main="RMSE for the P2 models",names.arg=results_table$dates,ylab="Temp ( deg. C)",xlab="interpolated date")
-# savePlot(paste("GAM_PRISM1_RMSE",out_prefix,".emf", sep=""), type="emf")
-# win.graph()
-# barplot(results_table$AIC_A1,main="AIC for the A1 models",names.arg=results_table$dates,ylab="Temp ( deg. C)",xlab="interpolated date")
-# savePlot(paste("GAM_PRISM1_RMSE",out_prefix,".emf", sep=""), type="emf")
-# win.graph()
-# barplot(results_table$AIC_P1/10,main="AIC for the P1 models",names.arg=results_table$dates,ylab="Temp ( deg. C)",xlab="interpolated date")
-# savePlot(paste("GAM_PRISM1_RMSE",out_prefix,".emf", sep=""), type="emf")
-# win.graph()
-# barplot(results_table$AIC_P2/10,main="AIC for the P2 models",names.arg=results_table$dates,ylab="Temp (10 X deg. C)",xlab="interolated date")
-# savePlot(paste("GAM_PRISM1_RMSE",out_prefix,".emf", s‰‰ep=""), type="emf")
-# win.graph()
-# barplot(results_table$Deviance_A1/10,main="Deviance for the A1 models",names.arg=results_table$dates,ylab="Temp (10 X deg. C)",xlab="interolated date")
-# savePlot(paste("GAM_ANUSPLIN1_Deviance",out_prefix,".emf", sep=""), type="emf")
-# win.graph()
-# barplot(results_table$Deviance_P1/10,main="Deviance for the P1 models",names.arg=results_table$dates,ylab="Temp (10 X deg. C)",xlab="interolated date")
-# savePlot(paste("GAM_PRISM1_Deviance",out_prefix,".emf", sep=""), type="emf")
-# win.graph()
-# barplot(results_table$Deviance_P2/10,main="Deviance for the P2 models",names.arg=results_table$dates,ylab="Temp (10 X deg. C)",xlab="interolated date")
-# savePlot(paste("GAM_PRISM2_Deviance",out_prefix,".emf", sep=""), type="emf")
+results_table_AIC<-as.data.frame(results_AICnum)
+colnames(results_table_RMSE)<-c("dates","ns","mod1", "mod2","mod3", "mod4", "mod5", "mod6", "mod7")
+colnames(results_table_AIC)<-c("dates","ns","mod1", "mod2","mod3", "mod4", "mod5", "mod6", "mod7")
 
 #results_table_RMSE
-write.csv(results_table_RMSE, file= paste(path,"/","results_GAM_Assessment",out_prefix,".txt",sep=""))
+#write.csv(results_table_RMSE, file= paste(path,"/","results_GAM_Assessment",out_prefix,".txt",sep=""))
+#write.csv(results_table_AIC, file= paste(path,"/","results_GAM_Assessment",out_prefix,".txt",sep=""),append=TRUE)
 
+write.table(results_table_RMSE, file= paste(path,"/","results_GAM_Assessment",out_prefix,".txt",sep=""), sep=",")
+write.table(results_table_AIC, file= paste(path,"/","results_GAM_Assessment",out_prefix,".txt",sep=""),sep=",", append=TRUE)
 
+#Can also use file connection
+f<-paste(path,"/","results_GAM_Assessment",out_prefix,"2.txt",sep="")
+write(results_table_RMSE, file=f)
+close(f)
 # End of script##########
 
-# ###############################
+#Selecting dates and files based on names
+#date<-strptime(dates[1], "%Y%m%d")
+#class(date)  #This shows the type of the object
+#strftime(t, "%m") #This gives as output the month of the date...
 
-# 
-# ############Diagnostic GAM plots#############
-# win.graph()
-# gam.check(GAM_ANUSPLIN1)
-# savePlot("GAM_ANUSPLIN1_diagnostic1.emf", type="emf")
-# win.graph()
-# gam.check(GAM_PRISM1)   #This will produce basic plots of residuals
-# savePlot("GAM_PRISM_diagnostic1.emf", type="emf")
-# gam.check(GAM_ANUSPLIN1)
-# win.graph()
-# vis.gam(GAM_ANUSPLIN1)
-# savePlot("GAM_ANUSPLIN1_prediction.emf", type="emf")        
-# win.graph()
-# vis.gam(GAM_PRISM1)
-# savePlot("GAM_PRISM1_prediction.emf", type="emf")
-# win.graph()
-# vis.gam(GAM_ANUSPLIN1, view=c("lat","ELEV_SRTM"))
-# #vis.gam(GAM_ANUSPLIN1, view=c("lat","ELEV_SRTM", theta=100,phi=200))
-# savePlot("GAM_ANUSPLIN1_prediction2.emf", type="emf")
-#
-
-#                 
-
-
-
-
- 
