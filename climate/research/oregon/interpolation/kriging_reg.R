@@ -1,7 +1,7 @@
 ####################GWR of Tmax for one Date#####################
 #This script generates predicted values from station values for the Oregon case study. This program loads the station data from a shp file 
 #and performs Kriging and co-kriging on tmax regression.
-#Script created by Benoit Parmentier on April 10, 2012. 
+#Script created by Benoit Parmentier on April 17, 2012. 
 
 ###Loading r library and packages
 library(sp)
@@ -16,7 +16,7 @@ library(graphics)
 
 path<- "/data/computer/parmentier/Data/IPLANT_project/data_Oregon_stations/"         #Path to all datasets
 setwd(path)
-infile1<-"ghcn_or_tmax_b_03032012_OR83M.shp" #Weather station location in Oregon with input variables
+infile1<-"ghcn_or_tmax_b_04142012_OR83M.shp" #Weather station location in Oregon with input variables
 infile2<-"dates_interpolation_03052012.txt"  # list of 10 dates for the regression, more thatn 10 dates may be used
 infile3<-"mean_day244_rescaled.rst"          #This image serves as the reference grid for kriging
 infile4<- "orcnty24_OR83M.shp"               #Vector file defining the study area: Oregon state and its counties.
