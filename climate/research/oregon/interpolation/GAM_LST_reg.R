@@ -3,12 +3,12 @@
 #and perform two types  of regression: multiple linear model and general additive model (GAM). Note that this program:
 #1)assumes that the csv file is in the current working 
 #2)extract relevant variables from raster images before performing the regressions. 
-#This scripts predicts tmas using GAM and LST derived from MOD11A1.
+#This scripts predicts tmas xsing GAM and LST derived from MOD11A1.
 #Interactions terms are also included and assessed using the RMSE from validation dataset.
 #There are 10 dates used for the GAM interpolation. The dates must be provided as a textfile.
 #Script created by Benoit Parmentier on April 4, 2012. 
 
-###Loading r library and packages                                                                       # loading the raster package
+###Loading r library and packages                                                      # loading the raster package
 library(gtools)                                                                        # loading ...
 library(mgcv)
 library(sp)
@@ -17,28 +17,27 @@ library(rgdal)
 
 ###Parameters and arguments
 
-infile1<-"ghcn_or_tmax_b_04032012_OR83M.shp"
-#path<-"C:/Data/Benoit/NCEAS/window_Oregon_data
-path<-"/data/computer/parmentier/Data/IPLANT_project/data_Oregon_stations"
-setwd(path)
-#infile2<-"dates_interpolation_03012012.txt"  # list of 10 dates for the regression
-infile2<-"dates_interpolation_03052012.txt"
+infile1<-"ghcn_or_tmax_b_04142012_OR83M.shp"
+#path<-"/data/computer/parmentier/Data/IPLANT_project/data_Oregon_stations"
+path<-"H:/Data/IPLANT_project/data_Oregon_stations"
+setwd(path) 
+infile2<-"dates_interpolation_03052012.txt"                                          #List of 10 dates for the regression
 prop<-0.3                                                                            #Proportion of testing retained for validation   
-out_prefix<-"_04032012_LST_r4"
+out_prefix<-"_04142012_LST_r4"
 infile3<-"LST_dates_var_names.txt"
 infile4<-"models_interpolation_04032012b.txt"
-
 
 #######START OF THE SCRIPT #############
 
 ###Reading the station data and setting up for models' comparison
-ghcn<-readOGR(".", "ghcn_or_tmax_b_04032012_OR83M")
-                         
+filename<-sub(".shp","",infile1)              #Removing the extension from file.
+ghcn<-readOGR(".", filename)                  #reading shapefile 
+                  
 ghcn = transform(ghcn,Northness = cos(ASPECT)) #Adding a variable to the dataframe
 ghcn = transform(ghcn,Eastness = sin(ASPECT))  #adding variable to the dataframe.
-
 ghcn = transform(ghcn,Northness_w = sin(slope)*cos(ASPECT)) #Adding a variable to the dataframe
 ghcn = transform(ghcn,Eastness_w = sin(slope)*sin(ASPECT))  #adding variable to the dataframe.
+
 set.seed(100)
 dates <-readLines(paste(path,"/",infile2, sep=""))
 LST_dates <-readLines(paste(path,"/",infile3, sep=""))
@@ -50,7 +49,9 @@ results_AIC<- matrix(1,length(dates),length(models)+2)
 results_GCV<- matrix(1,length(dates),length(models)+2)
 results_DEV<- matrix(1,length(dates),length(models)+2)
 results_RMSE<- matrix(1,length(dates),length(models)+2)
-
+cor_LST_LC1<-matrix(1,10,1)      #correlation LST-LC1
+cor_LST_LC3<-matrix(1,10,1)      #correlation LST-LC3
+cor_LST_tmax<-matrix(1,10,1)    #correlation LST-tmax
 #Screening for bad values
 
 ghcn_all<-ghcn
@@ -58,6 +59,7 @@ ghcn_test<-subset(ghcn,ghcn$tmax>-150 & ghcn$tmax<400)
 ghcn_test2<-subset(ghcn_test,ghcn_test$ELEV_SRTM>0)
 ghcn<-ghcn_test2
 
+month_var<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_09", "mm_10", "mm_11", "mm_12")
 ghcn.subsets <-lapply(dates, function(d) subset(ghcn, date==d)) #this creates a list of 10 subsets data
 #note that compare to the previous version date_ column was changed to date
 
@@ -65,10 +67,12 @@ ghcn.subsets <-lapply(dates, function(d) subset(ghcn, date==d)) #this creates a 
 #Change this into  a nested loop, looping through the number of models
 
 for(i in 1:length(dates)){            # start of the for loop #1
-  
+  date<-strptime(dates[i], "%Y%m%d")
+  month<-strftime(date, "%m")
+  LST_month<-paste("mm_",month,sep="")
   ###Regression part 1: Creating a validation dataset by creating training and testing datasets
   
-  mod <-ghcn.subsets[[i]][,match(LST_dates[i], names(ghcn.subsets[[i]]))]
+  mod <-ghcn.subsets[[i]][,match(LST_month, names(ghcn.subsets[[i]]))]
   ghcn.subsets[[i]] = transform(ghcn.subsets[[i]],LST = mod)
   #Screening LST values
   #ghcn.subsets[[i]]<-subset(ghcn.subsets[[i]],ghcn.subsets[[i]]$LST> 258 & ghcn.subsets[[i]]$LST<313)
@@ -191,13 +195,17 @@ write.table(results_table_RMSE, file= paste(path,"/","results_GAM_Assessment",ou
 write.table(results_table_AIC, file= paste(path,"/","results_GAM_Assessment",out_prefix,".txt",sep=""),sep=",", append=TRUE)
 
 #Can also use file connection
-f<-paste(path,"/","results_GAM_Assessment",out_prefix,"2.txt",sep="")
+f<-file(paste(path,"/","results_GAM_Assessment",out_prefix,"2.txt",sep=""),"w")
 write(results_table_RMSE, file=f)
 close(f)
 # End of script##########
 
 #Selecting dates and files based on names
-#date<-strptime(dates[1], "%Y%m%d")
-#class(date)  #This shows the type of the object
-#strftime(t, "%m") #This gives as output the month of the date...
+#cor_LST_LC<-matrix(1,10,1)
+# for(i in 1:length(dates)){
+#   cor_LST_LC1[i]<-cor(ghcn.subsets[[i]]$LST,ghcn.subsets[[i]]$LC1)
+# }
+# for(i in 1:length(dates)){
+#   cor_LST_LC3[i]<-cor(ghcn.subsets[[i]]$LST,ghcn.subsets[[i]]$LC3)
+# }
 
