@@ -21,7 +21,7 @@ infile2<-"dates_interpolation_03052012.txt"  # list of 10 dates for the regressi
 infile3<-"mean_day244_rescaled.rst"          #This image serves as the reference grid for kriging
 infile4<- "orcnty24_OR83M.shp"               #Vector file defining the study area: Oregon state and its counties.
 prop<-0.3                                    #Propotion of weather stations retained for validation/testing
-out_prefix<-"_04102012_RMSE"                 #output name used in the text file result
+out_prefix<-"_LST_04172012_RMSE"                 #output name used in the text file result
 
 ###STEP 1 DATA PREPARATION AND PROCESSING#####
 
@@ -66,6 +66,12 @@ ghcn.subsets <-lapply(dates, function(d) subset(ghcn, ghcn$date==as.numeric(d)))
 
 for(i in 1:length(dates)){            # start of the for loop #1
 #i<-3                                           #Date 10 is used to test kriging
+  date<-strptime(dates[i], "%Y%m%d")
+  month<-strftime(date, "%m")
+  LST_month<-paste("mm_",month,sep="")
+  mod <-ghcn.subsets[[i]][,match(LST_month, names(ghcn.subsets[[i]]))]
+  ghcn.subsets[[i]]$LST <-mod[[1]]
+                   
   n<-nrow(ghcn.subsets[[i]])
   ns<-n-round(n*prop)                             #Create a sample from the data frame with 70% of the rows
   nv<-n-ns                                        #create a sample for validation with prop of the rows
@@ -88,8 +94,7 @@ for(i in 1:length(dates)){            # start of the for loop #1
   #Cokriging tmax
   g<-gstat(NULL,"tmax", tmax~1, data_s)                   #This creates a gstat object "g" that acts as container for kriging specifications.
   g<-gstat(g, "SRTM_elev",ELEV_SRTM~1,data_s)            #Adding variables to gstat object g
-  g<-gstat(g, "Eastness", Eastness~1,data_s)
-  g<-gstat(g, "Northness", Northness~1, data_s)
+  g<-gstat(g, "LST", LST~1,data_s)
   
   vm_g<-variogram(g)                                     #Visualizing multivariate sample variogram.
   vm_g.fit<-fit.lmc(vm_g,g,vgm(2000,"Sph", 100000,1000)) #Fitting variogram for all variables at once.
@@ -165,6 +170,6 @@ mode(results_num)<- "numeric"
 # Now turn it into a data.frame...
 
 results_table<-as.data.frame(results_num)
-colnames(results_table)<-c("dates","ns","RMSE_gwr1")
+colnames(results_table)<-c("dates","ns","RMSE")
 
-write.csv(results_table, file= paste(path,"/","results_GWR_Assessment",out_prefix,".txt",sep=""))
+write.csv(results_table, file= paste(path,"/","results_Kriging_Assessment",out_prefix,".txt",sep=""))
