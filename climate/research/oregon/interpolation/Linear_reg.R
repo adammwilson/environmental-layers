@@ -13,12 +13,13 @@ library(mgcv)
 ###Parameters and arguments
 #infile1<-"ghcn_or_b_02122012_OR83M.csv"
 infile1<-"ghcn_or_tmax_b_03032012_OR83M.csv"
-path<-"C:/Data/Benoit/NCEAS/window_Oregon_data"
+#path<-"C:/Data/Benoit/NCEAS/window_Oregon_data
+path<-"/data/computer/parmentier/Data/IPLANT_project/data_Oregon_stations"
 setwd(path)
 #infile2<-"dates_interpolation_03012012.txt"  # list of 10 dates for the regression
 infile2<-"dates_interpolation_03052012.txt"
 prop<-0.3                                                                            #Proportion of testing retained for validation   
-out_prefix<-"_03042012_r1"
+out_prefix<-"_03042012_interaction_r1"
 infile3<-"models_interpolation_03052012.txt"
 
 
@@ -37,15 +38,33 @@ models <-readLines(paste(path,"/",infile3, sep=""))
 
 results <- matrix(1,length(dates),14)            #This is a matrix containing the diagnostic measures from the GAM models.
 
-results_AIC<- matrix(1,length(dates),length(models)+3)  
-results_GCV<- matrix(1,length(dates),length(models)+3)
-results_RMSE<- matrix(1,length(dates),length(models)+3)
+results_AIC<- matrix(1,length(dates),length(models)+2)  
+results_GCV<- matrix(1,length(dates),length(models)+2)
+results_DEV<- matrix(1,length(dates),length(models)+2)
+results_RMSE<- matrix(1,length(dates),length(models)+2)
+
+#Screening for bad values
+
+
+#tmax~ lon + lat + ELEV_SRTM + Eastness + Northness + DISTOC
+#tmax range: min max)
+ghcn_all<-ghcn
+ghcn_test<-subset(ghcn,ghcn$tmax>0 & ghcn$tmax<400)
+ghcn_test2<-subset(ghcn_test,ghcn_test$ELEV_SRTM>0)
+ghcn<-ghcn_test2
+#lon range
+#lat range
+#ELEV_SRTM
+#Eastness
+#Northness
+
 
 ghcn.subsets <-lapply(dates, function(d) subset(ghcn, date==d)) #this creates a list of 10 subsets data
 #note that compare to the previous version date_ column was changed to date
 
 ## looping through the dates...
 #Change this into  a nested loop, looping through the number of models
+
 
 for(i in 1:length(dates)){            # start of the for loop #1
   
@@ -63,15 +82,14 @@ for(i in 1:length(dates)){            # start of the for loop #1
   ####Regression part 2: GAM models
 
   mod1<-gam(tmax~ s(lat) + s (lon) + s (ELEV_SRTM), data=data_s)
-  mod2<- gam(tmax~ s(lat,lon,ELEV_SRTM), data=data_s)
+  mod2<- gam(tmax~ s(lat,lon) + s(ELEV_SRTM), data=data_s)
   mod3<-gam(tmax~ s(lat) + s (lon) + s (ELEV_SRTM) +  s (Northness)+ s (Eastness) + s(DISTOC), data=data_s)
   mod4<-gam(tmax~ s(lat) + s (lon) + s (ELEV_SRTM) + s (Northness_w)+ s (Eastness_w) + s(DISTOC), data=data_s)
-  mod5<- gam(tmax~ s(lat) + s (lon) + s (ELEV_SRTM, Northness) + s (Eastness) + s(DISTOC), data=data_s)
-  mod6<- gam(tmax~ s(lat,lon) + s (ELEV_SRTM, Northness) + s (Eastness) + s(DISTOC), data=data_s)
+  mod5<- gam(tmax~ s(lat) + s (lon) + s (ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC), data=data_s)
+  mod6<- gam(tmax~ s(lat,lon) + s (ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC), data=data_s)
   
   
   ####Regression part 3: Calculating and storing diagnostic measures
-  
   results_AIC[i,1]<- dates[i]  #storing the interpolation dates in the first column
   results_AIC[i,2]<- ns        #number of stations used in the training stage
   results_AIC[i,3]<- AIC (mod1)
@@ -106,7 +124,7 @@ for(i in 1:length(dates)){            # start of the for loop #1
   y_mod3<- predict(mod3, newdata=data_v, se.fit = TRUE) 
   y_mod4<- predict(mod4, newdata=data_v, se.fit = TRUE) 
   y_mod5<- predict(mod5, newdata=data_v, se.fit = TRUE) 
-  y_mod5<- predict(mod6, newdata=data_v, se.fit = TRUE)
+  y_mod6<- predict(mod6, newdata=data_v, se.fit = TRUE)
   
   res_mod1<- data_v$tmax - y_mod1$fit #Residuals for GMA model that resembles the ANUSPLIN interpolation
   res_mod2<- data_v$tmax - y_mod2$fit   #Residuals for GAM model that resembles the PRISM interpolation                               
@@ -149,35 +167,36 @@ mode(results_RMSEnum)<- "numeric"
 results_table_RMSE<-as.data.frame(results_RMSEnum)
 colnames(results_table_RMSE)<-c("dates","ns","mod1", "mod2","mod3", "mod4", "mod5", "mod6")
 
-win.graph()
-barplot(results_table$RMSE_A1/10,main="RMSE for the A1 models",names.arg=results_table$dates,ylab="Temp (deg. C)",xlab="interpolated date")
-savePlot(paste("GAM_ANUSPLIN1_RMSE",out_prefix,".emf", sep=""), type="emf")
-win.graph()
-barplot(results_table$RMSE_P1/10,main="RMSE for the P1 models",names.arg=results_table$dates,ylab="Temp ( deg. C)",xlab="interpolated date")
-savePlot(paste("GAM_PRISM1_RMSE",out_prefix,".emf", sep=""), type="emf")
-win.graph()
-barplot(results_table$RMSE_P2/10,main="RMSE for the P2 models",names.arg=results_table$dates,ylab="Temp ( deg. C)",xlab="interpolated date")
-savePlot(paste("GAM_PRISM1_RMSE",out_prefix,".emf", sep=""), type="emf")
-win.graph()
-barplot(results_table$AIC_A1,main="AIC for the A1 models",names.arg=results_table$dates,ylab="Temp ( deg. C)",xlab="interpolated date")
-savePlot(paste("GAM_PRISM1_RMSE",out_prefix,".emf", sep=""), type="emf")
-win.graph()
-barplot(results_table$AIC_P1/10,main="AIC for the P1 models",names.arg=results_table$dates,ylab="Temp ( deg. C)",xlab="interpolated date")
-savePlot(paste("GAM_PRISM1_RMSE",out_prefix,".emf", sep=""), type="emf")
-win.graph()
-barplot(results_table$AIC_P2/10,main="AIC for the P2 models",names.arg=results_table$dates,ylab="Temp (10 X deg. C)",xlab="interolated date")
-savePlot(paste("GAM_PRISM1_RMSE",out_prefix,".emf", sep=""), type="emf")
-win.graph()
-barplot(results_table$Deviance_A1/10,main="Deviance for the A1 models",names.arg=results_table$dates,ylab="Temp (10 X deg. C)",xlab="interolated date")
-savePlot(paste("GAM_ANUSPLIN1_Deviance",out_prefix,".emf", sep=""), type="emf")
-win.graph()
-barplot(results_table$Deviance_P1/10,main="Deviance for the P1 models",names.arg=results_table$dates,ylab="Temp (10 X deg. C)",xlab="interolated date")
-savePlot(paste("GAM_PRISM1_Deviance",out_prefix,".emf", sep=""), type="emf")
-win.graph()
-barplot(results_table$Deviance_P2/10,main="Deviance for the P2 models",names.arg=results_table$dates,ylab="Temp (10 X deg. C)",xlab="interolated date")
-savePlot(paste("GAM_PRISM2_Deviance",out_prefix,".emf", sep=""), type="emf")
+# win.graph()
+# barplot(results_table$RMSE_A1/10,main="RMSE for the A1 models",names.arg=results_table$dates,ylab="Temp (deg. C)",xlab="interpolated date")
+# savePlot(paste("GAM_ANUSPLIN1_RMSE",out_prefix,".emf", sep=""), type="emf")
+# win.graph()
+# barplot(results_table$RMSE_P1/10,main="RMSE for the P1 models",names.arg=results_table$dates,ylab="Temp ( deg. C)",xlab="interpolated date")
+# savePlot(paste("GAM_PRISM1_RMSE",out_prefix,".emf", sep=""), type="emf")
+# win.graph()
+# barplot(results_table$RMSE_P2/10,main="RMSE for the P2 models",names.arg=results_table$dates,ylab="Temp ( deg. C)",xlab="interpolated date")
+# savePlot(paste("GAM_PRISM1_RMSE",out_prefix,".emf", sep=""), type="emf")
+# win.graph()
+# barplot(results_table$AIC_A1,main="AIC for the A1 models",names.arg=results_table$dates,ylab="Temp ( deg. C)",xlab="interpolated date")
+# savePlot(paste("GAM_PRISM1_RMSE",out_prefix,".emf", sep=""), type="emf")
+# win.graph()
+# barplot(results_table$AIC_P1/10,main="AIC for the P1 models",names.arg=results_table$dates,ylab="Temp ( deg. C)",xlab="interpolated date")
+# savePlot(paste("GAM_PRISM1_RMSE",out_prefix,".emf", sep=""), type="emf")
+# win.graph()
+# barplot(results_table$AIC_P2/10,main="AIC for the P2 models",names.arg=results_table$dates,ylab="Temp (10 X deg. C)",xlab="interolated date")
+# savePlot(paste("GAM_PRISM1_RMSE",out_prefix,".emf", s‰‰ep=""), type="emf")
+# win.graph()
+# barplot(results_table$Deviance_A1/10,main="Deviance for the A1 models",names.arg=results_table$dates,ylab="Temp (10 X deg. C)",xlab="interolated date")
+# savePlot(paste("GAM_ANUSPLIN1_Deviance",out_prefix,".emf", sep=""), type="emf")
+# win.graph()
+# barplot(results_table$Deviance_P1/10,main="Deviance for the P1 models",names.arg=results_table$dates,ylab="Temp (10 X deg. C)",xlab="interolated date")
+# savePlot(paste("GAM_PRISM1_Deviance",out_prefix,".emf", sep=""), type="emf")
+# win.graph()
+# barplot(results_table$Deviance_P2/10,main="Deviance for the P2 models",names.arg=results_table$dates,ylab="Temp (10 X deg. C)",xlab="interolated date")
+# savePlot(paste("GAM_PRISM2_Deviance",out_prefix,".emf", sep=""), type="emf")
 
-write.csv(results_table, file= paste(path,"/","results_GAM_Assessment",out_prefix,".txt",sep=""))
+#results_table_RMSE
+write.csv(results_table_RMSE, file= paste(path,"/","results_GAM_Assessment",out_prefix,".txt",sep=""))
 
 
 # End of script##########
