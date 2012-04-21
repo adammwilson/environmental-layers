@@ -22,8 +22,9 @@ infile1<-"ghcn_or_tmax_b_04142012_OR83M.shp"
 path<-"H:/Data/IPLANT_project/data_Oregon_stations"
 setwd(path) 
 infile2<-"dates_interpolation_03052012.txt"                                          #List of 10 dates for the regression
+infile2<-"list_365_dates_04212012.txt"
 prop<-0.3                                                                            #Proportion of testing retained for validation   
-out_prefix<-"_04142012_LST_r4"
+out_prefix<-"_04212012_LST"
 infile3<-"LST_dates_var_names.txt"
 infile4<-"models_interpolation_04032012b.txt"
 
@@ -49,9 +50,9 @@ results_AIC<- matrix(1,length(dates),length(models)+2)
 results_GCV<- matrix(1,length(dates),length(models)+2)
 results_DEV<- matrix(1,length(dates),length(models)+2)
 results_RMSE<- matrix(1,length(dates),length(models)+2)
-cor_LST_LC1<-matrix(1,10,1)      #correlation LST-LC1
-cor_LST_LC3<-matrix(1,10,1)      #correlation LST-LC3
-cor_LST_tmax<-matrix(1,10,1)    #correlation LST-tmax
+cor_LST_LC1<-matrix(1,length(dates),1)      #correlation LST-LC1
+cor_LST_LC3<-matrix(1,length(dates),1)      #correlation LST-LC3
+cor_LST_tmax<-matrix(1,length(dates),1)    #correlation LST-tmax
 #Screening for bad values
 
 ghcn_all<-ghcn
@@ -90,7 +91,8 @@ for(i in 1:length(dates)){            # start of the for loop #1
   ####Regression part 2: GAM models
 
   mod1<- gam(tmax~ s(lat) + s (lon) + s (ELEV_SRTM), data=data_s)
-  mod2<- gam(tmax~ s(lat,lon,ELEV_SRTM), data=data_s)
+  #mod2<- gam(tmax~ s(lat,lon,ELEV_SRTM), data=data_s)
+  mod2<- gam(tmax~ s(lat,lon) + s(ELEV_SRTM), data=data_s)
   mod3<- gam(tmax~ s(lat) + s (lon) + s (ELEV_SRTM) +  s (Northness)+ s (Eastness) + s(DISTOC), data=data_s)
   mod4<- gam(tmax~ s(lat) + s (lon) + s(ELEV_SRTM) + s(Northness) + s (Eastness) + s(DISTOC) + s(LST), data=data_s)
   mod5<- gam(tmax~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST), data=data_s)
