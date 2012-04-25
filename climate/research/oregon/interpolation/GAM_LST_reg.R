@@ -22,9 +22,8 @@ infile1<-"ghcn_or_tmax_b_04142012_OR83M.shp"
 path<-"H:/Data/IPLANT_project/data_Oregon_stations"
 setwd(path) 
 infile2<-"dates_interpolation_03052012.txt"                                          #List of 10 dates for the regression
-infile2<-"list_365_dates_04212012.txt"
 prop<-0.3                                                                            #Proportion of testing retained for validation   
-out_prefix<-"_04212012_LST"
+out_prefix<-"_04252012_LST_residuals"
 infile3<-"LST_dates_var_names.txt"
 infile4<-"models_interpolation_04032012b.txt"
 
@@ -33,7 +32,10 @@ infile4<-"models_interpolation_04032012b.txt"
 ###Reading the station data and setting up for models' comparison
 filename<-sub(".shp","",infile1)              #Removing the extension from file.
 ghcn<-readOGR(".", filename)                  #reading shapefile 
-                  
+
+CRS<-proj4string(ghcn)
+
+
 ghcn = transform(ghcn,Northness = cos(ASPECT)) #Adding a variable to the dataframe
 ghcn = transform(ghcn,Eastness = sin(ASPECT))  #adding variable to the dataframe.
 ghcn = transform(ghcn,Northness_w = sin(slope)*cos(ASPECT)) #Adding a variable to the dataframe
@@ -50,15 +52,16 @@ results_AIC<- matrix(1,length(dates),length(models)+2)
 results_GCV<- matrix(1,length(dates),length(models)+2)
 results_DEV<- matrix(1,length(dates),length(models)+2)
 results_RMSE<- matrix(1,length(dates),length(models)+2)
-cor_LST_LC1<-matrix(1,length(dates),1)      #correlation LST-LC1
-cor_LST_LC3<-matrix(1,length(dates),1)      #correlation LST-LC3
-cor_LST_tmax<-matrix(1,length(dates),1)    #correlation LST-tmax
+cor_LST_LC1<-matrix(1,10,1)      #correlation LST-LC1
+cor_LST_LC3<-matrix(1,10,1)      #correlation LST-LC3
+cor_LST_tmax<-matrix(1,10,1)    #correlation LST-tmax
 #Screening for bad values
 
 ghcn_all<-ghcn
 ghcn_test<-subset(ghcn,ghcn$tmax>-150 & ghcn$tmax<400)
 ghcn_test2<-subset(ghcn_test,ghcn_test$ELEV_SRTM>0)
 ghcn<-ghcn_test2
+#coords<- ghcn[,c('x_OR83M','y_OR83M')]
 
 month_var<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_09", "mm_10", "mm_11", "mm_12")
 ghcn.subsets <-lapply(dates, function(d) subset(ghcn, date==d)) #this creates a list of 10 subsets data
@@ -91,8 +94,7 @@ for(i in 1:length(dates)){            # start of the for loop #1
   ####Regression part 2: GAM models
 
   mod1<- gam(tmax~ s(lat) + s (lon) + s (ELEV_SRTM), data=data_s)
-  #mod2<- gam(tmax~ s(lat,lon,ELEV_SRTM), data=data_s)
-  mod2<- gam(tmax~ s(lat,lon) + s(ELEV_SRTM), data=data_s)
+  mod2<- gam(tmax~ s(lat,lon,ELEV_SRTM), data=data_s)
   mod3<- gam(tmax~ s(lat) + s (lon) + s (ELEV_SRTM) +  s (Northness)+ s (Eastness) + s(DISTOC), data=data_s)
   mod4<- gam(tmax~ s(lat) + s (lon) + s(ELEV_SRTM) + s(Northness) + s (Eastness) + s(DISTOC) + s(LST), data=data_s)
   mod5<- gam(tmax~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST), data=data_s)
@@ -165,12 +167,60 @@ for(i in 1:length(dates)){            # start of the for loop #1
   results_RMSE[i,7]<- RMSE_mod5
   results_RMSE[i,8]<- RMSE_mod6
   results_RMSE[i,9]<- RMSE_mod7
-  #Saving dataset in dataframes
+  
+  #Saving dataset in dataframes: residuals from RMSE
+  
+#   data_v$mod1<-y_mod1$fit
+#   data_v$mod2<-y_mod2$fit
+#   data_v$mod3<-y_mod3$fit
+#   data_v$mod4<-y_mod4$fit
+#   data_v$mod5<-y_mod5$fit
+#   data_v$mod6<-y_mod6$fit
+#   data_v$mod7<-y_mod7$fit
+#   
+#   data_s$mod1<-mod1$fit
+#   data_s$mod2<-mod2$fit
+#   data_s$mod3<-mod3$fit
+#   data_s$mod4<-mod4$fit
+#   data_s$mod5<-mod5$fit
+#   data_s$mod6<-mod6$fit
+#   data_s$mod7<-mod7$fit
+#   
+  data_v$res_mod1<-as.numeric(res_mod1)
+  data_v$res_mod2<-as.numeric(res_mod2)
+  data_v$res_mod3<-as.numeric(res_mod3)
+  data_v$res_mod4<-as.numeric(res_mod4)
+  data_v$res_mod5<-as.numeric(res_mod5)
+  data_v$res_mod6<-as.numeric(res_mod6)
+  data_v$res_mod7<-as.numeric(res_mod7)
+  
+  data_s$res_mod1<-as.numeric(mod1$residuals)
+  data_s$res_mod2<-as.numeric(mod2$residuals)
+  data_s$res_mod3<-as.numeric(mod3$residuals)
+  data_s$res_mod4<-as.numeric(mod4$residuals)
+  data_s$res_mod5<-as.numeric(mod5$residuals)
+  data_s$res_mod6<-as.numeric(mod6$residuals)
+  data_s$res_mod7<-as.numeric(mod7$residuals)
+  
   data_name<-paste("ghcn_v_",dates[[i]],sep="")
   assign(data_name,data_v)
+  write.table(data_v, file= paste(path,"/",data_name,".txt",sep=""), sep=" ")
+  #write out a new shapefile (including .prj component)
+  coords<- data_v[,c('x_OR83M','y_OR83M')]
+  coordinates(data_v)<-coords
+  proj4string(data_v)<-CRS  #Need to assign coordinates...
+  outfile<-sub(".shp","",data_name)   #Removing extension if it is present
+  writeOGR(data_v,".", outfile, driver ="ESRI Shapefile")
+  
   data_name<-paste("ghcn_s_",dates[[i]],sep="")
   assign(data_name,data_s)
-  #ghcn_v<-ls(pattern="ghcn_v_")
+  write.table(data_s, file= paste(path,"/",data_name,".txt",sep=""), sep=" ")
+  #write out a new shapefile (including .prj component)
+  coords<- data_s[,c('x_OR83M','y_OR83M')]
+  coordinates(data_s)<-coords
+  proj4string(data_s)<-CRS  #Need to assign coordinates..
+  outfile<-sub(".shp","",data_name)   #Removing extension if it is present
+  writeOGR(data_s,".", outfile, driver ="ESRI Shapefile")
   
   # end of the for loop #1
   }
@@ -200,6 +250,7 @@ write.table(results_table_AIC, file= paste(path,"/","results_GAM_Assessment",out
 f<-file(paste(path,"/","results_GAM_Assessment",out_prefix,"2.txt",sep=""),"w")
 write(results_table_RMSE, file=f)
 close(f)
+
 # End of script##########
 
 #Selecting dates and files based on names
