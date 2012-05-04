@@ -8,10 +8,10 @@
 library(raster)
 
 # set up some local paths on atlas
-src.dir <- "/home/regetz/git/environmental-layers/terrain/research/oregon/arcgis/v2"
+src.dir <- "/home/regetz/git/environmental-layers/terrain/research/oregon"
 data.dir <- "/home/layers/commons/topo/v2/experimental"
 
-source(file.path(src.dir, "multiscalesmooth9a_clean.R"))
+source(file.path(src.dir, "multiscalesmooth.R"))
 
 srtm_oregon <- raster(file.path(data.dir, "srtm_oregon"))
 
