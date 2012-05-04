@@ -217,19 +217,14 @@ def multiscalesmooth(input, smooth, sd, alpha=0.05):
         i = j + 1
         gs.message('Refining from %d to %d' % (i, j), flag='i')
 
-        refine_region()
-        gs.run_command('r.resample', input=smooth, output=smooth,
-            overwrite=True, quiet=True)
-        gs.run_command('r.resample', input='v.smooth', output='v.smooth',
-            overwrite=True, quiet=True)
-
         # create smoothed higher resolution versions of z and v
         # using weight matrix equivalent to ArcGIS circle with radius 2
-        gs.run_command('r.neighbors', flags='c', input=smooth,
+        refine_region()
+        gs.run_command('r.neighbors', flags='ac', input=smooth,
             output='zs', method='average', size=5, overwrite=True,
             quiet=True)
         tmp_rast.add('zs')
-        gs.run_command('r.neighbors', flags='c', input='v.smooth',
+        gs.run_command('r.neighbors', flags='ac', input='v.smooth',
             output='vs', method='average', size=5, overwrite=True,
             quiet=True)
         tmp_rast.add('vs')
