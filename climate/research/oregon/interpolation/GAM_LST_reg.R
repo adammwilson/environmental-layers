@@ -1,7 +1,7 @@
 ####################Interpolation of Tmax for 10 dates.#####################
-#This script interpolates station values for the Oregon case study. This program loads the station data from a csv file 
-#and perform two types  of regression: multiple linear model and general additive model (GAM). Note that this program:
-#1)assumes that the csv file is in the current working 
+#This script interpolates station values for the Oregon case study. This program loads the station data from a shapefile
+#and perform 8 regressions using the general additive model (GAM). Note that this program:
+#1)assumes that the shapefile in the current working 
 #2)extract relevant variables from raster images before performing the regressions. 
 #This scripts predicts tmas xsing GAM and LST derived from MOD11A1.
 #Interactions terms are also included and assessed using the RMSE from validation dataset.
@@ -202,29 +202,87 @@ mode(results_AICnum)<- "numeric"
 
 results_table_RMSE<-as.data.frame(results_RMSEnum)
 results_table_AIC<-as.data.frame(results_AICnum)
-colnames(results_table_RMSE)<-c("dates","ns","mod1", "mod2","mod3", "mod4", "mod5", "mod6", "mod7")
-colnames(results_table_AIC)<-c("dates","ns","mod1", "mod2","mod3", "mod4", "mod5", "mod6", "mod7")
+colnames(results_table_RMSE)<-c("dates","ns","mod1", "mod2","mod3", "mod4", "mod5", "mod6", "mod7", "mod8")
+colnames(results_table_AIC)<-c("dates","ns","mod1", "mod2","mod3", "mod4", "mod5", "mod6", "mod7", "mod8")
 
 #results_table_RMSE
-#write.csv(results_table_RMSE, file= paste(path,"/","results_GAM_Assessment",out_prefix,".txt",sep=""))
-#write.csv(results_table_AIC, file= paste(path,"/","results_GAM_Assessment",out_prefix,".txt",sep=""),append=TRUE)
-
 write.table(results_table_RMSE, file= paste(path,"/","results_GAM_Assessment",out_prefix,".txt",sep=""), sep=",")
 write.table(results_table_AIC, file= paste(path,"/","results_GAM_Assessment",out_prefix,".txt",sep=""),sep=",", append=TRUE)
 
-#Can also use file connection
-f<-file(paste(path,"/","results_GAM_Assessment",out_prefix,"2.txt",sep=""),"w")
-write(results_table_RMSE, file=f)
-close(f)
+###Analysing the results from the 365 days run: Summarize by month
+
+for(i in 1:nrow(results_table_RMSE)){
+  date<-results_table_RMSE$dates[i]
+  date<-strptime(date, "%Y%m%d")
+  results_table_RMSE$month[i]<-as.integer(strftime(date, "%m"))
+}
+
+average<-aggregate(cbind(mod1,mod2,mod3,mod4,mod5,mod6,mod7,mod8)~month,data=results_table_RMSE,mean, na.rm=TRUE)
+average<-aggregate(cbind(mod1,mod2,mod3,mod4,mod5,mod6,mod7,mod8)~month,data=results_table_RMSE, FUN=mean)
+#average on all the data.frame
+averaget<-aggregate(results_table_RMSE, by=list(results_table_RMSE$month),FUN=mean, na.rm=TRUE)
+#mediant<-aggregate(results_table_RMSE, by=list(results_table_RMSE$month),FUN=median, na.rm=TRUE)
+#average_lowt<-aggregate(results_table_RMSE, by=list(results_table_RMSE$month), FUN=function(v) t.test(v)$conf.int[1])
+#average_up<-aggregate(cbind(mod1,mod2,mod3,mod4,mod5,mod6,mod7,mod8)~month,data=results_table_RMSE, function(v) t.test(v)$conf.int[2])
+
+median<-aggregate(cbind(mod1,mod2,mod3,mod4,mod5,mod6,mod7,mod8)~month,data=results_table_RMSE, median, na.rm=TRUE)
+average_low<-aggregate(cbind(mod1,mod2,mod3,mod4,mod5,mod6,mod7,mod8)~month,data=results_table_RMSE, function(v) t.test(v)$conf.int[1])
+average_up<-aggregate(cbind(mod1,mod2,mod3,mod4,mod5,mod6,mod7,mod8)~month,data=results_table_RMSE, function(v) t.test(v)$conf.int[2])
+
+mod<-names(averaget)
+mod<-mod[4:11]
+#Saving graphic plots
+for(i in 1:length(mod)){
+  X11(width=14,height=10)
+  name<-mod[i]
+  barplot2(average[[name]],plot.ci=TRUE, ci.l=average_low[[name]], ci.u=average_up[[name]],main="Mean RMSE per month", names.arg=c("Jan", "Feb", "Mar", "Apr", "May", "Jun","Jul", "Aug", "Sep","Oct", "Nov", "Dec"),ylim=c(20,30),ylab="RMSE in tenth deg C",xlab=name)
+  #title(paste("Sampling RMSE for mod",i,sep=""))
+  savePlot(paste("barplot_results_RMSE_month_",name,out_prefix,".png", sep=""), type="png")
+  dev.off() 
+}
+
+
+for(i in 1:length(mod)){
+  X11(width=14,height=10)
+  name<-mod[i]
+  barplot2(average[[name]],plot.ci=TRUE, ci.l=average_low[[name]], ci.u=average_up[[name]],main=paste(" Mean RMSE per month ",name, sep=""), names.arg=c("Jan", "Feb", "Mar", "Apr", "May", "Jun","Jul", "Aug", "Sep","Oct", "Nov", "Dec"),ylim=c(20,30),ylab="RMSE in tenth deg C",xlab=name)
+  #title(paste("Sampling RMSE for mod",i,sep=""))
+  savePlot(paste("barplot_results_RMSE_month_",name,out_prefix,".png", sep=""), type="png")
+  dev.off() 
+
+  X11(width=14,height=10)
+  name<-mod[i]
+  hist(results_table_RMSE[[name]],breaks=15, main=paste(" Histogram RMSE_",name, sep=""),xlab=paste("RMSE ",name, sep=""))
+  savePlot(paste("Hist_results_RMSE_365_",name,out_prefix,".png", sep=""), type="png")
+  dev.off()
+  
+}
+
+for(i in 1:length(mod)){
+  X11(width=14,height=10)
+  name<-mod[i]
+  hist(results_table_RMSE[[name]],breaks=15, main=paste(" Histogram RMSE_",name, sep=""),xlab=paste("RMSE ",name, sep=""))
+  savePlot(paste("Hist_results_RMSE_365_",name,out_prefix,".png", sep=""), type="png")
+  dev.off()
+}
+
+r<-(results_table_RMSE[,3:10]) #selecting only the columns related to models...
+
+mean_r<-mean(r)
+median_r<-sapply(r, median)
+sd_r<-sapply(r, sd)
+
+barplot(mean_r,ylim=c(23,26),ylab="RMSE in tenth deg C")
+barplot(median_r,ylim=c(23,26),ylab="RMSE in tenth deg C",add=TRUE,inside=FALSE,beside=TRUE) # put both on the same plot
+barplot(sd_r,ylim=c(6,8),ylab="RMSE in tenth deg C") # put both on the same plot
+
+height<-rbind(mean_r,median_r)
+barplot(height,ylim=c(23,26),ylab="RMSE in tenth deg C",beside=TRUE,legend=rownames(height))
+barplot(height,ylim=c(23,26),ylab="RMSE in tenth deg C",beside=TRUE, col=c("darkblue","red"),legend=rownames(height)) # put both on the same plot
+
+barplot2(mean_r,median_r,ylim=c(23,26),ylab="RMSE in tenth deg C") # put both on the same plot
+#Collect var explained and p values for each var...
+
 # End of script##########
 
-#Selecting dates and files based on names
-#cor_LST_LC<-matrix(1,10,1)
-# for(i in 1:length(dates)){
-#   cor_LST_LC1[i]<-cor(ghcn.subsets[[i]]$LST,ghcn.subsets[[i]]$LC1)
-# }
-# for(i in 1:length(dates)){
-#   cor_LST_LC3[i]<-cor(ghcn.subsets[[i]]$LST,ghcn.subsets[[i]]$LC3)
-# }
-
-#mod9<- gam(tmax~ te(lat,lon,ELEV_SRTM), data=ghcn_s_20101031)
+names(results_table_RMSE)
