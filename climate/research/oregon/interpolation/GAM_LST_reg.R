@@ -27,11 +27,11 @@ library(gstat)
 
 ###Parameters and arguments
 
-infile1<-"ghcn_or_tmax_b_04142012_OR83M.shp"
-#infile2<-"dates_interpolation_03052012_2dates_test.txt"
-infile2<-"dates_interpolation_03052012.txt"                                          #List of 10 dates for the regression
+infile1<- "ghcn_or_tmax_b_04142012_OR83M.shp"
+#infile2<-"dates_interpolation_03052012.txt"                                          #List of 10 dates for the regression
+infile2<-"list_365_dates_04212012.txt"
 infile3<-"LST_dates_var_names.txt"
-infile4<-"models_interpolation_04032012.txt"
+infile4<-"models_interpolation_05142012.txt"
 infile5<-"mean_day244_rescaled.rst" #Raster or grid for the locations of predictions
 
 #path<-"/data/computer/parmentier/Data/IPLANT_project/data_Oregon_stations"         #Jupiter LOCATION on EOS
@@ -39,7 +39,7 @@ path<-"H:/Data/IPLANT_project/data_Oregon_stations"                             
 setwd(path) 
 prop<-0.3                                                                           #Proportion of testing retained for validation   
 seed_number<-100
-out_prefix<-"_05062012m_Kr_LST"
+out_prefix<-"_05142012_365d_Kr_LST"
 
 #######START OF THE SCRIPT #############
 
@@ -115,6 +115,7 @@ for(i in 1:length(dates)){            # start of the for loop #1
   mod5<- gam(tmax~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST), data=data_s)
   mod6<- gam(tmax~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST,LC1), data=data_s)
   mod7<- gam(tmax~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST,LC3), data=data_s)
+  mod8<- gam(tmax~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST) + s(LC1), data=data_s)
   
   ####Regression part 3: Calculating and storing diagnostic measures
   #listmod can be created and looped over. In this case we loop around the objects..
@@ -221,14 +222,14 @@ for(i in 1:length(dates)){            # start of the for loop #1
   
   data_name<-paste("ghcn_v_",out_prefix,"_",dates[[i]],sep="")
   assign(data_name,data_v)
-  write.table(data_v, file= paste(path,"/",data_name,".txt",sep=""), sep=" ")
+  #write.table(data_v, file= paste(path,"/",data_name,".txt",sep=""), sep=" ")
   #write out a new shapefile (including .prj component)
   #outfile<-sub(".shp","",data_name)   #Removing extension if it is present
   #writeOGR(data_v,".", outfile, driver ="ESRI Shapefile")
   
   data_name<-paste("ghcn_s_",out_prefix,"_",dates[[i]],sep="")
   assign(data_name,data_s)
-  write.table(data_s, file= paste(path,"/",data_name,".txt",sep=""), sep=" ")
+  #write.table(data_s, file= paste(path,"/",data_name,".txt",sep=""), sep=" ")
   #outfile<-sub(".shp","",data_name)   #Removing extension if it is present
   #writeOGR(data_s,".", outfile, driver ="ESRI Shapefile")
   
@@ -280,7 +281,7 @@ for(i in 1:length(dates)){
   }
   
 r1<-(results_table_RMSE[,3:10]) #selecting only the columns related to models and method 1
-r2<-(results_table_RMSE[,3:10]) #selecting only the columns related to models and method 1
+r2<-(results_table_RMSE_kr[,3:10]) #selecting only the columns related to models and method 1
 mean_r1<-mean(r1)
 mean_r2<-mean(r2)
 median_r1<-sapply(r1, median)   #Calulcating the mean for every model (median of columns)
@@ -288,16 +289,29 @@ median_r2<-sapply(r2, median)
 sd_r1<-sapply(r1, sd)
 sd_r2<-sapply(r2, sd)
 
-barplot(mean_r,ylim=c(23,26),ylab="RMSE in tenth deg C")
-barplot(median_r,ylim=c(23,26),ylab="RMSE in tenth deg C",add=TRUE,inside=FALSE,beside=TRUE) # put both on the same plot
-barplot(sd_r,ylim=c(6,8),ylab="RMSE in tenth deg C") # put both on the same plot
+barplot(mean_r1,ylim=c(23,26),ylab="RMSE in tenth deg C")
+barplot(mean_r2,ylim=c(23,26),ylab="RMSE in tenth deg C")
+barplot(median_r1,ylim=c(23,26),ylab="RMSE in tenth deg C",add=TRUE,inside=FALSE,beside=TRUE) # put both on the same plot
+barplot(median_r2,ylim=c(23,26),ylab="RMSE in tenth deg C",add=TRUE,inside=FALSE,beside=TRUE) # put both on the same plot
 
-height<-rbind(mean_r,median_r)
-barplot(height,ylim=c(23,26),ylab="RMSE in tenth deg C",beside=TRUE,legend=rownames(height))
-barplot(height,ylim=c(23,26),ylab="RMSE in tenth deg C",beside=TRUE, col=c("darkblue","red"),legend=rownames(height)) # put both on the same plot
+barplot(sd_r1,ylim=c(6,8),ylab="RMSE in tenth deg C") # put both on the same plot
+barplot(sd_r2,ylim=c(6,8),ylab="RMSE in tenth deg C") # put both on the same plot
 
-barplot2(mean_r,median_r,ylim=c(23,26),ylab="RMSE in tenth deg C") # put both on the same plot
+height<-rbind(mean_r1,mean_r2)
+barplot(height,ylim=c(20,26),ylab="RMSE in tenth deg C",beside=TRUE,legend=rownames(height))
+barplot(height,ylim=c(20,26),ylab="RMSE in tenth deg C",beside=TRUE, col=c("darkblue","red"),legend=rownames(height)) # put both on the same plot
+
+height<-rbind(median_r1,median_r2)
+barplot(height,ylim=c(20,26),ylab="RMSE in tenth deg C",beside=TRUE,legend=rownames(height))
+barplot(height,ylim=c(20,26),ylab="RMSE in tenth deg C",beside=TRUE, col=c("darkblue","red"),legend=rownames(height)) # put both on the same plot
+
+height<-rbind(mean_r2,median_r2)
+barplot(height,ylim=c(20,26),ylab="RMSE in tenth deg C",beside=TRUE,legend=rownames(height))
+barplot(height,ylim=c(20,26),ylab="RMSE in tenth deg C",beside=TRUE, col=c("darkblue","red"),legend=rownames(height)) # put both on the same plot
+
+#barplot2(mean_r,median_r,ylim=c(23,26),ylab="RMSE in tenth deg C") # put both on the same plot
 #Collect var explained and p values for each var...
+
 ### End of script  ##########
 
 
