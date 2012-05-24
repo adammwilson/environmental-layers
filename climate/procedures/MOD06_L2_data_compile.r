@@ -49,6 +49,7 @@ fs$month=format(fs$date,"%m")
 fs$year=format(fs$date,"%Y")
 fs$time=substr(fs$file,19,22)
 fs$datetime=as.POSIXct(strptime(paste(substr(fs$file,11,17),substr(fs$file,19,22)), '%Y%j %H%M'))
+fs$dateid=format(fs$date,"%Y%m%d")
 fs$path=as.character(fs$path)
 fs$file=as.character(fs$file)
 
@@ -61,16 +62,16 @@ ge2=spTransform(ge, CRS(" +proj=sinu +lon_0=0 +x_0=0 +y_0=0"))
 
 ## vars
 vars=as.data.frame(matrix(c(
-  "Cloud_Effective_Radius","CER",
-  "Cloud_Effective_Radius_Uncertainty","CERU",
-  "Cloud_Optical_Thickness","COT",
-  "Cloud_Optical_Thickness_Uncertainty","COTU",
-  "Cloud_Water_Path","CWP",
-  "Cloud_Water_Path_Uncertainty","CWPU",
-  "Cloud_Phase_Optical_Properties","CPOP",
-  "Cloud_Multi_Layer_Flag","CMLF",
-  "Cloud_Mask_1km","CM1",
-  "Quality_Assurance_1km","QA"),
+  "Cloud_Effective_Radius",              "CER",
+  "Cloud_Effective_Radius_Uncertainty",  "CERU",
+  "Cloud_Optical_Thickness",             "COT",
+  "Cloud_Optical_Thickness_Uncertainty", "COTU",
+  "Cloud_Water_Path",                    "CWP",
+  "Cloud_Water_Path_Uncertainty",        "CWPU",
+  "Cloud_Phase_Optical_Properties",      "CPOP",
+  "Cloud_Multi_Layer_Flag",              "CMLF",
+  "Cloud_Mask_1km",                      "CM1",
+  "Quality_Assurance_1km",               "QA"),
   byrow=T,ncol=2,dimnames=list(1:10,c("variable","varid"))))
 
 
@@ -99,11 +100,11 @@ OUTPUT_PIXEL_SIZE_X=1000
 OUTPUT_PIXEL_SIZE_Y=1000
 SPATIAL_SUBSET_UL_CORNER = ( ",upleft," )
 SPATIAL_SUBSET_LR_CORNER = ( ",lowright," )
-#RESAMPLING_TYPE =",ifelse(grepl("Flag|Mask|Quality",vars$variable),"NN","BICUBIC"),"
+#RESAMPLING_TYPE =",ifelse(grepl("Flag|Mask|Quality",vars$variable),"NN","CUBIC"),"
 RESAMPLING_TYPE =NN
 OUTPUT_PROJECTION_TYPE = SIN
 ELLIPSOID_CODE = WGS84
-OUTPUT_PROJECTION_PARAMETERS = ( 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0  )
+OUTPUT_PROJECTION_PARAMETERS = ( 6371007.181 0.0 0.0 0.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 0.0 86400.0 0.0 0.0 )
 OUTPUT_TYPE = HDFEOS
 OUTPUT_FILENAME = ",outfile,"
 END
@@ -142,8 +143,9 @@ mclapply(which(!fs$complete),function(fi){
 ##############################################################
 ### Import to GRASS for processing
 
-fs$grass=paste(fs$month,fs$year,fs$file,sep="_")
+#fs$grass=paste(fs$month,fs$year,fs$file,sep="_")
 td=readGDAL(paste("HDF4_EOS:EOS_GRID:\"",outdir,"/",fs$file[1],"\":mod06:Cloud_Mask_1km_0",sep=""))
+projection(td)="+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +ellps=WGS84 +units=m +no_defs"
 
 ## fucntion to convert binary to decimal to assist in identifying correct values
 b2d=function(x) sum(x * 2^(rev(seq_along(x)) - 1)) #http://tolstoy.newcastle.edu.au/R/e2/help/07/02/10596.html
@@ -157,73 +159,79 @@ gisMapset="mod06"
 
 initGRASS(gisBase="/usr/lib/grass64",gisDbase=gisDbase,SG=td,override=T,
           location=gisLocation,mapset=gisMapset)
+getLocationProj()
 
-
-## update projection (for some reason the datum doesn't get identified from the HDF files
-#cat("name: Sinusoidal (Sanson-Flamsteed)
-#proj: sinu
-#datum: wgs84
-#ellps: wgs84
-#lon_0: 0
-#x_0: 0
-#y_0: 0
-#towgs84: 0,0,0,0,0,0,0
-#no_defs: defined",file=paste(gisDbase,"/",gisLocation,"/PERMANENT/PROJ_INFO",sep=""))
-## update PROJ_UNITS
-#cat("unit: Meter
-#units: Meters
-#meters: 1",file=paste(gisDbase,"/",gisLocation,"/PERMANENT/PROJ_UNITS",sep=""))
-#system("g.proj -d")
+system("g.mapset mapset=PERMANENT")
+execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",outdir,"/",fs$file[1],"\":mod06:Cloud_Mask_1km_0",sep=""),
+          output="modisgrid",flags=c("quiet","overwrite","o"))
+system("g.region rast=modisgrid save=roi --overwrite")
+system(paste("g.proj -c proj4=\"+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +ellps=WGS84 +units=m +no_defs\"",sep=""))
+system("g.region roi")
+system("g.region -p")
 
 i=1
 file=paste(outdir,"/",fs$file[1],sep="")
+date=as.Date("2000-03-02")
+
+loadcloud<-function(date,fs){
+sink(file=paste("output/",format(date,"%Y%m%d"),".txt",sep=""),type="output")
+  ## Identify which files to process
+  tfs=fs$file[fs$date==date]
+  nfs=length(tfs)
+
+  ## create new mapset to hold all data for this day
+  system(paste("g.mapset --quiet -c mapset=",gisMapset,"_",format(date,"%Y%m%d"),sep=""))
+# file.copy(paste(gisDbase,"/",gisLocation,"/PERMANENT/DEFAULT_WIND",sep=""),paste(gisDbase,"/",gisLocation,"/",gisMapset,"_",format(date,"%Y%m%d"),"/WIND",sep=""))
+  system("g.region roi@PERMANENT")
+  
+  ## loop through scenes and process QA flags
+  for(i in 1:nfs){
+    file=paste(outdir,"/",tfs[i],sep="")
+    ## Cloud Mask
+    execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",file,"\":mod06:Cloud_Mask_1km_0",sep=""),
+              output=paste("CM1_",i,sep=""),flags=c("overwrite","o","quiet")) ; print("")
+    ## extract cloudy and 'confidently clear' pixels
+    system(paste("r.mapcalc <<EOF
+                CM_cloud_",i," =  ((CM1_",i," / 2^0) % 2) == 1  &&  ((CM1_",i," / 2^1) % 2^2) == 0 
+                CM_clear_",i," =  ((CM1_",i," / 2^0) % 2) == 1  &&  ((CM1_",i," / 2^1) % 2^2) == 3 
+EOF",sep=""))
 
 
-loadcloud<-function(file){
-  ## Cloud Mask
-   execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",file,"\":mod06:Cloud_Mask_1km_0",sep=""),
-            output="CM1",flags=c("overwrite","o"))
-   system("g.region rast=CM1")
-
-   ## extract cloudy and 'confidently clear' pixels
-   system(paste("r.mapcalc <<EOF
-                CM_cloud=  ((CM1 / 2^0) % 2) == 1  &&  ((CM1 / 2^1) % 2^2) == 0
-                CM_clear=  ((CM1 / 2^0) % 2) == 1  &&  ((CM1 / 2^1) % 2^2) == 3
-EOF"))
-   
-   ## QA
+    ## QA
    execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",file,"\":mod06:Quality_Assurance_1km_0",sep=""),
-             output="QA",flags=c("overwrite","o"))
+             output=paste("QA_",i,sep=""),flags=c("overwrite","o","quiet")) ; print("")
    ## QA_CER
    system(paste("r.mapcalc <<EOF
-                 QA_COT=   ((QA / 2^0) % 2^1 )==1
-                 QA_COT2=  ((QA / 2^1) % 2^2 )==3
-                 QA_COT3=  ((QA / 2^3) % 2^2 )==0
-                 QA_CER=   ((QA / 2^5) % 2^1 )==1
-                 QA_CER2=  ((QA / 2^6) % 2^2 )==3
-EOF")) 
-#                 QA_CWP=   ((QA / 2^8) % 2^1 )==1
-#                 QA_CWP2=  ((QA / 2^9) % 2^2 )==3
+                 QA_COT_",i,"=   ((QA_",i," / 2^0) % 2^1 )==1
+                 QA_COT2_",i,"=  ((QA_",i," / 2^1) % 2^2 )==3
+                 QA_COT3_",i,"=  ((QA_",i," / 2^3) % 2^2 )==0
+                 QA_CER_",i,"=   ((QA_",i," / 2^5) % 2^1 )==1
+                 QA_CER2_",i,"=  ((QA_",i," / 2^6) % 2^2 )==3
+EOF",sep="")) 
+#                 QA_CWP_",i,"=   ((QA_",i," / 2^8) % 2^1 )==1
+#                 QA_CWP2_",i,"=  ((QA_",i," / 2^9) % 2^2 )==3
 
    ## Optical Thickness
    execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",file,"\":mod06:Cloud_Optical_Thickness",sep=""),
-            output="COT",
+            output=paste("COT_",i,sep=""),
             title="cloud_effective_radius",
             flags=c("overwrite","o")) ; print("")
-   execGRASS("r.null",map="COT",setnull="-9999")
+   execGRASS("r.null",map=paste("COT_",i,sep=""),setnull="-9999")
    ## keep only positive COT values where quality is 'useful' and 'very good' & scale to real units
-   system(paste("r.mapcalc \"COT=if(QA_COT&&QA_COT2&&QA_COT3&&COT>=0,COT*0.009999999776482582,null())\""))   
+   system(paste("r.mapcalc \"COT_",i,"=if(QA_COT_",i,"&&QA_COT2_",i,"&&QA_COT3_",i,"&&COT_",i,">=0,COT_",i,"*0.009999999776482582,null())\"",sep=""))   
    ## set COT to 0 in clear-sky pixels
-   system(paste("r.mapcalc \"COT2=if(CM_clear,COT,0)\""))   
+   system(paste("r.mapcalc \"COT2_",i,"=if(CM_clear_",i,"==0,COT_",i,",0)\"",sep=""))   
    
-   ## Effective radius
+   ## Effective radius ##
    execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",file,"\":mod06:Cloud_Effective_Radius",sep=""),
-            output="CER",
+            output=paste("CER_",i,sep=""),
             title="cloud_effective_radius",
             flags=c("overwrite","o")) ; print("")
-   execGRASS("r.null",map="CER",setnull="-9999")
+   execGRASS("r.null",map=paste("CER_",i,sep=""),setnull="-9999")
    ## keep only positive CER values where quality is 'useful' and 'very good' & scale to real units
-   system(paste("r.mapcalc \"CER=if(QA_CER&&QA_CER2&&CER>=0,CER*0.009999999776482582,null())\""))   
+   system(paste("r.mapcalc \"CER_",i,"=if(QA_CER_",i,"&&QA_CER2_",i,"&&CER_",i,">=0,CER_",i,"*0.009999999776482582,null())\"",sep=""))   
+   ## set CER to 0 in clear-sky pixels
+   system(paste("r.mapcalc \"CER2_",i,"=if(CM_clear_",i,"==0,CER_",i,",0)\"",sep=""))   
 
    ## Cloud Water Path
 #   execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",file,"\":mod06:Cloud_Water_Path",sep=""),
@@ -232,10 +240,43 @@ EOF"))
 #   execGRASS("r.null",map="CWP",setnull="-9999")
 #   ## keep only positive CWP values where quality is 'useful' and 'very good' & scale to real units
 #   system(paste("r.mapcalc \"CWP=if(QA_CWP&&QA_CWP2,CWP,null())\""))   
-
    
- } ;
+ } #end loop through sub daily files
 
+#### Now generate daily averages
+
+  system(paste("r.mapcalc <<EOF
+         COT_denom=",paste("!isnull(COT2_",1:nfs,")",sep="",collapse="+"),"
+         COT_numer=",paste("if(isnull(COT2_",1:nfs,"),0,COT2_",1:nfs,")",sep="",collapse="+"),"
+         COT_daily=COT_numer/COT_denom
+         CER_denom=",paste("!isnull(CER2_",1:nfs,")",sep="",collapse="+"),"
+         CER_numer=",paste("if(isnull(CER2_",1:nfs,"),0,CER2_",1:nfs,")",sep="",collapse="+"),"
+         CER_daily=CER_numer/CER_denom
+EOF",sep=""))
+
+  #### Write the file to a geotiff
+  execGRASS("r.out.gdal",input="CER_daily",output=paste("data/modis/MOD06_L2_tif/CER_",format(date,"%Y%m%d"),".tif",sep=""),nodata=-999)
+  execGRASS("r.out.gdal",input="COT_daily",output=paste("data/modis/MOD06_L2_tif/COT_",format(date,"%Y%m%d"),".tif",sep=""),nodata=-999)
+
+}
+
+
+###########################################
+### Now run it
+
+tdates=sort(unique(fs$date))
+
+
+mclapply(tdates[1:10],loadcloud,fs=fs,mc.cores=1)
+
+
+
+
+# copy all datasets back to master mapset for summaries
+
+execGRASS("g.copy",rast=paste("\"COT_daily\",\"COT_",format(date,"%Y%m%d"),"@mod06\"",sep=""))
+
+  
 ## unlock the grass database
 unlink_.gislock()
 
