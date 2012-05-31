@@ -40,7 +40,8 @@ system("wget -r --retr-symlinks ftp://ladsweb.nascom.nasa.gov/orders/500676499/ 
 gdir="output/"
 datadir="data/modis/MOD06_L2_hdf"
 outdir="data/modis/MOD06_L2_hdf2"
-  
+tifdir="data/modis/MOD06_L2_tif"
+
 fs=data.frame(
   path=list.files(datadir,full=T,recursive=T,pattern="hdf"),
   file=basename(list.files(datadir,full=F,recursive=T,pattern="hdf")))
@@ -123,7 +124,7 @@ END
     paste(tempdir(),"/",basename(file),"_MODparms.txt -d",sep=""),sep=""),intern=T)
       print(paste("Finished ", file))
 }
-
+ 
 
 ### update fs with completed files
 fs$complete=fs$file%in%list.files(outdir,pattern="hdf$")
@@ -156,50 +157,57 @@ b2d(c(T,T))
 gisDbase="/media/data/grassdata"
 gisLocation="oregon"
 gisMapset="mod06"
+## set Grass to overwrite
+Sys.setenv(GRASS_OVERWRITE=1)
+Sys.setenv(DEBUG=0)
 
-initGRASS(gisBase="/usr/lib/grass64",gisDbase=gisDbase,SG=td,override=T,
-          location=gisLocation,mapset=gisMapset)
+initGRASS(gisBase="/usr/lib/grass64",SG=td,gisDbase=gisDbase,location=gisLocation,mapset="PERMANENT",override=T,pid=Sys.getpid())
 getLocationProj()
+system(paste("g.proj -c proj4=\"+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +datum=WGS84 +units=m +no_defs\"",sep=""))
 
-system("g.mapset mapset=PERMANENT")
+#system("g.mapset PERMANENT")
 execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",outdir,"/",fs$file[1],"\":mod06:Cloud_Mask_1km_0",sep=""),
           output="modisgrid",flags=c("quiet","overwrite","o"))
 system("g.region rast=modisgrid save=roi --overwrite")
-system(paste("g.proj -c proj4=\"+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +ellps=WGS84 +units=m +no_defs\"",sep=""))
 system("g.region roi")
 system("g.region -p")
+getLocationProj()
 
-i=1
+
+ i=1
 file=paste(outdir,"/",fs$file[1],sep="")
 date=as.Date("2000-03-02")
 
 loadcloud<-function(date,fs){
-sink(file=paste("output/",format(date,"%Y%m%d"),".txt",sep=""),type="output")
+  
   ## Identify which files to process
   tfs=fs$file[fs$date==date]
   nfs=length(tfs)
-
-  ## create new mapset to hold all data for this day
-  system(paste("g.mapset --quiet -c mapset=",gisMapset,"_",format(date,"%Y%m%d"),sep=""))
-# file.copy(paste(gisDbase,"/",gisLocation,"/PERMANENT/DEFAULT_WIND",sep=""),paste(gisDbase,"/",gisLocation,"/",gisMapset,"_",format(date,"%Y%m%d"),"/WIND",sep=""))
+  unlink_.gislock()
+    ## set new PID for this grass process (running within a spawned R session if using multicore)
+  set.GIS_LOCK(Sys.getpid())
+    ## create new mapset to hold all data for this day
+  system(paste("g.mapset -c mapset=",gisMapset,"_",format(date,"%Y%m%d"),sep=""))
+  #  file.copy(paste(gisDbase,"/",gisLocation,"/PERMANENT/DEFAULT_WIND",sep=""),paste(gisDbase,"/",gisLocation,"/",gisMapset,"_",format(date,"%Y%m%d"),"/WIND",sep=""))
   system("g.region roi@PERMANENT")
-  
+  print(date)
+  print(gmeta6())
+  print(Sys.getpid())
   ## loop through scenes and process QA flags
   for(i in 1:nfs){
-    file=paste(outdir,"/",tfs[i],sep="")
-    ## Cloud Mask
-    execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",file,"\":mod06:Cloud_Mask_1km_0",sep=""),
-              output=paste("CM1_",i,sep=""),flags=c("overwrite","o","quiet")) ; print("")
+     file=paste(outdir,"/",tfs[i],sep="")
+     ## Cloud Mask
+     execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",file,"\":mod06:Cloud_Mask_1km_0",sep=""),
+              output=paste("CM1_",i,sep=""),flags=c("overwrite","o")) ; print("")
     ## extract cloudy and 'confidently clear' pixels
     system(paste("r.mapcalc <<EOF
                 CM_cloud_",i," =  ((CM1_",i," / 2^0) % 2) == 1  &&  ((CM1_",i," / 2^1) % 2^2) == 0 
                 CM_clear_",i," =  ((CM1_",i," / 2^0) % 2) == 1  &&  ((CM1_",i," / 2^1) % 2^2) == 3 
 EOF",sep=""))
 
-
     ## QA
-   execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",file,"\":mod06:Quality_Assurance_1km_0",sep=""),
-             output=paste("QA_",i,sep=""),flags=c("overwrite","o","quiet")) ; print("")
+    execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",file,"\":mod06:Quality_Assurance_1km_0",sep=""),
+             output=paste("QA_",i,sep=""),flags=c("overwrite","o")) ; print("")
    ## QA_CER
    system(paste("r.mapcalc <<EOF
                  QA_COT_",i,"=   ((QA_",i," / 2^0) % 2^1 )==1
@@ -244,7 +252,7 @@ EOF",sep=""))
  } #end loop through sub daily files
 
 #### Now generate daily averages
-
+ 
   system(paste("r.mapcalc <<EOF
          COT_denom=",paste("!isnull(COT2_",1:nfs,")",sep="",collapse="+"),"
          COT_numer=",paste("if(isnull(COT2_",1:nfs,"),0,COT2_",1:nfs,")",sep="",collapse="+"),"
@@ -255,8 +263,13 @@ EOF",sep=""))
 EOF",sep=""))
 
   #### Write the file to a geotiff
-  execGRASS("r.out.gdal",input="CER_daily",output=paste("data/modis/MOD06_L2_tif/CER_",format(date,"%Y%m%d"),".tif",sep=""),nodata=-999)
-  execGRASS("r.out.gdal",input="COT_daily",output=paste("data/modis/MOD06_L2_tif/COT_",format(date,"%Y%m%d"),".tif",sep=""),nodata=-999)
+  execGRASS("r.out.gdal",input="CER_daily",output=paste(tifdir,"/CER_",format(date,"%Y%m%d"),".tif",sep=""),nodata=-999)
+  execGRASS("r.out.gdal",input="COT_daily",output=paste(tifdir,"/COT_",format(date,"%Y%m%d"),".tif",sep=""),nodata=-999)
+
+### delete the temporary files 
+  unlink_.gislock()
+  system("/usr/lib/grass64/etc/clean_temp")
+# system(paste("rm -R ",gmeta6()$GISDBASE,"/",gmeta6()$LOCATION_NAME,"/",gmeta6()$MAPSET,sep=""))
 
 }
 
@@ -264,10 +277,12 @@ EOF",sep=""))
 ###########################################
 ### Now run it
 
-tdates=sort(unique(fs$date))
+ tdates=sort(unique(fs$date))
+done=tdates%in%as.Date(substr(list.files("data/modis/MOD06_L2_tif"),5,12),"%Y%m%d")
+table(done)
+tdates=tdates[!done]
 
-
-mclapply(tdates[1:10],loadcloud,fs=fs,mc.cores=1)
+lapply(tdates,function(date) loadcloud(date,fs=fs))
 
 
 
@@ -282,17 +297,27 @@ unlink_.gislock()
 
 
 
-  d=readRAST6("COT")
-  d$CER=readRAST6("CER")$CER
-plot(COT~CER,data=d@data)
-summary(lm(COT~CER,data=d@data))
+#######################################################################################33
+###  Produce the monthly averages
 
-
+## get list of daily files
+fs2=data.frame(
+  path=list.files(outdir,full=T,recursive=T,pattern="hdf"),
+  file=basename(list.files(datadir,full=F,recursive=T,pattern="hdf")))
+fs$date=as.Date(substr(fs$file,11,17),"%Y%j")
+fs$month=format(fs$date,"%m")
+fs$year=format(fs$date,"%Y")
+fs$time=substr(fs$file,19,22)
+fs$datetime=as.POSIXct(strptime(paste(substr(fs$file,11,17),substr(fs$file,19,22)), '%Y%j %H%M'))
+fs$dateid=format(fs$date,"%Y%m%d")
+fs$path=as.character(fs$path)
+fs$file=as.character(fs$file)
 
 
 # read in data as single spatialgrid
 ms=c("01","02","03","04","05","06","07","08","09","10","11","12")
-for (m in ms){
+
+mclapply(ms, function(m){
   d=readRAST6(fs$grass[1])
   projection(d)=projection(td)
   d@data=as.data.frame(do.call(cbind,mclapply(which(fs$month==m),function(i){
