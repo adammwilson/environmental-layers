@@ -9,7 +9,7 @@
 library(sp)
 library(spgrass6)
 library(rgdal)
-library(reshape)
+library(reshape2)
 library(ncdf4)
 library(geosphere)
 library(rgeos)
@@ -19,6 +19,7 @@ library(lattice)
 library(rgl)
 library(hdf5)
 library(rasterVis)
+library(heR.Misc)
 
 X11.options(type="Xlib")
 ncores=20  #number of threads to use
@@ -27,6 +28,7 @@ setwd("/home/adamw/personal/projects/interp")
 setwd("/home/adamw/acrobates/projects/interp")
 
 roi=readOGR("data/regions/Test_sites/Oregon.shp","Oregon")
+roi_geo=as(roi,"SpatialLines")
 roi=spTransform(roi,CRS(" +proj=sinu +lon_0=0 +x_0=0 +y_0=0"))
 roil=as(roi,"SpatialLines")
 
@@ -58,41 +60,75 @@ layerNames(cot) <- as.character(format(months,"%b"))
 cotm=mean(cot,na.rm=T)
 ### TODO: change to bilinear!
 
-### get station data
+cldfiles=list.files(summarydatadir,pattern="CLD_mean_.*tif$",full=T); cldfiles
+cld=brick(stack(cldfiles))
+cld[cld==0]=NA
+setZ(cld,months,name="time")
+cld@z=list(months)
+cld@zname="time"
+layerNames(cld) <- as.character(format(months,"%b"))
+#cot=projectRaster(from=cot,crs="+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0",method="ngb")
+cldm=mean(cld,na.rm=T)
+### TODO: change to bilinear!
+
+
+### get station data, subset to stations in region, and transform to sinusoidal
 load("data/ghcn/roi_ghcn.Rdata")
 load("data/allstations.Rdata")
 
-d2=d[d$variable=="ppt",]
+d2=d[d$variable=="ppt"&d$date>=as.Date("2000-01-01"),]
 d2=d2[,-grep("variable",colnames(d2)),]
 st2=st[st$id%in%d$id,]
-st2=spTransform(st2,CRS(" +proj=sinu +lon_0=0 +x_0=0 +y_0=0"))
+#st2=spTransform(st2,CRS(" +proj=sinu +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +towgs84=0,0,0"))
 d2[,c("lon","lat")]=coordinates(st2)[match(d2$id,st2$id),]
 d2$month=format(d2$date,"%m")
+d2$value=d2$value/10 #convert to mm
 
 ### extract MOD06 data for each station
 stcer=extract(cer,st2)#;colnames(stcer)=paste("cer_mean_",1:12,sep="")
 stcot=extract(cot,st2)#;colnames(stcot)=paste("cot_mean_",1:12,sep="")
-mod06=cbind.data.frame(id=st2$id,lat=st2$lat,lon=st2$lon,stcer,stcot)
+stcld=extract(cld,st2)#;colnames(stcld)=paste("cld_mean_",1:12,sep="")
+mod06=cbind.data.frame(id=st2$id,lat=st2$lat,lon=st2$lon,stcer,stcot,stcld)
 mod06l=melt(mod06,id.vars=c("id","lon","lat"))
 mod06l[,c("variable","moment","month")]=do.call(rbind,strsplit(as.character(mod06l$variable),"_"))
-mod06l=cast(mod06l,id+lon+lat+month~variable+moment,value="value")
+mod06l=as.data.frame(cast(mod06l,id+lon+lat+month~variable+moment,value="value"))
+
+### Identify stations that have < 10 years of data
+cnts=cast(d2,id~.,fun=function(x) length(x[!is.na(x)]),value="count");colnames(cnts)[colnames(cnts)=="(all)"]="count"
+summary(cnts)
+## drop them
+d2=d2[d2$id%in%cnts$id[cnts$count>=365*10],]
+
 
 ### generate monthly means of station data
 dc=cast(d2,id+lon+lat~month,value="value",fun=function(x) mean(x,na.rm=T)*30)
 dcl=melt(dc,id.vars=c("id","lon","lat"),value="ppt")
 
+
 ## merge station data with mod06
 mod06s=merge(dcl,mod06l)
 mod06s$lvalue=log(mod06s$value+1)
+colnames(mod06s)[colnames(mod06s)=="value"]="ppt"
 
 
 ###################################################################
 ###################################################################
 ### draw some plots
+gq=function(x,n=10,cut=F) {
+  if(!cut) unique(quantile(x,seq(0,1,len=n+1)))
+  if(cut)  cut(x,unique(quantile(x,seq(0,1,len=n+1))))
+}
 
 bgyr=colorRampPalette(c("blue","green","yellow","red"))
 
 pdf("output/MOD06_summary.pdf",width=11,height=8.5)
+
+# % cloudy maps
+title="Cloudiness (% cloudy days) "
+at=unique(quantile(as.matrix(cld),seq(0,1,len=100),na.rm=T))
+p=levelplot(cld,xlab.top=title,at=at,col.regions=bgyr(length(at)))+layer(sp.lines(roil, lwd=1.2, col='black'))
+print(p)
+bwplot(cer,main=title,ylab="Cloud Effective Radius (microns)")
 
 # CER maps
 title="Cloud Effective Radius (microns)"
@@ -118,18 +154,58 @@ print(p)
 ### monthly comparisons of variables
 mod06sl=melt(mod06s,measure.vars=c("value","COT_mean","CER_mean"))
 bwplot(value~month|variable,data=mod06sl,cex=.5,pch=16,col="black",scales=list(y=list(relation="free")),layout=c(1,3))
-splom(mod06s[grep("CER|COT",colnames(mod06s))],cex=.2,pch=16)
+splom(mod06s[grep("CER|COT|CLD",colnames(mod06s))],cex=.2,pch=16)
 
-xyplot(value~CER_mean,data=mod06s,cex=.5,pch=16,col="black",scales=list(y=list(log=T)),main="Comparison of monthly mean CER and precipitation",ylab="Precipitation (log axis)")
-xyplot(value~COT_mean,data=mod06s,cex=.5,pch=16,col="black",scales=list(y=list(log=T)),main="Comparison of monthly mean COT and precipitation",ylab="Precipitation (log axis)")
+### run some regressions
+summary(lm(log(ppt)~CER_mean*month,data=mod06s))
 
-xyplot(value~CER_mean|month,data=mod06s,cex=.5,pch=16,col="black",scales=list(log=T,relation="free"))
-xyplot(value~COT_mean|month,data=mod06s,cex=.5,pch=16,col="black",scales=list(log=T,relation="free"))
+xyplot(ppt~CLD_mean,data=mod06s,cex=.5,pch=16,col="black",scales=list(y=list(log=F)),main="Comparison of monthly mean CLD and precipitation",ylab="Precipitation (log axis)",xlab="% Days Cloudy")
+xyplot(ppt~CER_mean,data=mod06s,cex=.5,pch=16,col="black",scales=list(y=list(log=T)),main="Comparison of monthly mean CER and precipitation",ylab="Precipitation (log axis)")
+xyplot(ppt~COT_mean,data=mod06s,cex=.5,pch=16,col="black",scales=list(y=list(log=T)),main="Comparison of monthly mean COT and precipitation",ylab="Precipitation (log axis)")
 
-#xyplot(value~CER_mean|month+cut(COT_mean,breaks=c(0,10,20)),data=mod06s,cex=.5,pch=16,col="black")#,scales=list(relation="fixed"))
+xyplot(ppt~CER_mean|month,data=mod06s,cex=.5,pch=16,col="black",scales=list(log=T,relation="free"))
+xyplot(ppt~COT_mean|month,data=mod06s,cex=.5,pch=16,col="black",scales=list(log=T,relation="free"))
+
+ xyplot(ppt~COT_mean|id,data=mod06s,panel=function(x,y,group){
+  panel.xyplot(x,y,type=c("r"),cex=.5,pch=16,col="red")
+  panel.xyplot(x,y,type=c("p"),cex=.5,pch=16,col="black")
+} ,scales=list(y=list(log=T)),strip=F,main="Monthly Mean Precipitation and Cloud Optical Thickness by station",sub="Each panel is a station, each point is a monthly mean",ylab="Precipitation (mm, log axis)",xlab="Mean Monthly Cloud Optical Thickness")
+
+### Calculate the slope of each line and plot it on a map
+mod06s.sl=dapply(mod06s,list(id=mod06s$id),function(x){
+  lm1=lm(log(x$ppt)~x$CER_mean,)
+  data.frame(lat=x$lat[1],lon=x$lon[1],intcpt=coefficients(lm1)[1],cer=coefficients(lm1)[2],r2=summary(lm1)$r.squared)
+})
+mod06s.sl$cex=gq(mod06s.sl$r2,n=5,cut=T)
+mod06s.sl$cer.s=gq(mod06s.sl$cer,n=5,cut=T)
+
+xyplot(lat~lon,group=cer.s,data=mod06s.sl,par.settings = list(superpose.symbol = list(pch =16, col=bgyr(5),cex=1)),auto.key=list(space="right",title="Slope Coefficient"),asp=1,
+       main="Slopes of linear regressions {log(ppt)~CloudEffectiveRadius}")+
+  layer(sp.lines(roi_geo, lwd=1.2, col='black'))
 
 
-summary(lm(lvalue~COT_mean*month,data=mod06s))
+############################################################
+### simple regression to get spatial residuals
+m="01"
+mod06s2=mod06s#[mod06s$month==m,]
+
+lm1=lm(ppt~CER_mean*month,data=mod06s2)
+summary(lm1)
+mod06s2$pred=predict(lm1,mod06s2)
+mod06s2$resid=mod06s2$pred-mod06s2$ppt
+
+mod06sr=cast(mod06s2,id+lon+lat~month,value="resid",fun=function(x) mean(x,na.rm=T))
+mod06sr=melt(mod06sr,id.vars=c("id","lon","lat"),value="resid")
+mod06sr$residg=cut(mod06sr$value,quantile(mod06sr$value,seq(0,1,len=11),na.rm=T))
+
+  xyplot(lat~lon|month,group=residg,data=mod06sr,
+         par.settings = list(superpose.symbol = list(pch =16, col=terrain.colors(10),cex=.5)),
+           auto.key=T)
+         
+
+
+plot(pred~value,data=mod06s,log="xy")
+
 
 
 dev.off()

@@ -162,18 +162,6 @@ gisMapset="mod06"
 Sys.setenv(GRASS_OVERWRITE=1)
 Sys.setenv(DEBUG=0)
 
-initGRASS(gisBase="/usr/lib/grass64",SG=td,gisDbase=gisDbase,location=gisLocation,mapset="PERMANENT",override=T,pid=Sys.getpid())
-getLocationProj()
-system(paste("g.proj -c proj4=\"+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +datum=WGS84 +units=m +no_defs\"",sep=""))
-
-#system("g.mapset PERMANENT")
-execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",outdir,"/",fs$file[1],"\":mod06:Cloud_Mask_1km_0",sep=""),
-          output="modisgrid",flags=c("quiet","overwrite","o"))
-system("g.region rast=modisgrid save=roi --overwrite")
-system("g.region roi")
-system("g.region -p")
-getLocationProj()
-
 ## temporary objects to test function below
  i=1
 file=paste(outdir,"/",fs$file[1],sep="")
@@ -182,19 +170,28 @@ date=as.Date("2000-03-02")
 
 ### Function to extract various SDSs from a single gridded HDF file and use QA data to throw out 'bad' observations
 loadcloud<-function(date,fs){
-    ## Identify which files to process
+### set up grass session
+  tf=paste(tempdir(),"/grass", Sys.getpid(),"/", sep="")
+ 
+  ## set up tempfile for this PID
+  initGRASS(gisBase="/usr/lib/grass64",gisDbase=tf,SG=td,override=T,location="mod06",mapset="PERMANENT",home=tf,pid=Sys.getpid())
+  system(paste("g.proj -c proj4=\"+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +datum=WGS84 +units=m +no_defs\"",sep=""))
+
+#system("g.mapset PERMANENT")
+  execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",outdir,"/",fs$file[1],"\":mod06:Cloud_Mask_1km_0",sep=""),
+            output="modisgrid",flags=c("quiet","overwrite","o"))
+  system("g.region rast=modisgrid save=roi --overwrite")
+  system("g.region roi")
+  system("g.region -p")
+#  getLocationProj()
+
+
+  ## Identify which files to process
   tfs=fs$file[fs$date==date]
   nfs=length(tfs)
-  unlink_.gislock()
-    ## set new PID for this grass process (running within a spawned R session if using multicore)
-  set.GIS_LOCK(Sys.getpid())
-    ## create new mapset to hold all data for this day
-  system(paste("g.mapset -c mapset=",gisMapset,"_",format(date,"%Y%m%d"),sep=""))
-  #  file.copy(paste(gisDbase,"/",gisLocation,"/PERMANENT/DEFAULT_WIND",sep=""),paste(gisDbase,"/",gisLocation,"/",gisMapset,"_",format(date,"%Y%m%d"),"/WIND",sep=""))
-  system("g.region roi@PERMANENT")
+
+  ### print some summary info
   print(date)
-  print(gmeta6())
-  print(Sys.getpid())
   ## loop through scenes and process QA flags
   for(i in 1:nfs){
      file=paste(outdir,"/",tfs[i],sep="")
@@ -217,9 +214,9 @@ EOF",sep=""))
                  QA_COT3_",i,"=  ((QA_",i," / 2^3) % 2^2 )==0
                  QA_CER_",i,"=   ((QA_",i," / 2^5) % 2^1 )==1
                  QA_CER2_",i,"=  ((QA_",i," / 2^6) % 2^2 )==3
-                 QA_CWP_",i,"=   ((QA_",i," / 2^8) % 2^1 )==1
-                 QA_CWP2_",i,"=  ((QA_",i," / 2^9) % 2^2 )==3
 EOF",sep="")) 
+#                 QA_CWP_",i,"=   ((QA_",i," / 2^8) % 2^1 )==1
+#                 QA_CWP2_",i,"=  ((QA_",i," / 2^9) % 2^2 )==3
 
    ## Optical Thickness
    execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",file,"\":mod06:Cloud_Optical_Thickness",sep=""),
@@ -244,16 +241,14 @@ EOF",sep=""))
    system(paste("r.mapcalc \"CER2_",i,"=if(CM_clear_",i,"==0,CER_",i,",0)\"",sep=""))   
 
    ## Cloud Water Path
-   execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",file,"\":mod06:Cloud_Water_Path",sep=""),
-            output=paste("CWP_",i,sep=""),title="cloud_water_path",
-            flags=c("overwrite","o")) ; print("")
-   execGRASS("r.null",map=paste("CWP_",i,sep=""),setnull="-9999")
-   ## keep only positive CWP values where quality is 'useful' and 'very good' & scale to real units
-#   system(paste("r.mapcalc \"CWP=if(QA_CWP&&QA_CWP2,CWP,null())\""))   
+#   execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",file,"\":mod06:Cloud_Water_Path",sep=""),
+#            output=paste("CWP_",i,sep=""),title="cloud_water_path",
+#            flags=c("overwrite","o")) ; print("")
+#   execGRASS("r.null",map=paste("CWP_",i,sep=""),setnull="-9999")
    ## keep only positive CER values where quality is 'useful' and 'very good' & scale to real units
-   system(paste("r.mapcalc \"CWP_",i,"=if(QA_CWP_",i,"&&QA_CWP2_",i,"&&CWP_",i,">=0,CWP_",i,"*0.009999999776482582,null())\"",sep=""))   
+#   system(paste("r.mapcalc \"CWP_",i,"=if(QA_CWP_",i,"&&QA_CWP2_",i,"&&CWP_",i,">=0,CWP_",i,"*0.009999999776482582,null())\"",sep=""))   
    ## set CER to 0 in clear-sky pixels
-   system(paste("r.mapcalc \"CWP2_",i,"=if(CM_clear_",i,"==0,CWP_",i,",0)\"",sep=""))   
+#   system(paste("r.mapcalc \"CWP2_",i,"=if(CM_clear_",i,"==0,CWP_",i,",0)\"",sep=""))   
 
      
  } #end loop through sub daily files
@@ -271,15 +266,17 @@ EOF",sep=""))
 EOF",sep=""))
 
   #### Write the file to a geotiff
-  execGRASS("r.out.gdal",input="CER_daily",output=paste(tifdir,"/CER_",format(date,"%Y%m%d"),".tif",sep=""),nodata=-999)
-  execGRASS("r.out.gdal",input="COT_daily",output=paste(tifdir,"/COT_",format(date,"%Y%m%d"),".tif",sep=""),nodata=-999)
-  execGRASS("r.out.gdal",input="CLD_daily",output=paste(tifdir,"/CLD_",format(date,"%Y%m%d"),".tif",sep=""),nodata=-999)
+  execGRASS("r.out.gdal",input="CER_daily",output=paste(tifdir,"/CER_",format(date,"%Y%m%d"),".tif",sep=""),nodata=-999,flags=c("quiet"))
+  execGRASS("r.out.gdal",input="COT_daily",output=paste(tifdir,"/COT_",format(date,"%Y%m%d"),".tif",sep=""),nodata=-999,flags=c("quiet"))
+  execGRASS("r.out.gdal",input="CLD_daily",output=paste(tifdir,"/CLD_",format(date,"%Y%m%d"),".tif",sep=""),nodata=99,flags=c("quiet"))
 
 ### delete the temporary files 
   unlink_.gislock()
   system("/usr/lib/grass64/etc/clean_temp")
-# system(paste("rm -R ",gmeta6()$GISDBASE,"/",gmeta6()$LOCATION_NAME,"/",gmeta6()$MAPSET,sep=""))
-
+ system(paste("rm -R ",tf,sep=""))
+### print update
+  print(paste(" ###################################################################               Finished ",date,"
+################################################################"))
 }
 
 
@@ -287,17 +284,13 @@ EOF",sep=""))
 ### Now run it
 
 tdates=sort(unique(fs$date))
-done=tdates%in%as.Date(substr(list.files("data/modis/MOD06_L2_tif"),5,12),"%Y%m%d")
+done=tdates%in%as.Date(substr(list.files(tifdir),5,12),"%Y%m%d")
 table(done)
 tdates=tdates[!done]
 
-lapply(tdates,function(date) loadcloud(date,fs=fs))
+mclapply(tdates,function(date) loadcloud(date,fs=fs))
 
  
-## unlock the grass database
-unlink_.gislock()
-
-
 
 #######################################################################################33
 ###  Produce the monthly averages
@@ -328,6 +321,7 @@ vs=expand.grid(type=unique(fs2$type),month=c("01","02","03","04","05","06","07",
 mclapply(1:nrow(vs),function(i){
   print(paste("Starting ",vs$type[i]," for month ",vs$month[i]))
   td=stack(fs2$path[which(fs2$month==vs$month[i]&fs2$type==vs$type[i])])
+  print(paste("Processing Metric ",vs$type[i]," for month ",vs$month[i]))
   calc(td,mean,na.rm=T,
        filename=paste(summarydatadir,"/",vs$type[i],"_mean_",vs$month[i],".tif",sep=""),
        format="GTiff")
