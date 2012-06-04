@@ -36,11 +36,13 @@ roi=spTransform(roi,CRS(" +proj=sinu +lon_0=0 +x_0=0 +y_0=0"))
 
 system("wget -r --retr-symlinks ftp://ladsweb.nascom.nasa.gov/orders/500676499/ -P /home/adamw/acrobates/projects/interp/data/modis/MOD06_L2_hdf")
 
-
+## specify some working directories
 gdir="output/"
 datadir="data/modis/MOD06_L2_hdf"
 outdir="data/modis/MOD06_L2_hdf2"
-tifdir="data/modis/MOD06_L2_tif"
+tifdir="/media/data/MOD06_L2_tif"
+summarydatadir="data/modis/MOD06_climatologies"
+
 
 fs=data.frame(
   path=list.files(datadir,full=T,recursive=T,pattern="hdf"),
@@ -73,7 +75,7 @@ vars=as.data.frame(matrix(c(
   "Cloud_Multi_Layer_Flag",              "CMLF",
   "Cloud_Mask_1km",                      "CM1",
   "Quality_Assurance_1km",               "QA"),
-  byrow=T,ncol=2,dimnames=list(1:10,c("variable","varid"))))
+  byrow=T,ncol=2,dimnames=list(1:10,c("variable","varid"))),stringsAsFactors=F)
 
 
 ### Installation of hegtool
@@ -83,7 +85,7 @@ vars=as.data.frame(matrix(c(
 
 
 #### Function to generate hegtool parameter file for multi-band HDF-EOS file
-swath2grid=function(i=1,files,vars=vars,outdir,upleft="47 -125",lowright="41 -115"){
+swath2grid=function(i=1,files,vars,outdir,upleft="47 -125",lowright="41 -115"){
   file=fs$path[i]
   print(paste("Starting file",basename(file)))
   outfile=paste(outdir,"/",fs$file[i],sep="")
@@ -101,7 +103,7 @@ OUTPUT_PIXEL_SIZE_X=1000
 OUTPUT_PIXEL_SIZE_Y=1000
 SPATIAL_SUBSET_UL_CORNER = ( ",upleft," )
 SPATIAL_SUBSET_LR_CORNER = ( ",lowright," )
-#RESAMPLING_TYPE =",ifelse(grepl("Flag|Mask|Quality",vars$variable),"NN","CUBIC"),"
+#RESAMPLING_TYPE =",ifelse(grepl("Flag|Mask|Quality",vars),"NN","CUBIC"),"
 RESAMPLING_TYPE =NN
 OUTPUT_PROJECTION_TYPE = SIN
 ELLIPSOID_CODE = WGS84
@@ -109,7 +111,6 @@ OUTPUT_PROJECTION_PARAMETERS = ( 6371007.181 0.0 0.0 0.0 0.0 0.0 0.0 1.0 0.0 0.0
 OUTPUT_TYPE = HDFEOS
 OUTPUT_FILENAME = ",outfile,"
 END
-
 
 ",sep="")
   ## if any remnants from previous runs remain, delete them
@@ -146,7 +147,7 @@ mclapply(which(!fs$complete),function(fi){
 
 #fs$grass=paste(fs$month,fs$year,fs$file,sep="_")
 td=readGDAL(paste("HDF4_EOS:EOS_GRID:\"",outdir,"/",fs$file[1],"\":mod06:Cloud_Mask_1km_0",sep=""))
-projection(td)="+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +ellps=WGS84 +units=m +no_defs"
+projection(td)="+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs +datum=WGS84 +ellps=WGS84 "
 
 ## fucntion to convert binary to decimal to assist in identifying correct values
 b2d=function(x) sum(x * 2^(rev(seq_along(x)) - 1)) #http://tolstoy.newcastle.edu.au/R/e2/help/07/02/10596.html
@@ -173,14 +174,15 @@ system("g.region roi")
 system("g.region -p")
 getLocationProj()
 
-
+## temporary objects to test function below
  i=1
 file=paste(outdir,"/",fs$file[1],sep="")
 date=as.Date("2000-03-02")
 
+
+### Function to extract various SDSs from a single gridded HDF file and use QA data to throw out 'bad' observations
 loadcloud<-function(date,fs){
-  
-  ## Identify which files to process
+    ## Identify which files to process
   tfs=fs$file[fs$date==date]
   nfs=length(tfs)
   unlink_.gislock()
@@ -215,9 +217,9 @@ EOF",sep=""))
                  QA_COT3_",i,"=  ((QA_",i," / 2^3) % 2^2 )==0
                  QA_CER_",i,"=   ((QA_",i," / 2^5) % 2^1 )==1
                  QA_CER2_",i,"=  ((QA_",i," / 2^6) % 2^2 )==3
+                 QA_CWP_",i,"=   ((QA_",i," / 2^8) % 2^1 )==1
+                 QA_CWP2_",i,"=  ((QA_",i," / 2^9) % 2^2 )==3
 EOF",sep="")) 
-#                 QA_CWP_",i,"=   ((QA_",i," / 2^8) % 2^1 )==1
-#                 QA_CWP2_",i,"=  ((QA_",i," / 2^9) % 2^2 )==3
 
    ## Optical Thickness
    execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",file,"\":mod06:Cloud_Optical_Thickness",sep=""),
@@ -242,17 +244,22 @@ EOF",sep=""))
    system(paste("r.mapcalc \"CER2_",i,"=if(CM_clear_",i,"==0,CER_",i,",0)\"",sep=""))   
 
    ## Cloud Water Path
-#   execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",file,"\":mod06:Cloud_Water_Path",sep=""),
-#            output="CWP",title="cloud_water_path",
-#            flags=c("overwrite","o")) ; print("")
-#   execGRASS("r.null",map="CWP",setnull="-9999")
-#   ## keep only positive CWP values where quality is 'useful' and 'very good' & scale to real units
+   execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",file,"\":mod06:Cloud_Water_Path",sep=""),
+            output=paste("CWP_",i,sep=""),title="cloud_water_path",
+            flags=c("overwrite","o")) ; print("")
+   execGRASS("r.null",map=paste("CWP_",i,sep=""),setnull="-9999")
+   ## keep only positive CWP values where quality is 'useful' and 'very good' & scale to real units
 #   system(paste("r.mapcalc \"CWP=if(QA_CWP&&QA_CWP2,CWP,null())\""))   
-   
+   ## keep only positive CER values where quality is 'useful' and 'very good' & scale to real units
+   system(paste("r.mapcalc \"CWP_",i,"=if(QA_CWP_",i,"&&QA_CWP2_",i,"&&CWP_",i,">=0,CWP_",i,"*0.009999999776482582,null())\"",sep=""))   
+   ## set CER to 0 in clear-sky pixels
+   system(paste("r.mapcalc \"CWP2_",i,"=if(CM_clear_",i,"==0,CWP_",i,",0)\"",sep=""))   
+
+     
  } #end loop through sub daily files
 
-#### Now generate daily averages
- 
+#### Now generate daily averages (or maximum in case of cloud flag)
+  
   system(paste("r.mapcalc <<EOF
          COT_denom=",paste("!isnull(COT2_",1:nfs,")",sep="",collapse="+"),"
          COT_numer=",paste("if(isnull(COT2_",1:nfs,"),0,COT2_",1:nfs,")",sep="",collapse="+"),"
@@ -260,11 +267,13 @@ EOF",sep=""))
          CER_denom=",paste("!isnull(CER2_",1:nfs,")",sep="",collapse="+"),"
          CER_numer=",paste("if(isnull(CER2_",1:nfs,"),0,CER2_",1:nfs,")",sep="",collapse="+"),"
          CER_daily=CER_numer/CER_denom
+         CLD_daily=max(",paste("if(isnull(CM_cloud_",1:nfs,"),0,CM_cloud_",1:nfs,")",sep="",collapse=","),") 
 EOF",sep=""))
 
   #### Write the file to a geotiff
   execGRASS("r.out.gdal",input="CER_daily",output=paste(tifdir,"/CER_",format(date,"%Y%m%d"),".tif",sep=""),nodata=-999)
   execGRASS("r.out.gdal",input="COT_daily",output=paste(tifdir,"/COT_",format(date,"%Y%m%d"),".tif",sep=""),nodata=-999)
+  execGRASS("r.out.gdal",input="CLD_daily",output=paste(tifdir,"/CLD_",format(date,"%Y%m%d"),".tif",sep=""),nodata=-999)
 
 ### delete the temporary files 
   unlink_.gislock()
@@ -277,21 +286,14 @@ EOF",sep=""))
 ###########################################
 ### Now run it
 
- tdates=sort(unique(fs$date))
+tdates=sort(unique(fs$date))
 done=tdates%in%as.Date(substr(list.files("data/modis/MOD06_L2_tif"),5,12),"%Y%m%d")
 table(done)
 tdates=tdates[!done]
 
 lapply(tdates,function(date) loadcloud(date,fs=fs))
 
-
-
-
-# copy all datasets back to master mapset for summaries
-
-execGRASS("g.copy",rast=paste("\"COT_daily\",\"COT_",format(date,"%Y%m%d"),"@mod06\"",sep=""))
-
-  
+ 
 ## unlock the grass database
 unlink_.gislock()
 
@@ -302,110 +304,44 @@ unlink_.gislock()
 
 ## get list of daily files
 fs2=data.frame(
-  path=list.files(outdir,full=T,recursive=T,pattern="hdf"),
-  file=basename(list.files(datadir,full=F,recursive=T,pattern="hdf")))
-fs$date=as.Date(substr(fs$file,11,17),"%Y%j")
-fs$month=format(fs$date,"%m")
-fs$year=format(fs$date,"%Y")
-fs$time=substr(fs$file,19,22)
-fs$datetime=as.POSIXct(strptime(paste(substr(fs$file,11,17),substr(fs$file,19,22)), '%Y%j %H%M'))
-fs$dateid=format(fs$date,"%Y%m%d")
-fs$path=as.character(fs$path)
-fs$file=as.character(fs$file)
+  path=list.files(tifdir,full=T,recursive=T,pattern="tif$"),
+  file=basename(list.files(tifdir,full=F,recursive=T,pattern="tif$")))
+fs2$type=substr(fs2$file,1,3)
+fs2$date=as.Date(substr(fs2$file,5,12),"%Y%m%d")
+fs2$month=format(fs2$date,"%m")
+fs2$year=format(fs2$date,"%Y")
+fs2$path=as.character(fs2$path)
+fs2$file=as.character(fs2$file)
 
 
-# read in data as single spatialgrid
-ms=c("01","02","03","04","05","06","07","08","09","10","11","12")
+# Define type/month products
+vs=expand.grid(type=unique(fs2$type),month=c("01","02","03","04","05","06","07","08","09","10","11","12"))
 
-mclapply(ms, function(m){
-  d=readRAST6(fs$grass[1])
-  projection(d)=projection(td)
-  d@data=as.data.frame(do.call(cbind,mclapply(which(fs$month==m),function(i){
-    print(fs$date[i])
-    readRAST6(fs$grass[i])@data[,1]
-    })))
-  d=brick(d)
+## identify which have been completed
+#done=
+#  do.call(rbind,strsplit(list.files(summarydatadir),"_|[.]"))[,3]
+#table(done)
+#tdates=tdates[!done]
+
+
+## process the summaries using the raster package
+mclapply(1:nrow(vs),function(i){
+  print(paste("Starting ",vs$type[i]," for month ",vs$month[i]))
+  td=stack(fs2$path[which(fs2$month==vs$month[i]&fs2$type==vs$type[i])])
+  calc(td,mean,na.rm=T,
+       filename=paste(summarydatadir,"/",vs$type[i],"_mean_",vs$month[i],".tif",sep=""),
+       format="GTiff")
+  calc(td,sd,na.rm=T,
+       filename=paste(summarydatadir,"/",vs$type[i],"_sd_",vs$month[i],".tif",sep=""),
+       format="GTiff")
+  print(paste("Processing missing data for ",vs$type[i]," for month ",vs$month[i]))
+  calc(td,function(i)
+       sum(!is.na(i)),filename=paste(summarydatadir,"/",vs$type[i],"_count_",vs$month[i],".tif",sep=""),
+       format="GTiff")
+  calc(td,function(i) sum(ifelse(i==0,0,1)),
+       filename=paste(summarydatadir,"/",vs$type[i],"_clear_",vs$month[i],".tif",sep=""),format="GTiff")
   gc()
-  assign(paste("m",m,sep="_"),d)
 }
-
-save(paste("m",m,sep="_"),file="output/MOD06.Rdata")
-
-## replace missings with 0 (because they mean no clouds)
-db2=d
-db2[is.na(db2)]=0
-
-
-md=mean(db,na.rm=T)
-mn=sum(!is.na(db))
-
-
-md2=mean(db2,na.rm=T)
-
-
-# Histogram equalization stretch
-eqstretch<-function(img){
-  ecdf<-ecdf(getValues(img))
-  return(calc(img,fun=function(x) ecdf(x)*255))
-}
-
-ncol=100
-plot(md,col=rainbow(ncol),breaks=quantile(as.matrix(md),seq(0,1,len=ncol-1),na.rm=T))
-
-str(d)
-plot(brick(d))
-
-
-
-
-
-
-
-#################################################################
-### start grass to process the files
-
-#get bounding box of region in m
-ge=SpatialPoints(data.frame(lon=c(-125,-115),lat=c(40,47)))
-projection(ge)=CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
-ge2=spTransform(ge, CRS(" +proj=sinu +lon_0=0 +x_0=0 +y_0=0")); ge2
-
-
-
-system("grass -text /media/data/grassdata/oregon/mod06")
-
-### import variables one at a time
-basedir=/home/adamw/acrobates/projects/interp/data/modis/MOD06_L2_tif
-
-## parse the file names
-fs=`ls data/modis/MOD06_L2_tif | grep tif$`
-echo `echo $fs | wc -w` files to process
-
-## example file
-f=MOD06_L2.A2000062.1830.051.2010273075045.gscs_000500676719.tif
-
-
-for f in $fs
-do
-year=`echo $f |cut -c 11-14`
-day=`echo $f |cut -c 15-17 |sed 's/^0*//'`
-time=`echo $f |cut -c 19-22`
-month=$(date -d "`date +%Y`-01-01 +$(( ${day} - 1 ))days" +%m)
-ofile=$month\_$year\_cloud_effective_radius_$f
-r.in.gdal --quiet -e input=$basedir/$f output=$ofile band=1 title=cloud_effective_radius --overwrite
-r.mapcalc "$ofile=if($ofile,$ofile,-9999,-9999)"
-r.null --q map="$ofile" setnull=-9999
-r.mapcalc "$ofile=$ofile*0.009999999776482582"
-r.colors --quiet -ne map=$ofile color=precipitation
-echo Finished $f
-done
-
-## generate monthly means
-m02=`g.mlist type=rast pattern="02*"`
-m02n=`echo $m02 | wc -w`
-
-m02p=`printf '%q+' $m02 | sed 's/\(.*\)./\1/'`
-r.mapcalc "m02=($m02p)/$m02n"
-
-#  g.mremove -f rast=02*
+)
 
 
