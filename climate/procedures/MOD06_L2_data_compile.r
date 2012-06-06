@@ -328,6 +328,15 @@ mclapply(1:nrow(vs),function(i){
   calc(td,sd,na.rm=T,
        filename=paste(summarydatadir,"/",vs$type[i],"_sd_",vs$month[i],".tif",sep=""),
        format="GTiff")
+  if(vs$type[i]%in%c("CER","COT")) {
+    ## also produce means that first eliminate 0 values (added above to indicate clear skies)
+    ## to capture 'when cloudy, how thick are the clouds' rather than mean thickness...
+    td2=td
+    td2[td2==0]=NA
+    calc(td2,mean,na.rm=T,
+         filename=paste(summarydatadir,"/",vs$type[i],"_meanno0_",vs$month[i],".tif",sep=""),
+         format="GTiff")
+  }  
   print(paste("Processing missing data for ",vs$type[i]," for month ",vs$month[i]))
   calc(td,function(i)
        sum(!is.na(i)),filename=paste(summarydatadir,"/",vs$type[i],"_count_",vs$month[i],".tif",sep=""),
