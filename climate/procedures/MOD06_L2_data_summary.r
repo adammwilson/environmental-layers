@@ -154,17 +154,18 @@ mod06s$glon=cut(mod06s$lon,gq(mod06s$lon,n=5),include.lowest=T,ordered=T)#gq(mod
 mod06s$glon2=cut(mod06s$lon,breaks=c(-125,-122,-115),labels=c("Coastal","Inland"),include.lowest=T,ordered=T)#gq(mod06s$lon,n=3))
 mod06s$gelev=cut(mod06s$elev,breaks=gq(mod06s$elev,n=3),labels=c("Low","Mid","High"),include.lowest=T,ordered=T)
 mod06s$gbin=factor(paste(mod06s$gelev,mod06s$glon2,sep="_"),levels=c("Low_Coastal","Mid_Coastal","High_Coastal","Low_Inland","Mid_Inland","High_Inland"),ordered=T)
-
+mod06s$LWP_mean=(2/3)*mod06s$CER_mean*mod06s$COT_mean
 
 ## melt it
 mod06sl=melt(mod06s[,!grepl("lppt",colnames(mod06s))],id.vars=c("id","lon","lat","elev","month","ppt","glon","glon2","gelev","gbin"))
-levels(mod06sl$variable)=c("Effective Radius (um)","Cloudy Days (%)","Optical Thickness (%)")
+levels(mod06sl$variable)=c("Effective Radius (um)","Cloudy Days (%)","Optical Thickness (%)","Liquid Water Path")
 
 ###################################################################
 ###################################################################
 
 bgyr=colorRampPalette(c("blue","green","yellow","red"))
 
+X11.options(type="cairo")
 pdf("output/MOD06_summary.pdf",width=11,height=8.5)
 
 # % cloudy maps
@@ -243,11 +244,40 @@ splom(mod06s[grep("CER|COT|CLD",colnames(mod06s))],cex=.2,pch=16,main="Scatterpl
 
 ## ppt~metric with longitude bins
  xyplot(ppt~value|variable,groups=glon,data=mod06sl,
-       scales=list(y=list(log=T),x=list(relation="free")),
-       par.settings = list(superpose.symbol = list(col=bgyr(5),pch=16,cex=.5)),auto.key=list(space="right",title="Station Longitude"),
-       main="Comparison of MOD06_L2 and Precipitation Monthly Climatologies",ylab="Precipitation",xlab="MOD06_L2 Product",layout=c(3,1))+
+       scales=list(y=list(log=T),x=list(relation="free",log=F)),
+       par.settings = list(superpose.symbol = list(col=bgyr(5),pch=16,cex=.5)),auto.key=list(space="top",title="Station Longitude"),
+       main="Comparison of MOD06_L2 and Precipitation Monthly Climatologies",ylab="Mean Monthly Station Precipitation (mm)",xlab="MOD06_L2 Product",layout=c(4,1))+
   layer(panel.text(9,2.5,label="Coastal stations",srt=30,cex=1.3,col="blue"),columns=1)+
   layer(panel.text(13,.9,label="Inland stations",srt=10,cex=1.3,col="red"),columns=1)
+
+## ppt~metric with longitude bins
+#CairoPNG("output/COT.png",width=10,height=5,units="in",dpi=300,pointsize=20)
+#png("output/COT.png",width=10,height=5,units="in",res=150)
+#trellis.par.set("fontsize",12)
+at=quantile(as.matrix(subset(m01,subset=3)),seq(0,1,len=100),na.rm=T)
+p1=levelplot(subset(m01,subset=3),xlab.top="Optical Thickness (%)",at=at,col.regions=bgyr(length(at)),margin=F,
+   )+layer(sp.lines(roi_geo, lwd=1.2, col='black'))+layer(sp.points(st2, cex=.5,col='black'))
+at=quantile(as.matrix(subset(m01,subset=4)),seq(0,1,len=100),na.rm=T)
+p2=levelplot(subset(m01,subset=4),xlab.top="PRISM MAP",at=at,col.regions=bgyr(length(at)),margin=F,
+    )+layer(sp.lines(roi_geo, lwd=1.2, col='black'))+layer(sp.points(st2, cex=.5, col='black'))
+
+p3=xyplot(ppt~value,groups=glon,data=mod06sl[mod06sl$variable=="Optical Thickness (%)",],
+       scales=list(y=list(log=T),x=list(relation="free",log=F)),
+       par.settings = list(superpose.symbol = list(col=bgyr(5),pch=16,cex=.3)),auto.key=list(space="right",title="Station \n Longitude"),
+ylab="Mean Monthly Station Precipitation (mm)",xlab="Cloud Optical Thickness from MOD06_L2 (%)",layout=c(1,1))+
+  layer(panel.text(9,2.6,label="Coastal stations",srt=10,cex=1.3,col="blue"),columns=1)+
+  layer(panel.text(13,.95,label="Inland stations",srt=10,cex=1.3,col="red"),columns=1)
+
+save(p1,p2,p3,file="plotdata.Rdata")
+load("plotdata.Rdata")
+
+CairoPDF("output/MOD06_Summaryfig.pdf",width=11,height=8.5)
+print(p3,position=c(0,0,1,.5),save.object=F)
+print(p1,split=c(1,1,2,2),new=F)
+print(p2,split=c(2,1,2,2),new=F)
+dev.off()
+system("convert output/MOD06_Summaryfig.pdf output/MOD06_Summaryfig.png")
+                                        #dev.off()
 
 ## with elevation
 # xyplot(ppt~value|variable,groups=gbin,data=mod06sl,
@@ -295,6 +325,13 @@ combineLimits(useOuterStrips(xyplot(ppt~value|month+variable,groups=glon,data=mo
         ylab="Precipitation (mm, log axis)",xlab="Mean Monthly Cloud Optical Thickness (%)")+
   layer(panel.text(10,.5,round(summary(lm(y~x))$r.squared,2),pos=4,cex=.75,col="grey"))
 
+ xyplot(ppt~LWP_mean|id,data=mod06s,panel=function(x,y,group){
+  panel.xyplot(x,y,type=c("r"),cex=.5,pch=16,col="red")
+  panel.xyplot(x,y,type=c("p"),cex=.5,pch=16,col="black")
+} ,scales=list(y=list(log=T)),strip=F,main="Monthly Mean Precipitation and Liquid Water Path by station",
+        sub="Each panel is a station, each point is a monthly mean \n Number in lower right of each panel is R^2",
+        ylab="Precipitation (mm, log axis)",xlab="Mean Monthly Liquid Water Path")+
+  layer(panel.text(10,.5,round(summary(lm(y~x))$r.squared,2),pos=4,cex=.75,col="grey"))
 
 ### Calculate the slope of each line
 mod06s.sl=dapply(mod06s,list(id=mod06s$id),function(x){

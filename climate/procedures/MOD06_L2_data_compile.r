@@ -19,6 +19,10 @@ library(rgl)
 library(hdf5)
 library(spgrass6)
 
+
+### set options for Raster Package
+setOptions(progress="text",timer=T)
+
 X11.options(type="Xlib")
 ncores=20  #number of threads to use
 
@@ -319,7 +323,7 @@ vs=expand.grid(type=unique(fs2$type),month=c("01","02","03","04","05","06","07",
 
 ## process the summaries using the raster package
 mclapply(1:nrow(vs),function(i){
-  print(paste("Starting ",vs$type[i]," for month ",vs$month[i]))
+  print(paste("Loading ",vs$type[i]," for month ",vs$month[i]))
   td=stack(fs2$path[which(fs2$month==vs$month[i]&fs2$type==vs$type[i])])
   print(paste("Processing Metric ",vs$type[i]," for month ",vs$month[i]))
   calc(td,mean,na.rm=T,
@@ -328,14 +332,17 @@ mclapply(1:nrow(vs),function(i){
   calc(td,sd,na.rm=T,
        filename=paste(summarydatadir,"/",vs$type[i],"_sd_",vs$month[i],".tif",sep=""),
        format="GTiff")
-  if(vs$type[i]%in%c("CER","COT")) {
-    ## also produce means that first eliminate 0 values (added above to indicate clear skies)
-    ## to capture 'when cloudy, how thick are the clouds' rather than mean thickness...
-    td2=td
-    td2[td2==0]=NA
-    calc(td2,mean,na.rm=T,
-         filename=paste(summarydatadir,"/",vs$type[i],"_meanno0_",vs$month[i],".tif",sep=""),
-         format="GTiff")
+  if(vs$type[i]%in%c("CER")) {
+    ## Calculate number of days with effective radius > 20um, found to be linked to precipitating clouds
+    ## (Kobayashi 2007)
+    calc(td,function(x) mean(ifelse(x<20,0,1),na.rm=T),
+      filename=paste(summarydatadir,"/",vs$type[i],"_P20um_",vs$month[i],".tif",sep=""),
+      format="GTiff")
+#    td2[td2<20]=0
+#    td2[td2>=20]=1
+#    calc(td2,mean,na.rm=T,
+#         filename=paste(summarydatadir,"/",vs$type[i],"_P20um_",vs$month[i],".tif",sep=""),
+#         format="GTiff")
   }  
   print(paste("Processing missing data for ",vs$type[i]," for month ",vs$month[i]))
   calc(td,function(i)
