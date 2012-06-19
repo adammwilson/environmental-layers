@@ -39,8 +39,10 @@ summarydatadir="data/modis/MOD06_climatologies"
 ##########################
 #### explore the data
 
-## load data
 months=seq(as.Date("2000-01-15"),as.Date("2000-12-15"),by="month")
+
+
+## load data
 cerfiles=list.files(summarydatadir,pattern="CER_mean_.*tif$",full=T); cerfiles
 cer=brick(stack(cerfiles))
 setZ(cer,months,name="time")
@@ -71,6 +73,17 @@ layerNames(cld) <- as.character(format(months,"%b"))
 cldm=mean(cld,na.rm=T)
 ### TODO: change to bilinear if reprojecting!
 
+cer20files=list.files(summarydatadir,pattern="CER_P20um_.*tif$",full=T); cer20files
+cer20=brick(stack(cer20files))
+setZ(cer20,months,name="time")
+cer20@z=list(months)
+cer20@zname="time"
+layerNames(cer20) <- as.character(format(months,"%b"))
+#cot=projectRaster(from=cot,crs="+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0",method="ngb")
+cotm=mean(cot,na.rm=T)
+### TODO: change to bilinear!
+
+
 ### load PRISM data for comparison
 prism=brick("data/prism/prism_climate.nc",varname="ppt")
 ## project to sinusoidal
@@ -83,7 +96,7 @@ prism@zname="time"
 layerNames(prism) <- as.character(format(months,"%b"))
 
 ####  build a pixel by variable matrix
-vars=c("cer","cld","cot","prism")
+vars=c("cer","cer20","cld","cot","prism")
 bd=melt(as.matrix(vars[1]))
 colnames(bd)=c("cell","month",vars[1])
 for(v in vars[-1]) {print(v); bd[,v]=melt(as.matrix(get(v)))$value}
@@ -116,9 +129,10 @@ d2$value=d2$value/10 #convert to mm
 
 ### extract MOD06 data for each station
 stcer=extract(cer,st2)#;colnames(stcer)=paste("cer_mean_",1:12,sep="")
+stcer20=extract(cer20,st2)#;colnames(stcer)=paste("cer_mean_",1:12,sep="")
 stcot=extract(cot,st2)#;colnames(stcot)=paste("cot_mean_",1:12,sep="")
 stcld=extract(cld,st2)#;colnames(stcld)=paste("cld_mean_",1:12,sep="")
-mod06=cbind.data.frame(id=st2$id,lat=st2$lat,lon=st2$lon,stcer,stcot,stcld)
+mod06=cbind.data.frame(id=st2$id,lat=st2$lat,lon=st2$lon,stcer,stcer20,stcot,stcld)
 mod06l=melt(mod06,id.vars=c("id","lon","lat"))
 mod06l[,c("variable","moment","month")]=do.call(rbind,strsplit(as.character(mod06l$variable),"_"))
 mod06l=as.data.frame(cast(mod06l,id+lon+lat+month~variable+moment,value="value"))
@@ -158,7 +172,7 @@ mod06s$LWP_mean=(2/3)*mod06s$CER_mean*mod06s$COT_mean
 
 ## melt it
 mod06sl=melt(mod06s[,!grepl("lppt",colnames(mod06s))],id.vars=c("id","lon","lat","elev","month","ppt","glon","glon2","gelev","gbin"))
-levels(mod06sl$variable)=c("Effective Radius (um)","Cloudy Days (%)","Optical Thickness (%)","Liquid Water Path")
+levels(mod06sl$variable)=c("Effective Radius (um)","Very Cloudy Days (%)","Cloudy Days (%)","Optical Thickness (%)","Liquid Water Path")
 
 ###################################################################
 ###################################################################
@@ -234,9 +248,9 @@ p=levelplot(cotm, layers=1,at=at,col.regions=bgyr(length(at)),main="Mean Annual 
 print(p)
 
 ### monthly comparisons of variables
-mod06sl=melt(mod06s,measure.vars=c("value","COT_mean","CER_mean"))
-bwplot(value~month|variable,data=mod06sl,cex=.5,pch=16,col="black",scales=list(y=list(relation="free")),layout=c(1,3))
-splom(mod06s[grep("CER|COT|CLD",colnames(mod06s))],cex=.2,pch=16,main="Scatterplot matrix of MOD06 products")
+#mod06sl=melt(mod06s,measure.vars=c("ppt","COT_mean","CER_mean","CER_P20um"))
+#bwplot(value~month|variable,data=mod06sl,cex=.5,pch=16,col="black",scales=list(y=list(relation="free")),layout=c(1,3))
+#splom(mod06s[grep("CER|COT|CLD|ppt",colnames(mod06s))],cex=.2,pch=16,main="Scatterplot matrix of MOD06 products")
 
 ### run some regressions
 #plot(log(ppt)~COT_mean,data=mod06s)
@@ -246,9 +260,12 @@ splom(mod06s[grep("CER|COT|CLD",colnames(mod06s))],cex=.2,pch=16,main="Scatterpl
  xyplot(ppt~value|variable,groups=glon,data=mod06sl,
        scales=list(y=list(log=T),x=list(relation="free",log=F)),
        par.settings = list(superpose.symbol = list(col=bgyr(5),pch=16,cex=.5)),auto.key=list(space="top",title="Station Longitude"),
-       main="Comparison of MOD06_L2 and Precipitation Monthly Climatologies",ylab="Mean Monthly Station Precipitation (mm)",xlab="MOD06_L2 Product",layout=c(4,1))+
+       main="Comparison of MOD06_L2 and Precipitation Monthly Climatologies",ylab="Mean Monthly Station Precipitation (mm)",xlab="MOD06_L2 Product",layout=c(5,1))+
   layer(panel.text(9,2.5,label="Coastal stations",srt=30,cex=1.3,col="blue"),columns=1)+
-  layer(panel.text(13,.9,label="Inland stations",srt=10,cex=1.3,col="red"),columns=1)
+  layer(panel.text(13,.9,label="Inland stations",srt=10,cex=1.3,col="red"),columns=1)+
+  layer(panel.abline(lm(y~x),col="red"))+
+  layer(panel.text(0,0,paste("R2=",round(summary(lm(y~x))$r.squared,2)),pos=4,cex=.5,col="grey"))
+
 
 ## ppt~metric with longitude bins
 #CairoPNG("output/COT.png",width=10,height=5,units="in",dpi=300,pointsize=20)
@@ -257,6 +274,8 @@ splom(mod06s[grep("CER|COT|CLD",colnames(mod06s))],cex=.2,pch=16,main="Scatterpl
 at=quantile(as.matrix(subset(m01,subset=3)),seq(0,1,len=100),na.rm=T)
 p1=levelplot(subset(m01,subset=3),xlab.top="Optical Thickness (%)",at=at,col.regions=bgyr(length(at)),margin=F,
    )+layer(sp.lines(roi_geo, lwd=1.2, col='black'))+layer(sp.points(st2, cex=.5,col='black'))
+at=quantile(as.matrix(subset(m01,subset=3)),seq(0,1,len=100),na.rm=T)
+
 at=quantile(as.matrix(subset(m01,subset=4)),seq(0,1,len=100),na.rm=T)
 p2=levelplot(subset(m01,subset=4),xlab.top="PRISM MAP",at=at,col.regions=bgyr(length(at)),margin=F,
     )+layer(sp.lines(roi_geo, lwd=1.2, col='black'))+layer(sp.points(st2, cex=.5, col='black'))
@@ -268,15 +287,23 @@ ylab="Mean Monthly Station Precipitation (mm)",xlab="Cloud Optical Thickness fro
   layer(panel.text(9,2.6,label="Coastal stations",srt=10,cex=1.3,col="blue"),columns=1)+
   layer(panel.text(13,.95,label="Inland stations",srt=10,cex=1.3,col="red"),columns=1)
 
-save(p1,p2,p3,file="plotdata.Rdata")
-load("plotdata.Rdata")
+p4=xyplot(ppt~value,groups=glon,data=mod06sl[mod06sl$variable=="Very Cloudy Days (%)",],
+       scales=list(y=list(log=T),x=list(relation="free",log=F)),
+       par.settings = list(superpose.symbol = list(col=bgyr(5),pch=16,cex=.3)),auto.key=list(space="right",title="Station \n Longitude"),
+ylab="Mean Monthly Station Precipitation (mm)",xlab="Proportion days with Cloud Effective Radius >20um from MOD06_L2 (%)",layout=c(1,1))+
+  layer(panel.text(9,2.6,label="Coastal stations",srt=10,cex=1.3,col="blue"),columns=1)+
+  layer(panel.text(13,.95,label="Inland stations",srt=10,cex=1.3,col="red"),columns=1)
 
-CairoPDF("output/MOD06_Summaryfig.pdf",width=11,height=8.5)
+#save(p1,p2,p3,file="plotdata.Rdata")
+#load("plotdata.Rdata")
+
+#CairoPDF("output/MOD06_Summaryfig.pdf",width=11,height=8.5)
 print(p3,position=c(0,0,1,.5),save.object=F)
+#print(p4,position=c(0,0,1,.5),save.object=F)
 print(p1,split=c(1,1,2,2),new=F)
 print(p2,split=c(2,1,2,2),new=F)
-dev.off()
-system("convert output/MOD06_Summaryfig.pdf output/MOD06_Summaryfig.png")
+#dev.off()
+#system("convert output/MOD06_Summaryfig.pdf output/MOD06_Summaryfig.png")
                                         #dev.off()
 
 ## with elevation
