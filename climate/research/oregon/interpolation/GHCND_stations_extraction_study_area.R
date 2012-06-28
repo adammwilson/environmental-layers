@@ -1,8 +1,13 @@
 ##################    Data preparation for interpolation   #######################################
-###########################  TWO-STAGE REGRESSION  ###############################################
+############################ Extraction of station data ##########################################
 #This script perform queries on the Postgres database ghcn for stations matching the             #
-#interpolation area. It requires the text file of stations and a shape file of the study area.   #       
-#Note that the projection for both GHCND and study area is lonlat WGS84.                         #
+#interpolation area. It requires the following inputs:                                           #
+# 1)the text file ofGHCND  stations from NCDC matching the database version release              #
+# 2)a shape file of the study area with geographic coordinates: lonlat WGS84                     #                                                     #       
+# 3)a new coordinate system can be provided as an argument                                       #
+# 4)the variable of interest: "TMAX","TMIN" or "PRCP"                                            #
+#                                                                                                #
+#The outputs are text files and a shape file of a time subset of the database                    #
 #AUTHOR: Benoit Parmentier                                                                       #
 #DATE: 06/02/212                                                                                 #
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363--                                  #
@@ -22,13 +27,14 @@ year_start<-"2010"               #starting year for the query (included)
 year_end<-"2011"                 #end year for the query (excluded)
 infile1<- "ORWGS84_state_outline.shp"                     #This is the shape file of outline of the study area.                
 infile2<-"ghcnd-stations.txt"                             #This is the textfile of station locations from GHCND
+new_proj<-"+proj=lcc +lat_1=43 +lat_2=45.5 +lat_0=41.75 +lon_0=-120.5 +x_0=400000 +y_0=0 +ellps=GRS80 +units=m +no_defs";
 
 path<-"/home/parmentier/Data/IPLANT_project/data_Oregon_stations/"        #Jupiter LOCATION on EOS/Atlas
 #path<-"H:/Data/IPLANT_project/data_Oregon_stations"                      #Jupiter Location on XANDERS
 setwd(path) 
-out_prefix<-"y2010_2010_OR_0602012"                                                 #User defined output prefix
+out_prefix<-"y2010_2010_OR_0626012"                                                 #User defined output prefix
 
-### Functions
+### Functions used in the script
 
 format_s <-function(s_ID){
   #Format station ID in a vector format/tuple that is used in a psql query.
@@ -46,7 +52,7 @@ format_s <-function(s_ID){
 
 ############ START OF THE SCRIPT #################
 
-##### STEP 1: Select station in Oregon
+##### STEP 1: Select station in the study area
 
 infile1<- "ORWGS84_state_outline.shp"        #This is the shape file of outline of the study area.
 filename<-sub(".shp","",infile1)             #Removing the extension from file.
@@ -75,34 +81,35 @@ plot(stat_OR, pch=1, col="red", cex= 0.7, add=TRUE)
 drv <- dbDriver("PostgreSQL")
 db <- dbConnect(drv, dbname=db.name)
 
-z1<-stat_OR$STAT_ID[999:1002] # Selecting three station to check the query and processing time
-l2<-format_s(z1)  
-
-d1<-dbGetQuery(db, paste("SELECT *
-      FROM ghcn
-      WHERE element=",shQuote(var),
-      "AND year>=",year_start,
-      "AND year<",year_end,
-      "AND station IN ",l2,";",sep=""))  #Selecting one station
-
 time1<-proc.time()    #Start stop watch
 list_s<-format_s(stat_OR$STAT_ID)
-data<-dbGetQuery(db, paste("SELECT *
+data2<-dbGetQuery(db, paste("SELECT *
       FROM ghcn
       WHERE element=",shQuote(var),
       "AND year>=",year_start,
       "AND year<",year_end,
-      "AND station IN ",list_s,";",sep=""))  #Selecting one station 
-time_duration<-proc.time()-time1 #time for the query?
+      "AND station IN ",list_s,";",sep=""))  #Selecting station using a SQL query
+time_duration<-proc.time()-time1             #Time for the query may be long given the size of the database
+time_minutes<-time_duration[3]/60
+  
+data_table<-merge(data2,stat_OR, by.x = "station", by.y = "STAT_ID")
 
-write.table(data, file= paste(path,"/","ghcn_data_",var,out_prefix,".txt",sep=""), sep=",")
-#write.table(d1, file= paste(path,"/","ghcn_data_",var,out_prefix,".txt",sep=""), sep=",")
-outfile<-file= paste(path,"/","ghcn_data_",var,out_prefix,".shp",sep="")   #Removing extension if it is present
-#writeOGR(data_SDF,".", outfile, driver ="ESRI Shapefile")
+#Transform the subset data frame in a spatial data frame and reproject
+data3<-data_table                               #Make a copy of the data frame
+coords<- data3[c('lon.1','lat.1')]              #Define coordinates in a data frame
+coordinates(data3)<-coords                      #Assign coordinates to the data frame
+proj4string(data3)<-CRS_interp                  #Assign coordinates reference system in PROJ4 format
+data_proj<-spTransform(data3,CRS(new_proj))     #Project from WGS84 to new coord. system
+
+### STEP 3: Save results and outuput in textfile and a shape file
+
+#Save a textfile of the locations of meteorological stations in the study area
+write.table(as.data.frame(stat_OR), file=paste(path,"/","location_study_area",out_prefix,".txt",sep=""),sep=",")
+
+#Save a textfile and shape file of all the subset data
+write.table(data_table, file= paste(path,"/","ghcn_data_",var,out_prefix,".txt",sep=""), sep=",")
+#outfile<-paste(path,"ghcn_data_",var,out_prefix,sep="")   #Removing extension if it is present
+outfile<-paste("ghcn_data_",var,out_prefix,sep="")         #Name of the file
+writeOGR(data_proj, paste(outfile, "shp", sep="."), outfile, driver ="ESRI Shapefile") #Note that the layer name is the file name without extension
 
 ##### END OF SCRIPT ##########
-
-# data<-dbGetQuery(db, paste("SELECT *
-#       FROM ghcn
-#       WHERE element='TMAX'
-#       AND station IN ",t1,";",sep=""))  #Selecting one station
