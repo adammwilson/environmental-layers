@@ -19,7 +19,7 @@ library(fields)                              # NCAR Spatial Interpolation method
 library(raster)                              # Hijmans et al. package for raster processing
 ### Parameters and argument
 
-infile1<- "ghcn_or_tmax_b_04142012_OR83M.shp"             #GHCN shapefile containing variables for modeling 2010                 
+infile1<- "ghcn_or_tmax_covariates_06262012_OR83M.shp"             #GHCN shapefile containing variables for modeling 2010                 
 infile2<-"list_10_dates_04212012.txt"                     #List of 10 dates for the regression
 #infile2<-"list_365_dates_04212012.txt"
 infile3<-"LST_dates_var_names.txt"                        #LST dates name
@@ -36,7 +36,7 @@ data3<-read.table(paste(path,"/","ghcn_data_TMAXy1980_2010_OR_0602012.txt",sep="
 
 prop<-0.3                                                                           #Proportion of testing retained for validation   
 seed_number<- 100                                                                   #Seed number for random sampling
-out_prefix<-"_06192012_10d_fusion5"                                                   #User defined output prefix
+out_prefix<-"_07022012_10d_fusion8"                                                   #User defined output prefix
 setwd(path)
 ############ START OF THE SCRIPT ##################
 
@@ -84,9 +84,10 @@ results_RMSE_f_kr<- matrix(1,length(dates),length(models)+4)
 # cor_LST_LC3<-matrix(1,10,1)      #correlation LST-LC3
 # cor_LST_tmax<-matrix(1,10,1)     #correlation LST-tmax
 
-#Screening for bad values
+#Screening for bad values: element is tmax in this case
+ghcn$element<-as.numeric(ghcn$element)
 ghcn_all<-ghcn
-ghcn_test<-subset(ghcn,ghcn$tmax>-150 & ghcn$tmax<400)
+ghcn_test<-subset(ghcn,ghcn$element>-150 & ghcn$element<400)
 ghcn_test2<-subset(ghcn_test,ghcn_test$ELEV_SRTM>0)
 ghcn<-ghcn_test2
 #coords<- ghcn[,c('x_OR83M','y_OR83M')]
@@ -248,14 +249,15 @@ for(i in 1:length(dates)){            # start of the for loop #1
   #added by Benoit 
   #d<-ghcn.subsets[[i]]
   d<-data_s
-  names(d)[8]<-c("dailyTmax")
-  d$dailyTmax=d$dailyTmax/10 #stored as 1/10 degree C to allow integer storage
+  names(d)[5]<-c("dailyTmax")
+  d$dailyTmax=(as.numeric(d$dailyTmax))/10 #stored as 1/10 degree C to allow integer storage
   names(d)[1]<-c("id")
-  names(modst)[1]<-c("id")
+  names(modst)[1]<-c("id")       #modst contains the average tmax per month for every stations...
   dmoday=merge(modst,d,by="id")  #LOOSING DATA HERE!!! from 162 t0 146
   names(dmoday)[4]<-c("lat")
   names(dmoday)[5]<-c("lon")
   ###
+  
   #dmoday contains the daily tmax values with TMax being the monthly station tmax mean
   
   # windows()
@@ -288,8 +290,8 @@ for(i in 1:length(dates)){            # start of the for loop #1
   #### Added by Benoit on 06/19
   data_s<-dmoday #put the 
   data_s$daily_delta<-daily_delta
-  data_s$y_var<-daily_delta  #y_var is the variable currently being modeled, may be better with BIAS!!
-  
+  #data_s$y_var<-daily_delta  #y_var is the variable currently being modeled, may be better with BIAS!!
+  data_s$y_var<-data_s$dailyTmax
   #Model and response variable can be changed without affecting the script
   
   mod1<- gam(y_var~ s(lat) + s (lon) + s (ELEV_SRTM), data=data_s)
@@ -390,14 +392,18 @@ for(i in 1:length(dates)){            # start of the for loop #1
     ##validation: using the testing data
     
     #This was modified on 06192012
-    y_mod<- predict(mod, newdata=data_v, se.fit = TRUE) #Using the coeff to predict new values.
-    sta_LST=lookup(themolst,data_v$lat,data_v$lon)
-    sta_bias=lookup(bias_rast,data_v$lat,data_v$lon)
-    tmax_predicted=sta_LST+sta_bias-y_mod$fit
     
-    data_v$tmax<-(data_v$tmax)/10
-    res_mod<- data_v$tmax - tmax_predicted              #Residuals for the model
-    #res_mod<- data_v$tmax - y_mod$fit                  #Residuals for the model
+    #data_v$y_var<-data_v$tmax/10
+    data_v$y_var<-tmax
+    y_mod<- predict(mod, newdata=data_v, se.fit = TRUE) #Using the coeff to predict new values.
+    
+    #sta_LST=lookup(themolst,data_v$lat,data_v$lon)
+    #sta_bias=lookup(bias_rast,data_v$lat,data_v$lon)
+    #tmax_predicted=sta_LST+sta_bias-y_mod$fit
+    
+    #data_v$tmax<-(data_v$tmax)/10
+    #res_mod<- data_v$tmax - tmax_predicted              #Residuals for the model for fusion
+    res_mod<- data_v$y_var - y_mod$fit                  #Residuals for the model
     
     RMSE_mod <- sqrt(sum(res_mod^2)/nv)                 #RMSE FOR REGRESSION STEP 1: GAM     
     MAE_mod<- sum(abs(res_mod))/nv                     #MAE, Mean abs. Error FOR REGRESSION STEP 1: GAM   
