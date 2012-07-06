@@ -35,8 +35,9 @@ stat_loc<-read.table(paste(path,"/","location_study_area_OR_0602012.txt",sep="")
 data3<-read.table(paste(path,"/","ghcn_data_TMAXy1980_2010_OR_0602012.txt",sep=""),sep=",", header=TRUE)
 
 prop<-0.3                                                                           #Proportion of testing retained for validation   
+#prop<-0.25
 seed_number<- 100                                                                   #Seed number for random sampling
-out_prefix<-"_07022012_10d_fusion8"                                                   #User defined output prefix
+out_prefix<-"_07022012_10d_fusion12"                                                   #User defined output prefix
 setwd(path)
 ############ START OF THE SCRIPT ##################
 
@@ -54,10 +55,20 @@ CRS<-proj4string(ghcn)                       #Storing projection information (el
 mean_LST<- readGDAL(infile5)                 #Reading the whole raster in memory. This provides a grid for kriging
 proj4string(mean_LST)<-CRS                   #Assigning coordinate information to prediction grid.
 
-ghcn = transform(ghcn,Northness = cos(ASPECT)) #Adding a variable to the dataframe
-ghcn = transform(ghcn,Eastness = sin(ASPECT))  #adding variable to the dataframe.
-ghcn = transform(ghcn,Northness_w = sin(slope)*cos(ASPECT)) #Adding a variable to the dataframe
-ghcn = transform(ghcn,Eastness_w = sin(slope)*sin(ASPECT))  #adding variable to the dataframe.
+ghcn = transform(ghcn,Northness = cos(ASPECT*pi/180)) #Adding a variable to the dataframe
+#ghcn = transform(ghcn,Northness = cos(ASPECT)) #Adding a variable to the dataframe
+#ghcn = transform(ghcn,Eastness = sin(ASPECT))  #adding variable to the dataframe.
+ghcn = transform(ghcn,Eastness = sin(ASPECT*pi/180))  #adding variable to the dataframe.
+#ghcn = transform(ghcn,Northness_w = sin(slope)*cos(ASPECT)) #Adding a variable to the dataframe
+#ghcn = transform(ghcn,Eastness_w = sin(slope)*sin(ASPECT))  #adding variable to the dataframe.
+ghcn = transform(ghcn,Northness_w = sin(slope*pi/180)*cos(ASPECT*pi/180)) #Adding a variable to the dataframe
+ghcn = transform(ghcn,Eastness_w = sin(slope*pi/180)*sin(ASPECT*pi/180))  #adding variable to the dataframe.
+
+#Remove NA for LC and CANHEIGHT
+ghcn$LC1[is.na(ghcn$LC1)]<-0
+ghcn$LC3[is.na(ghcn$LC3)]<-0
+ghcn$CANHEIGHT[is.na(ghcn$CANHEIGHT)]<-0
+
 
 set.seed(seed_number)                        #Using a seed number allow results based on random number to be compared...
 
@@ -84,10 +95,10 @@ results_RMSE_f_kr<- matrix(1,length(dates),length(models)+4)
 # cor_LST_LC3<-matrix(1,10,1)      #correlation LST-LC3
 # cor_LST_tmax<-matrix(1,10,1)     #correlation LST-tmax
 
-#Screening for bad values: element is tmax in this case
-ghcn$element<-as.numeric(ghcn$element)
+#Screening for bad values: value is tmax in this case
+#ghcn$value<-as.numeric(ghcn$value)
 ghcn_all<-ghcn
-ghcn_test<-subset(ghcn,ghcn$element>-150 & ghcn$element<400)
+ghcn_test<-subset(ghcn,ghcn$value>-150 & ghcn$value<400)
 ghcn_test2<-subset(ghcn_test,ghcn_test$ELEV_SRTM>0)
 ghcn<-ghcn_test2
 #coords<- ghcn[,c('x_OR83M','y_OR83M')]
@@ -165,12 +176,15 @@ for(i in 1:length(dates)){            # start of the for loop #1
   date2<-as.POSIXlt(as.Date(date1))
   data3$date<-date2
   d<-subset(data3,year>=2000 & mflag=="0" ) #Selecting dataset 2000-2010 with good quality
+  #May need some screeing??? i.e. range of temp and elevation...
   d1<-aggregate(value~station+month, data=d, mean)  #Calculate monthly mean for every station in OR
   id<-as.data.frame(unique(d1$station))     #Unique station in OR for year 2000-2010      
   
-  dst<-merge(d1, stat_loc, by.x="station", by.y="STAT_ID")
+  dst<-merge(d1, stat_loc, by.x="station", by.y="STAT_ID")   #Inner join all columns are retained
+ 
   #This allows to change only one name of the data.frame
-  names(dst)[3]<-c("TMax")
+  pos<-match("value",names(dst)) #Find column with name "value"
+  names(dst)[pos]<-c("TMax")
   dst$TMax<-dst$TMax/10                #TMax is the average max temp for months
   #dstjan=dst[dst$month==9,]  #dst contains the monthly averages for tmax for every station over 2000-2010
   ##############
@@ -196,6 +210,8 @@ for(i in 1:length(dates)){            # start of the for loop #1
   #########
   
   sta_bias=sta_tmax_from_lst-modst$TMax; #That is the difference between the monthly LST mean and monthly station mean
+  #Added by Benoit
+  modst$LSTD_bias<-sta_bias  #Adding bias to data frame modst containning the monthly average for 10 years
   
   bias_xy=project(as.matrix(sta_lola),proj_str)
   # windows()
@@ -247,17 +263,30 @@ for(i in 1:length(dates)){            # start of the for loop #1
   ##########################Commented out by Benoit
   
   #added by Benoit 
-  #d<-ghcn.subsets[[i]]
+  #x<-ghcn.subsets[[i]]  #Holds both training and testing for instance 161 rows for Jan 1
+  x<-data_v
   d<-data_s
-  names(d)[5]<-c("dailyTmax")
+  
+  pos<-match("value",names(d)) #Find column with name "value"
+  names(d)[pos]<-c("dailyTmax")
+  names(x)[pos]<-c("dailyTmax")
   d$dailyTmax=(as.numeric(d$dailyTmax))/10 #stored as 1/10 degree C to allow integer storage
-  names(d)[1]<-c("id")
+  x$dailyTmax=(as.numeric(x$dailyTmax))/10 #stored as 1/10 degree C to allow integer storage
+  pos<-match("station",names(d)) #Find column with name "value"
+  names(d)[pos]<-c("id")
+  names(x)[pos]<-c("id")
   names(modst)[1]<-c("id")       #modst contains the average tmax per month for every stations...
-  dmoday=merge(modst,d,by="id")  #LOOSING DATA HERE!!! from 162 t0 146
+  dmoday=merge(modst,d,by="id")  #LOOSING DATA HERE!!! from 113 t0 103
+  xmoday=merge(modst,x,by="id")  #LOOSING DATA HERE!!! from 48 t0 43
   names(dmoday)[4]<-c("lat")
-  names(dmoday)[5]<-c("lon")
+  names(dmoday)[5]<-c("lon")     #dmoday contains all the the information: BIAS, monn
+  names(xmoday)[4]<-c("lat")
+  names(xmoday)[5]<-c("lon")     #dmoday contains all the the information: BIAS, monn
+  
+  data_v<-xmoday
   ###
   
+  #dmoday contains the daily tmax values with TMax being the monthly station tmax mean
   #dmoday contains the daily tmax values with TMax being the monthly station tmax mean
   
   # windows()
@@ -290,8 +319,11 @@ for(i in 1:length(dates)){            # start of the for loop #1
   #### Added by Benoit on 06/19
   data_s<-dmoday #put the 
   data_s$daily_delta<-daily_delta
+  
+  
   #data_s$y_var<-daily_delta  #y_var is the variable currently being modeled, may be better with BIAS!!
-  data_s$y_var<-data_s$dailyTmax
+  data_s$y_var<-data_s$LSTD_bias
+  #data_s$y_var<-(data_s$dailyTmax)*10
   #Model and response variable can be changed without affecting the script
   
   mod1<- gam(y_var~ s(lat) + s (lon) + s (ELEV_SRTM), data=data_s)
@@ -302,6 +334,10 @@ for(i in 1:length(dates)){            # start of the for loop #1
   mod6<- gam(y_var~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST)+s(LC1), data=data_s)
   mod7<- gam(y_var~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST)+s(LC3), data=data_s)
   mod8<- gam(y_var~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST) + s(LC1), data=data_s)
+ 
+  #Added
+  #tmax_predicted=themolst+daily_delta_rast-bias_rast #Final surface?? but daily_rst
+  
   #### Added by Benoit ends
 
   #########
@@ -316,7 +352,7 @@ for(i in 1:length(dates)){            # start of the for loop #1
   
   plot(daily_delta_rast,main="Raster Daily Delta")
   
-  tmax_predicted=themolst+daily_delta_rast-bias_rast #Final surface?? but daily_rst
+  tmax_predicted=themolst+daily_delta_rast-bias_rast #Final surface  as a raster layer...
   #tmax_predicted=themolst+daily_delta_rast+bias_rast #Added by Benoit, why is it -bias_rast
   plot(tmax_predicted,main="Predicted daily")
   
@@ -332,7 +368,10 @@ for(i in 1:length(dates)){            # start of the for loop #1
   sta_pred=lookup(tmax_predicted,data_v$lat,data_v$lon)
   #sta_pred=lookup(tmax_predicted,daily_sta_lola$lat,daily_sta_lola$lon)
   #rmse=RMSE(sta_pred,dmoday$dailyTmax)
-  tmax<-data_v$tmax/10
+  #pos<-match("value",names(data_v)) #Find column with name "value"
+  #names(data_v)[pos]<-c("dailyTmax")
+  tmax<-data_v$dailyTmax
+  #data_v$dailyTmax<-tmax
   rmse=RMSE(sta_pred,tmax)
   #plot(sta_pred~dmoday$dailyTmax,xlab=paste("Actual daily for",datelabel),ylab="Pred daily",main=paste("RMSE=",rmse))
   X11()
@@ -359,8 +398,8 @@ for(i in 1:length(dates)){            # start of the for loop #1
   results_RMSE_f[i,3]<- "RMSE"
   results_RMSE_f[i,j+3]<- rmse_fit  #Storing RMSE for the model j
   
-  ns<-nrow(data_s)
-           
+  ns<-nrow(data_s) #This is added to because some loss of data might have happened because of the averaging...
+  nv<-nrow(data_v)         
   
   for (j in 1:length(models)){
     
@@ -383,32 +422,45 @@ for(i in 1:length(dates)){            # start of the for loop #1
     results_DEV[i,3]<- "DEV"
     results_DEV[i,j+3]<- mod$deviance
     
+    sta_LST_s=lookup(themolst,data_s$lat,data_s$lon)
+    sta_delta_s=lookup(daily_delta_rast,data_s$lat,data_s$lon) #delta surface has been calculated before!!
+    sta_bias_s= mod$fit
+    #Need to extract values from the kriged delta surface...
+    #sta_delta= lookup(delta_surface,data_v$lat,data_v$lon)
+    #tmax_predicted=sta_LST+sta_bias-y_mod$fit
+    tmax_predicted_s= sta_LST_s-sta_bias_s+sta_delta_s
+    
     results_RMSE_f[i,1]<- dates[i]  #storing the interpolation dates in the first column
     results_RMSE_f[i,2]<- ns        #number of stations used in the training stage
     results_RMSE_f[i,3]<- "RSME"
-    results_RMSE_f[i,j+3]<- sqrt(sum((mod$residuals)^2)/nv)
+    results_RMSE_f[i,j+3]<- sqrt(sum((tmax_predicted_s-data_s$dailyTmax)^2)/ns)
     
     ##Model assessment: general diagnostic/metrics
     ##validation: using the testing data
     
     #This was modified on 06192012
     
-    #data_v$y_var<-data_v$tmax/10
-    data_v$y_var<-tmax
+    #data_v$y_var<-data_v$LSTD_bias
+    #data_v$y_var<-tmax
     y_mod<- predict(mod, newdata=data_v, se.fit = TRUE) #Using the coeff to predict new values.
     
-    #sta_LST=lookup(themolst,data_v$lat,data_v$lon)
-    #sta_bias=lookup(bias_rast,data_v$lat,data_v$lon)
+    ####ADDED ON JULY 5th
+    sta_LST_v=lookup(themolst,data_v$lat,data_v$lon)
+    sta_delta_v=lookup(daily_delta_rast,data_v$lat,data_v$lon) #delta surface has been calculated before!!
+    sta_bias_v= y_mod$fit
+    #Need to extract values from the kriged delta surface...
+    #sta_delta= lookup(delta_surface,data_v$lat,data_v$lon)
     #tmax_predicted=sta_LST+sta_bias-y_mod$fit
+    tmax_predicted_v= sta_LST_v-sta_bias_v+sta_delta_v
     
     #data_v$tmax<-(data_v$tmax)/10
-    #res_mod<- data_v$tmax - tmax_predicted              #Residuals for the model for fusion
-    res_mod<- data_v$y_var - y_mod$fit                  #Residuals for the model
+    res_mod<- data_v$dailyTmax - tmax_predicted_v              #Residuals for the model for fusion
+    #res_mod<- data_v$y_var - y_mod$fit                  #Residuals for the model
     
     RMSE_mod <- sqrt(sum(res_mod^2)/nv)                 #RMSE FOR REGRESSION STEP 1: GAM     
     MAE_mod<- sum(abs(res_mod))/nv                     #MAE, Mean abs. Error FOR REGRESSION STEP 1: GAM   
     ME_mod<- sum(res_mod)/nv                            #ME, Mean Error or bias FOR REGRESSION STEP 1: GAM
-    R2_mod<- cor(data_v$tmax,y_mod$fit)^2              #R2, coef. of var FOR REGRESSION STEP 1: GAM
+    R2_mod<- cor(data_v$dailyTmax,tmax_predicted_v)^2              #R2, coef. of var FOR REGRESSION STEP 1: GAM
     
     results_RMSE[i,1]<- dates[i]    #storing the interpolation dates in the first column
     results_RMSE[i,2]<- ns          #number of stations used in the training stage
@@ -429,12 +481,15 @@ for(i in 1:length(dates)){            # start of the for loop #1
     
     #Saving residuals and prediction in the dataframes: tmax predicted from GAM
     pred<-paste("pred_mod",j,sep="")
-    data_v[[pred]]<-as.numeric(y_mod$fit)
-    data_s[[pred]]<-as.numeric(mod$fit) #Storing model fit values (predicted on training sample)
+    #data_v[[pred]]<-as.numeric(y_mod$fit)
+    data_v[[pred]]<-as.numeric(tmax_predicted_v)
+    data_s[[pred]]<-as.numeric(tmax_predicted_s) #Storing model fit values (predicted on training sample)
+    #data_s[[pred]]<-as.numeric(mod$fit) #Storing model fit values (predicted on training sample)
     
     name2<-paste("res_mod",j,sep="")
     data_v[[name2]]<-as.numeric(res_mod)
-    data_s[[name2]]<-as.numeric(mod$residuals)
+    temp<-tmax_predicted_s-data_s$dailyTmax
+    data_s[[name2]]<-as.numeric(temp)
     #end of loop calculating RMSE
     
   }
