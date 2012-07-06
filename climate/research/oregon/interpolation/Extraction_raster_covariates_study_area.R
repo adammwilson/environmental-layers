@@ -24,19 +24,22 @@ library(raster)                                         # Raster package for ima
 
 path<-"/home/parmentier/Data/IPLANT_project/data_Oregon_stations"             #Path to all datasets on Atlas
 setwd(path)                                                                   #Setting the working directory
+
 infile1<-"ghcn_data_TMAXy2010_2010_OR_0626012.shp"                            #Weather station location with interp. var. (TMAX, TMIN or PRCP)
-#inlistf<-"list_files_04252012.txt"                                           #Covariates as list of raster files and output names separated by space
-                                                                              #Name of raster files should come with extension    
-outfile<-'ghcn_or_tmax_covariates_06262012_OR83M.shp'                         #Name of the new shapefile created with covariates extracted at station locations
+infile1<-"/home/wilson/data/ghcn_data_PRCPy2010_OR_20110705.shp"              #User defined output prefix
+
+inlistf<-"list_files_05032012.txt"                                           #Covariates as list of raster files and output names separated by space
+                                                                             #Name of raster files should come with extension    
+outfile<-'ghcn_or_ppt_covariates_20120705_OR83M.shp'                         #Name of the new shapefile created with covariates extracted at station locations
+outpath="/home/wilson/data/"
 
 #######START OF THE SCRIPT #############
 
 ###Reading the station data
 filename<-sub(".shp","",infile1)                                             #Removing the extension from file.
-ghcn3<-readOGR(".", filename)                                                #Reading shape file using rgdal library
+ghcn3<-readOGR(dirname(infile1),layer=basename(infile1))                                                #Reading shape file using rgdal library
  
 ###Extracting the variables values from the raster files                                             
-
 lines<-read.table(paste(path,"/",inlistf,sep=""), sep=" ")                  #Column 1 contains the names of raster files
 inlistvar<-lines[,1]
 inlistvar<-paste(path,"/",as.character(inlistvar),sep="")
@@ -45,6 +48,10 @@ covar_names<-as.character(lines[,2])                                         #Co
 s_raster<- stack(inlistvar)                                                  #Creating a stack of raster images from the list of variables.
 layerNames(s_raster)<-covar_names                                            #Assigning names to the raster layers
 stat_val<- extract(s_raster, ghcn3)                                          #Extracting values from the raster stack for every point location in coords data frame.
+
+
+#TODO:  Add lon and lat as layers to make easier predictions
+#TODO: subset list to only those used (drop number of obs, etc.)
 
 #create a shape file and data_frame with names
 
@@ -55,16 +62,14 @@ coordinates(data_RST_SDF)<-coordinates(ghcn3) #Transforming data_RST_SDF into a 
 CRS<-proj4string(ghcn3)
 proj4string(data_RST_SDF)<-CRS  #Need to assign coordinates...
 
-#Creating a date column
-date1<-ISOdate(data_RST_SDF$year,data_RST_SDF$month,data_RST_SDF$day) #Creating a date object from 3 separate column
-date2<-gsub("-","",as.character(as.Date(date1)))
-data_RST_SDF$date<-date2                                              #Date format (year,month,day) is the following: "20100627"
-
 #write out a new shapefile (including .prj component)
 outfile<-sub(".shp","",outfile)   #Removing extension if it is present
 
+## save the raster stack for prediction
+writeRaster(s_raster,filename=paste(outpath,"covariates",sep=""))
+
 #Save a textfile and shape file of all the subset data
 write.table(as.data.frame(data_RST_SDF),paste(outfile,".txt",sep=""), sep=",")
-writeOGR(data_RST_SDF, paste(outfile, "shp", sep="."), outfile, driver ="ESRI Shapefile") #Note that the layer name is the file name without extension
+writeOGR(data_RST_SDF, paste(outpath,outfile, ".shp", sep=""), outfile, driver ="ESRI Shapefile") #Note that the layer name is the file name without extension
 
 ##### END OF SCRIPT ##########

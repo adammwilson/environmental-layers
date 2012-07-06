@@ -35,10 +35,12 @@ path<-"/home/parmentier/Data/IPLANT_project/data_Oregon_stations/"        #Jupit
 #path<-"H:/Data/IPLANT_project/data_Oregon_stations"                      #Jupiter Location on XANDERS
 
 outpath=path                                                              # create different output path because we don't have write access to other's home dirs
-#outpath="/home/wilson/data"
 setwd(path) 
 out_prefix<-"y2010_2010_OR_20110705"                                                 #User defined output prefix
 
+#for Adam
+#outpath="/home/wilson/data"
+#out_prefix<-"y2010_OR_20110705"                                                 #User defined output prefix
 
 ############ START OF THE SCRIPT #################
 
