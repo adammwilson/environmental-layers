@@ -11,7 +11,7 @@
 #also included and assessed using the RMSE,MAE,ME and R2 from validation dataset.                #
 #TThe dates must be provided as a textfile.                                                      #
 #AUTHOR: Benoit Parmentier                                                                       #
-#DATE: 07/07/2012                                                                                #
+#DATE: 07/15/2012                                                                                #
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#364--                                  #
 ##################################################################################################
 
@@ -35,21 +35,16 @@ infile2<-"list_10_dates_04212012.txt"                     #List of 10 dates for 
 #infile2<-"list_365_dates_04212012.txt"
 infile3<-"LST_dates_var_names.txt"                        #LST dates name
 infile4<-"models_interpolation_05142012.txt"              #Interpolation model names
-infile5<-"mean_day244_rescaled.rst"
+infile5<-"mean_day244_rescaled.rst"                       
+inlistf<-"list_files_05032012.txt"                        #Stack of images containing the Covariates
 
-# infile1<- "ghcn_or_tmax_b_04142012_OR83M.shp"             #GHCN shapefile containing variables                  
-# infile2<-"list_10_dates_04212012.txt"                      #List of 10 dates for the regression
-# #infile2<-"list_365_dates_04212012.txt"
-# infile3<-"mean_day244_rescaled.rst"          #This image serves as the reference grid for kriging
-# infile4<- "orcnty24_OR83M.shp"               #Vector file defining the study area: Oregon state and its counties.
-
-path<-"/data/computer/parmentier/Data/IPLANT_project/data_Oregon_stations_07152012"         #Jupiter LOCATION on EOS
-#path<-"/home/parmentier/Data/IPLANT_project/data_Oregon_stations"                 #Jupiter LOCATION on EOS/Atlas
+path<-"/home/parmentier/Data/IPLANT_project/data_Oregon_stations_07152012"     #Jupiter LOCATION on Atlas for kriging
 #path<-"H:/Data/IPLANT_project/data_Oregon_stations"                                 #Jupiter Location on XANDERS
+
 setwd(path) 
 prop<-0.3                                                                       #Proportion of testing retained for validation   
 seed_number<- 100                                                               #Seed number for random sampling
-models<-5                                                                       #Number of kriging model
+models<-7                                                                       #Number of kriging model
 out_prefix<-"_07132012_auto_krig_"                                              #User defined output prefix
 
 ###STEP 1 DATA PREPARATION AND PROCESSING#####
@@ -63,6 +58,33 @@ CRS<-proj4string(ghcn)                       #Storing projection information (el
 mean_LST<- readGDAL(infile5)                 #Reading the whole raster in memory. This provides a grid for kriging
 proj4string(mean_LST)<-CRS                   #Assigning coordinate information to prediction grid.
 
+##Extracting the variables values from the raster files                                             
+
+lines<-read.table(paste(path,"/",inlistf,sep=""), sep=" ")                  #Column 1 contains the names of raster files
+inlistvar<-lines[,1]
+inlistvar<-paste(path,"/",as.character(inlistvar),sep="")
+covar_names<-as.character(lines[,2])                                         #Column two contains short names for covaraites
+
+s_raster<- stack(inlistvar)                                                  #Creating a stack of raster images from the list of variables.
+layerNames(s_raster)<-covar_names                                            #Assigning names to the raster layers
+projection(s_raster)<-CRS
+
+#stat_val<- extract(s_raster, ghcn3)                                          #Extracting values from the raster stack for every point location in coords data frame.
+pos<-match("ASPECT",layerNames(s_raster)) #Find column with name "value"
+r1<-raster(s_raster,layer=pos)             #Select layer from stack
+pos<-match("slope",layerNames(s_raster)) #Find column with name "value"
+r2<-raster(s_raster,layer=pos)             #Select layer from stack
+N<-cos(r1*pi/180)
+E<-sin(r1*pi/180)
+Nw<-sin(r2*pi/180)*cos(r1*pi/180)   #Adding a variable to the dataframe
+Ew<-sin(r2*pi/180)*sin(r1*pi/180)   #Adding variable to the dataframe.
+r<-stack(N,E,Nw,Ew)
+rnames<-c("Northness","Eastness","Northness_w","Eastness_w")
+layerNames(r)<-rnames
+s_raster<-addLayer(s_raster, r)
+s_sgdf<-as(s_raster,"SpatialGridDataFrame") #Conversion to spatial grid data frame
+
+### adding var
 ghcn = transform(ghcn,Northness = cos(ASPECT*pi/180)) #Adding a variable to the dataframe
 ghcn = transform(ghcn,Eastness = sin(ASPECT*pi/180))  #adding variable to the dataframe.
 ghcn = transform(ghcn,Northness_w = sin(slope*pi/180)*cos(ASPECT*pi/180)) #Adding a variable to the dataframe
@@ -77,7 +99,9 @@ set.seed(seed_number)                        #Using a seed number allow results 
 
 dates <-readLines(paste(path,"/",infile2, sep=""))
 LST_dates <-readLines(paste(path,"/",infile3, sep=""))
-models <-readLines(paste(path,"/",infile4, sep=""))
+#models <-readLines(paste(path,"/",infile4, sep=""))
+
+#models<-5
 #Model assessment: specific diagnostic/metrics for GAM
 results_AIC<- matrix(1,length(dates),models+3)  
 results_GCV<- matrix(1,length(dates),models+3)
@@ -89,40 +113,31 @@ results_ME <- matrix(1,length(dates),models+3)
 results_R2 <- matrix(1,length(dates),models+3)       #Coef. of determination for the validation dataset
 results_RMSE_f<- matrix(1,length(dates),models+3)
 
-###Reading the shapefile and raster image from the local directory
 
-mean_LST<- readGDAL(infile3)                  #This reads the whole raster in memory and provide a grid for kriging in a SpatialGridDataFrame object
-filename<-sub(".shp","",infile1)              #Removing the extension from file.
-ghcn<-readOGR(".", filename)                  #Reading station locations from vector file using rgdal and creating a SpatialPointDataFrame
-CRS_ghcn<-proj4string(ghcn)                   #This retrieves the coordinate system information for the SDF object (PROJ4 format)
-proj4string(mean_LST)<-CRS_ghcn               #Assigning coordinates information to SpatialGridDataFrame object
-
-# Adding variables for the regressions
-
-ghcn$Northness<- cos(ghcn$ASPECT*pi/180)             #Adding a variable to the dataframe by calculating the cosine of Aspect
-ghcn$Eastness <- sin(ghcn$ASPECT*pi/180)             #Adding variable to the dataframe.
-ghcn$Northness_w <- sin(ghcn$slope*pi/180)*cos(ghcn$ASPECT*pi/180)  #Adding a variable to the dataframe
-ghcn$Eastness_w  <- sin(ghcn$slope*pi/180)*sin(ghcn$ASPECT*pi/180)  #Adding variable to the dataframe.
-
-set.seed(seed_number)                                 #This set a seed number for the random sampling to make results reproducible.
-
-dates <-readLines(paste(path,"/",infile2, sep=""))  #Reading dates in a list from the textile.
-
-
-#Screening for bad values and setting the valid range
-
-ghcn_test<-subset(ghcn,ghcn$tmax>-150 & ghcn$tmax<400) #Values are in tenth of degrees C
-ghcn_test2<-subset(ghcn_test,ghcn_test$ELEV_SRTM>0)    #No elevation below sea leve is allowed.
+#Screening for bad values: value is tmax in this case
+#ghcn$value<-as.numeric(ghcn$value)
+ghcn_all<-ghcn
+ghcn_test<-subset(ghcn,ghcn$value>-150 & ghcn$value<400)
+ghcn_test2<-subset(ghcn_test,ghcn_test$ELEV_SRTM>0)
 ghcn<-ghcn_test2
+#coords<- ghcn[,c('x_OR83M','y_OR83M')]
+
+
 
 ###CREATING SUBSETS BY INPUT DATES AND SAMPLING
 ghcn.subsets <-lapply(dates, function(d) subset(ghcn, ghcn$date==as.numeric(d)))   #Producing a list of data frame, one data frame per date.
 
 for(i in 1:length(dates)){            # start of the for loop #1
 #i<-3                                           #Date 10 is used to test kriging
+  
+  #This allows to change only one name of the 
+  
   date<-strptime(dates[i], "%Y%m%d")
   month<-strftime(date, "%m")
   LST_month<-paste("mm_",month,sep="")
+  #adding to SpatialGridDataFrame
+  #t<-s_sgdf[,match(LST_month, names(s_sgdf))]
+  #s_sgdf$LST<-s_sgdf[c(LST_month)]
   mod <-ghcn.subsets[[i]][,match(LST_month, names(ghcn.subsets[[i]]))]
   ghcn.subsets[[i]]$LST <-mod[[1]]
                    
@@ -134,6 +149,25 @@ for(i in 1:length(dates)){            # start of the for loop #1
   data_s <- ghcn.subsets[[i]][ind.training, ]
   data_v <- ghcn.subsets[[i]][ind.testing, ]
   
+  
+  ###BEFORE Kringing the data object must be transformed to SDF
+  
+  coords<- data_v[,c('x_OR83M','y_OR83M')]
+  coordinates(data_v)<-coords
+  proj4string(data_v)<-CRS  #Need to assign coordinates...
+  coords<- data_s[,c('x_OR83M','y_OR83M')]
+  coordinates(data_s)<-coords
+  proj4string(data_s)<-CRS  #Need to assign coordinates..
+  
+  #This allows to change only one name of the data.frame
+  pos<-match("value",names(data_s)) #Find column with name "value"
+  names(data_s)[pos]<-c("tmax")
+  data_s$tmax<-data_s$tmax/10                #TMax is the average max temp for months
+  pos<-match("value",names(data_v)) #Find column with name "value"
+  names(data_v)[pos]<-c("tmax")
+  data_v$tmax<-data_v$tmax/10
+  #dstjan=dst[dst$month==9,]  #dst contains the monthly averages for tmax for every station over 2000-2010
+  ##############
   ###STEP 2 KRIGING###
   
   #Kriging tmax
@@ -145,19 +179,26 @@ for(i in 1:length(dates)){            # start of the for loop #1
 #   plot(v, v.fit)                                         #Compare model and sample variogram via a graphical plot
 #   tmax_krige<-krige(tmax~1, data_s,mean_LST, v.fit)      #mean_LST provides the data grid/raster image for the kriging locations to be predicted.
   
-  krmod1<-autoKrige(tmax~1, data_s,mean_LST,data_s) #Use autoKrige instead of krige: with data_s for fitting on a grid
-  krmod2<-autoKrige(tmax~lat+lon,input_data=data_s,new_data=mean_LST,data_variogram=data_s)
-  krmod2<-autoKrige(tmax~lat+lon,data_s,mean_LST, verbose=TRUE)
-  
-  krmod3<-autoKrige(tmax~LST, data_s,mean_LST,data_s)
-  krmod4<-autoKrige(tmax~LST+ELEV_SRTM, data_s,mean_LST,data_s)
-  krmod5<-autoKrige(tmax~LST+ELEV_SRTM+DISTOC, data_s,mean_LST,data_s)
+  krmod1<-autoKrige(tmax~1, data_s,s_sgdf,data_s) #Use autoKrige instead of krige: with data_s for fitting on a grid
+  krmod2<-autoKrige(tmax~x_OR83M+y_OR83M,input_data=data_s,new_data=s_sgdf,data_variogram=data_s)
+  krmod3<-autoKrige(tmax~x_OR83M+y_OR83M+ELEV_SRTM,input_data=data_s,new_data=s_sgdf,data_variogram=data_s)
+  krmod4<-autoKrige(tmax~x_OR83M+y_OR83M+DISTOC,input_data=data_s,new_data=s_sgdf,data_variogram=data_s)
+  krmod5<-autoKrige(tmax~x_OR83M+y_OR83M+ELEV_SRTM+DISTOC,input_data=data_s,new_data=s_sgdf,data_variogram=data_s)
+  krmod6<-autoKrige(tmax~x_OR83M+y_OR83M+Northness+Eastness,input_data=data_s,new_data=s_sgdf,data_variogram=data_s)
+  krmod7<-autoKrige(tmax~x_OR83M+y_OR83M+Northness+Eastness,input_data=data_s,new_data=s_sgdf,data_variogram=data_s)
+  #krmod8<-autoKrige(tmax~LST,input_data=data_s,new_data=s_sgdf,data_variogram=data_s)
+  #krmod9<-autoKrige(tmax~x_OR83M+y_OR83M+LST,input_data=data_s,new_data=s_sgdf,data_variogram=data_s)
   
   krig1<-krmod1$krige_output                   #Extracting Spatial Grid Data frame                    
   krig2<-krmod2$krige_output
   krig3<-krmod3$krige_outpu
   krig4<-krmod4$krige_output
   krig5<-krmod5$krige_output
+  krig6<-krmod6$krige_output                   #Extracting Spatial Grid Data frame                    
+  krig7<-krmod7$krige_output
+  #krig8<-krmod8$krige_outpu
+  #krig9<-krmod9$krige_output
+  
   #tmax_krig1_s <- overlay(krige,data_s)             #This overlays the kriged surface tmax and the location of weather stations
   #tmax_krig1_v <- overlay(krige,data_v)
 #   
@@ -180,8 +221,8 @@ for(i in 1:length(dates)){            # start of the for loop #1
   
   for (j in 1:models){
     
-    krmod<-paste("krig",j,sep="")
-    
+    mod<-paste("krig",j,sep="")
+    krmod<-get(mod)
     krig_val_s <- overlay(krmod,data_s)             #This overlays the kriged surface tmax and the location of weather stations
     krig_val_v <- overlay(krmod,data_v)             #This overlays the kriged surface tmax and the location of weather stations
     
@@ -201,8 +242,8 @@ for(i in 1:length(dates)){            # start of the for loop #1
     MAE_mod_kr_v<- sum(abs(res_mod_kr_v),na.rm=TRUE)/(nv-sum(is.na(res_mod_kr_v)))        #MAE from kriged surface validation
     ME_mod_kr_s<- sum(res_mod_kr_s,na.rm=TRUE)/(nv-sum(is.na(res_mod_kr_s)))                    #ME, Mean Error or bias FOR REGRESSION STEP 1: GAM
     ME_mod_kr_v<- sum(res_mod_kr_v,na.rm=TRUE)/(nv-sum(is.na(res_mod_kr_v)))                    #ME, Mean Error or bias FOR REGRESSION STEP 1: GAM
-    R2_mod_kr_s<- cor(data_s$tmax,data_s[[gam_kr]],use="complete.obs")^2                  #R2, coef. of determination FOR REGRESSION STEP 1: GAM
-    R2_mod_kr_v<- cor(data_v$tmax,data_v[[gam_kr]],use="complete.obs")^2                  #R2, coef. of determinationFOR REGRESSION STEP 1: GAM
+    R2_mod_kr_s<- cor(data_s$tmax,data_s[[pred_krmod]],use="complete.obs")^2                  #R2, coef. of determination FOR REGRESSION STEP 1: GAM
+    R2_mod_kr_v<- cor(data_v$tmax,data_v[[pred_krmod]],use="complete.obs")^2                  #R2, coef. of determinationFOR REGRESSION STEP 1: GAM
     #(nv-sum(is.na(res_mod2)))
     #Writing out results
     
@@ -238,6 +279,27 @@ for(i in 1:length(dates)){            # start of the for loop #1
     data_v[[name3]]<-as.numeric(res_mod_kr_v)
     #Writing residuals from kriging
     
+    #Saving kriged surface in raster images
+    data_name<-paste("mod",j,"_",dates[[i]],sep="")
+    krig_raster_name<-paste("krmod_",data_name,out_prefix,".tif", sep="")
+    writeGDAL(krmod,fname=krig_raster_name, driver="GTiff", type="Float32",options ="INTERLEAVE=PIXEL")
+    krig_raster_name<-paste("krmod_",data_name,out_prefix,".rst", sep="")
+    writeRaster(raster(krmod), filename=krig_raster_name)  #Writing the data in a raster file format...(IDRISI)
+    
+    #krig_raster_name<-paste("Kriged_tmax_",data_name,out_prefix,".tif", sep="")
+    #writeGDAL(tmax_krige,fname=krig_raster_name, driver="GTiff", type="Float32",options ="INTERLEAVE=PIXEL")
+    #X11()
+    #plot(raster(co_kriged_surf))
+    #title(paste("Tmax cokriging for date ",dates[[i]],sep=""))
+    #savePlot(paste("Cokriged_tmax",data_name,out_prefix,".png", sep=""), type="png")
+    #dev.off()
+    #X11()
+    #plot(raster(tmax_krige))
+    #title(paste("Tmax Kriging for date ",dates[[i]],sep=""))
+    #savePlot(paste("Kriged_res_",data_name,out_prefix,".png", sep=""), type="png")
+    #dev.off()
+    #
+    
   }
   
 #   #Co-kriging only on the validation sites for faster computing
@@ -261,24 +323,7 @@ for(i in 1:length(dates)){            # start of the for loop #1
   assign(data_name,data_v)
   data_name<-paste("ghcn_s_",dates[[i]],sep="")
   assign(data_name,data_s)
-  
-  #Saving kriged surface in raster images
-  
-  #krig_raster_name<-paste("coKriged_tmax_",data_name,out_prefix,".tif", sep="")
-  #writeGDAL(co_kriged_surf,fname=krig_raster_name, driver="GTiff", type="Float32",options ="INTERLEAVE=PIXEL")
-  #krig_raster_name<-paste("Kriged_tmax_",data_name,out_prefix,".tif", sep="")
-  #writeGDAL(tmax_krige,fname=krig_raster_name, driver="GTiff", type="Float32",options ="INTERLEAVE=PIXEL")
-  #X11()
-  #plot(raster(co_kriged_surf))
-  #title(paste("Tmax cokriging for date ",dates[[i]],sep=""))
-  #savePlot(paste("Cokriged_tmax",data_name,out_prefix,".png", sep=""), type="png")
-  #dev.off()
-  #X11()
-  #plot(raster(tmax_krige))
-  #title(paste("Tmax Kriging for date ",dates[[i]],sep=""))
-  #savePlot(paste("Kriged_res_",data_name,out_prefix,".png", sep=""), type="png")
-  #dev.off()
-#   
+    
 #   results[i,1]<- dates[i]  #storing the interpolation dates in the first column
 #   results[i,2]<- ns     #number of stations in training
 #   results[i,3]<- RMSE_mod1
