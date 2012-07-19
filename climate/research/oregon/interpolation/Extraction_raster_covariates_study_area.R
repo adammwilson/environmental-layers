@@ -19,57 +19,83 @@ library(sp)                                             # Spatial pacakge with c
 library(spdep)                                          # Spatial pacakge with methods and spatial stat. by Bivand et al.
 library(rgdal)                                          # GDAL wrapper for R, spatial utilities
 library(raster)                                         # Raster package for image processing by Hijmans et al. 
+library(reshape)
 
 ###Parameters and arguments
 
 path<-"/home/parmentier/Data/IPLANT_project/data_Oregon_stations"             #Path to all datasets on Atlas
+path<-"/home/adamw/acrobates/projects/interp/data/regions/oregon"                                 #Path to all datasets on Atlas
+
 setwd(path)                                                                   #Setting the working directory
 
-infile1<-"ghcn_data_TMAXy2010_2010_OR_0626012.shp"                            #Weather station location with interp. var. (TMAX, TMIN or PRCP)
-infile1<-"/home/wilson/data/ghcn_data_PRCPy2010_OR_20110705.shp"              #User defined output prefix
+infile1<-"station_monthly_PRCP_20120705.shp"                            #Weather station location with interp. var. (TMAX, TMIN or PRCP)
 
-inlistf<-"list_files_05032012.txt"                                           #Covariates as list of raster files and output names separated by space
-                                                                             #Name of raster files should come with extension    
-outfile<-'ghcn_or_ppt_covariates_20120705_OR83M.shp'                         #Name of the new shapefile created with covariates extracted at station locations
-outpath="/home/wilson/data/"
+inlistf<-"covar.txt"                                           #Covariates as list of raster files and output names separated by space
+
+                         #Name of raster files should come with extension
+### Alternatively, create this list using script: ppt_build_covariatelist.r
+
+## a complicating factor here is that we don't have write permission to other's folders, so may need to change things as follows for personal directory...
+outfile<-'station_monthly_PRCP_covariates_20120705'                         #Name of the new shapefile created with covariates extracted at station locations
+outpath=path
+#inlistf<-paste(outpath,"/covar.txt",sep="")                                           #Covariates as list of raster files and output names separated by space
 
 #######START OF THE SCRIPT #############
 
 ###Reading the station data
-filename<-sub(".shp","",infile1)                                             #Removing the extension from file.
-ghcn3<-readOGR(dirname(infile1),layer=basename(infile1))                                                #Reading shape file using rgdal library
+sdata<-readOGR(dirname(infile1),layer=sub(".shp","",basename(infile1)))       #Reading shape file using rgdal library
  
 ###Extracting the variables values from the raster files                                             
-lines<-read.table(paste(path,"/",inlistf,sep=""), sep=" ")                  #Column 1 contains the names of raster files
-inlistvar<-lines[,1]
-inlistvar<-paste(path,"/",as.character(inlistvar),sep="")
-covar_names<-as.character(lines[,2])                                         #Column two contains short names for covaraites
+covarf<-read.table(paste(path,"/",inlistf,sep=""), stringsAsFactors=F)                  #Column 1 contains the names of raster files
 
-s_raster<- stack(inlistvar)                                                  #Creating a stack of raster images from the list of variables.
-layerNames(s_raster)<-covar_names                                            #Assigning names to the raster layers
-stat_val<- extract(s_raster, ghcn3)                                          #Extracting values from the raster stack for every point location in coords data frame.
+covar<- stack(covarf$files)           #Creating a stack of raster images from the list of variables.
 
+### Add slope/aspect transformations
+ns=sin(subset(covar,grep("slope",covarf$files,ig=T))*pi/180)*cos(subset(covar,grep("aspect",covarf$files,ig=T))*pi/180)
+ew=sin(subset(covar,grep("slope",covarf$files,ig=T))*pi/180)*sin(subset(covar,grep("aspect",covarf$files,ig=T))*pi/180)
+covar=stack(covar,ns,ew)
+layerNames(covar)<-c(covarf$var,"ns","ew")                                    #Assigning names to the raster layers
 
-#TODO:  Add lon and lat as layers to make easier predictions
-#TODO: subset list to only those used (drop number of obs, etc.)
+## set time attribute to distinguish static and temporal variables
+covar=setZ(covar,z=c(sprintf("%02d",covarf$time),"00","00"),name="month")        #assign month indicators (and 00s for static)
 
-#create a shape file and data_frame with names
+## add projection information
+projection(covar)=CRS(projection(sdata))
 
-data_RST<-as.data.frame(stat_val)                                            #This creates a data frame with the values extracted
+#Extracting values from the raster stack for every point location in coords data frame.
+sdata@data=cbind.data.frame(sdata@data,extract(subset(covar,subset=which(getZ(covar)=="00")), sdata))                
 
-data_RST_SDF<-cbind(ghcn3,data_RST)
-coordinates(data_RST_SDF)<-coordinates(ghcn3) #Transforming data_RST_SDF into a spatial point dataframe
-CRS<-proj4string(ghcn3)
-proj4string(data_RST_SDF)<-CRS  #Need to assign coordinates...
+### get unique station locations
+sdata.u=sdata[!duplicated(sdata@data[,c("station","latitude","longitude")]),c("station","latitude","longitude")]
+sdata.u@data[,c("x","y")]=coordinates(sdata.u)
+sdata.u@data=cbind.data.frame(sdata.u@data,extract(subset(covar,subset=which(getZ(covar)!="00")), sdata.u))      #Extracting values from the raster stack for every point 
+sdata.u=sdata.u@data #drop the spatial-ness
 
-#write out a new shapefile (including .prj component)
-outfile<-sub(".shp","",outfile)   #Removing extension if it is present
+### reshape for easy merging
+sdata.ul=melt(sdata.u,id.vars=c("station","latitude","longitude","x","y"))
+sdata.ul[,c("metric","type","month")]=do.call(rbind.data.frame,strsplit(as.character(sdata.ul$variable),"_"))
+sdata.ul$metric=paste(sdata.ul$metric,sdata.ul$type,sep="_")
+sdata.ul2=cast(sdata.ul,station+month~metric)
+## create a station_month unique id.  If month column exists (as in monthly data), use it, otherwise extract it from date column (as in daily data)
+if(!is.null(sdata$month)) stmo=paste(sdata$station,sprintf("%02d",sdata$month),sep="_")
+if(is.null(sdata$month)) stmo=paste(sdata$station,format(as.Date(sdata$date),"%m"),sep="_")
+
+### add monthly data to sdata table by matching unique station_month ids.
+sdata@data[,unique(sdata.ul$metric)]=sdata.ul2[
+            match(stmo,paste(sdata.ul2$station,sprintf("%02d",sdata.ul2$month),sep="_")),
+            unique(sdata.ul$metric)]
+
+###################################################################
+### save the data
 
 ## save the raster stack for prediction
-writeRaster(s_raster,filename=paste(outpath,"covariates",sep=""))
+writeRaster(covar,format="raster",filename=paste(path,"/covariates",sep=""),overwrite=T)
+## save layer Zs as a separate csv file because they are lost when saving, argh!
+write.table(getZ(covar),paste(path,"/covariates-Z.csv",sep=""),row.names=F,col.names=F,sep=",")
 
 #Save a textfile and shape file of all the subset data
-write.table(as.data.frame(data_RST_SDF),paste(outfile,".txt",sep=""), sep=",")
-writeOGR(data_RST_SDF, paste(outpath,outfile, ".shp", sep=""), outfile, driver ="ESRI Shapefile") #Note that the layer name is the file name without extension
+#write.table(as.data.frame(data_RST_SDF),paste(outpath,"/",outfile,".txt",sep=""), sep=",")
+writeOGR(sdata, outpath, outfile, driver ="ESRI Shapefile") #Note that the layer name is the file name without extension
+
 
 ##### END OF SCRIPT ##########

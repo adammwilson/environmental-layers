@@ -20,116 +20,174 @@ library(spdep)
 library(rgdal)
 library(multicore)  # if installed allows easy parallelization
 library(reshape)    # very useful for switching from 'wide' to 'long' data formats
+library(lattice); library(latticeExtra)
+library(raster)
 
 ###Parameters and arguments
 
-infile1<-"ghcn_or_ppt_covariates_20120705_OR83M.shp"
+infile1<-"station_monthly_PRCP_covariates_20120705.shp"
+monthly=T   # indicate if these are monthly or daily data
+
 path<-"/data/computer/parmentier/Data/IPLANT_project/data_Oregon_stations"
-#path<-"/home/parmentier/Data/IPLANT_project/data_Oregon_stations"
+path<-"/home/adamw/acrobates/projects/interp/data/regions/oregon"                                 #Path to all datasets on Atlas
+
+                                        #path<-"/home/parmentier/Data/IPLANT_project/data_Oregon_stations"
                                         #path<-"H:/Data/IPLANT_project/data_Oregon_stations"
-path="/home/wilson/data"
 setwd(path) 
-infile2<-"dates_interpolation_03052012.txt"               #List of 10 dates for the regression
-prop<-0.3  #Proportion of testing retained for validation   
-n_runs<- 30 #Number of runs
-out_prefix<-"_20120705_run01_LST"
-infile3<-"LST_dates_var_names.txt"     #List of LST averages.
-infile4<-"models_interpolation_05142012.txt"
+out_prefix<-"_20120713_precip"
+prop=0.7                                # proportion of data used for fitting
+
+##################################
+## Load covariate raster brick
+covar=brick(paste(path,"/covariates.gri",sep=""))
+## udpate layer names (deleted in save)
+covar=setZ(covar,scan(paste(path,"/covariates-Z.csv",sep=""),what="char"),name="month")
 
 #######START OF THE SCRIPT #############
 
 ###Reading the station data and setting up for models' comparison
 filename<-sub(".shp","",infile1)              #Removing the extension from file.
 ghcn<-readOGR(".", filename)                  #reading shapefile 
-                  
-ghcn = transform(ghcn,Northness = cos(ASPECT*pi/180)) #Adding a variable to the dataframe
-ghcn = transform(ghcn,Eastness = sin(ASPECT*pi/180))  #adding variable to the dataframe.
-ghcn = transform(ghcn,Northness_w = sin(slope*pi/180)*cos(ASPECT*pi/180)) #Adding a variable to the dataframe
-ghcn = transform(ghcn,Eastness_w = sin(slope*pi/180)*sin(ASPECT*pi/180))  #adding variable to the dataframe.
+
                                               #Note that "transform" output is a data.frame not spatial object 
 #set.seed(100) #modify this to a seed variable allowing different runs.
 
- dates <-readLines(paste(path,"/",infile2, sep=""))
-LST_dates <-readLines(paste(path,"/",infile3, sep=""))
-models <-readLines(paste(path,"/",infile4, sep=""))
+#dates <-readLines(paste(path,"/",infile2, sep=""))
+#LST_dates <-readLines(paste(path,"/",infile3, sep=""))
+#models <-readLines(paste(path,"/",infile4, sep=""))
 
+if(monthly)  ghcn$date=as.Date(paste(2000,ghcn$month,15,sep="-"))  # generate dates for monthly (climate) data
+dates=unique(ghcn$date)
 #results <- matrix(1,length(dates),14)            #This is a matrix containing the diagnostic measures from the GAM models.
 
-####  Define GAM models
-var="tmax"
 
+####  Define GAM models
 mods=data.frame(formula=c(    
-                  paste(var,"~ s(lat) + s (lon) + s (ELEV_SRTM)",sep=""),
-                  paste(var,"~ s(lat,lon,ELEV_SRTM)",sep=""),
-                  paste(var,"~ s(lat) + s (lon) + s (ELEV_SRTM) +  s (Northness)+ s (Eastness) + s(DISTOC)",sep=""),
-                  paste(var,"~ s(lat) + s (lon) + s(ELEV_SRTM) + s(Northness) + s (Eastness) + s(DISTOC) + s(LST)",sep=""),
-                  paste(var,"~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST)",sep=""),
-                  paste(var,"~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST,LC1)",sep=""),
-                  paste(var,"~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST,LC3)",sep=""),
-                  paste(var,"~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST) + s(LC1)",sep="")
+                  "value ~ s(x_OR83M,y_OR83M)",
+                  "value ~ s(x_OR83M,y_OR83M) + s(distoc) + elev",
+                  "value ~ s(x_OR83M,y_OR83M) + s(distoc) + elev + ns + ew",
+                  "value ~ s(x_OR83M,y_OR83M) + s(distoc) + elev + ns + ew + s(CER_mean)",
+                  "value ~ s(x_OR83M,y_OR83M) + s(distoc) + elev + ns + ew + s(CER_P20um)",
+                  "value ~ s(x_OR83M,y_OR83M) + elev + ns + ew + s(CER_P20um)",
+                  "value ~ s(x_OR83M,y_OR83M,CER_P20um) + elev + ns + ew",
+                  "value ~ s(x_OR83M,y_OR83M) + s(distoc,CER_P20um)+elev + ns + ew",
+                  "value ~ s(x_OR83M,y_OR83M) + s(distoc) + elev + ns + ew + s(CLD_mean)",
+                  "value ~ s(x_OR83M,y_OR83M) + s(distoc) + elev + ns + ew + s(COT_mean)"
                   ),stringsAsFactors=F)
 mods$model=paste("mod",1:nrow(mods),sep="")
 
+## confirm all model terms are in covar raster object for prediction
+terms=gsub("[ ]|s[(]|[)]","",                      # clean up model terms (remove "s(", etc.)
+  unique(do.call(c,                                # find unique terms
+                 lapply(mods$formula,function(i)   #get terms from all models & split smoothed terms
+                        unlist(strsplit(attr(terms(as.formula(i)),"term.labels"),split=","))))))
+if(any(terms%in%layerNames(covarm)))
+  print("All model terms are present in the raster object") else
+warning("Some model terms not present in raster object, prediction may fail for some models")
+
+### define transformation functions
+     ##Transform response?
+transform=T
+if(transform) {
+  trans=function(x) log(x+1)
+  itrans=function(x) exp(x)-1
+}
+if(!transform) {
+  trans=function(x) x
+  itrans=function(x) x
+}       
+
 
 ### subset dataset?
-ghcn_all<-ghcn
-ghcn_test<-subset(ghcn,ghcn$tmax>-150 & ghcn$tmax<400)
-ghcn_test2<-subset(ghcn_test,ghcn_test$ELEV_SRTM>0)
-ghcn<-ghcn_test2
+#sdata_all<-sdata
+#sdata_test<-subset(sdata,sdata$tmax>-150 & sdata$tmax<400)
+#sdata_test2<-subset(sdata_test,sdata_test$ELEV_SRTM>0)
+#sdata<-sdata_test2
 
 
 ## loop through the dates...
   
-ghcn.subsets <-lapply(dates, function(d) subset(ghcn, date==d)) #this creates a list of 10 subset data
+ghcn.subsets <-lapply(dates, function(d) subset(ghcn@data, date==d)) #this creates a list of 10 subset data
   
  results=do.call(rbind.data.frame,                   # Collect the results in a single data.frame
-   mclapply(1:length(dates),function(i) {            # loop over dates
-     date<-strptime(dates[i], "%Y%m%d")              # get date
+   lapply(1:length(dates),function(i) {            # loop over dates
+     date<-dates[i]                                  # get date
      month<-strftime(date, "%m")                     # get month
-     LST_month<-paste("mm_",month,sep="")            # get LST_month name
+#     LST_month<-paste("mm_",month,sep="")            # get LST_month name
 
+     ## subset full raster brick to include correct month of satellite data
+     covarm=subset(covar,subset=which(covar@z$month=="00"|covar@z$month==month))
+     ## update layer names to match those in ghcn table
+     layerNames(covarm)[getZ(covarm)!="00"]=sub(paste("_",month,sep=""),"",layerNames(covarm)[getZ(covarm)!="00"])
+
+     ## extract subset of data for this day
+     tdata=ghcn.subsets[[i]]
      ##Regression part 1: Creating a validation dataset by creating training and testing datasets
-     mod <-ghcn.subsets[[i]][,match(LST_month, names(ghcn.subsets[[i]]))]
-     ghcn.subsets[[i]] = transform(ghcn.subsets[[i]],LST = mod)
+#     mod <-ghcn.subsets[[i]][,match(LST_month, names(ghcn.subsets[[i]]))]
+#     ghcn.subsets[[i]] = transform(ghcn.subsets[[i]],LST = mod)
      ##Screening LST values
      ##ghcn.subsets[[i]]<-subset(ghcn.subsets[[i]],ghcn.subsets[[i]]$LST> 258 & ghcn.subsets[[i]]$LST<313)
-     n<-nrow(ghcn.subsets[[i]])
+
+     ## transform the response
+     tdata$value<-trans(tdata$value)
+     tdata$weights=tdata$count/max(tdata$count)
+
+     n<-nrow(tdata)
      ns<-n-round(n*prop)  #Create a sample from the data frame with 70% of the rows
      nv<-n-ns             #create a sample for validation with prop of the rows
-     ind.training <- sample(nrow(ghcn.subsets[[i]]), size=ns, replace=FALSE) #This selects the index position for 70% of the rows taken randomly
-     ind.testing <- setdiff(1:nrow(ghcn.subsets[[i]]), ind.training)
-     data_s <- ghcn.subsets[[i]][ind.training, ]
-     data_v <- ghcn.subsets[[i]][ind.testing, ]
+     ind.training <- sample(nrow(tdata), size=ns, replace=FALSE) #This selects the index position for 70% of the rows taken randomly
+     ind.testing <- setdiff(1:nrow(tdata), ind.training)
+     data_s <- tdata[ind.training, ]
+     data_v <- tdata[ind.testing, ]
      
      ## lapply loops through models for the ith day, calculates the validation metrics, and saves them as R objects
      results=do.call(rbind.data.frame,
-       lapply(1:nrow(mods),function(m,savemodel=F,saveFullPrediction=T) {  
-         ## run the model
-         mod=gam(formula(mods$formula[m]),data=data_s)
+       lapply(1:nrow(mods),function(m,savemodel=F,saveFullPrediction=F) {  
+         ## will gam() fail?  If so, return NAs instead of crashing 
+         err=try(gam(formula(mods$formula[m]),data=data_s),silent=T)
+         if(length(attr(err,"class"))==1) if(attr(err,"class")=="try-error")
+           return(## this table must match the results table below
+                  data.frame(date=dates[i],month=format(dates[i],"%m"),
+                             model=mods$model[m],form=mods$formula[m],ns=ns,
+                             AIC=NA, GCV=NA,DEV=NA,RMSE=NA,R2=NA))
+         ## run the models
+
+         mod=gam(formula(mods$formula[m]),data=data_s,weights=data_s$weights)
          
-         ##VALIDATION: Prediction checking the results using the testing data########
+         ##VALIDATION: Prediction checking the results using the testing data   ########
          y_mod<- predict(mod, newdata=data_v, se.fit = TRUE) #Using the coeff to predict new values.
-         res_mod<- data_v$tmax - y_mod$fit #Residuals for GMA model that resembles the ANUSPLIN interpolation
-         
+         res_mod<- itrans(data_v$value) - itrans(y_mod$fit) #Residuals 
+         plot(itrans(y_mod$fit)~itrans(data_v$value),cex=data_v$weights);abline(0,1)
+
          ##Regression part 3: Calculating and storing diagnostic measures
          tresults=data.frame(            # build 1-row dataframe for this model-date
            date=dates[i],                # interpolation date
+           month=format(dates[i],"%m"),                # interpolation month
            model=mods$model[m],          # model number
+           form=mods$formula[m],          # model number
            ns=ns,                        # number of stations used in the training stage
            AIC=AIC(mod),                # AIC
            GCV=mod$gcv.ubre,             # GCV
            DEV=mod$deviance,             # Deviance
-           RMSE=sqrt(sum(res_mod^2)/nv)  # RMSE
+           RMSE=sqrt(sum(res_mod^2,na.rm=T)/nv),  # RMSE
+           R2=summary(lm(itrans(y_mod$fit)~itrans(data_v$value)))$r.squared  # R^2
            )
-         
+
+      
          ## Save the model object if desired
-         if(savemodel)  save(mod,file= paste(path,"/","results_GAM_Model","_",out_prefix,"_",dates[i],".Rdata",sep=""))
+         if(savemodel)  save(mod,file= paste(path,"/","results_GAM_Model","_",out_prefix,"_",
+                                   dates[i],"_",mods$model[m],".Rdata",sep=""))
 
          ## do the full prediction and save it if desired
          if(saveFullPrediction){
-           s_raster=readRaster(filename=paste(path,"covariates.gri"))
-           predict(s_raster,mod,filename=paste(outpath,"_",sub("-","",date),"_prediction.tif",sep=""),format="GTiff",progress="text",fun="predict")
-           predict(s_raster,mod,filename=paste(outpath,"_",sub("-","",date),"_prediction.se.tif",sep=""),format="GTiff",progress="text",fun="predict.se")
+           p1=predict(covarm,mod,progress="text",fun="predict")
+           p1=predict(mod,sdata@data,type="response",progress="text",fun="predict")
+
+           predict(covarm,mod,type="response",
+                   filename=paste(outpath,"/",gsub("-","",date),"_",mods$model[m],"_prediction.tif",sep=""),
+                   format="GTiff",progress="text",fun="predict",overwrite=T)
+           predict(covarm,mod,filename=paste(outpath,"/",gsub("-","",date),"_",mods$model[m],"_prediction.se.tif",sep=""),
+                   format="GTiff",progress="text",fun="predict.se",overwrite=T)
          }
          
          ## print progress
@@ -138,6 +196,11 @@ ghcn.subsets <-lapply(dates, function(d) subset(ghcn, date==d)) #this creates a 
          return(tresults)
                                         # end of the for loop #2 (nested in loop #1)
        }))
+     ## identify model with minium AIC
+     results$lowAIC=F
+     results$lowAIC[which.min(results$AIC)]=T
+
+     ## print progress and return the results
      print(paste("Finshed Date:",dates[i]))
      return(results)
    }
@@ -147,9 +210,16 @@ ghcn.subsets <-lapply(dates, function(d) subset(ghcn, date==d)) #this creates a 
 
   write.table(results_RMSE_all2, file= paste(path,"/","results_GAM_Assessment",out_prefix,"all.txt",sep=""), sep=",", col.names=TRUE)
 
-resl=melt(results,id=c("run","date","model","ns"))
+resl=melt(results,id=c("date","month","model","form","ns","lowAIC"))
 
-  xyplot(value~date|variable,groups=model,data=resl,scales=list(y=list(relation="free")),auto.key=list()
+xyplot(value~date|variable,groups=form,data=resl,scales=list(y=list(relation="free")),auto.key=T)
+
+xyplot(form~value|variable,groups=month,data=resl,scales=list(x=list(relation="free")),auto.key=T)
+
+bwplot(form~value|variable,data=resl,scales=list(x=list(relation="free")))
+
+resl2=cast(resl,date+month+variable~model)
+xyplot(mod5~mod6|variable,groups=month,data=resl2,scales=list(relation="free"))+layer(panel.abline(0,1))
 
   
 

@@ -19,6 +19,7 @@ library(sp)                                             # Spatial pacakge with c
 library(spdep)                                          # Spatial pacakge with methods and spatial stat. by Bivand et al.
 library(rgdal)                                          # GDAL wrapper for R, spatial utilities
 library(rgeos)                                          # Polygon buffering and other vector operations
+library(reshape)
 
 ### Parameters and arguments
 
@@ -31,16 +32,17 @@ buffer=100                      #  size of buffer around shapefile to include in
 infile2<-"ghcnd-stations.txt"                             #This is the textfile of station locations from GHCND
 new_proj<-"+proj=lcc +lat_1=43 +lat_2=45.5 +lat_0=41.75 +lon_0=-120.5 +x_0=400000 +y_0=0 +ellps=GRS80 +units=m +no_defs";
 
+
 path<-"/home/parmentier/Data/IPLANT_project/data_Oregon_stations/"        #Jupiter LOCATION on EOS/Atlas
 #path<-"H:/Data/IPLANT_project/data_Oregon_stations"                      #Jupiter Location on XANDERS
 
 outpath=path                                                              # create different output path because we don't have write access to other's home dirs
 setwd(path) 
-out_prefix<-"y2010_2010_OR_20110705"                                                 #User defined output prefix
+out_prefix<-"20120705"                                                 #User defined output prefix
 
 #for Adam
-#outpath="/home/wilson/data"
-#out_prefix<-"y2010_OR_20110705"                                                 #User defined output prefix
+outpath="/home/wilson/data/oregon"
+
 
 ############ START OF THE SCRIPT #################
 
@@ -85,11 +87,12 @@ proj4string(dat_stat)<-CRS_interp
 
 # Spatial query to find relevant stations
 inside <- !is.na(over(dat_stat, as(interp_area, "SpatialPolygons")))  #Finding stations contained in the current interpolation area
-stat_OR<-dat_stat[inside,]                                            #Finding stations contained in the current interpolation area
+stat_roi<-dat_stat[inside,]                                            #Finding stations contained in the current interpolation area
+stat_roi<-spTransform(stat_roi,CRS(new_proj))         # Project from WGS84 to new coord. system
 
 #Quick visualization of station locations
 plot(interp_area, axes =TRUE)
-plot(stat_OR, pch=1, col="red", cex= 0.7, add=TRUE)
+plot(stat_roi, pch=1, col="red", cex= 0.7, add=TRUE)
 #legend("topleft", pch=1,col="red",bty="n",title= "Stations",cex=1.6)
 
 #### STEP 2: Connecting to the database and query for relevant data 
@@ -101,11 +104,11 @@ plot(stat_OR, pch=1, col="red", cex= 0.7, add=TRUE)
 ##  Drop missing values (-9999)
 ##  Drop observations that failed quality control (keep only qflag==NA)
 system.time(
-  data_table<<-dbGetQuery(db,
+  dd<<-dbGetQuery(db,  #save object dd (data daily)
                           paste("SELECT station,year||'-'||month||'-'||day AS date,value / 10.0 as value,latitude,longitude,elevation
                                  FROM ghcn, stations
                                  WHERE station = id
-                                 AND id IN ('",paste(stat_OR$id,collapse="','"),"')
+                                 AND id IN ('",paste(stat_roi$id,collapse="','"),"')
                                  AND element='",var,"'
                                  AND year>=",year_start,"
                                  AND year<",year_end,"
@@ -114,23 +117,66 @@ system.time(
                                  ;",sep=""))
   )  ### print used time in seconds  - only taking ~30 seconds....
 
- 
-#Transform the subset data frame in a spatial data frame and reproject
-data3<-data_table                               #Make a copy of the data frame
-coords<- data3[c('longitude','latitude')]              #Define coordinates in a data frame
-coordinates(data3)<-coords                      #Assign coordinates to the data frame
-proj4string(data3)<-CRS_interp                  #Assign coordinates reference system in PROJ4 format
-data_proj<-spTransform(data3,CRS(new_proj))     #Project from WGS84 to new coord. system
+dd=dd[!is.na(dd$value),]  #drop any NA values
 
-### STEP 3: Save results and outuput in textfile and a shape file
+#################################################################
+### STEP 3: generate monthly means for climate-aided interpolation
 
-#Save a textfile of the locations of meteorological stations in the study area
-write.table(as.data.frame(stat_OR), file=paste(outpath,"/","location_study_area_",out_prefix,".txt",sep=""),sep=",")
+### first extract average daily values by year.  
+system.time(
+           dm<<-dbGetQuery(db,  # create dm object (data monthly)
+                          paste("SELECT station,month,count(value) as count,avg(value)/10.0 as value,latitude,longitude,elevation
+                                 FROM ghcn, stations
+                                 WHERE station = id
+                                 AND id IN ('",paste(stat_roi$id,collapse="','"),"')
+                                 AND element='",var,"'
+                                 AND year>=",2000,"
+                                 AND year<",2020,"
+                                 AND value<>-9999
+                                 AND qflag IS NULL
+                                 GROUP BY station, month,latitude,longitude,elevation
+                                 ;",sep=""))
+            )  ### print used time in seconds  - only taking ~30 seconds....
 
-#Save a textfile and shape file of all the subset data
-write.table(data_table, file= paste(outpath,"/","ghcn_data_",var,out_prefix,".txt",sep=""), sep=",")
-#outfile<-paste(path,"ghcn_data_",var,out_prefix,sep="")   #Removing extension if it is present
-outfile<-paste(outpath,"/ghcn_data_",var,out_prefix,sep="")         #Name of the file
-writeOGR(data_proj, paste(outfile, "shp", sep="."), outfile, driver ="ESRI Shapefile") #Note that the layer name is the file name without extension
+### drop months with fewer than 75% of the data observations
+### is 75% the right number?
+#dm=dm[dm$count>=(.75*10*30),]
+
+## add the monthly data to the daily table
+dd$month=as.numeric(as.character(format(as.Date(dd$date),"%m")))
+dd$avgvalue=dm$value[match(paste(dd$station,dd$month),paste(dm$station,dm$month))]
+dd$avgcount=dm$count[match(paste(dd$station,dd$month),paste(dm$station,dm$month))]
+
+### Generate log-transformed ratio of daily:monthly ppt and add it to daily data
+if(var=="PRCP"){
+  dd$anom=log((1+dd$value)/(1+dd$avgvalue))
+  dd$anom[dd$anom==Inf|dd$anom2==-Inf]=NA
+}
+
+### Generate temperature anomolies for each daily value
+if(var!="PRCP"){
+  dd$anom=dd$value-dd$avgvalue
+}
+
+
+###  Transform the subset data frame in a spatial data frame and reproject
+dd_sp<-SpatialPointsDataFrame (dd[,c('longitude','latitude')],data=dd,proj=CRS(CRS_interp)) 
+dd_sp<-spTransform(dd_sp,CRS(new_proj))         # Project from WGS84 to new coord. system
+
+###  Transform the subset data frame in a spatial data frame and reproject
+dm_sp<-SpatialPointsDataFrame (dm[,c('longitude','latitude')],data=dm,proj=CRS(CRS_interp)) 
+dm_sp<-spTransform(dm_sp,CRS(new_proj))         # Project from WGS84 to new coord. system
+
+################################################################
+### STEP 4: Save results and outuput in textfile and a shape file
+
+##  Save shapefile of station locations
+writeOGR(stat_roi,outpath,paste("station_location_",var,"_",out_prefix,sep=""),driver ="ESRI Shapefile")
+
+## save shapefile of daily observations
+writeOGR(dd_sp,outpath,paste("/station_daily_",var,"_",out_prefix,sep=""), driver ="ESRI Shapefile") #Note that the layer name is the file name without extension
+
+### write monthly data
+writeOGR(dm_sp, outpath, paste("/station_monthly_",var,"_",out_prefix,sep=""), driver ="ESRI Shapefile") #Note that the layer name is the file name without extension
 
 ##### END OF SCRIPT ##########
