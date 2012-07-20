@@ -508,10 +508,10 @@ runFusion <- function(i) {            # loop over dates
   
   #}  
   print(paste(dates[i],"processed"))
-  mod_obj<-list(mod1,mod2,mod3,mod4,mod5,mod6,mod7,mod8,mod9a,mod9b)
+  #mod_obj<-list(mod1,mod2,mod3,mod4,mod5,mod6,mod7,mod8,mod9a,mod9b)
   # end of the for loop1
-  #results_list<-list(data_s,data_v,tb_metrics1,tb_metrics2)
-  results_list<-list(data_s,data_v,tb_metrics1,tb_metrics2,mod_obj)
+  results_list<-list(data_s,data_v,tb_metrics1,tb_metrics2)
+  #results_list<-list(data_s,data_v,tb_metrics1,tb_metrics2,mod_obj)
   return(results_list)
   #return(tb_diagnostic1)
 }
