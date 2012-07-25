@@ -47,7 +47,7 @@ roi_bb=bbox(roi_ll)
 
 ## download data from ftp site.  Unfortunately the selection has to be selected using the website and orders downloaded via ftp.
 
-system("wget -r --retr-symlinks ftp://ladsweb.nascom.nasa.gov/orders/500676499/ -P /home/adamw/acrobates/projects/interp/data/modis/MOD06_L2_hdf")
+#system("wget -r --retr-symlinks ftp://ladsweb.nascom.nasa.gov/orders/500676499/ -P /home/adamw/acrobates/projects/interp/data/modis/MOD06_L2_hdf")
 
 ## specify some working directories
 gdir="output/"
@@ -330,9 +330,9 @@ done.vs=paste(vs$type,vs$month,sep="_")%in%paste(done.vs[,1],done.vs[,2],sep="_"
 table(done.vs)
 vs=vs[!done.vs,]
 
-tfs=fs2$path[which(fs2$month==vs$month[i]&fs2$type==vs$type[i])]
-do.call(c,mclapply(2:length(tfs),function(f) identical(extent(raster(tfs[f-1])),extent(raster(tfs[f])))))
-raster(tfs[23])
+#tfs=fs2$path[which(fs2$month==vs$month[i]&fs2$type==vs$type[i])]
+#do.call(c,mclapply(2:length(tfs),function(f) #identical(extent(raster(tfs[f-1])),extent(raster(tfs[f])))))
+#raster(tfs[23])
 
 ## process the monthly summaries using the raster package
 mclapply(1:nrow(vs),function(i){
