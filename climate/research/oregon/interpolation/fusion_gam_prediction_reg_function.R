@@ -1,8 +1,15 @@
-runFusion <- function(i) {            # loop over dates
+runGAMFusion <- function(i) {            # loop over dates
   
   date<-strptime(dates[i], "%Y%m%d")   # interpolation date being processed
   month<-strftime(date, "%m")          # current month of the date being processed
   LST_month<-paste("mm_",month,sep="") # name of LST month to be matched
+  
+  #Adding layer LST to the raster stack
+  
+  pos<-match(LST_month,layerNames(s_raster)) #Find column with the current month for instance mm12
+  r1<-raster(s_raster,layer=pos)             #Select layer from stack
+  layerNames(r1)<-"LST"
+  s_raster<-addLayer(s_raster,r1)            #Adding current month
   
   ###Regression part 1: Creating a validation dataset by creating training and testing datasets
   
@@ -15,7 +22,7 @@ runFusion <- function(i) {            # loop over dates
   ind.training<-sampling[[i]]
   ind.testing <- setdiff(1:nrow(ghcn.subsets[[i]]), ind.training)
   data_s <- ghcn.subsets[[i]][ind.training, ]   #Training dataset currently used in the modeling
-  data_v <- ghcn.subsets[[i]][ind.testing, ]    #Testing/validation dataset
+  data_v <- ghcn.subsets[[i]][ind.testing, ]    #Testing/validation dataset using input sampling
   
   ns<-nrow(data_s)
   nv<-nrow(data_v)
@@ -29,41 +36,15 @@ runFusion <- function(i) {            # loop over dates
   datelabel=format(ISOdate(year,mo,day),"%b %d, %Y")
   
   ###########
-  #  STEP 1 - 10 year monthly averages
+  #  STEP 1 - LST 10 year monthly averages
   ###########
-  
-  #l=list.files(pattern="mean_month.*rescaled.rst")
-  l <-readLines(paste(path,"/",infile6, sep=""))
-  molst<-stack(l)  #Creating a raster stack...
-  #setwd(old)
-  molst=molst-273.16  #K->C
-  idx <- seq(as.Date('2010-01-15'), as.Date('2010-12-15'), 'month')
-  molst <- setZ(molst, idx)
-  layerNames(molst) <- month.abb
+
   themolst<-raster(molst,mo) #current month being processed saved in a raster image
   plot(themolst)
   
   ###########
   # STEP 2 - Weather station means across same days: Monthly mean calculation
   ###########
-  
-  ##Added by Benoit ######
-  date1<-ISOdate(data3$year,data3$month,data3$day) #Creating a date object from 3 separate column
-  date2<-as.POSIXlt(as.Date(date1))
-  data3$date<-date2
-  d<-subset(data3,year>=2000 & mflag=="0" ) #Selecting dataset 2000-2010 with good quality: 193 stations
-  #May need some screeing??? i.e. range of temp and elevation...
-  d1<-aggregate(value~station+month, data=d, mean)  #Calculate monthly mean for every station in OR
-  id<-as.data.frame(unique(d1$station))     #Unique station in OR for year 2000-2010: 193 but 7 loss of monthly avg    
-  
-  dst<-merge(d1, stat_loc, by.x="station", by.y="STAT_ID")   #Inner join all columns are retained
-  
-  #This allows to change only one name of the data.frame
-  pos<-match("value",names(dst)) #Find column with name "value"
-  names(dst)[pos]<-c("TMax")
-  dst$TMax<-dst$TMax/10                #TMax is the average max temp for months
-  #dstjan=dst[dst$month==9,]  #dst contains the monthly averages for tmax for every station over 2000-2010
-  ##############
   
   modst=dst[dst$month==mo,] #Subsetting dataset for the relevant month of the date being processed
   
@@ -90,7 +71,6 @@ runFusion <- function(i) {            # loop over dates
   modst$LSTD_bias<-sta_bias  #Adding bias to data frame modst containning the monthly average for 10 years
   
   bias_xy=project(as.matrix(sta_lola),proj_str)
-  # windows()
   png(paste("LST_TMax_scatterplot_",dates[i],out_prefix,".png", sep=""))
   plot(modst$TMax,sta_tmax_from_lst,xlab="Station mo Tmax",ylab="LST mo Tmax",main=paste("LST vs TMax for",datelabel,sep=" "))
   abline(0,1)
@@ -102,8 +82,10 @@ runFusion <- function(i) {            # loop over dates
   d<-data_s
   
   pos<-match("value",names(d)) #Find column with name "value"
-  names(d)[pos]<-c("dailyTmax")
-  names(x)[pos]<-c("dailyTmax")
+  #names(d)[pos]<-c("dailyTmax")
+  names(d)[pos]<-y_var_name
+  names(x)[pos]<-y_var_name
+  #names(x)[pos]<-c("dailyTmax")
   d$dailyTmax=(as.numeric(d$dailyTmax))/10 #stored as 1/10 degree C to allow integer storage
   x$dailyTmax=(as.numeric(x$dailyTmax))/10 #stored as 1/10 degree C to allow integer storage
   pos<-match("station",names(d)) #Find column with name "value"
@@ -190,31 +172,14 @@ runFusion <- function(i) {            # loop over dates
   data_s<-dmoday #put the 
   data_s$daily_delta<-daily_delta
   
-  
   #data_s$y_var<-daily_delta  #y_var is the variable currently being modeled, may be better with BIAS!!
-  data_s$y_var<-data_s$LSTD_bias
-  #data_s$y_var<-(data_s$dailyTmax)*10
-  #Model and response variable can be changed without affecting the script
-  
-  mod1<- try(gam(y_var~ s(lat) + s (lon) + s (ELEV_SRTM), data=data_s))
-  mod2<- try(gam(y_var~ s(lat,lon)+ s(ELEV_SRTM), data=data_s)) #modified nesting....from 3 to 2
-  mod3<- try(gam(y_var~ s(lat) + s (lon) + s (ELEV_SRTM) +  s (Northness)+ s (Eastness) + s(DISTOC), data=data_s))
-  mod4<- try(gam(y_var~ s(lat) + s (lon) + s(ELEV_SRTM) + s(Northness) + s (Eastness) + s(DISTOC) + s(LST), data=data_s))
-  mod5<- try(gam(y_var~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST), data=data_s))
-  mod6<- try(gam(y_var~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST)+s(LC1), data=data_s))
-  mod7<- try(gam(y_var~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST)+s(LC3), data=data_s))
-  mod8<- try(gam(y_var~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST) + s(LC1), data=data_s))
-  
-  #Added
-  #tmax_predicted=themolst+daily_delta_rast-bias_rast #Final surface?? but daily_rst
-  
+  #data_s$y_var<-data_s$LSTD_bias
   #### Added by Benoit ends
   
   #########
   # STEP 8 - assemble final answer - T=LST+Bias(interpolated)+delta(interpolated)
   #########
 
-  
   bias_rast=interpolate(themolst,fitbias) #interpolation using function from raster package
   #themolst is raster layer, fitbias is "Krig" object from bias surface
   #plot(bias_rast,main="Raster bias") #This not displaying...
@@ -279,27 +244,65 @@ runFusion <- function(i) {            # loop over dates
   ### END OF BRIAN's code
   
   ### Added by benoit
-  #Store results using TPS
-#   j=9
-#   results_RMSE[i,1]<- dates[i]    #storing the interpolation dates in the first column
-#   results_RMSE[i,2]<- ns          #number of stations used in the training stage
-#   results_RMSE[i,3]<- "RMSE"
-#   results_RMSE[i,j+3]<- rmse  #Storing RMSE for the model j
-#   
-#   results_RMSE_f[i,1]<- dates[i]    #storing the interpolation dates in the first column
-#   results_RMSE_f[i,2]<- ns          #number of stations used in the training stage
-#   results_RMSE_f[i,3]<- "RMSE"
-#   results_RMSE_f[i,j+3]<- rmse_fit  #Storing RMSE for the model j
-#   
+  
+  ###BEFORE GAM prediction the data object must be transformed to SDF
+  
+  coords<- data_v[,c('x_OR83M','y_OR83M')]
+  coordinates(data_v)<-coords
+  proj4string(data_v)<-CRS  #Need to assign coordinates...
+  coords<- data_s[,c('x_OR83M','y_OR83M')]
+  coordinates(data_s)<-coords
+  proj4string(data_s)<-CRS  #Need to assign coordinates..
+  
   ns<-nrow(data_s) #This is added to because some loss of data might have happened because of the averaging...
-  nv<-nrow(data_v)       
+  nv<-nrow(data_v)
+  
+  ###GAM PREDICTION
+  
+  #data_s$y_var<-data_s$dailyTmax  #This shoudl be changed for any variable!!!
+  #data_v$y_var<-data_v$dailyTmax
+  data_v$y_var<-data_v[[y_var_name]]
+  data_s$y_var<-data_s[[y_var_name]]
+  
+  #Model and response variable can be changed without affecting the script
+  
+  formula1 <- as.formula("y_var ~ s(lat) + s(lon) + s(ELEV_SRTM)", env=.GlobalEnv)
+  formula2 <- as.formula("y_var~ s(lat,lon)+ s(ELEV_SRTM)", env=.GlobalEnv)
+  formula3 <- as.formula("y_var~ s(lat) + s (lon) + s (ELEV_SRTM) +  s (Northness)+ s (Eastness) + s(DISTOC)", env=.GlobalEnv)
+  formula4 <- as.formula("y_var~ s(lat) + s (lon) + s(ELEV_SRTM) + s(Northness) + s (Eastness) + s(DISTOC) + s(LST)", env=.GlobalEnv)
+  formula5 <- as.formula("y_var~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST)", env=.GlobalEnv)
+  formula6 <- as.formula("y_var~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST)+s(LC1)", env=.GlobalEnv)
+  formula7 <- as.formula("y_var~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST)+s(LC3)", env=.GlobalEnv)
+  formula8 <- as.formula("y_var~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST) + s(LC1,LC3)", env=.GlobalEnv)
+  
+  mod1<- try(gam(formula1, data=data_s))
+  mod2<- try(gam(formula2, data=data_s)) #modified nesting....from 3 to 2
+  mod3<- try(gam(formula3, data=data_s))
+  mod4<- try(gam(formula4, data=data_s))
+  mod5<- try(gam(formula5, data=data_s))
+  mod6<- try(gam(formula6, data=data_s))
+  mod7<- try(gam(formula7, data=data_s))
+  mod8<- try(gam(formula8, data=data_s))
+  
+#   mod1<- try(gam(formula1, data=data_s))
+#   mod2<- try(gam(formula2, data=data_s)) #modified nesting....from 3 to 2
+#   mod3<- try(gam(y_var~ s(lat) + s (lon) + s (ELEV_SRTM) +  s (Northness)+ s (Eastness) + s(DISTOC), data=data_s))
+#   mod4<- try(gam(y_var~ s(lat) + s (lon) + s(ELEV_SRTM) + s(Northness) + s (Eastness) + s(DISTOC) + s(LST), data=data_s))
+#   mod5<- try(gam(y_var~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST), data=data_s))
+#   mod6<- try(gam(y_var~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST)+s(LC1), data=data_s))
+#   mod7<- try(gam(y_var~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST)+s(LC3), data=data_s))
+#   mod8<- try(gam(y_var~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST) + s(LC1,LC3), data=data_s))
+#   
+  #Added
+  #tmax_predicted=themolst+daily_delta_rast-bias_rast #Final surface?? but daily_rst
   
   ### Added by benoit
   #Store results using TPS
-  j=9
+  j=nmodels+1
   results_RMSE[1]<- dates[i]    #storing the interpolation dates in the first column
   results_RMSE[2]<- ns          #number of stations used in the training stage
   results_RMSE[3]<- "RMSE"
+
   results_RMSE[j+3]<- rmse  #Storing RMSE for the model j
   
   results_RMSE_f[1]<- dates[i]    #storing the interpolation dates in the first column
@@ -330,7 +333,8 @@ runFusion <- function(i) {            # loop over dates
   #ns<-nrow(data_s) #This is added to because some loss of data might have happened because of the averaging...
   #nv<-nrow(data_v)
   
-  for (j in 1:length(models)){
+  
+  for (j in 1:nmodels){
     
     ##Model assessment: specific diagnostic/metrics for GAM
     
@@ -403,49 +407,85 @@ runFusion <- function(i) {            # loop over dates
       results_DEV[3]<- "DEV"
       results_DEV[j+3]<- mod$deviance
       
-      sta_LST_s=lookup(themolst,data_s$lat,data_s$lon)
-      sta_delta_s=lookup(daily_delta_rast,data_s$lat,data_s$lon) #delta surface has been calculated before!!
-      sta_bias_s= mod$fit
-      #Need to extract values from the kriged delta surface...
-      #sta_delta= lookup(delta_surface,data_v$lat,data_v$lon)
-      #tmax_predicted=sta_LST+sta_bias-y_mod$fit
-      tmax_predicted_s= sta_LST_s-sta_bias_s+sta_delta_s
-      
+      y_var_fit= mod$fit
+    
       results_RMSE_f[1]<- dates[i]  #storing the interpolation dates in the first column
       results_RMSE_f[2]<- ns        #number of stations used in the training stage
       results_RMSE_f[3]<- "RSME_f"
-      results_RMSE_f[j+3]<- sqrt(sum((tmax_predicted_s-data_s$dailyTmax)^2)/ns)
+      #results_RMSE_f[j+3]<- sqrt(sum((y_var_fit-data_s$y_var)^2)/ns)
+      results_RMSE_f[j+3]<-sqrt(mean(mod$residuals^2,na.rm=TRUE))
       
       results_MAE_f[1]<- dates[i]  #storing the interpolation dates in the first column
       results_MAE_f[2]<- ns        #number of stations used in the training stage
       results_MAE_f[3]<- "MAE_f"
-      results_MAE_f[j+3]<-sum(abs(tmax_predicted_s-data_s$dailyTmax))/ns
+      #results_MAE_f[j+3]<-sum(abs(y_var_fit-data_s$y_var))/ns
+      results_MAE_f[j+3]<-mean(abs(mod$residuals),na.rm=TRUE)
       
       ##Model assessment: general diagnostic/metrics
       ##validation: using the testing data
+      if (predval==1) {
       
-      #data_v$y_var<-data_v$LSTD_bias
-      #data_v$y_var<-tmax
-      y_mod<- predict(mod, newdata=data_v, se.fit = TRUE) #Using the coeff to predict new values.
+        ##Model assessment: specific diagnostic/metrics for GAM
+        
+        name<-paste("mod",j,sep="")  #modj is the name of The "j" model (mod1 if j=1) 
+        mod<-get(name)               #accessing GAM model ojbect "j"
+        
+        s_sgdf<-as(s_raster,"SpatialGridDataFrame") #Conversion to spatial grid data frame
+        
+        rpred<- predict(mod, newdata=s_sgdf, se.fit = TRUE) #Using the coeff to predict new values.
+        y_pred<-rpred$fit
+        raster_pred<-r1
+        layerNames(raster_pred)<-"y_pred"
+        values(raster_pred)<-as.numeric(y_pred)
+        data_name<-paste("predicted_mod",j,"_",dates[[i]],sep="")
+        raster_name<-paste("GAM_",data_name,out_prefix,".rst", sep="")
+        writeRaster(raster_pred, filename=raster_name,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
+        #writeRaster(r2, filename=raster_name,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
+        
+        pred_sgdf<-as(raster_pred,"SpatialGridDataFrame") #Conversion to spatial grid data frame
+        #rpred_val_s <- overlay(raster_pred,data_s)             #This overlays the kriged surface tmax and the location of weather stations
+        
+        rpred_val_s <- overlay(pred_sgdf,data_s)             #This overlays the kriged surface tmax and the location of weather stations
+        rpred_val_v <- overlay(pred_sgdf,data_v)             #This overlays the kriged surface tmax and the location of weather stations
+        
+        pred_mod<-paste("pred_mod",j,sep="")
+        #Adding the results back into the original dataframes.
+        data_s[[pred_mod]]<-rpred_val_s$y_pred
+        data_v[[pred_mod]]<-rpred_val_v$y_pred  
+        
+        #Model assessment: RMSE and then krig the residuals....!
+        
+        res_mod_s<- data_s$y_var - data_s[[pred_mod]]           #Residuals from kriging training
+        res_mod_v<- data_v$y_var - data_v[[pred_mod]]           #Residuals from kriging validation
+        
+      }
       
-      ####ADDED ON JULY 5th
-      sta_LST_v=lookup(themolst,data_v$lat,data_v$lon)
-      sta_delta_v=lookup(daily_delta_rast,data_v$lat,data_v$lon) #delta surface has been calculated before!!
-      sta_bias_v= y_mod$fit
-      #Need to extract values from the kriged delta surface...
-      #sta_delta= lookup(delta_surface,data_v$lat,data_v$lon)
-      #tmax_predicted=sta_LST+sta_bias-y_mod$fit
-      tmax_predicted_v= sta_LST_v-sta_bias_v+sta_delta_v
+      if (predval==0) {
       
-      #data_v$tmax<-(data_v$tmax)/10
-      res_mod<- data_v$dailyTmax - tmax_predicted_v              #Residuals for the model for fusion
-      #res_mod<- data_v$y_var - y_mod$fit                  #Residuals for the model
+        y_mod<- predict(mod, newdata=data_v, se.fit = TRUE) #Using the coeff to predict new values.
+        
+        pred_mod<-paste("pred_mod",j,sep="")
+        #Adding the results back into the original dataframes.
+        data_s[[pred_mod]]<-as.numeric(mod$fit)
+        data_v[[pred_mod]]<-as.numeric(y_mod$fit)
+        
+        #Model assessment: RMSE and then krig the residuals....!
+        
+        res_mod_s<- data_s$y_var - data_s[[pred_mod]]           #Residuals from kriging training
+        res_mod_v<- data_v$y_var - data_v[[pred_mod]]           #Residuals from kriging validation
+      }
+
+      ####ADDED ON JULY 20th
+      res_mod<-res_mod_v
       
-      RMSE_mod <- sqrt(sum(res_mod^2)/nv)                 #RMSE FOR REGRESSION STEP 1: GAM     
-      MAE_mod<- sum(abs(res_mod))/nv                     #MAE, Mean abs. Error FOR REGRESSION STEP 1: GAM   
-      ME_mod<- sum(res_mod)/nv                            #ME, Mean Error or bias FOR REGRESSION STEP 1: GAM
-      R2_mod<- cor(data_v$dailyTmax,tmax_predicted_v)^2              #R2, coef. of var FOR REGRESSION STEP 1: GAM
-      
+      #RMSE_mod <- sqrt(sum(res_mod^2)/nv)                 #RMSE FOR REGRESSION STEP 1: GAM  
+      RMSE_mod<- sqrt(mean(res_mod^2,na.rm=TRUE))
+      #MAE_mod<- sum(abs(res_mod),na.rm=TRUE)/(nv-sum(is.na(res_mod)))        #MAE from kriged surface validation
+      MAE_mod<- mean(abs(res_mod), na.rm=TRUE)
+      #ME_mod<- sum(res_mod,na.rm=TRUE)/(nv-sum(is.na(res_mod)))                    #ME, Mean Error or bias FOR REGRESSION STEP 1: GAM
+      ME_mod<- mean(res_mod,na.rm=TRUE)                            #ME, Mean Error or bias FOR REGRESSION STEP 1: GAM
+      #R2_mod<- cor(data_v$y_var,data_v[[pred_mod]])^2              #R2, coef. of var FOR REGRESSION STEP 1: GAM
+      R2_mod<- cor(data_v$y_var,data_v[[pred_mod]], use="complete")^2
       results_RMSE[1]<- dates[i]    #storing the interpolation dates in the first column
       results_RMSE[2]<- ns          #number of stations used in the training stage
       results_RMSE[3]<- "RMSE"
@@ -464,16 +504,10 @@ runFusion <- function(i) {            # loop over dates
       results_R2[j+3]<- R2_mod      #Storing R2 for the model j
       
       #Saving residuals and prediction in the dataframes: tmax predicted from GAM
-      pred<-paste("pred_mod",j,sep="")
-      #data_v[[pred]]<-as.numeric(y_mod$fit)
-      data_v[[pred]]<-as.numeric(tmax_predicted_v)
-      data_s[[pred]]<-as.numeric(tmax_predicted_s) #Storing model fit values (predicted on training sample)
-      #data_s[[pred]]<-as.numeric(mod$fit) #Storing model fit values (predicted on training sample)
-      
+
       name2<-paste("res_mod",j,sep="")
-      data_v[[name2]]<-as.numeric(res_mod)
-      temp<-tmax_predicted_s-data_s$dailyTmax
-      data_s[[name2]]<-as.numeric(temp)
+      data_v[[name2]]<-as.numeric(res_mod_v)
+      data_s[[name2]]<-as.numeric(res_mod_s)
       #end of loop calculating RMSE
     }
   }
@@ -508,10 +542,13 @@ runFusion <- function(i) {            # loop over dates
   
   #}  
   print(paste(dates[i],"processed"))
-  #mod_obj<-list(mod1,mod2,mod3,mod4,mod5,mod6,mod7,mod8,mod9a,mod9b)
   # end of the for loop1
-  results_list<-list(data_s,data_v,tb_metrics1,tb_metrics2)
-  #results_list<-list(data_s,data_v,tb_metrics1,tb_metrics2,mod_obj)
+  mod_obj<-list(mod1,mod2,mod3,mod4,mod5,mod6,mod7,mod8,mod9a,mod9b)
+  names(mod_obj)<-c("mod1","mod2","mod3","mod4","mod5","mod6","mod7","mod8","mod9a","mod9b")
+  #results_list<-list(data_s,data_v,tb_metrics1,tb_metrics2)
+  results_list<-list(data_s,data_v,tb_metrics1,tb_metrics2,mod_obj)
+  names(results_list)<-c("data_s","data_v","tb_metrics1","tb_metrics2","mod_obj")
+  save(results_list,file= paste(path,"/","results_list_metrics_objects_",dates[i],out_prefix,".RData",sep=""))
   return(results_list)
   #return(tb_diagnostic1)
 }
