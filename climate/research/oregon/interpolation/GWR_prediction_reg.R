@@ -1,19 +1,20 @@
-##################    Interpolation of Tmax Using Kriging  #######################################
-########################### Kriging and Cokriging   ###############################################
-#This script interpolates station values for the Oregon case study using Kriging and Cokring.    #
-#The script uses LST monthly averages as input variables and  loads the station data             # 
-#from a shape file with projection information.                                                  #
-#Note that this program:                                                                         #
-#1)assumes that the shape file is in the current working.                                        # 
-#2)relevant variables were extracted from raster images before performing the regressions        #
-#  and stored shapefile                                                                          #
-#This scripts predicts tmax using autokrige, gstat and LST derived from MOD11A1.                 #
-#also included and assessed using the RMSE,MAE,ME and R2 from validation dataset.                #
-#TThe dates must be provided as a textfile.                                                      #
-#AUTHOR: Benoit Parmentier                                                                       #
-#DATE: 07/26/2012                                                                                #
-#PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#364--                                  #
-##################################################################################################
+##################    Interpolation of Tmax Using GWR     ########################################
+########################### GWR WITH LST   #######################################################
+#This script interpolates station values for the Oregon case study using Geographically Weighted. #
+#The script uses LST monthly averages as input variables and  loads the station data              # 
+#from a shape file with projection information.                                                   #
+#Note that this program:                                                                          #
+#1)assumes that the shape file is in the current working folder                                   # 
+#2)relevant variables were extracted from raster images before performing the regressions         #
+#  and stored shapefile                                                                           #
+#3)covariate raster images are present in the current working folder                              #
+#This scripts predicts tmax using autokrige, gstat and LST derived from MOD11A1.                  #
+#also included and assessed using the RMSE,MAE,ME and R2 from validation dataset.                 #
+#TThe dates must be provided as a textfile.                                                       #
+#AUTHOR: Benoit Parmentier                                                                        #
+#DATE: 08/15/2012                                                                                 #
+#PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#364--                                   #
+###################################################################################################
 
 ###Loading R library and packages                                                      
 #library(gtools)                                         # loading some useful tools 
@@ -59,12 +60,12 @@ prederr<-0                                    # if set to 0, no uncertain error 
 prop<-0.3                                     #Proportion of testing retained for validation   
 #prop<-0.25
 seed_number<- 100                             #Seed number for random sampling
-out_prefix<-"test2_07312012_365d_gwr"                                                   #User defined output prefix
+out_prefix<-"_08152012_1d_gwr4"                                                   #User defined output prefix
 setwd(path)
 
 #source("fusion_function_07192012.R")
 #source("KrigingUK_function_07262012.R")
-source("GWR_function_07312012.R")
+source("GWR_function_08152012b.R")
 ############ START OF THE SCRIPT ##################
 
 ###Reading the station data and setting up for models' comparison
@@ -119,6 +120,10 @@ pos<-match("LC3",layerNames(s_raster)) #Find column with name "value"
 LC3<-raster(s_raster,layer=pos)             #Select layer from stack
 s_raster<-dropLayer(s_raster,pos)
 LC3[is.na(LC3)]<-0
+pos<-match("CANHEIGHT",layerNames(s_raster)) #Find column with name "value"
+CANHEIGHT<-raster(s_raster,layer=pos)             #Select layer from stack
+s_raster<-dropLayer(s_raster,pos)
+CANHEIGHT[is.na(CANHEIGHT)]<-0
 
 xy<-coordinates(r1)  #get x and y projected coordinates...
 xy_latlon<-project(xy, CRS, inv=TRUE) # find lat long for projected coordinats (or pixels...)
@@ -131,11 +136,10 @@ lat<-lon
 values(lon)<-xy_latlon[,1]
 values(lat)<-xy_latlon[,2]
 
-r<-stack(N,E,Nw,Ew,lon,lat,LC1,LC3)
-rnames<-c("Northness","Eastness","Northness_w","Eastness_w", "lon","lat","LC1","LC3")
+r<-stack(N,E,Nw,Ew,lon,lat,LC1,LC3,CANHEIGHT)
+rnames<-c("Northness","Eastness","Northness_w","Eastness_w", "lon","lat","LC1","LC3","CANHEIGHT")
 layerNames(r)<-rnames
 s_raster<-addLayer(s_raster, r)
-
 #s_sgdf<-as(s_raster,"SpatialGridDataFrame") #Conversion to spatial grid data frame
 
 ####### Preparing LST stack of climatology...
@@ -222,11 +226,11 @@ sampling[[i]]<-ind.training
 
 ######## Prediction for the range of dates
 
-#gwr_mod<-mclapply(1:length(dates), runGWR,mc.preschedule=FALSE,mc.cores = 8) #This is the end bracket from mclapply(...) statement
+gwr_mod<-mclapply(1:length(dates), runGWR,mc.preschedule=FALSE,mc.cores = 8) #This is the end bracket from mclapply(...) statement
 #fusion_mod357<-mclapply(357:365,runFusion, mc.cores=8)# for debugging
 #test<-runKriging(1)
 #test357<-mclapply(357:365,runFusion, mc.cores=8)# for debugging
-gwr_mod<-mclapply(1:1, runGWR,mc.preschedule=FALSE,mc.cores = 1) #This is the end bracket from mclapply(...) statement
+#gwr_mod<-mclapply(1:1, runGWR,mc.preschedule=FALSE,mc.cores = 1) #This is the end bracket from mclapply(...) statement
 
 #test<-mclapply(357,runFusion, mc.cores=1)# for debugging
 
@@ -239,10 +243,9 @@ for (i in 1:length(tb_tmp)){
 }
 rm(tb_tmp)
 
-for(i in 4:nmodels+3){            # start of the for loop #1
+for(i in 4:(nmodels+3)){            # start of the for loop #1
   tb[,i]<-as.numeric(as.character(tb[,i]))  
 }
-
 tb_RMSE<-subset(tb, metric=="RMSE")
 tb_MAE<-subset(tb,metric=="MAE")
 tb_ME<-subset(tb,metric=="ME")
@@ -261,8 +264,8 @@ mean_MAE_f<-sapply(tb_MAE[,4:(nmodels+3)],mean)
 mean_RMSE_f<-sapply(tb_RMSE_f[,4:(nmodels+3)],mean)
 
 #Wrting metric results in textfile and model objects in .RData file
-write.table(tb_diagnostic1, file= paste(path,"/","results2_kriging_Assessment_measure1",out_prefix,".txt",sep=""), sep=",")
-write.table(tb, file= paste(path,"/","results2_kriging_Assessment_measure_all",out_prefix,".txt",sep=""), sep=",")
-save(gwr_mod,file= paste(path,"/","results2_kriging_Assessment_measure_all",out_prefix,".RData",sep=""))
+write.table(tb_diagnostic1, file= paste(path,"/","results2_gwr_Assessment_measure1",out_prefix,".txt",sep=""), sep=",")
+write.table(tb, file= paste(path,"/","results2_gwr_Assessment_measure_all",out_prefix,".txt",sep=""), sep=",")
+save(gwr_mod,file= paste(path,"/","results2_gwr_Assessment_measure_all",out_prefix,".RData",sep=""))
 
 #### END OF SCRIPT
