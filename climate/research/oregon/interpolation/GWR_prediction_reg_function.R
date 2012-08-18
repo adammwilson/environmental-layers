@@ -51,12 +51,12 @@ runGWR <- function(i) {            # loop over dates
     layerNames(s_raster_r)<-tab_range$varterm[k]
     val_rst[[k]]<-s_raster_r
   }
-  s_rst_m<-stack(val_rst) #This a stacked with valid range of values
+  s_rst_m<-stack(val_rst) #This a raster stack with valid range of values
   
   ###Regression part 1: Creating a validation dataset by creating training and testing datasets
   
   mod_LST <-ghcn.subsets[[i]][,match(LST_month, names(ghcn.subsets[[i]]))]  #Match interpolation date and monthly LST average
-  ghcn.subsets[[i]] = transform(ghcn.subsets[[i]],LST = mod_LST)            #Add the variable LST to the subset dataset
+  ghcn.subsets[[i]] <- transform(ghcn.subsets[[i]],LST = mod_LST)            #Add the variable LST to the subset dataset
   #n<-nrow(ghcn.subsets[[i]])
   #ns<-n-round(n*prop)   #Create a sample from the data frame with 70% of the rows
   #nv<-n-ns              #create a sample for validation with prop of the rows
@@ -101,7 +101,7 @@ runGWR <- function(i) {            # loop over dates
   formula5 <- as.formula("y_var~ lat + lon + ELEV_SRTM + Northness_w + Eastness_w + DISTOC + LST", env=.GlobalEnv)
   formula6 <- as.formula("y_var~ lat + lon + ELEV_SRTM + Northness_w + Eastness_w + DISTOC + LST + LC1", env=.GlobalEnv)
   formula7 <- as.formula("y_var~ lat + lon + ELEV_SRTM + Northness_w + Eastness_w + DISTOC + LST + LC3", env=.GlobalEnv)
-  formula8 <- as.formula("y_var~ lat + lon + ELEV_SRTM + Northness_w + Eastness_w + DISTOC + LST + I(LC1*LC3)", env=.GlobalEnv)
+  formula8 <- as.formula("y_var~ lat + lon + ELEV_SRTM + Northness_w + Eastness_w + DISTOC + LST + I(LST*LC1)", env=.GlobalEnv)
   
   #   bwG <- gwr.sel(tmax~ lon + lat + ELEV_SRTM + Eastness + Northness + DISTOC,data=data_s,gweight=gwr.Gauss, verbose = FALSE)
   #   gwrG<- gwr(tmax~ lon + lat + ELEV_SRTM + Eastness + Northness + DISTOC, data=data_s, bandwidth=bwG, gweight=gwr.Gauss, hatmatrix=TRUE)
@@ -168,6 +168,7 @@ runGWR <- function(i) {            # loop over dates
       mod_varn<-t_l
     }
     #browser()
+    mod_varn <-unique(mod_varn)
     list_rst<-vector("list",length(mod_varn))
     pos<-match(mod_varn,layerNames(s_rst_m)) #Find column with the current month for instance mm12 
     s_rst_mod<-subset(s_rst_m,pos)
@@ -181,7 +182,6 @@ runGWR <- function(i) {            # loop over dates
     coordinates(s_spdf)<-coords
     proj4string(s_spdf)<-CRS  #Need to assign coordinates...
     
-
     #If mod "j" is not a model object
     if (inherits(mod,"try-error")) {
       
@@ -234,7 +234,8 @@ runGWR <- function(i) {            # loop over dates
     #If mod "j" is not a model object
     if (inherits(mod,"gwr")) {
       
-      pred <- gwr(formula1, data_s, bandwidth=bwGm, fit.points =s_spdf,predict=TRUE, se.fit=TRUE,fittedGWRobject=mod)
+      pred <- gwr(formula, data_s, bandwidth=bwGm, fit.points =s_spdf,predict=TRUE, se.fit=TRUE,fittedGWRobject=mod)
+      #pred <- try(gwr(formula, data_s, bandwidth=bwGm, fit.points =s_spdf,predict=TRUE, se.fit=TRUE,fittedGWRobject=mod))
       
       pred_gwr[[j]]<-pred   #prediction stored in a list
       
