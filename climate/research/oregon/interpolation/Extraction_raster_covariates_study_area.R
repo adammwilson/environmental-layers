@@ -71,6 +71,7 @@ sdata.u@data[,c("x","y")]=coordinates(sdata.u)
 sdata.u@data=cbind.data.frame(sdata.u@data,extract(subset(covar,subset=which(getZ(covar)!="00")), sdata.u))      #Extracting values from the raster stack for every point 
 sdata.u=sdata.u@data #drop the spatial-ness
 
+###  add MODIS metric to station data for month corresponding to that date
 ### reshape for easy merging
 sdata.ul=melt(sdata.u,id.vars=c("station","latitude","longitude","x","y"))
 sdata.ul[,c("metric","type","month")]=do.call(rbind.data.frame,strsplit(as.character(sdata.ul$variable),"_"))

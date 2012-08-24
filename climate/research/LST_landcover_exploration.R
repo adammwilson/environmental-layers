@@ -23,8 +23,8 @@ ncores=20  #number of threads to use
 
 
 ### copy lulc data to litoria
-setwd("data/lulc")
-system("scp atlas:/home/parmentier/data_Oregon_stations/W_Layer* .")
+#setwd("data/lulc")
+#system("scp atlas:/home/parmentier/data_Oregon_stations/W_Layer* .")
 
 
 setwd("/home/adamw/acrobates/projects/interp")       
@@ -43,11 +43,11 @@ st2=spTransform(st2,projs)
 d2[,c("lon","lat")]=coordinates(st2)[match(d2$id,st2$id),]
 d2$elev=st2$elev[match(d2$id,st2$id)]
 d2$month=format(d2$date,"%m")
-#d2$value=d2$value/10 #convert to mm
+d2$value=d2$value/10 #convert to mm
 
 
 ## load topographical data
-topo=brick(as.list(list.files("data/topography",pattern="rst$",full=T)))
+topo=brick(as.list(list.files("data/regions/oregon/topo",pattern="SRTM.*rst$",full=T)))
 topo=calc(topo,function(x) ifelse(x<0,NA,x))
 names(topo)=c("aspect","dem","slope")
 colnames(topo@data@values)=c("aspect","dem","slope")
@@ -81,7 +81,7 @@ names(demb)="demb"
 
 
 ### load the lulc data as a brick
-lulc=brick(as.list(list.files("data/lulc",pattern="rst$",full=T)))
+lulc=brick(as.list(list.files("data/regions/oregon/lulc",pattern="rst$",full=T)))
 #projection(lulc)=
 #plot(lulc)
 
@@ -102,8 +102,13 @@ layerNames(lulc)=lulct$class[as.numeric(gsub("[a-z]|[A-Z]|[_]|83","",layerNames(
 lulc=calc(lulc,function(x) ifelse(is.na(x),0,x))
 projection(lulc)=projs
 
+### reclass/sum classes
+ShrubGrass=subset(lulc,"Shrub")+subset(lulc,"Grass");layerNames(ShrubGrass)="ShrubGrass"
+Other=subset(lulc,"Mosaic")+subset(lulc,"Barren")+subset(lulc,"Snow")+subset(lulc,"Wetland");layerNames(Other)="Other"
+lulc2=stack(subset(lulc,"Forest"),subset(lulc,"Urban"),subset(lulc,"Crop"),Other,ShrubGrass)
+
 ### load the LST data
-lst=brick(as.list(list.files("data/lst",pattern="rescaled.rst$",full=T)[c(4:12,1:3)]))
+lst=brick(as.list(list.files("data/regions/oregon/lst",pattern="rescaled.rst$",full=T)[c(4:12,1:3)]))
 lst=lst-273.15
 colnames(lst@data@values)=format(as.Date(paste("2000-",as.numeric(gsub("[a-z]|[A-Z]|[_]|83","",layerNames(lst))),"-15",sep="")),"%b")
 layerNames(lst)=format(as.Date(paste("2000-",as.numeric(gsub("[a-z]|[A-Z]|[_]|83","",layerNames(lst))),"-15",sep="")),"%b")
@@ -112,10 +117,15 @@ projection(lst)=projs
 
 ######################################
 ## compare LULC with station data
-st2=SpatialPointsDataFrame(st2,data=cbind.data.frame(st2@data,demb=extract(demb,st2),extract(topo,st2),extract(topo2,st2),extract(lulc,st2),extract(lst,st2)))
-stlulc=extract(lulc,st2) #overlay stations and LULC values
+st2=st2[!is.na(extract(demb,st2)),]
+st2=SpatialPointsDataFrame(st2,data=cbind.data.frame(st2@data,demb=extract(demb,st2),extract(topo,st2),extract(topo2,st2),extract(lulc2,st2,buffer=1500,fun=mean),extract(lst,st2)))
+stlulc=extract(lulc2,st2,buffer=1500,fun=mean) #overlay stations and LULC values
 st2$lulc=do.call(c,lapply(apply(stlulc,1,function(x) which.max(x)),function(x) ifelse(is.null(names(x)),NA,names(x))))
 
+
+###  add MODIS metric to station data for month corresponding to that date
+### reshape for easy merging
+sdata.ul=melt(st2@data,id.vars=c("id","lat","lon","Forest","ShrubGrass","Crop","Urban","Other","lulc"),measure.vars=format(as.Date(paste("2000-",1:12,"-15",sep="")),"%b"))
 
 ### generate sample of points to speed processing
 n=10000/length(unique(demb))
@@ -174,6 +184,92 @@ ms1=do.call(rbind.data.frame,lapply(1:length(ms),function(i){
 #ms1[ms1$parm%in%c("x","y","dem"),c("Q2.5","Q50","Q97.5")]=ms1[ms1$parm%in%c("x","y","dem"),c("Q2.5","Q50","Q97.5")]
 
 
+#######################################################################
+#### look at interaction of tmax~lst*lulc using monthly means
+### add monthly data to sdata table by matching unique station_month ids.
+d2$month=as.numeric(format(d2$date,"%m"))
+### get monthly means and sd's
+dm=melt(cast(d2,id+lon+lat+elev~month,value="value",fun.aggregate=mean,na.rm=T),id.vars=c("id","lon","lat","elev"));colnames(dm)[grep("value",colnames(dm))]="mean"
+ds=melt(cast(d2,id+lon+lat+elev~month,value="value",fun.aggregate=sd,na.rm=T),id.vars=c("id","lon","lat","elev"))  #sd of tmax
+dn=melt(cast(d2,id+lon+lat+elev~month,value="value",fun.aggregate=length),id.vars=c("id","lon","lat","elev"))  #number of observations
+dm$sd=ds$value
+dm$n=dn$value[match(paste(dm$month,dm$id),paste(dn$month,dn$id))]/max(dn$value)  # % complete record
+
+#get lulc classes
+lcs=layerNames(lulc2)
+
+dm$lst=sdata.ul$value[match(paste(dm$id,format(as.Date(paste("2000-",dm$month,"-15",sep=""),"%Y-%m-%d"),"%b"),sep="_"),paste(sdata.ul$id,sdata.ul$variable,sep="_"))]
+dm[,lcs]=sdata.ul[match(dm$id,sdata.ul$id),lcs]
+dm=dm[!is.na(dm$ShrubGrass),]
+dm$class=lcs[apply(dm[,lcs],1,which.max)]
+## update month names
+dm$m2=format(as.Date(paste("2000-",dm$month,"-15",sep="")),"%B")
+dm$m2=factor(as.character(dm$m2),levels=format(as.Date(paste("2000-",1:12,"-15",sep="")),"%B"),ordered=T)
+
+xyplot(mean~lst|m2,groups=class,data=dm,panel=function(x,y,subscripts,groups){  #+cut(dm$elev,breaks=quantile(dm$elev,seq(0,1,len=4)),labels=c("low","medium","high"))
+  dt=dm[subscripts,]
+  #panel.segments(dt$lst,dt$mean-dt$sd,dt$lst,dt$mean+dt$sd,groups=groups,lwd=.5,col="#C1CDCD")
+  panel.xyplot(dt$lst,dt$mean,groups=groups,subscripts=subscripts,type=c("p","r"),cex=0.5)
+  panel.abline(0,1,col="black",lwd=2)
+},par.settings = list(superpose.symbol = list(pch=1:6,col=c("lightgreen","darkgreen","grey","brown","red"))),
+       auto.key=list(space="right"),scales=list(relation="free"),
+       sub="Each point represents a monthly mean (climatology) for a single station \n Points are colored by LULC class with largest % \n Heavy black line is y=x",main="Monthly Mean LST and Monthly Mean Tmax",
+       ylab="Mean Monthly Tmax (C)",xlab="Mean Monthly LST")
+
+
+mods=data.frame(
+  form=c(
+    "mean~lst+elev",
+    "mean~lst+elev+ShrubGrass+Urban+Crop+Other",
+    "mean~lst+elev+lst*ShrubGrass+lst*Urban+lst*Crop+lst*Other"
+    ),
+  type=c("lst","intercept","interact"),
+  stringsAsFactors=F)
+mods2=expand.grid(form=mods$form,month=1:12)
+mods2$type=mods$type[match(mods2$form,mods$form)]
+
+
+#summary(lm(mods$form[4],data=dm,weight=dm$n))
+
+ms=lapply(1:nrow(mods2),function(i) {
+  m=lm(as.formula(as.character(mods2$form[i])),data=dm[dm$month==mods2$month[i],],weight=dm$n[dm$month==mods2$month[i]])
+  return(list(model=m,
+              res=data.frame(
+                Formula=as.character(mods2$form[i]),
+                Month=mods2$month[i],
+                type=mods2$type[i],
+                AIC=AIC(m),
+                R2=summary(m)$r.squared)))
+})
+
+### identify lowest AIC per month
+ms1=do.call(rbind.data.frame,lapply(ms,function(m) m$res))
+aicw= cast(ms1,Month~type,value="AIC")
+aicwt=as.data.frame(t(apply(aicw[,-1],1,function(x) ifelse(x==min(x),"Minimum",ifelse((x-min(x))<7,"NS Minimum","NS")))));colnames(aicwt)=colnames(aicw)[-1];aicwt$Month=aicw$Month
+aic=melt(aicwt,id.vars="Month");colnames(aic)=c("Month","type","minAIC")
+aic$minAIC=factor(aic$minAIC,ordered=F)
+
+xyplot(AIC~as.factor(Month),groups=Formula,data=ms1,type=c("p","l"),pch=16,auto.key=list(space="top"),main="Model Comparison across months",
+       par.settings = list(superpose.symbol = list(pch=16,cex=1)),xlab="Month")
+
+
+ms2=lapply(ms,function(m) m$model)
+
+mi=rep(c(1:12),each=3)  #month indices
+
+fs=do.call(rbind.data.frame,lapply(1:12,function(i){
+  it=which(mi==i)
+  x=anova(ms2[[it[1]]],ms2[[it[2]]],ms2[[it[3]]])
+  fs=c(
+    paste(as.character(formula(ms2[[it[1]]]))[c(2,1,3)],collapse=" "),
+    paste(as.character(formula(ms2[[it[2]]]))[c(2,1,3)],collapse=" "),
+    paste(as.character(formula(ms2[[it[3]]]))[c(2,1,3)],collapse=" "))
+  data.frame(month=rep(i,3),model=fs,p=as.data.frame(x)[,6],sig=ifelse(as.data.frame(x)[,6]<0.05,T,F))
+}))
+
+table(fs$sig,fs$model)
+which(fs$sig)
+
 ### load oregon boundary for comparison
 roi=spTransform(as(readOGR("data/regions/Test_sites/Oregon.shp","Oregon"),"SpatialLines"),projs)
 
@@ -184,7 +280,7 @@ pdf("output/lst_lulc.pdf",width=11,height=8.5)
 ### Summary plots of covariates
 ## LULC
 at=seq(0.1,100,length=100)
-levelplot(lulc,at=at,col.regions=bgyr(length(at)),
+levelplot(lulc2,at=at,col.regions=bgyr(length(at)),
           main="Land Cover Classes",sub="Sub-pixel %")+
   layer(sp.lines(roi, lwd=1.2, col='black'))
 

@@ -79,7 +79,9 @@ mods=data.frame(
     "value ~ s(CLD_mean) + elev + ns + ew",
     "value ~ s(COT_mean) + elev + ns + ew",
     "value ~ s(CER_P20um) + elev + ns + ew",
-    "value ~ s(CER_mean) + elev + ns + ew"
+    "value ~ s(CER_mean) + elev + ns + ew",
+    "value ~ s(CLD_mean) + s(CER_P20um) + elev + ns + ew",
+    "value ~ s(COT_mean) + s(CLD_mean) + s(CER_P20um) + elev + ns + ew"
                                         #    "value ~ s(x_OR83M,y_OR83M) + s(distoc) + elev + ns + ew + s(CER_P20um)",
 #    "value ~ s(x_OR83M,y_OR83M,CER_P20um) +s(x_OR83M,y_OR83M,CLD_mean) + elev + ns + ew",
 #    "value ~ s(x_OR83M,y_OR83M) + s(CER_P20um,CLD_mean) + elev + ns + ew",
@@ -128,7 +130,7 @@ savemodel=T;saveFullPrediction=T;scale=F;verbose=T
 ghcn.subsets <-lapply(dates, function(d) subset(ghcn@data, date==d)) #this creates a list of 10 subset data
   
   results=do.call(rbind.data.frame,                   # Collect the results in a single data.frame
-   lapply(1:length(dates),function(i,savemodel=T,saveFullPrediction=T,scale=F,verbose=T) {            # loop over dates
+   lapply(1:length(dates),function(i,savemodel=F,saveFullPrediction=F,scale=F,verbose=T) {            # loop over dates
      if(verbose)      print(paste("Starting Date:",dates[i]))
      date<-dates[i]                                  # get date
      month<-strftime(date, "%m")                     # get month
