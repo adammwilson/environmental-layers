@@ -26,29 +26,25 @@ require(spgrass6)
 setwd("/nobackupp1/awilso10/mod06")
 tempdir=tempdir()  # to hold intermediate files
 outdir="2_daily"   # final daily product
-
-### use MODIS tile as ROI instead
-modt=readOGR("modgrid","modis_sinusoidal_grid_world",)
-tiles=c("H11V8")
-roi=modt[modt$HV%in%tiles,]
-
-## Bounding box of region in lat/lon
-roi_ll=spTransform(roi,CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"))
-roi_bb=bbox(roi_ll)
-
+tile="h11v08"   #can move this to submit script if needed
 ## read in list of all files
 load("allfiles.Rdata")
-load("alldates.Rdata")
-load("notdonedates.Rdata")
+load("notdone.Rdata")
 load("vars.Rdata")
 
-date=notdonedates[i]
+date=notdone[i]
+#file=fs$path[fs$dateid==date][1]
 
+## print out some info
+print(paste("Processing date ",date," for tile",tile))
+
+## identify tile of interest
+tile_bb=tb[tb$tile==tile,]
 
 #### Function to generate hegtool parameter file for multi-band HDF-EOS file
-swath2grid=function(file,vars,outdir,upleft,lowright){
+swath2grid=function(file,vars,upleft,lowright){
   print(paste("Starting file",basename(file)))
-  outfile=paste(outdir,"/",basename(file),sep="")
+  outfile=paste(tempdir(),"/",basename(file),sep="")
 ### First write the parameter file (careful, heg is very finicky!)
   hdr=paste("NUM_RUNS = ",length(vars$varid),"|MULTI_BAND_HDFEOS:",length(vars$varid),sep="")
   grp=paste("
@@ -82,26 +78,26 @@ END
   ## now run the swath2grid tool
   ## write the tiff file
   log=system(paste("/nobackupp4/pvotava/software/heg/bin/swtif -p ",paste(tempdir(),"/",basename(file),"_MODparms.txt -d",sep=""),sep=""),intern=T)
-      print(paste("Finished ", file))
+  ## clean up temporary files in working directory
+#  file.remove(paste("filetable.temp_",pid,sep=""))
+  print(log)
+  print(paste("Finished ", file))
 }
 
-## fix out dir to tempdir
-## then move on to grass processing...
-
 #### Run the gridding procedure
-lapply(fs$path[fs$dateid==date],function(file){
-  swath2grid(file,vars=vars,outdir=outdir,
-             upleft=paste(roi_bb[2,2],roi_bb[1,1]),
-             lowright=paste(roi_bb[2,1],roi_bb[1,2]))})
+lapply(fs$path[fs$dateid==date],swath2grid,vars=vars,upleft=paste(tile_bb$lat_max,tile_bb$lon_min),lowright=paste(tile_bb$lat_min,tile_bb$lon_max))
+#upleft=paste(roi_bb[2,2],roi_bb[1,1]),lowright=paste(roi_bb[2,1],roi_bb[1,2]))
 
 
 ##############################################################
 ### Import to GRASS for processing
 
 #fs$grass=paste(fs$month,fs$year,fs$file,sep="_")
-td=readGDAL(paste("HDF4_EOS:EOS_GRID:\"",outdir,"/",fs$file[1],"\":mod06:Cloud_Mask_1km_0",sep=""))
-#projection(td)="+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs +datum=WGS84 +ellps=WGS84 "
-projection(td)="+proj=utm +zone=10 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+#td=readGDAL(paste("HDF4_EOS:EOS_GRID:\"",outdir,"/",fs$file[1],"\":mod06:Cloud_Mask_1km_0",sep=""))
+
+gridfile=list.files("/nobackupp4/datapool/modis/MOD11A1.005/2006.01.27/",pattern=paste(tile,".*hdf$",sep=""),full=T)
+td=readGDAL(paste("HDF4_EOS:EOS_GRID:\"",gridfile,"\":MODIS_Grid_Daily_1km_LST:Night_view_angl",sep=""))
+projection(td)="+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs +datum=WGS84 +ellps=WGS84 "
 
 ## fucntion to convert binary to decimal to assist in identifying correct values
 b2d=function(x) sum(x * 2^(rev(seq_along(x)) - 1)) #http://tolstoy.newcastle.edu.au/R/e2/help/07/02/10596.html
@@ -109,45 +105,41 @@ b2d=function(x) sum(x * 2^(rev(seq_along(x)) - 1)) #http://tolstoy.newcastle.edu
 b2d(c(T,T))
 
 ### create (or connect to) grass location
-gisDbase="/media/data/grassdata"
-gisLocation="oregon"
+gisLocation="tmp"
 gisMapset="mod06"
 ## set Grass to overwrite
 Sys.setenv(GRASS_OVERWRITE=1)
-Sys.setenv(DEBUG=0)
+Sys.setenv(DEBUG=1)
+Sys.setenv(GRASS_GUI="txt")
 
 ## temporary objects to test function below
- i=1
-file=paste(outdir,"/",fs$file[1],sep="")
-date=as.Date("2000-05-23")
+# i=1
+#file=paste(outdir,"/",fs$file[1],sep="")
+#date=as.Date("2000-05-23")
 
+#.GRASS_CACHE=spgrass6:::.GRASS_CACHE
 
 ### Function to extract various SDSs from a single gridded HDF file and use QA data to throw out 'bad' observations
 loadcloud<-function(date,fs){
 ### set up unique grass session
   tf=paste(tempdir(),"/grass", Sys.getpid(),"/", sep="")
  
-  ## set up tempfile for this PID
-  initGRASS(gisBase="/usr/lib/grass64",gisDbase=tf,SG=td,override=T,location="mod06",mapset="PERMANENT",home=tf,pid=Sys.getpid())
-#  system(paste("g.proj -c proj4=\"+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +datum=WGS84 +units=m +no_defs\"",sep=""))
-    system(paste("g.proj -c proj4=\"+proj=utm +zone=10 +ellps=WGS84 +datum=WGS84 +units=m +no_defs\"",sep=""))
+  ## set up temporary grass instance for this PID
+  initGRASS(gisBase="/nobackupp1/awilso10/software/grass-6.4.3svn",gisDbase=tf,SG=td,override=T,location="mod06",mapset="PERMANENT",home=tf,pid=Sys.getpid())
+  system(paste("g.proj -c proj4=\"",projection(td),"\"",sep=""))
 
-  ## Define region by importing one raster.
-  execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",outdir,"/",fs$file[1],"\":mod06:Cloud_Mask_1km_0",sep=""),
+  ## Define region by importing one MOD11A1 raster.
+  execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",gridfile,"\":MODIS_Grid_Daily_1km_LST:Night_view_angl",sep=""),
             output="modisgrid",flags=c("quiet","overwrite","o"))
   system("g.region rast=modisgrid save=roi --overwrite")
-  system("g.region roi")
-  system("g.region -p")
 
   ## Identify which files to process
-  tfs=fs$file[fs$date==date]
+  tfs=fs$file[fs$dateid==date]
   nfs=length(tfs)
 
-  ### print some summary info
-  print(date)
   ## loop through scenes and process QA flags
   for(i in 1:nfs){
-     file=paste(outdir,"/",tfs[i],sep="")
+     file=paste(tempdir,"/",tfs[i],sep="")
      ## Cloud Mask
      execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",file,"\":mod06:Cloud_Mask_1km_0",sep=""),
               output=paste("CM1_",i,sep=""),flags=c("overwrite","o")) ; print("")
@@ -158,7 +150,7 @@ loadcloud<-function(date,fs){
 EOF",sep=""))
 
     ## QA
-    execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",file,"\":mod06:Quality_Assurance_1km_0",sep=""),
+     execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",file,"\":mod06:Quality_Assurance_1km_0",sep=""),
              output=paste("QA_",i,sep=""),flags=c("overwrite","o")) ; print("")
    ## QA_CER
    system(paste("r.mapcalc <<EOF
@@ -218,29 +210,30 @@ EOF",sep=""))
 EOF",sep=""))
 
   #### Write the files to a geotiff
-  execGRASS("r.out.gdal",input="CER_daily",output=paste(tifdir,"/CER_",format(date,"%Y%m%d"),".tif",sep=""),nodata=-999,flags=c("quiet"))
-  execGRASS("r.out.gdal",input="COT_daily",output=paste(tifdir,"/COT_",format(date,"%Y%m%d"),".tif",sep=""),nodata=-999,flags=c("quiet"))
-  execGRASS("r.out.gdal",input="CLD_daily",output=paste(tifdir,"/CLD_",format(date,"%Y%m%d"),".tif",sep=""),nodata=99,flags=c("quiet"))
+  execGRASS("r.out.gdal",input="CER_daily",output=paste(outdir,"/CER_",date,".tif",sep=""),nodata=-999,flags=c("quiet"))
+  execGRASS("r.out.gdal",input="COT_daily",output=paste(outdir,"/COT_",date,".tif",sep=""),nodata=-999,flags=c("quiet"))
+  execGRASS("r.out.gdal",input="CLD_daily",output=paste(outdir,"/CLD_",date,".tif",sep=""),nodata=99,flags=c("quiet"))
 
 ### delete the temporary files 
   unlink_.gislock()
-  system("/usr/lib/grass64/etc/clean_temp")
- system(paste("rm -R ",tf,sep=""))
+  system("/nobackupp1/awilso10/software/grass-6.4.3svn/etc/clean_temp")
+  system(paste("rm -R ",tf,sep=""))
 ### print update
-  print(paste(" ###################################################################               Finished ",date,"
-################################################################"))
 }
 
 
 ###########################################
 ### Now run it
 
-tdates=sort(unique(fs$date))
-done=tdates%in%as.Date(substr(list.files(tifdir),5,12),"%Y%m%d")
-table(done)
-tdates=tdates[!done]
+lapply(date,function(date) loadcloud(date,fs=fs))
 
-mclapply(tdates,function(date) loadcloud(date,fs=fs))
 
+
+  print(paste(" ###################################################################               Finished ",date,"
+################################################################"))
+
+
+## quit R
+q("no")
  
 
