@@ -11,15 +11,15 @@ save(tb,file="modlandTiles.Rdata")
 
 cat(paste("
 #PBS -S /bin/bash
-#PBS -l select=1:ncpus=4:mpiprocs=4:model=wes
+#PBS -l select=64:ncpus=4:mpiprocs=4:model=wes
 ####old PBS -l select=64:ncpus=4:mpiprocs=4:model=wes
 ####### old: select=48:ncpus=8:mpiprocs=8:model=neh
-#PBS -l walltime=0:10:00
+#PBS -l walltime=10:00:00
 #PBS -j oe
 #PBS -m e
 #PBS -V
 ####PBS -W group_list=s1007
-#PBS -q devel
+###PBS -q devel
 ###PBS -o log/log_^array_index^
 #PBS -o log/log_DataCompile
 #PBS -M adam.wilson@yale.edu
@@ -54,7 +54,7 @@ system("cat MOD06_process")
 #system("cat ~/environmental-layers/climate/procedures/MOD06_L2_process.r")
 
 ## Submit it (and keep the pid)!
-pid=system("qsub -q devel MOD06_process",intern=T); pid; pid=strsplit(pid,split="[.]")[[1]][1]
+pid=system("qsub MOD06_process",intern=T); pid; pid=strsplit(pid,split="[.]")[[1]][1]
 
 #system("qsub MOD06_process")
 
@@ -71,3 +71,7 @@ system("qstat devel ")
 
 ### copy the files back to Yale
 system("scp 2_daily/* adamw@acrobates.eeb.yale.edu:/data/personal/adamw/projects/interp/")
+
+system("scp  /tmp/Rtmp6I6tFn/MOD06_L2.A2000061.1615.051.2010273184629.hdf adamw@acrobates.eeb.yale.edu:/data/personal/adamw/projects/interp/")
+
+list.files(" /tmp/Rtmp6I6tFn")

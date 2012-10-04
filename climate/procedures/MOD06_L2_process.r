@@ -90,7 +90,7 @@ SPATIAL_SUBSET_LR_CORNER = ( ",lowright," )
 #RESAMPLING_TYPE =",ifelse(grepl("Flag|Mask|Quality",vars),"NN","CUBIC"),"
 RESAMPLING_TYPE =NN
 OUTPUT_PROJECTION_TYPE = SIN
- OUTPUT_PROJECTION_PARAMETERS = ( 6371007.181 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 )
+OUTPUT_PROJECTION_PARAMETERS = ( 6371007.181 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 )
 # projection parameters from http://landweb.nascom.nasa.gov/cgi-bin/QA_WWW/newPage.cgi?fileName=sn_gctp
 ELLIPSOID_CODE = WGS84
 OUTPUT_TYPE = HDFEOS
@@ -98,7 +98,7 @@ OUTPUT_FILENAME = ",outfile,"
 END
 
 ",sep="")
- 
+
   ## if any remnants from previous runs remain, delete them
   if(length(list.files(tempdir(),pattern=basename(file)))>0)
     file.remove(list.files(tempdir(),pattern=basename(file),full=T))
@@ -269,7 +269,7 @@ mod06<-function(date,tile){
 ##mod06(date,tile)
 
 ## run it for all dates
-mclapply(notdone[1:100],mod06,tile)
+mclapply(notdone,mod06,tile)
 
 
 ## quit R
