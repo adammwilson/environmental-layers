@@ -220,18 +220,33 @@ EOF",sep=""))
   system(paste("r.mapcalc <<EOF
          COT_denom=",paste("!isnull(COT2_",1:nfs,")",sep="",collapse="+"),"
          COT_numer=",paste("if(isnull(COT2_",1:nfs,"),0,COT2_",1:nfs,")",sep="",collapse="+"),"
-         COT_daily=COT_numer/COT_denom
+         COT_daily=int((COT_numer/COT_denom)*100)
          CER_denom=",paste("!isnull(CER2_",1:nfs,")",sep="",collapse="+"),"
          CER_numer=",paste("if(isnull(CER2_",1:nfs,"),0,CER2_",1:nfs,")",sep="",collapse="+"),"
-         CER_daily=CER_numer/CER_denom
-         CLD_daily=max(",paste("if(isnull(CM_cloud_",1:nfs,"),0,CM_cloud_",1:nfs,")",sep="",collapse=","),") 
+         CER_daily=int(100*(CER_numer/CER_denom))
+         CLD_daily=int((max(",paste("if(isnull(CM_cloud_",1:nfs,"),0,CM_cloud_",1:nfs,")",sep="",collapse=","),"))*100) 
 EOF",sep=""))
 
   #### Write the files to a geotiff
-  execGRASS("r.out.gdal",input="CER_daily",output=paste(outdir,"/CER_",date,".tif",sep=""),nodata=-999,flags=c("quiet"))
-  execGRASS("r.out.gdal",input="COT_daily",output=paste(outdir,"/COT_",date,".tif",sep=""),nodata=-999,flags=c("quiet"))
-  execGRASS("r.out.gdal",input="CLD_daily",output=paste(outdir,"/CLD_",date,".tif",sep=""),nodata=99,flags=c("quiet"))
+#  execGRASS("r.out.gdal",input="CER_daily",output=paste(outdir,"/CER_",date,".tif",sep=""),nodata=-999,flags=c("quiet"))
+#  execGRASS("r.out.gdal",input="COT_daily",output=paste(outdir,"/COT_",date,".tif",sep=""),nodata=-999,flags=c("quiet"))
+#  execGRASS("r.out.gdal",input="CLD_daily",output=paste(outdir,"/CLD_",date,".tif",sep=""),nodata=99,flags=c("quiet"))
 
+  ### Write the files to a netcdf file
+  ## create image group to facilitate export as multiband netcdf
+    execGRASS("i.group",group="mod06",input=c("CER_daily","COT_daily","CLD_daily")) ; print("")
+   
+  ncfile=paste(outdir,"/MOD06_",date,".nc",sep="")
+  execGRASS("r.out.gdal",input="mod06",output=ncfile,type="Int16",nodata=-32768,flags=c("quiet"),createopt=c("WRITE_GDAL_TAGS=YES","WRITE_LONLAT=NO"),format="netCDF")
+  system(paste("/nasa/nco/3.9.8/bin/ncecat -O -u time ",ncfile," ",ncfile,sep=""))
+  system(paste("/nasa/nco/3.9.8/bin/ncap -O -s 'time[time]=",as.integer(fs$date[fs$dateid==date]-as.Date("2000-01-01")),"'",ncfile," ",ncfile))
+  system(paste("/nasa/nco/3.9.8/bin/ncatted -a calendar,time,c,c,\"standard\" -a long_name,time,c,c,\"time\" -a units,time,c,c,\"days since 2000-01-01 12:00:00\"",ncfile))
+  system(paste("/nasa/nco/3.9.8/bin/ncrename -v Band1,CER -v Band2,COT -v Band3,CLD",ncfile))
+  system(paste("/nasa/nco/3.9.8/bin/ncatted -a scale_factor,CER,o,d,0.001 -a missing_value,CER,o,d,-32768 -a long_name,CER,o,c,\"Effective Radius\"",ncfile))
+  system(paste("/nasa/nco/3.9.8/bin/ncatted -a scale_factor,COT,o,d,0.001 -a missing_value,CER,o,d,-32768 -a long_name,COT,o,c,\"Optical Thickness\"",ncfile))
+  system(paste("/nasa/nco/3.9.8/bin/ncatted -a scale_factor,CLD,o,d,0.001 -a missing_value,CER,o,d,-32768 -a long_name,CLD,o,c,\"Cloud Mask\"",ncfile))
+   
+  
 ### delete the temporary files 
   unlink_.gislock()
   system("/nobackupp1/awilso10/software/grass-6.4.3svn/etc/clean_temp")
