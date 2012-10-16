@@ -12,10 +12,14 @@ require(raster)
 require(spgrass6)
 library(multicore)
 
+## number of cores to use
+ncores=as.numeric(system("echo $NCORES",intern=T))
+
 ## specify some working directories
 setwd("/nobackupp1/awilso10/mod06")
 
-outdir="2_daily"
+outdir="2_daily"  #directory for separate daily files
+outdir2="3_summary" #directory for combined daily files and summarized files
 
 print(paste("tempdir()=",tempdir()))
 print(paste("TMPDIR=",Sys.getenv("TMPDIR")))
@@ -23,9 +27,8 @@ print(paste("TMPDIR=",Sys.getenv("TMPDIR")))
 ### get list of files to process
 datadir="/nobackupp4/datapool/modis/MOD06_L2.005/"
 
-fs=data.frame(
-  path=list.files(datadir,full=T,recursive=T,pattern="hdf"),
-  file=basename(list.files(datadir,full=F,recursive=T,pattern="hdf")))
+fs=data.frame(path=list.files(datadir,full=T,recursive=T,pattern="hdf"),stringsAsFactors=F)
+fs$file=basename(fs$path)
 fs$date=as.Date(substr(fs$file,11,17),"%Y%j")
 fs$month=format(fs$date,"%m")
 fs$year=format(fs$date,"%Y")
@@ -48,7 +51,7 @@ tile="h11v08"   #can move this to submit script if needed
 
 
 ## identify which have been completed
-done=alldates%in%substr(list.files(outdir),5,12)
+done=alldates%in%substr(list.files(outdir),7,14)
 table(done)
 notdone=alldates[!done]  #these are the dates that still need to be processed
 
@@ -106,7 +109,8 @@ END
   cat(c(hdr,grp)    , file=paste(tempdir(),"/",basename(file),"_MODparms.txt",sep=""))
   ## now run the swath2grid tool
   ## write the tiff file
-  log=system(paste("/nobackupp4/pvotava/software/heg/bin/swtif -p ",paste(tempdir(),"/",basename(file),"_MODparms.txt -d",sep=""),sep=""),intern=T)
+#  log=system(paste("/nobackupp4/pvotava/software/heg/bin/swtif -p ",paste(tempdir(),"/",basename(file),"_MODparms.txt -d",sep=""),sep=""),intern=T)
+  log=system(paste("/nobackupp1/awilso10/software/heg/bin/swtif -p ",paste(tempdir(),"/",basename(file),"_MODparms.txt -d",sep=""),sep=""),intern=T)
   ## clean up temporary files in working directory
 #  file.remove(paste("filetable.temp_",pid,sep=""))
   print(log)
@@ -242,15 +246,15 @@ EOF",sep=""))
   system(paste("/nasa/nco/3.9.8/bin/ncap -O -s 'time[time]=",as.integer(fs$date[fs$dateid==date]-as.Date("2000-01-01")),"'",ncfile," ",ncfile))
   system(paste("/nasa/nco/3.9.8/bin/ncatted -a calendar,time,c,c,\"standard\" -a long_name,time,c,c,\"time\" -a units,time,c,c,\"days since 2000-01-01 12:00:00\"",ncfile))
   system(paste("/nasa/nco/3.9.8/bin/ncrename -v Band1,CER -v Band2,COT -v Band3,CLD",ncfile))
-  system(paste("/nasa/nco/3.9.8/bin/ncatted -a scale_factor,CER,o,d,0.001 -a missing_value,CER,o,d,-32768 -a long_name,CER,o,c,\"Effective Radius\"",ncfile))
-  system(paste("/nasa/nco/3.9.8/bin/ncatted -a scale_factor,COT,o,d,0.001 -a missing_value,CER,o,d,-32768 -a long_name,COT,o,c,\"Optical Thickness\"",ncfile))
-  system(paste("/nasa/nco/3.9.8/bin/ncatted -a scale_factor,CLD,o,d,0.001 -a missing_value,CER,o,d,-32768 -a long_name,CLD,o,c,\"Cloud Mask\"",ncfile))
+  system(paste("/nasa/nco/3.9.8/bin/ncatted -a scale_factor,CER,o,d,0.01 -a units,CER,o,c,\"micron\" -a missing_value,CER,o,d,-32768 -a long_name,CER,o,c,\"Cloud Particle Effective Radius\"",ncfile))
+  system(paste("/nasa/nco/3.9.8/bin/ncatted -a scale_factor,COT,o,d,0.01 -a units,COT,o,c,\"none\" -a missing_value,COT,o,d,-32768 -a long_name,COT,o,c,\"Cloud Optical Thickness\"",ncfile))
+  system(paste("/nasa/nco/3.9.8/bin/ncatted -a scale_factor,CLD,o,d,0.01 -a units,CLD,o,c,\"none\" -a missing_value,CLD,o,d,-32768 -a long_name,CLD,o,c,\"Cloud Mask\"",ncfile))
    
   
 ### delete the temporary files 
   unlink_.gislock()
   system("/nobackupp1/awilso10/software/grass-6.4.3svn/etc/clean_temp")
-  system(paste("rm -R ",tf,sep=""))
+  system(paste("rm -rR ",tf,sep=""))
 }
 
 
@@ -284,9 +288,41 @@ mod06<-function(date,tile){
 ##mod06(date,tile)
 
 ## run it for all dates
-mclapply(notdone,mod06,tile)
+mclapply(notdone,mod06,tile,mc.cores=ncores/2) # use ncores/2 because system() commands can add second process for each spawned R
 
 
+
+################################################################################
+## now generate the climatologies
+fdly=data.frame(
+  path=list.files(outdir,pattern="nc$",full=T),
+  file=list.files(outdir,pattern="nc$"))
+fdly$date=as.Date(substr(fdly$file,7,14),"%Y%m%d")
+fdly$month=format(fdly$date,"%m")
+fdly$year=format(fdly$date,"%Y")
+
+## check validity (via npar and ntime) of nc files
+for(i in 1:nrow(fdly)){
+  fdly$ntime[i]=as.numeric(system(paste("cdo  sinfo ",fdly$path[i]),intern=T))
+  fdly$npar[i]=as.numeric(system(paste("cdo -s npar ",fdly$path[i]),intern=T))
+  print(i)
+}
+
+## Combine all days within years into a single file (can't mergetime all days at once because this opens too many files)
+tsdir=paste(tempdir(),"/summary",sep="")
+dir.create(tsdir)
+lapply(unique(fdly$year),function(y){
+  system(paste("cdo -O mergetime ",paste(fdly$path[fdly$year==y],collapse=" ")," ",tsdir,"/MOD09_",tile,"_",y,"_daily.nc",sep=""))
+  print(paste("Finished merging daily files for year",y))
+})
+## Combine the year-by-year files into a single daily file
+system(paste("cdo -O mergetime ",paste(list.files(tsdir,full=T,pattern="daily[.]nc$"),collapse=" ")," ",outdir2,"/MOD09_",tile,"_daily.nc",sep=""))
+
+system(paste("cdo -O monmean ",outdir2,"/MOD09_",tile,"_daily.nc ",outdir2,"/",tile,"_monmean.nc",sep=""))
+system(paste("cdo -O ymonmean ",outdir2,"/MOD09_",tile,"_daily.nc ",outdir2,"/",tile,"_ymonmean.nc",sep=""))
+system(paste("cdo -O ymonstd ",outdir2,"/MOD09_",tile,"_daily.nc ",outdir2,"/",tile,"_ymonstd.nc",sep=""))
+
+print("Finished!   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
 ## quit R
 q("no")
  
