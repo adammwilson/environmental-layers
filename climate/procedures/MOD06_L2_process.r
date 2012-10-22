@@ -3,17 +3,21 @@
 
 
 ## load libraries
-require(sp)
 require(rgdal)
 require(reshape)
-require(ncdf4)
+#require(ncdf4)
 require(geosphere)
 require(raster)
 require(spgrass6)
+## packages for parallelization
+#library(foreach)
+#library(doMPI)
 library(multicore)
 
-## number of cores to use
+## register cluster and number of cores to use
 ncores=as.numeric(system("echo $NCORES",intern=T))
+#cl=startMPIcluster(20,verbose=F)
+#registerDoMPI(cl)
 
 ## specify some working directories
 setwd("/nobackupp1/awilso10/mod06")
@@ -288,8 +292,11 @@ mod06<-function(date,tile){
 ##mod06(date,tile)
 
 ## run it for all dates
-mclapply(notdone,mod06,tile,mc.cores=ncores/2) # use ncores/2 because system() commands can add second process for each spawned R
+mclapply(notdone,mod06,tile,mc.cores=ncores) # use ncores/2 because system() commands can add second process for each spawned R
 
+#foreach(i=notdone[1:3],.packages=(.packages())) %dopar% mod06(i,tile)
+
+#foreach(i=1:20) %dopar% print(i)
 
 
 ################################################################################

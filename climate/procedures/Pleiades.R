@@ -11,47 +11,42 @@ save(tb,file="modlandTiles.Rdata")
 
 cat(paste("
 #PBS -S /bin/bash
-##PBS -l select=1:ncpus=16:model=san
+#PBS -l select=1:ncpus=16:model=san
 ###PBS -l select=4:ncpus=8:model=neh
-#PBS -l select=1:ncpus=12:model=wes
+##PBS -l select=1:ncpus=12:model=wes
 ####### old: select=48:ncpus=8:mpiprocs=8:model=neh
-#PBS -l walltime=10:00:00
+#PBS -l walltime=2:00:00
 #PBS -j oe
 #PBS -m e
 #PBS -V
 ####PBS -W group_list=s1007
-###PBS -q devel
+#PBS -q devel
 #PBS -o log/log_^array_index^
 #PBS -o log/log_DataCompile
 #PBS -M adam.wilson@yale.edu
 #PBS -N MOD06
 
-source /usr/share/modules/init/bash
+#source /usr/share/modules/init/bash
 
 ## cd to working directory
 cd /nobackupp1/awilso10/mod06
 
 ## set some memory limits
 #  ulimit -d 1500000 -m 1500000 -v 1500000  #limit memory usage
-  source /usr/local/lib/global.profile
   source /u/awilso10/.bashrc
+  source /u/awilso10/moduleload
+  source /usr/local/lib/global.profile
 ## export a few important variables
-  export NCORES=24  # use to limit mclapply() to set nubmer of cores, should be select*ncpus above
-  export PATH=$PATH:/nobackupp1/awilso10/bin:/nobackupp1/awilso10/software/bin
-  export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/nobackupp1/awilso10/software/lib
+  export NCORES=16  # use to limit mclapply() to set nubmer of cores, should be select*ncpus above
   export R_LIBS=\"/u/awilso10/R/x86_64-unknown-linux-gnu-library/2.15/\"
-  export TMPDIR=/nobackupp1/awilso10/mod06/tmp
-## HEG related variables
-  export MRTDATADIR=/nobackupp1/awilso10/software/heg/data
-  export PGSHOME=/nobackupp1/awilso10/software/heg/TOOLKIT_MTD
-  export HEGUSER=ME
 ## load modules
-  module load gcc mpi-sgi/mpt.2.06r6 hdf4 udunits R nco
+  module load gcc hdf4 udunits R nco mpi-intel #mpi-sgi/mpt.2.06r6
 ## Run the script!
 ## current version not parallelizing across nodes!
   TMPDIR=$TMPDIR Rscript --verbose --vanilla /u/awilso10/environmental-layers/climate/procedures/MOD06_L2_process.r 
 exit 0
 exit 0
+
 ",sep=""),file="MOD06_process")
 
 ### Check the file
@@ -62,12 +57,11 @@ system("cat MOD06_process")
 system("/u/scicon/tools/bin/node_stats.sh")
 
 ## Submit it (and keep the pid)!
-pid=system("qsub MOD06_process",intern=T); pid; pid=strsplit(pid,split="[.]")[[1]][1]
-
-#system("qsub MOD06_process")
+system("qsub MOD06_process")
 
 ## work in interactive mode
-# system("qsub -I -l walltime=1:00:00 -lselect=2:ncpus=16:model=san -q devel")
+# system("qsub -I -l walltime=2:00:00 -lselect=2:ncpus=16:model=san -q devel")
+# mpirun -np 1 -r ssh R --no-save
 
 ## check progress
 system("qstat -u awilso10")
