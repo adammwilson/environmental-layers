@@ -1,12 +1,14 @@
 runGAMCAI <- function(i) {            # loop over dates
   
   #date<-strptime(dates[i], "%Y%m%d")   # interpolation date being processed
-  date<-strptime(sampling_dat$date[i], "%Y%m%d")   # interpolation date being processed
+  date<-strptime(sampling_dat$date[i], "%Y%m%d")   # interpolation date being processed, converting the string using specific format
   month<-strftime(date, "%m")          # current month of the date being processed
-  LST_month<-paste("mm_",month,sep="") # name of LST month to be matched
+  LST_month<-paste("mm_",month,sep="") # name of LST month to be matched in the raster stack of covariates and data.frame
   
   #Adding layer LST to the raster stack
   
+  pos<-match("LST",layerNames(s_raster)) #Find the position of the layer with name "LST", if not present pos=NA
+  s_raster<-dropLayer(s_raster,pos)      # If it exists drop layer
   pos<-match(LST_month,layerNames(s_raster)) #Find column with the current month for instance mm12
   r1<-raster(s_raster,layer=pos)             #Select layer from stack
   layerNames(r1)<-"LST"
@@ -15,7 +17,9 @@ runGAMCAI <- function(i) {            # loop over dates
   ###Regression part 1: Creating a validation dataset by creating training and testing datasets
   
   mod_LST <-ghcn.subsets[[i]][,match(LST_month, names(ghcn.subsets[[i]]))]  #Match interpolation date and monthly LST average
-  ghcn.subsets[[i]] = transform(ghcn.subsets[[i]],LST = mod_LST)            #Add the variable LST to the subset dataset
+  ghcn.subsets[[i]] <- transform(ghcn.subsets[[i]],LST = mod_LST)            #Add the variable LST to the subset dataset
+  dst$LST<-dst[[LST_month]] #Add also to monthly dataset
+  
   #n<-nrow(ghcn.subsets[[i]])
   #ns<-n-round(n*prop)   #Create a sample from the data frame with 70% of the rows
   #nv<-n-ns              #create a sample for validation with prop of the rows
@@ -37,7 +41,7 @@ runGAMCAI <- function(i) {            # loop over dates
   datelabel=format(ISOdate(year,mo,day),"%b %d, %Y")
   
   ###########
-  #  STEP 1 - LST 10 year monthly averages: THIS IS NOT USED IN CAE
+  #  STEP 1 - LST 10 year monthly averages: THIS IS NOT USED IN CAI method
   ###########
 
   themolst<-raster(molst,mo) #current month being processed saved in a raster image
@@ -92,13 +96,23 @@ runGAMCAI <- function(i) {            # loop over dates
   pos<-match("station",names(d)) #Find column with name "value"
   names(d)[pos]<-c("id")
   names(x)[pos]<-c("id")
-  names(modst)[1]<-c("id")       #modst contains the average tmax per month for every stations...
-  dmoday=merge(modst,d,by="id")  #LOOSING DATA HERE!!! from 113 t0 103
-  xmoday=merge(modst,x,by="id")  #LOOSING DATA HERE!!! from 48 t0 43
-  names(dmoday)[4]<-c("lat")
-  names(dmoday)[5]<-c("lon")     #dmoday contains all the the information: BIAS, monn
-  names(xmoday)[4]<-c("lat")
-  names(xmoday)[5]<-c("lon")     #dmoday contains all the the information: BIAS, monn
+  names(modst)[1]<-c("id")       #modst contains the average tmax per month for every stations...it has 193 rows
+  
+  dmoday=merge(modst,d,by="id",suffixes=c("",".y2"))  #LOOSING DATA HERE!!! from 113 t0 103
+  xmoday=merge(modst,x,by="id",suffixes=c("",".y2"))  #LOOSING DATA HERE!!! from 48 t0 43
+  mod_pat<-glob2rx("*.y2")   
+  var_pat<-grep(mod_pat,names(dmoday),value=FALSE) # using grep with "value" extracts the matching names
+  dmoday<-dmoday[,-var_pat]
+  mod_pat<-glob2rx("*.y2")   
+  var_pat<-grep(mod_pat,names(xmoday),value=FALSE) # using grep with "value" extracts the matching names
+  xmoday<-xmoday[,-var_pat] #Removing duplicate columns
+  
+  #dmoday=merge(modst,d,by="id")  #LOOSING DATA HERE!!! from 113 t0 103
+  #xmoday=merge(modst,x,by="id")  #LOOSING DATA HERE!!! from 48 t0 43
+  #names(dmoday)[4]<-c("lat")
+  #names(dmoday)[5]<-c("lon")     #dmoday contains all the the information: BIAS, monn
+  #names(xmoday)[4]<-c("lat")
+  #names(xmoday)[5]<-c("lon")     #dmoday contains all the the information: BIAS, monn
   
   data_v<-xmoday
   ###
@@ -128,14 +142,14 @@ runGAMCAI <- function(i) {            # loop over dates
   
   #Adding options to use only training stations: 07/11/2012
   bias_xy<-project(as.matrix(sta_lola),proj_str)
-  clim_xy<-project(as.matrix(sta_lola),proj_str)
+  clim_xy<-project(as.matrix(sta_lola),proj_str)     #This is the coordinates of monthly station location (193)
   #bias_xy2=project(as.matrix(c(dmoday$lon,dmoday$lat),proj_str)
   if(bias_val==1){
-    sta_bias<-dmoday$LSTD_bias
-    bias_xy<-cbind(dmoday$x_OR83M,dmoday$y_OR83M)
+    sta_bias<-dmoday$LSTD_bias         
+    bias_xy<-cbind(dmoday$x_OR83M,dmoday$y_OR83M) #This will use only stations from training daily samples for climatology step if bias_val=1
   }
   
-  sta_clim<-modst$TMax #This contains the monthly climatology...
+  sta_clim<-modst$TMax #This contains the monthly climatology...used in the prediction of the monthly surface
   
   #fitbias<-Krig(bias_xy,sta_bias,theta=1e5) #use TPS or krige 
   fitclim<-Krig(clim_xy,sta_clim,theta=1e5)
@@ -156,15 +170,15 @@ runGAMCAI <- function(i) {            # loop over dates
   #US(add=T,col="magenta",lwd=2)
   
   ##########
-  # STEP 7 - interpolate delta across space
+  # STEP 7 - interpolate delta across space: this is the daily deviation from the monthly average
   ##########
   
   daily_sta_lola=dmoday[,c("lon","lat")] #could be same as before but why assume merge does this - assume not
   daily_sta_xy=project(as.matrix(daily_sta_lola),proj_str)
   daily_delta=dmoday$dailyTmax-dmoday$TMax
   
-  daily_deltaclim<-dmoday$dailyTmax-dmoday$TMax
-  daily_deltaclim_v<-data_v$dailyTmax-data_v$TMax  #For validation
+  daily_deltaclim<-dmoday$dailyTmax-dmoday$TMax    #For daily surface interpolation...
+  daily_deltaclim_v<-data_v$dailyTmax-data_v$TMax  #For validation...
   #dmoday$daily_deltaclim <-daily_deltaclim
   #fitdelta<-Tps(daily_sta_xy,daily_delta) #use TPS or krige
   fitdelta<-Krig(daily_sta_xy,daily_delta,theta=1e5) #use TPS or krige
@@ -193,8 +207,8 @@ runGAMCAI <- function(i) {            # loop over dates
   #### Added by Benoit ends
   
   #########
-  # STEP 8 - assemble final answer - T= LST+Bias(interpolated)+delta(interpolated)
-  #                                  T= clim(interpolated) + deltaclim(interpolated)
+  # STEP 8 - assemble final answer - T= LST-Bias(interpolated)+delta(interpolated)    (This is for fusion not implemented in this script...)
+  #                                  T= clim(interpolated) + deltaclim(interpolated)  (This is for CAI)
   #########
 
   #bias_rast=interpolate(themolst,fitbias) #interpolation using function from raster package
@@ -263,8 +277,7 @@ runGAMCAI <- function(i) {            # loop over dates
   resid=sta_pred-tmax
   #quilt.plot(daily_sta_lola,resid)
   
-  
-  
+
   ###BEFORE GAM prediction the data object must be transformed to SDF
   
   coords<- data_v[,c('x_OR83M','y_OR83M')]
@@ -273,6 +286,9 @@ runGAMCAI <- function(i) {            # loop over dates
   coords<- data_s[,c('x_OR83M','y_OR83M')]
   coordinates(data_s)<-coords
   proj4string(data_s)<-CRS  #Need to assign coordinates..
+  coords<- modst[,c('x_OR83M','y_OR83M')]
+  coordinates(modst)<-coords
+  proj4string(modst)<-CRS  #Need to assign coordinates..
   
   ns<-nrow(data_s) #This is added to because some loss of data might have happened because of the averaging...
   nv<-nrow(data_v)
@@ -285,9 +301,11 @@ runGAMCAI <- function(i) {            # loop over dates
   data_s$y_var<-data_s$daily_deltaclim
   data_v$y_var<-data_v$daily_deltaclim
   
-  if (climgam==1){
+  if (climgam==1){          #This is an option to use covariates in the daily surface...
     data_s$y_var<-data_s$TMax
     data_v$y_var<-data_v$TMax
+    data_month<-modst
+    data_month$y_var<-modst$TMax
   }
   
   #Model and response variable can be changed without affecting the script
@@ -301,15 +319,37 @@ runGAMCAI <- function(i) {            # loop over dates
   formula7 <- as.formula("y_var~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST)+s(LC3)", env=.GlobalEnv)
   formula8 <- as.formula("y_var~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST) + s(LC1,LC3)", env=.GlobalEnv)
   
-  mod1<- try(gam(formula1, data=data_s))
-  mod2<- try(gam(formula2, data=data_s)) #modified nesting....from 3 to 2
-  mod3<- try(gam(formula3, data=data_s))
-  mod4<- try(gam(formula4, data=data_s))
-  mod5<- try(gam(formula5, data=data_s))
-  mod6<- try(gam(formula6, data=data_s))
-  mod7<- try(gam(formula7, data=data_s))
-  mod8<- try(gam(formula8, data=data_s))
+  #mod1<- try(gam(formula1, data=data_s))
+  #mod2<- try(gam(formula2, data=data_s)) #modified nesting....from 3 to 2
+  #mod3<- try(gam(formula3, data=data_s))
+  #mod4<- try(gam(formula4, data=data_s))
+  #mod5<- try(gam(formula5, data=data_s))
+  #mod6<- try(gam(formula6, data=data_s))
+  #mod7<- try(gam(formula7, data=data_s))
+  #mod8<- try(gam(formula8, data=data_s))
 
+  if (climgam==1){          #This will automatically use monthly station data in the second step
+    mod1<- try(gam(formula1, data=data_month))
+    mod2<- try(gam(formula2, data=data_month)) #modified nesting....from 3 to 2
+    mod3<- try(gam(formula3, data=data_month))
+    mod4<- try(gam(formula4, data=data_month))
+    mod5<- try(gam(formula5, data=data_month))
+    mod6<- try(gam(formula6, data=data_month))
+    mod7<- try(gam(formula7, data=data_month))
+    mod8<- try(gam(formula8, data=data_month)) 
+    
+  } else if (climgam==0){ #This will use daily delta in the second step
+    
+    mod1<- try(gam(formula1, data=data_s))
+    mod2<- try(gam(formula2, data=data_s)) #modified nesting....from 3 to 2
+    mod3<- try(gam(formula3, data=data_s))
+    mod4<- try(gam(formula4, data=data_s))
+    mod5<- try(gam(formula5, data=data_s))
+    mod6<- try(gam(formula6, data=data_s))
+    mod7<- try(gam(formula7, data=data_s))
+    mod8<- try(gam(formula8, data=data_s))
+  }
+  
   ### Added by benoit
   #Store results using TPS
   j=nmodels+1
@@ -360,7 +400,7 @@ runGAMCAI <- function(i) {            # loop over dates
   
   #ns<-nrow(data_s) #This is added to because some loss of data might have happened because of the averaging...
   #nv<-nrow(data_v)
-  browser()
+  #browser()
   
   for (j in 1:nmodels){
     
@@ -426,6 +466,7 @@ runGAMCAI <- function(i) {            # loop over dates
     #If mod "j" is not a model object
     if (inherits(mod,"gam")) {
       
+      # model specific metrics
       results_m1[1,1]<- sampling_dat$date[i]  #storing the interpolation dates in the first column
       results_m1[1,2]<- ns        #number of stations used in the training stage
       results_m1[1,3]<- "AIC"
@@ -440,27 +481,6 @@ runGAMCAI <- function(i) {            # loop over dates
       results_m3[1,2]<- ns        #number of stations used in the training stage
       results_m3[1,3]<- "DEV"
       results_m3[1,j+3]<- mod$deviance
-      
-      y_var_fit= mod$fit
-      R2_mod_f<- cor(data_s$dailyTmax,y_var_fit, use="complete")^2
-      #RMSE_mod_f<- sqrt(mean(res_mod_s^2,na.rm=TRUE))
-      
-      results_RMSE_f[1,1]<- sampling_dat$date[i]  #storing the interpolation dates in the first column
-      results_RMSE_f[1,2]<- ns        #number of stations used in the training stage
-      results_RMSE_f[1,3]<- "RSME_f"
-      #results_RMSE_f[j+3]<- sqrt(sum((y_var_fit-data_s$y_var)^2)/ns)
-      results_RMSE_f[1,j+3]<-sqrt(mean(mod$residuals^2,na.rm=TRUE))
-      
-      results_MAE_f[1,1]<- sampling_dat$date[i]  #storing the interpolation dates in the first column
-      results_MAE_f[1,2]<- ns        #number of stations used in the training stage
-      results_MAE_f[1,3]<- "MAE_f"
-      #results_MAE_f[j+3]<-sum(abs(y_var_fit-data_s$y_var))/ns
-      results_MAE_f[1,j+3]<-mean(abs(mod$residuals),na.rm=TRUE)
-      
-      results_R2_f[1,1]<- sampling_dat$date[i]      #storing the interpolation dates in the first column
-      results_R2_f[1,2]<- ns            #number of stations used in the training stage
-      results_R2_f[1,3]<- "R2_f"
-      results_R2_f[1,j+3]<- R2_mod_f      #Storing R2 for the model j
       
       ##Model assessment: general diagnostic/metrics
       ##validation: using the testing data
@@ -483,14 +503,14 @@ runGAMCAI <- function(i) {            # loop over dates
         writeRaster(raster_pred, filename=raster_name,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
         #writeRaster(r2, filename=raster_name,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
         
-        tmax_predicted_CAI<-raster_pred + clim_rast #Final surface  as a raster layer...
+        tmax_predicted_CAI<-raster_pred + clim_rast #Final surface  as a raster layer...taht is if daily prediction with GAM
         if (climgam==1){
           tmax_predicted_CAI<-raster_pred + daily_deltaclim_rast #Final surface  as a raster layer...
         }
           
         layerNames(tmax_predicted_CAI)<-"y_pred"
         data_name<-paste("predicted_mod",j,"_",sampling_dat$date[i],"_",sampling_dat$prop[i],"_",sampling_dat$run_samp[i],sep="")
-        raster_name<-paste("GAMCAI_tmax_pred_",data_name,out_prefix,".rst", sep="")
+        raster_name<-paste("GAMCAI_tmax_predicted_",data_name,out_prefix,".rst", sep="")
         writeRaster(tmax_predicted_CAI, filename=raster_name,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
         #writeRaster(r2, filename=raster_name,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
         
@@ -513,7 +533,7 @@ runGAMCAI <- function(i) {            # loop over dates
       }
       
       if (predval==0) {
-      
+        
         y_mod<- predict(mod, newdata=data_v, se.fit = TRUE) #Using the coeff to predict new values.
         
         pred_mod<-paste("pred_mod",j,sep="")
@@ -527,7 +547,29 @@ runGAMCAI <- function(i) {            # loop over dates
         res_mod_v<- data_v$dailyTmax - data_v[[pred_mod]]           #Residuals from kriging validation
       }
 
-      ####ADDED ON JULY 20th
+      #y_var_fit= mod$fit #move it
+      #Use res_mod_s so the R2 is based on daily station training
+      R2_mod_f<- cor(data_s$dailyTmax,res_mod_s, use="complete")^2
+      RMSE_mod_f<- sqrt(mean(res_mod_s^2,na.rm=TRUE))
+      
+      results_RMSE_f[1,1]<- sampling_dat$date[i]  #storing the interpolation dates in the first column
+      results_RMSE_f[1,2]<- ns        #number of stations used in the training stage
+      results_RMSE_f[1,3]<- "RSME_f"
+      #results_RMSE_f[1,j+3]<-sqrt(mean(mod$residuals^2,na.rm=TRUE))
+      results_RMSE_f[1,j+3]<-sqrt(mean(res_mod_s^2,na.rm=TRUE))
+      
+      results_MAE_f[1,1]<- sampling_dat$date[i]  #storing the interpolation dates in the first column
+      results_MAE_f[1,2]<- ns        #number of stations used in the training stage
+      results_MAE_f[1,3]<- "MAE_f"
+      #results_MAE_f[j+3]<-sum(abs(y_var_fit-data_s$y_var))/ns
+      results_MAE_f[1,j+3]<-mean(abs(res_mod_s),na.rm=TRUE)
+      
+      results_R2_f[1,1]<- sampling_dat$date[i]      #storing the interpolation dates in the first column
+      results_R2_f[1,2]<- ns            #number of stations used in the training stage
+      results_R2_f[1,3]<- "R2_f"
+      results_R2_f[1,j+3]<- R2_mod_f      #Storing R2 for the model j
+      
+      #### Now calculate validation metrics
       res_mod<-res_mod_v
       
       #RMSE_mod <- sqrt(sum(res_mod^2)/nv)                 #RMSE FOR REGRESSION STEP 1: GAM  
@@ -604,8 +646,9 @@ runGAMCAI <- function(i) {            # loop over dates
   mod_obj<-list(mod1,mod2,mod3,mod4,mod5,mod6,mod7,mod8,mod9a,mod9b)
   names(mod_obj)<-c("mod1","mod2","mod3","mod4","mod5","mod6","mod7","mod8","mod9a","mod9b") #generate names automatically??
   #results_list<-list(data_s,data_v,tb_metrics1,tb_metrics2)
-  results_list<-list(data_s,data_v,tb_metrics1,tb_metrics2,mod_obj)
-  names(results_list)<-c("data_s","data_v","tb_metrics1","tb_metrics2","mod_obj")
+  #results_list<-list(data_s,data_v,tb_metrics1,tb_metrics2,mod_obj)
+  results_list<-list(data_s,data_v,tb_metrics1,tb_metrics2,mod_obj,data_month)
+  names(results_list)<-c("data_s","data_v","tb_metrics1","tb_metrics2","mod_obj","data_month")
   save(results_list,file= paste(path,"/","results_list_metrics_objects_",sampling_dat$date[i],"_",sampling_dat$prop[i],"_",sampling_dat$run_samp[i],
                                 out_prefix,".RData",sep=""))
   return(results_list)
