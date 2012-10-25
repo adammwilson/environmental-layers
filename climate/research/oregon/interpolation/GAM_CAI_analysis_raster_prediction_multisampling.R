@@ -1,12 +1,12 @@
 ######################################## METHOD COMPARISON #######################################
-############################ Multisampling for GAM CAI method #####################################
+############################ Constant sampling for GAM CAI method #####################################
 #This script interpolates tmax values using MODIS LST and GHCND station data                     #
 #interpolation area. It requires the text file of stations and a shape file of the study area.   #       
 #Note that the projection for both GHCND and study area is lonlat WGS84.                         #
-#Method is assedsed using multisampling with variation  of validation sample with different      #
+#Method is assedsed using constant sampling with variation  of validation sample with different  #
 #hold out proportions.                                                                           #
 #AUTHOR: Benoit Parmentier                                                                       #
-#DATE: 09/14/2012                                                                                #
+#DATE: 10/25/2012                                                                                #
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#491--                                  #
 ###################################################################################################
 
@@ -26,9 +26,8 @@ library(reshape)
 ### Parameters and argument
 
 infile1<- "ghcn_or_tmax_covariates_06262012_OR83M.shp"             #GHCN shapefile containing variables for modeling 2010                 
-infile2<-"list_10_dates_04212012.txt"                     #List of 10 dates for the regression
-#infile2<-"list_2_dates_04212012.txt"
-#infile2<-"list_365_dates_04212012.txt"
+#infile2<-"list_10_dates_04212012.txt"                     #List of 10 dates for the regression
+infile2<-"list_365_dates_04212012.txt"
 infile3<-"LST_dates_var_names.txt"                        #LST dates name
 infile4<-"models_interpolation_05142012.txt"              #Interpolation model names
 infile5<-"mean_day244_rescaled.rst"                       #Raster or grid for the locations of predictions
@@ -36,37 +35,37 @@ infile5<-"mean_day244_rescaled.rst"                       #Raster or grid for th
 infile6<-"LST_files_monthly_climatology.txt"
 inlistf<-"list_files_05032012.txt"                        #Stack of images containing the Covariates
 
+path<-"/home/parmentier/Data/IPLANT_project/data_Oregon_stations_10242012_CAI" #Atlas location
+setwd(path)
 
-#path<-"/home/parmentier/Data/IPLANT_project/data_Oregon_stations"
-#path<-"/home/parmentier/Data/IPLANT_project/data_Oregon_stations_07192012_GAM"
-path<-"/home/parmentier/Data/IPLANT_project/data_Oregon_stations_07192012_CAI"
-#path<-"/home/parmentier/Data/IPLANT_project/data_Oregon_stations_GAM"
-#path<-"/home/parmentier/Data/IPLANT_project/data_Oregon_stations_07152012"     #Jupiter LOCATION on Atlas for kriging"
-#path<-"M:/Data/IPLANT_project/data_Oregon_stations"   #Locations on Atlas
-
-#Station location of the study area
+#Station location for the study area
 stat_loc<-read.table(paste(path,"/","location_study_area_OR_0602012.txt",sep=""),sep=",", header=TRUE)
 #GHCN Database for 1980-2010 for study area (OR) 
 data3<-read.table(paste(path,"/","ghcn_data_TMAXy1980_2010_OR_0602012.txt",sep=""),sep=",", header=TRUE)
 
 nmodels<-8   #number of models running
 y_var_name<-"dailyTmax"
-climgam=1
+climgam=1                                                     #if 1, then GAM is run on the climatology rather than the daily deviation surface...
 predval<-1
-prop<-0.3                                                                           #Proportion of testing retained for validation   
-#prop<-0.25
-seed_number<- 100                                                                   #Seed number for random sampling
-out_prefix<-"_09132012_365d_GAM_CAI2_multisampling2"                                #User defined output prefix
-setwd(path)
-bias_val<-0            #if value 1 then training data is used in the bias surface rather than the all monthly stations
+prop<-0.3                                                     #Proportion of testing retained for validation   
 
-nb_sample<-1
-prop_min<-0.3
+seed_number<- 100                                             #Seed number for random sampling, if seed_number<0, no seed number is used..
+#out_prefix<-"_365d_GAM_CAI2_const_10222012_"                  #User defined output prefix
+out_prefix<-"_365d_GAM_CAI2_all_lstd_10262012"                #User defined output prefix
+
+bias_val<-0            #if value 1 then daily training data is used in the bias surface rather than the all monthly stations (added on 07/11/2012)
+bias_prediction<-1     #if value 1 then use GAM for the BIAS prediction otherwise GAM direct reprediction for y_var (daily tmax)
+nb_sample<-1           #number of time random sampling must be repeated for every hold out proportion
+prop_min<-0.3          #if prop_min=prop_max and step=0 then predicitons are done for the number of dates...
 prop_max<-0.3
-step<-0
+step<-0         
+constant<-0            #if value 1 then use the same samples as date one for the all set of dates
+#projection used in the interpolation of the study area
+CRS_interp<-"+proj=lcc +lat_1=43 +lat_2=45.5 +lat_0=41.75 +lon_0=-120.5 +x_0=400000 +y_0=0 +ellps=GRS80 +units=m +no_defs";
+CRS_locs_WGS84<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0") #Station coords WGS84
 
-#source("fusion_function_07192012.R")
-source("GAM_CAI_function_multisampling_09132012.R")
+source("GAM_CAI_function_multisampling_10252012.R")
+
 ############ START OF THE SCRIPT ##################
 
 ###Reading the station data and setting up for models' comparison
@@ -87,8 +86,12 @@ ghcn <- transform(ghcn,Eastness_w = sin(slope*pi/180)*sin(ASPECT*pi/180))  #addi
 ghcn$LC1[is.na(ghcn$LC1)]<-0
 ghcn$LC3[is.na(ghcn$LC3)]<-0
 ghcn$CANHEIGHT[is.na(ghcn$CANHEIGHT)]<-0
+ghcn$LC4[is.na(ghcn$LC4)]<-0
+ghcn$LC6[is.na(ghcn$LC6)]<-0
 
-dates <-readLines(paste(path,"/",infile2, sep=""))
+#Use file.path for to construct pathfor independent os platform? !!!
+dates<-readLines(file.path(path,infile2))
+#dates <-readLines(paste(path,"/",infile2, sep=""))
 LST_dates <-readLines(paste(path,"/",infile3, sep=""))
 models <-readLines(paste(path,"/",infile4, sep=""))
 
@@ -121,6 +124,23 @@ pos<-match("LC3",layerNames(s_raster)) #Find column with name "value"
 LC3<-raster(s_raster,layer=pos)             #Select layer from stack
 s_raster<-dropLayer(s_raster,pos)
 LC3[is.na(LC3)]<-0
+
+#Modification added to account for other land cover
+
+pos<-match("LC4",layerNames(s_raster)) #Find column with name "value"
+LC4<-raster(s_raster,layer=pos)             #Select layer from stack
+s_raster<-dropLayer(s_raster,pos)
+LC4[is.na(LC4)]<-0
+
+pos<-match("LC6",layerNames(s_raster)) #Find column with name "value"
+LC6<-raster(s_raster,layer=pos)             #Select layer from stack
+s_raster<-dropLayer(s_raster,pos)
+LC6[is.na(LC6)]<-0
+
+LC_s<-stack(LC1,LC3,LC4,LC6)
+layerNames(LC_s)<-c("LC1_forest","LC3_grass","LC4_crop","LC6_urban")
+plot(LC_s)
+
 pos<-match("CANHEIGHT",layerNames(s_raster)) #Find column with name "value"
 CANHEIGHT<-raster(s_raster,layer=pos)             #Select layer from stack
 s_raster<-dropLayer(s_raster,pos)
@@ -137,8 +157,8 @@ lat<-lon
 values(lon)<-xy_latlon[,1]
 values(lat)<-xy_latlon[,2]
 
-r<-stack(N,E,Nw,Ew,lon,lat,LC1,LC3,CANHEIGHT)
-rnames<-c("Northness","Eastness","Northness_w","Eastness_w", "lon","lat","LC1","LC3","CANHEIGHT")
+r<-stack(N,E,Nw,Ew,lon,lat,LC1,LC3,LC4,LC6, CANHEIGHT)
+rnames<-c("Northness","Eastness","Northness_w","Eastness_w", "lon","lat","LC1","LC3","LC4","LC6","CANHEIGHT")
 layerNames(r)<-rnames
 s_raster<-addLayer(s_raster, r)
 
@@ -154,7 +174,6 @@ molst<-molst-273.16  #K->C          #LST stack of monthly average...
 idx <- seq(as.Date('2010-01-15'), as.Date('2010-12-15'), 'month')
 molst <- setZ(molst, idx)
 layerNames(molst) <- month.abb
-
 
 ######  Preparing tables for model assessment: specific diagnostic/metrics
 
@@ -193,6 +212,17 @@ names(dst)[pos]<-c("TMax")
 dst$TMax<-dst$TMax/10                #TMax is the average max temp for monthy data
 #dstjan=dst[dst$month==9,]  #dst contains the monthly averages for tmax for every station over 2000-2010
 
+#Extracting covariates from stack for the monthly dataset...
+coords<- dst[c('lon','lat')]              #Define coordinates in a data frame
+coordinates(dst)<-coords                      #Assign coordinates to the data frame
+proj4string(dst)<-CRS_locs_WGS84                  #Assign coordinates reference system in PROJ4 format
+dst_month<-spTransform(dst,CRS(CRS_interp))     #Project from WGS84 to new coord. system
+
+stations_val<-extract(s_raster,dst_month)  #extraction of the infomration at station location
+stations_val<-as.data.frame(stations_val)
+dst_extract<-cbind(dst_month,stations_val)
+dst<-dst_extract
+
 ######### Preparing daily values for training and testing
 
 #Screening for bad values: value is tmax in this case
@@ -205,7 +235,9 @@ ghcn<-ghcn_test2
 
 ##Sampling: training and testing sites...
 
-#set.seed(seed_number)                        #Using a seed number allow results based on random number to be compared...
+if (seed_number>0) {
+  set.seed(seed_number)                        #Using a seed number allow results based on random number to be compared...
+}
 nel<-length(dates)
 dates_list<-vector("list",nel) #list of one row data.frame
 
@@ -243,18 +275,18 @@ for(i in 1:length(ghcn.subsets)){
   sampling[[i]]<-ind.training
 }
 
+if (constant==1){
+  sampled<-sampling[[1]]
+  list_const_sampling<-vector("list",sn)
+  for(i in 1:sn){
+    list_const_sampling[[i]]<-sampled
+  }
+  sampling<-list_const_sampling  
+}
+
 ######## Prediction for the range of dates
 
 #Start loop here...
-
-## looping through the dates...this is the main part of the code
-#i=1 #for debugging
-#j=1 #for debugging
-#for(i in 1:length(dates)){     [[       # start of the for loop #1
-#i=1
-
-#mclapply(1:length(dates), runFusion, mc.cores = 8)#This is the end bracket from mclapply(...) statement
-#source("GAM_fusion_function_07192012d.R")
 
 #gam_CAI_mod<-mclapply(1:length(dates), runGAMCAI,mc.preschedule=FALSE,mc.cores = 8) #This is the end bracket from mclapply(...) statement
 gam_CAI_mod<-mclapply(1:length(ghcn.subsets), runGAMCAI,mc.preschedule=FALSE,mc.cores = 8) #This is the end bracket from mclapply(...) statement
@@ -284,7 +316,7 @@ for(i in 1:length(metrics)){            # Reorganizing information in terms of m
   tb_metric_list[[i]]<-tb_metric
 }
 
-tb_diagnostic<-do.call(rbind,tb_metric_list)
+tb_diagnostic<-do.call(rbind,tb_metric_list)  #produce a data.frame from the list ...
 tb_diagnostic[["prop"]]<-as.factor(tb_diagnostic[["prop"]])
 
 t<-melt(tb_diagnostic,
