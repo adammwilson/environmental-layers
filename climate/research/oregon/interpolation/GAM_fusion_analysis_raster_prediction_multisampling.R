@@ -1,11 +1,17 @@
 ##################    MULTI SAMPLING GAM FUSION METHOD ASSESSMENT ####################################
 ############################ Merging LST and station data ##########################################
-#This script interpolates tmax values using MODIS LST and GHCND station data                      #
-#interpolation area. It requires the text file of stations and a shape file of the study area.    #       
-#Note that the projection for both GHCND and study area is lonlat WGS84.                          #
-#AUTHOR: Benoit Parmentier                                                                        #
-#DATE: 08/15/2012                                                                                 #
-#PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363--                                   #
+#This script interpolates tmax values using MODIS LST and GHCND station data                      
+#interpolation area. It requires the text file of stations and a shape file of the study area.           
+#Note that the projection for both GHCND and study area is lonlat WGS84.       
+#Options to run this program are:
+#1) Multisampling: vary the porportions of hold out and use random samples for each run
+#2)Constant sampling: use the same sample over the runs
+#3)over dates: run over for example 365 dates without mulitsampling
+#4)use seed number: use seed if random samples must be repeatable
+#5)GAM fusion: possibilty of running GAM+FUSION or GAM separately 
+#AUTHOR: Benoit Parmentier                                                                        
+#DATE: 10/27/2012                                                                                 
+#PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363--                                   
 ###################################################################################################
 
 ###Loading R library and packages                                                      
@@ -19,13 +25,12 @@ library(fields)                              # NCAR Spatial Interpolation method
 library(raster)                              # Hijmans et al. package for raster processing
 library(rasterVis)
 library(parallel)                            # Urbanek S. and Ripley B., package for multi cores & parralel processing
-
+library(reshape)
+library(plotrix)
 ### Parameters and argument
 
 infile1<- "ghcn_or_tmax_covariates_06262012_OR83M.shp"             #GHCN shapefile containing variables for modeling 2010                 
-#tinfile2<-"list_10_dates_04212012.txt"                     #List of 10 dates for the regression
-infile2<-"list_2_dates_04212012.txt"
-#infile2<-"list_365_dates_04212012.txt"
+infile2<-"list_365_dates_04212012.txt"
 infile3<-"LST_dates_var_names.txt"                        #LST dates name
 infile4<-"models_interpolation_05142012.txt"              #Interpolation model names
 infile5<-"mean_day244_rescaled.rst"                       #Raster or grid for the locations of predictions
@@ -33,11 +38,7 @@ infile5<-"mean_day244_rescaled.rst"                       #Raster or grid for th
 infile6<-"LST_files_monthly_climatology.txt"
 inlistf<-"list_files_05032012.txt"                        #Stack of images containing the Covariates
 
-#path<-"/home/parmentier/Data/IPLANT_project/data_Oregon_stations"
-path<-"/home/parmentier/Data/IPLANT_project/methods_interpolation_comparison"
-#path<-"/home/parmentier/Data/IPLANT_project/data_Oregon_stations_GAM"
-#path<-"/home/parmentier/Data/IPLANT_project/data_Oregon_stations_07152012"     #Jupiter LOCATION on Atlas for kriging"
-#path<-"M:/Data/IPLANT_project/data_Oregon_stations"   #Locations on Atlas
+path<-"/home/parmentier/Data/IPLANT_project/data_Oregon_stations_10242012_GAM"
 
 setwd(path)
 #Station location of the study area
@@ -48,24 +49,25 @@ data3<-read.table(paste(path,"/","ghcn_data_TMAXy1980_2010_OR_0602012.txt",sep="
 nmodels<-8   #number of models running
 y_var_name<-"dailyTmax"
 predval<-1
-prop<-0.3                                                                           #Proportion of testing retained for validation   
+prop<-0.3             #Proportion of testing retained for validation   
 #prop<-0.25
-seed_number<- 100  #if seedzero then no seed?                                                                 #Seed number for random sampling
-out_prefix<-"_365d_GAM_fusion_multisamp2_0823012"                #User defined output prefix
+seed_number<- 100  #if seed zero then no seed?                                                                 #Seed number for random sampling
+out_prefix<-"_365d_GAM_fusion_const_all_lstd_10282012"                #User defined output prefix
 
 bias_val<-0            #if value 1 then training data is used in the bias surface rather than the all monthly stations
-nb_sample<-15
-prop_min<-0.1
-prop_max<-0.7
-step<-0.1
+bias_prediction<-1     #if value 1 then use GAM for the BIAS prediction otherwise GAM direct repdiction for y_var (daily tmax)
+nb_sample<-1           #number of time random sampling must be repeated for every hold out proportion
+prop_min<-0.3          #if prop_min=prop_max and step=0 then predicitons are done for the number of dates...
+prop_max<-0.3
+step<-0         
+constant<-1             #if value 1 then use the same samples as date one for the all set of dates
+#projection used in the interpolation of the study area
+CRS_interp<-"+proj=lcc +lat_1=43 +lat_2=45.5 +lat_0=41.75 +lon_0=-120.5 +x_0=400000 +y_0=0 +ellps=GRS80 +units=m +no_defs";
+CRS_locs_WGS84<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0") #Station coords WGS84
 
-#source("fusion_function_07192012.R")
-source("GAM_fusion_function_multisampling_08232012.R")
-############ START OF THE SCRIPT ##################
-#
-#
-### Step 0/Step 6 in Brian's code...preparing year 2010 data for modeling 
-#
+source("GAM_fusion_function_multisampling_10272012.R")
+
+###################### START OF THE SCRIPT ########################
 
 ###Reading the station data and setting up for models' comparison
 filename<-sub(".shp","",infile1)             #Removing the extension from file.
@@ -115,10 +117,26 @@ pos<-match("LC1",layerNames(s_raster)) #Find column with name "value"
 LC1<-raster(s_raster,layer=pos)             #Select layer from stack
 s_raster<-dropLayer(s_raster,pos)
 LC1[is.na(LC1)]<-0
+
 pos<-match("LC3",layerNames(s_raster)) #Find column with name "value"
 LC3<-raster(s_raster,layer=pos)             #Select layer from stack
 s_raster<-dropLayer(s_raster,pos)
 LC3[is.na(LC3)]<-0
+
+pos<-match("LC4",layerNames(s_raster)) #Find column with name "value"
+LC4<-raster(s_raster,layer=pos)             #Select layer from stack
+s_raster<-dropLayer(s_raster,pos)
+LC4[is.na(LC4)]<-0
+
+pos<-match("LC6",layerNames(s_raster)) #Find column with name "value"
+LC6<-raster(s_raster,layer=pos)             #Select layer from stack
+s_raster<-dropLayer(s_raster,pos)
+LC6[is.na(LC6)]<-0
+
+LC_s<-stack(LC1,LC3,LC4,LC6)
+layerNames(LC_s)<-c("LC1_forest","LC3_grass","LC4_crop","LC6_urban")
+plot(LC_s)
+
 pos<-match("CANHEIGHT",layerNames(s_raster)) #Find column with name "value"
 CANHEIGHT<-raster(s_raster,layer=pos)             #Select layer from stack
 s_raster<-dropLayer(s_raster,pos)
@@ -135,8 +153,8 @@ lat<-lon
 values(lon)<-xy_latlon[,1]
 values(lat)<-xy_latlon[,2]
 
-r<-stack(N,E,Nw,Ew,lon,lat,LC1,LC3,CANHEIGHT)
-rnames<-c("Northness","Eastness","Northness_w","Eastness_w", "lon","lat","LC1","LC3","CANHEIGHT")
+r<-stack(N,E,Nw,Ew,lon,lat,LC1,LC3,LC4,LC6, CANHEIGHT)
+rnames<-c("Northness","Eastness","Northness_w","Eastness_w", "lon","lat","LC1","LC3","LC4","LC6","CANHEIGHT")
 layerNames(r)<-rnames
 s_raster<-addLayer(s_raster, r)
 
@@ -171,7 +189,7 @@ results_R2 <- matrix(1,1,nmodels+4)       #Coef. of determination for the valida
 results_RMSE_f<- matrix(1,1,nmodels+4)    #RMSE fit, RMSE for the training dataset
 results_MAE_f <- matrix(1,1,nmodels+4)
 
-######## Preparing monthly averages from the ProstGres database
+######## Preparing monthly averages from the ProstGres database and extracting covarvariates from stack
 
 # do this work outside of (before) this function
 # to avoid making a copy of the data frame inside the function call
@@ -191,6 +209,17 @@ names(dst)[pos]<-c("TMax")
 dst$TMax<-dst$TMax/10                #TMax is the average max temp for monthy data
 #dstjan=dst[dst$month==9,]  #dst contains the monthly averages for tmax for every station over 2000-2010
 
+#Extracting covariates from stack
+coords<- dst[c('lon','lat')]              #Define coordinates in a data frame
+coordinates(dst)<-coords                      #Assign coordinates to the data frame
+proj4string(dst)<-CRS_locs_WGS84                  #Assign coordinates reference system in PROJ4 format
+dst_month<-spTransform(dst,CRS(CRS_interp))     #Project from WGS84 to new coord. system
+
+stations_val<-extract(s_raster,dst_month)  #extraction of the infomration at station location
+stations_val<-as.data.frame(stations_val)
+dst_extract<-cbind(dst_month,stations_val)
+dst<-dst_extract
+
 ######### Preparing daily values for training and testing
 
 #Screening for bad values: value is tmax in this case
@@ -203,12 +232,14 @@ ghcn<-ghcn_test2
 
 ##Sampling: training and testing sites.
 
-#set.seed(seed_number)                        #Using a seed number allow results based on random number to be compared...
+if (seed_number>0) {
+  set.seed(seed_number)                        #Using a seed number allow results based on random number to be compared...
+}
 nel<-length(dates)
 dates_list<-vector("list",nel) #list of one row data.frame
 
-prop_range<-(seq(from=prop_min,to=prop_max,by=step))*100
-sn<-length(dates)*nb_sample*length(prop_range)
+prop_range<-(seq(from=prop_min,to=prop_max,by=step))*100     #range of proportion to run
+sn<-length(dates)*nb_sample*length(prop_range)               #Number of samples to run
 
 for(i in 1:length(dates)){
   d_tmp<-rep(dates[i],nb_sample*length(prop_range)) #repeating same date
@@ -228,9 +259,14 @@ for(i in 2:3){            # start of the for loop #1
 sampling_dat$date<- as.character(sampling_dat[,1])
 #ghcn.subsets <-lapply(dates, function(d) subset(ghcn, date==d)) #this creates a list of 10 or 365 subsets dataset based on dates
 ghcn.subsets <-lapply(as.character(sampling_dat$date), function(d) subset(ghcn, date==d)) #this creates a list of 10 or 365 subsets dataset based on dates
-  
-sampling<-vector("list",length(ghcn.subsets))
 
+## adding choice of constant sample 
+if (seed_number>0) {
+  set.seed(seed_number)                        #Using a seed number allow results based on random number to be compared...
+}
+
+sampling<-vector("list",length(ghcn.subsets))
+sampling_station_id<-vector("list",length(ghcn.subsets))
 for(i in 1:length(ghcn.subsets)){
   n<-nrow(ghcn.subsets[[i]])
   prop<-(sampling_dat$prop[i])/100
@@ -238,23 +274,61 @@ for(i in 1:length(ghcn.subsets)){
   nv<-n-ns              #create a sample for validation with prop of the rows
   ind.training <- sample(nrow(ghcn.subsets[[i]]), size=ns, replace=FALSE) #This selects the index position for 70% of the rows taken randomly
   ind.testing <- setdiff(1:nrow(ghcn.subsets[[i]]), ind.training)
+  #Find the corresponding 
+  data_sampled<-ghcn.subsets[[i]][ind.training,] #selected the randomly sampled stations
+  station_id.training<-data_sampled$station     #selected id for the randomly sampled stations (115)
+  #Save the information
   sampling[[i]]<-ind.training
+  sampling_station_id[[i]]<- station_id.training
 }
+## Use same samples across the year...
+if (constant==1){
+  sampled<-sampling[[1]]
+  data_sampled<-ghcn.subsets[[1]][sampled,] #selected the randomly sampled stations
+  station_sampled<-data_sampled$station     #selected id for the randomly sampled stations (115)
+  list_const_sampling<-vector("list",sn)
+  list_const_sampling_station_id<-vector("list",sn)
+  for(i in 1:sn){
+    station_id.training<-intersect(station_sampled,ghcn.subsets[[i]]$station)
+    ind.training<-match(station_id.training,ghcn.subsets[[i]]$station)
+    list_const_sampling[[i]]<-ind.training
+    list_const_sampling_station_id[[i]]<-station_id.training
+  }
+  sampling<-list_const_sampling 
+  sampling_station_id<-list_const_sampling_station_id
+}
+
+# sampling<-vector("list",length(ghcn.subsets))
+# 
+# for(i in 1:length(ghcn.subsets)){
+#   n<-nrow(ghcn.subsets[[i]])
+#   prop<-(sampling_dat$prop[i])/100
+#   ns<-n-round(n*prop)   #Create a sample from the data frame with 70% of the rows
+#   nv<-n-ns              #create a sample for validation with prop of the rows
+#   ind.training <- sample(nrow(ghcn.subsets[[i]]), size=ns, replace=FALSE) #This selects the index position for 70% of the rows taken randomly
+#   ind.testing <- setdiff(1:nrow(ghcn.subsets[[i]]), ind.training)
+#   sampling[[i]]<-ind.training
+# }
+# 
+# if (constant==1){
+#   sampled<-sampling[[1]]
+#   list_const_sampling<-vector("list",sn)
+#   for(i in 1:sn){
+#     list_const_sampling[[i]]<-sampled
+#   }
+#   sampling<-list_const_sampling  
+# }
 
 ######## Prediction for the range of dates and sampling data
 
 #gam_fus_mod<-mclapply(1:length(dates), runGAMFusion,mc.preschedule=FALSE,mc.cores = 8) #This is the end bracket from mclapply(...) statement
-#gam_fus_mod<-mclapply(1:1, runGAMFusion,mc.preschedule=FALSE,mc.cores = 8) #This is the end bracket from mclapply(...) statement
-gam_fus_mod_s<-mclapply(1:length(ghcn.subsets), runGAMFusion,mc.preschedule=FALSE,mc.cores = 2) #This is the end bracket from mclapply(...) statement
-#gam_fus_mod2<-mclapply(11:11, runGAMFusion,mc.preschedule=FALSE,mc.cores = 1) #This is the end bracket from mclapply(...) statement
+#gam_fus_mod_s<-mclapply(1:1, runGAMFusion,mc.preschedule=FALSE,mc.cores = 1) #This is the end bracket from mclapply(...) statement
+gam_fus_mod_s<-mclapply(1:length(ghcn.subsets), runGAMFusion,mc.preschedule=FALSE,mc.cores = 8) #This is the end bracket from mclapply(...) statement
+#gam_fus_mod2<-mclapply(4:4, runGAMFusion,mc.preschedule=FALSE,mc.cores = 1) #This is the end bracket from mclapply(...) statement
 
+save(gam_fus_mod_s,file= paste(path,"/","results2_fusion_Assessment_measure_all",out_prefix,".RData",sep=""))
 
 ## Plotting and saving diagnostic measures
-accuracy_tab_fun<-function(i,f_list){
-tb<-f_list[[i]][[3]]
-return(tb)
-}
-
 
 tb<-gam_fus_mod_s[[1]][[3]][0,]  #empty data frame with metric table structure that can be used in rbinding...
 tb_tmp<-gam_fus_mod_s #copy
@@ -269,10 +343,10 @@ for(i in 4:ncol(tb)){            # start of the for loop #1
   tb[,i]<-as.numeric(as.character(tb[,i]))  
 }
 
-metrics<-as.character(unique(tb$metric))
+metrics<-as.character(unique(tb$metric))            #Name of accuracy metrics (RMSE,MAE etc.)
 tb_metric_list<-vector("list",length(metrics))
 
-for(i in 1:length(metrics)){            # start of the for loop #1  
+for(i in 1:length(metrics)){            # Reorganizing information in terms of metrics 
   metric_name<-paste("tb_",metrics[i],sep="")
   tb_metric<-subset(tb, metric==metrics[i])
   tb_metric<-cbind(tb_metric,sampling_dat[,2:3])
@@ -280,44 +354,22 @@ for(i in 1:length(metrics)){            # start of the for loop #1
   tb_metric_list[[i]]<-tb_metric
 }
 
-#tb_diagnostic1<-rbind(tb_RMSE,tb_MAE,tb_ME,tb_R2)
 tb_diagnostic<-do.call(rbind,tb_metric_list)
+#tb_diagnostic[["prop"]]<-as.factor(tb_diagnostic[["prop"]])
+sampling_obj<-list(sampling_dat=sampling_dat,training=sampling, training_id=sampling_station_id, tb=tb_diagnostic)
 
-avg_list<-vector("list",nmodels+1)
-
-for (i in 1:(nmodels+1)){
-  formag<-paste("mod",i,sep="")
-  form<-as.formula(paste(formag,"~prop+metric"))
-  avg_all1<-aggregate(form, data=tb_diagnostic, mean) 
-  file<-paste("agg_metrics_",formag,out_prefix,".txt")
-  write.table(avg_all1,file=file,sep=",")
-  avg_list[[i]]<-avg_all1
-}
-
-test<-aggregate(mod9 ~ prop + metric + dates, data=tb_diagnostic, mean)
-data_plot<-as.matrix(subset(avg_list[[9]],metric=="RMSE" & dates=="20100102"))
-
-#x<- matrix(1,1,nmodels+3)  
-y<- matrix(1,7,2)  
-
-y[,1]<-as.numeric(data_plot[,4])
-y[,2]<-as.numeric(data_plot[,5])
-
-x<-cbind(unique(test$prop),unique(test$prop))
-plot(x,y,col=c("red","blue"))
-lines(x,y,col=c("red","blue"))
-plot(data_plot[,4:5]~prop_t)
-
-plot(x,y)
-plot(prop,mod1,data=subset(test,metric=="RMSE" & dates=="20100101"))
-
+#write.table(avg_tb, file= paste(path,"/","results2_fusion_Assessment_measure_avg_",out_prefix,".txt",sep=""), sep=",")
+#write.table(median_tb, file= paste(path,"/","results2_fusion_Assessment_measure_median_",out_prefix,".txt",sep=""), sep=",")
 write.table(tb_diagnostic, file= paste(path,"/","results2_fusion_Assessment_measure",out_prefix,".txt",sep=""), sep=",")
 write.table(tb, file= paste(path,"/","results2_fusion_Assessment_measure_all",out_prefix,".txt",sep=""), sep=",")
+save(sampling_obj, file= paste(path,"/","results2_fusion_sampling_obj",out_prefix,".RData",sep=""))
 save(gam_fus_mod_s,file= paste(path,"/","results2_fusion_Assessment_measure_all",out_prefix,".RData",sep=""))
-#tb<-as.data.frame(tb_diagnostic1)
 
-#write.table(tb_1, file= paste(path,"/","results2_fusion_Assessment_measure1",out_prefix,".txt",sep=""), sep=",")
-
-#write.table(tb_diagnostic2, file= paste(path,"/","results_fusion_Assessment_measure2",out_prefix,".txt",sep=""), sep=",")
+## Summary of number of files and results
+#l_f<-list.files(pattern="GAM_bias_tmax_predicted_mod1_20100103_30_1_365d_GAM_fusion_lstd_10062012.rst$")
+#r6<-raster(l_f)
+#plot(r6)
+#results_list_metrics_objects_*_20101231_30_1_365d_GAM_fusion_lstd_10062012.RData
+#l_f<-list.files(pattern=paste(".*","tmax_predicted_mod1","*outprefix,".rst",sep="""))
 
 #### END OF SCRIPT
