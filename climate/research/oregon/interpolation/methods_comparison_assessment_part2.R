@@ -1,13 +1,15 @@
-#####################################  METHOD COMPARISON ##########################################
+#####################################  METHODS COMPARISON ##########################################
 #################################### Spatial Analysis ########################################
-#This script utilizes the R ojbects created during the interpolation phase.                       #
-#At this stage the script produces figures of various accuracy metrics and compare methods:       #
+#This script is not aimed at producing new interpolation surfaces. It utilizes the R ojbects created 
+# during the interpolation phase.                       #
+# At this stage the script produces figures of various accuracy metrics and compare methods:       #
 #- multisampling plots                                                                            #
 #- spatial accuracy in terms of distance to closest station                                       #
-#- spatial density of station network and accuracy metric                                         # 
+#- spatial density of station network and accuracy metric 
+#- visualization of maps of prediction and difference for comparison 
 #AUTHOR: Benoit Parmentier                                                                        #
-#DATE: 09/25/2012                                                                                 #
-#PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#??--                                    #
+#DATE: 10/30/2012                                                                                 #
+#PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#491 --                                    #
 ###################################################################################################
 
 ###Loading R library and packages                                                      
@@ -186,7 +188,8 @@ legend("bottomright",legend=c("fus","CAI"), cex=1.2, col=c("red","grey"),
 savePlot(paste("Comparison_multisampling_fus_CAI_RMSE_averages",out_prefix,".png", sep=""), type="png")
 dev.off()
 
-### PART II EXAMINIG PREDICTIONS AND RESIDUALS TEMPORAL PROFILES ####
+############################################################################
+#### PART II EXAMINIG PREDICTIONS AND RESIDUALS TEMPORAL PROFILES ##########
 
 l_f<-list.files(pattern="*tmax_predicted.*fusion5.rst$") #Search for files in relation to fusion
 l_f2<-list.files(pattern="CAI_tmax_predicted.*_GAM_CAI2.rst$")
@@ -234,11 +237,12 @@ ghcn_m<-melt(as.data.frame(ghcn),
 ghcn_mc<-cast(ghcn_m,station~date~variable,mean) #This creates an array of dimension 186,366,1
 
 ghcn_value<-as.data.frame(ghcn_mc[,,1])
-ghcn_value<-cbind(ghcn_locs,ghcn_value[,1:365])
+ghcn_value<-cbind(ghcn_locs,ghcn_value[,1:365]) #This data frame contains values for 365 days
+                                                #for 186 stations of year 2010...
 write.table(ghcn_value,na="",file="extract3_dailyTmax_y2010.txt",sep=",")
 
 id<-c("USW00094261","USW00004141","USC00356252","USC00357208")
-id<-c("USW00024284","USC00354126","USC00358536","USC00354835",
+#id<-c("USW00024284","USC00354126","USC00358536","USC00354835",
       "USC00356252","USC00359316","USC00358246","USC00350694",
       "USC00350699","USW00024230","USC00353542")
 
@@ -264,7 +268,7 @@ text(x=coords[,1],y=coords[,2],labels=id,cex=0.8, adj=c(0,1),offset=2) #c(0,1) f
 savePlot(paste("temporal_profile_station_locations_map",out_prefix,".png", sep=""), type="png")
 dev.off()
 
-stat_list<-vector("list",3 )
+stat_list<-vector("list",3 )  #list containing the selected stations...
 stat_list[[1]]<-ghcn_fus_pred
 stat_list[[2]]<-ghcn_cai_pred
 stat_list[[3]]<-ghcn_value
@@ -275,27 +279,31 @@ for (i in 1:length(id)){
   m1<-match(id[i],ghcn_fus_pred$station)
   m2<-match(id[i],ghcn_cai_pred$station)
   m3<-match(id[i],ghcn_value$station)
-  y1<-as.numeric(ghcn_fus_pred[m1,6:ncol(ghcn_fus_pred)])
-  y2<-as.numeric(ghcn_cai_pred[m2,6:ncol(ghcn_cai_pred)])
-  y3<-as.numeric(ghcn_value[m3,6:ncol(ghcn_value)])
-  res2<-y2-y3
-  res1<-y1-y3
+  y1<-as.numeric(ghcn_fus_pred[m1,6:ncol(ghcn_fus_pred)]) #vector containing fusion time series of predictecd tmax
+  y2<-as.numeric(ghcn_cai_pred[m2,6:ncol(ghcn_cai_pred)]) #vector containing CAI time series of predictecd
+  y3<-as.numeric(ghcn_value[m3,6:ncol(ghcn_value)])  #vector containing observed time series of predictecd
+  res2<-y2-y3 #CAI time series residuals
+  res1<-y1-y3 #fusion time series residuals
   x<-1:365
   X11(6,15)
-  plot(x,y1,type="l",col="black")
+  plot(x,y1,type="l",col="red",ylab="tmax (C)",xlab="Day of year")
   lines(x,y2,col="blue")
-  lines(x,y3,col="red")
+  lines(x,y3,col="green")
   title(paste("temporal profile for station ", id[i],sep=""))
   # add a legend
-  legend("topright",legend=c("fus","CAI","OBS"), cex=1.2, col=c("black","blue","red"),
+  legend("topright",legend=c("fus","CAI","OBS"), cex=1.2, col=c("red","blue","green"),
          lty=1, title="tmax")
   savePlot(paste("Temporal_profile_",id[i],out_prefix,".png", sep=""), type="png")
+  
+  ### RESIDUALS PLOT
   zero<-rep(0,365)
-  plot(x,res2,type="l",col="black")
-  lines(x,res1,col="blue")
-  lines(x,zero,col="red")
-  legend("topright",legend=c("fus","CAI"), cex=1.2, col=c("black","blue"),
-         lty=1, title="tmax")
+  plot(x,res2,type="l",col="blue", ylab="tmax (C)",xlab="Day of year") #res2 contains residuals from cai
+  lines(x,res1,col="red")        #res1 contains fus
+  lines(x,zero,col="green")      
+  legend("topright",legend=c("fus","CAI"), cex=1.2, col=c("red","blue"),
+         lty=1)
+  title(paste("temporal profile for station ", id[i],sep=""))
+  
   savePlot(paste("Temporal_profile_res",id[i],out_prefix,".png", sep=""), type="png")
   
   ac_temp[i,1]<-mean(abs(res1),na.rm=T)
@@ -305,6 +313,8 @@ for (i in 1:length(id)){
 ac_temp<-as.data.frame(ac_temp)
 ac_temp$station<-id
 names(ac_temp)<-c("fus","CAI","station") #ac_temp contains the MAE per station
+
+### RESIDUALS FOR EVERY STATION...############
 
 id<-ghcn_value$station #if runinng on all the station...
 ac_temp2<-matrix(NA,length(id),2)
@@ -322,6 +332,7 @@ for (i in 1:length(id)){
   ac_temp2[i,2]<-mean(abs(res2),na.rm=T)
 }  
 
+
 ac_temp2<-as.data.frame(ac_temp2)
 ac_temp2$station<-id
 names(ac_temp2)<-c("fus","CAI","station")
@@ -329,14 +340,42 @@ names(ac_temp2)<-c("fus","CAI","station")
 ac_temp2<-ac_temp2[order(ac_temp2$fus,ac_temp2$CAI), ]
 ghcn_MAE<-merge(ghcn_locs,ac_temp2,by.x=station,by.y=station)
 
+########### TRANSECT-- DAY OF YEAR PLOT...#########
+
+id<-c("USW00024284","USC00354126","USC00358536","USC00354835",
+"USC00356252","USC00359316","USC00358246","USC00350694",
+"USC00350699","USW00024230","USC00353542")
+id_order<-1:11
+m<-match(id,ghcn_locs$station)
+dat_id<-ghcn_locs[m,]  #creating new subset
+#dat_id<-subset(ghcn_locs[gj])
+
+filename<-sub(".shp","",infile6)             #Removing the extension from file.
+reg_outline<-readOGR(".", filename)                 #reading shapefile 
+X11()
+s.range <- c(min(minValue(mm_01)), max(maxValue(mm_01)))
+col.breaks <- pretty(s.range, n=50)
+lab.breaks <- pretty(s.range, n=5)
+temp.colors <- colorRampPalette(c('blue', 'white', 'red'))
+plot(mm_01, breaks=col.breaks, col=temp.colors(length(col.breaks)-1),
+     axis=list(at=lab.breaks, labels=lab.breaks))
+plot(reg_outline, add=TRUE)
+plot(dat_id,cex=1.5,add=TRUE)
+title("Selected stations for comparison",line=3)
+title("(Background: mean January LST)", cex=0.5, line=2)
+coords<-coordinates(dat_id)
+text(x=coords[,1],y=coords[,2],labels=as.character(id_order),cex=1.5, adj=c(0,1),offset=2) #c(0,1) for lower right corner!
+savePlot(paste("temporal_profile_station_locations_map",out_prefix,".png", sep=""), type="png")
+dev.off()
+
 m1<-match(id,ghcn_fus_pred$station)
 m2<-match(id,ghcn_cai_pred$station)
 m3<-match(id,ghcn_value$station)
 ghcn_dsub<-subset(ghcn,ghcn$station==id)
 all.equal(m1,m2,m3) #OK order is the same
-date_selection<-c("01-01-2010","01-08-2010")
+date_selection<-c("01-01-2010","01-09-2010")
 #date_str<-gsub(date_selection,"-","")
-date_str<-c("20100101","20100801")
+date_str<-c("20100101","20100901")
 covar_dsub<-subset(ghcn_dsub,ghcn_dsub$date==date_str[i],select=c("station","ELEV_SRTM","LC1"))
 
 date_pred<-as.Date(date_selection)
@@ -345,6 +384,7 @@ doy_pred<-(strptime(date_pred, "%d-%m-%Y")$yday+1)
 
 for (i in 1:length(date_pred)){
   doy<-doy_pred[i]+5 #column label
+  doy<-243+5
   stat_subset<-cbind(id,ghcn_fus_pred[m1,doy],ghcn_cai_pred[m1,doy],ghcn_value[m1,doy])
   colnames(stat_subset)<-c("station","fus","cai","value")
   stat_subset<-as.data.frame(stat_subset)
@@ -352,19 +392,20 @@ for (i in 1:length(date_pred)){
     stat_subset[,j]<-as.numeric(as.character(stat_subset[,j]))  
   }
   X11()
-  plot(1:11,stat_subset$value,type="b",col="red")
+  plot(1:11,stat_subset$value,type="b",col="green",ylab="tmax",xlab="station transtect number")
   # xlabels())
-  lines(1:11,stat_subset$fus,type="b",col="black")
-  lines(1:11,stat_subset$cai,type="b",col="green")
+  lines(1:11,stat_subset$fus,type="b",col="red")
+  lines(1:11,stat_subset$cai,type="b",col="blue")
   
-  legend("bottomright",legend=c("obs","fus","cai"), cex=1.2, col=c("red","black","green"),
+  legend("bottomright",legend=c("obs","fus","cai"), cex=1.2, col=c("green","red","blue"),
          lty=1, title="tmax")
   title(paste("Daily tmax prediction ",date_selection[i],sep=" "))
   savePlot(paste("transect_profile_tmax_",date_str[i],out_prefix,".png", sep=""), type="png")
   dev.off()
 }
 
-##### USING TEMPORAL IMAGES...
+##############################################
+########## USING TEMPORAL IMAGES...############
 
 date_list<-vector("list", length(l_f))
 for (k in 1:length(l_f)){
@@ -579,9 +620,15 @@ barplot(n,names.arg=as.character(distance))
 savePlot(paste("Barplot_freq_er_spat_",out_prefix,".png", sep=""), type="png")
 dev.off()
 
-
+############################################################
 ##############             PART III         #############
 ### Average MAE per station and coarse grid box (0.5 deg)
+
+#For all stations
+
+ghcn$station
+
+# For validation and training stations...
 
 test$abs_res_fus<-abs(test$res_fus)
 test2$abs_res_CAI<-abs(test2$res_CAI)
@@ -597,7 +644,7 @@ oc<-vector("numeric",nrow(station_v_er))
 oc<-oc+1
 station_v_er$oc<-oc
 
-unique(ghcn$id)
+unique(ghcn$station)
 
 coords<- station_v_er[,c('x_OR83M','y_OR83M')]
 coordinates(station_v_er)<-coords
@@ -618,10 +665,34 @@ for (k in 1:nel){
   list_cai_data[[k]]<-rbind(data_s2,data_v2)
 }
 
-### GRID BOX AVERAGING ####################
-#Create the averaged grid box...##############
+############ GRID BOX AVERAGING ####################
+####### Create the averaged grid box...##############
 
 rast_agg<-aggregate(raster_pred,fact=50,fun=mean,na.rm=TRUE) #Changing the raster resolution by aggregation factor
+
+ghcn_sub<-as.data.frame(subset(ghcn, select=c("station","x_OR83M","y_OR83M")))
+ghcn_sub_melt<-melt(ghcn_sub,
+                    measure=c("x_OR83M","y_OR83M"), 
+                    id=c("station"),
+                    na.rm=F)
+ghcn_stations<-as.data.frame(cast(ghcn_sub_melt,station~variable,mean))
+coords<- ghcn_stations[,c('x_OR83M','y_OR83M')]
+coordinates(ghcn_stations)<-coords
+proj4string(ghcn_stations)<-proj_str  #Need to assign coordinates...
+oc_all<-vector("numeric",nrow(ghcn_stations))
+oc_all<-oc_all+1
+
+ghcn_stations$oc_all<-oc_all
+rast_oc_all<-rasterize(ghcn_stations,rast_agg,"oc_all",na.rm=TRUE,fun=sum)
+ac_agg50$oc_all<-values(rast_oc_all)
+
+plot(rast_oc_all, main="Number of stations in coarsened 50km grid")
+plot(reg_outline, add=TRUE)
+fdens_all50<-as.data.frame(freq(rast_oc_all))
+tot50<-sum(fdens_all50$count[1:(nrow(fdens_all50)-1)])
+percent<-(fdens_all50$count/tot50)*100
+percent[length(percent)]<-NA
+fdens_all50$percent<-percent
 #list_agg_MAE<-vector("list",nel)
 #list_agg_RMSE<-vector("list",nel)
 #list_density_training<-vector("list",nel)
@@ -658,21 +729,21 @@ for (k in 1:nel){
   ac_agg50$MAE_cai<-as.numeric(values(rast_MAE_cai))
   names(ac_agg50)<-c("oc","MAE_fus","MAE_cai")
   
-  ghcn_sub<-as.data.frame(subset(ghcn, select=c("station","x_OR83M","y_OR83M")))
-  ghcn_sub_melt<-melt(ghcn_sub,
-                      measure=c("x_OR83M","y_OR83M"), 
-                      id=c("station"),
-                      na.rm=F)
-  ghcn_stations<-as.data.frame(cast(ghcn_sub_melt,station~variable,mean))
-  coords<- ghcn_stations[,c('x_OR83M','y_OR83M')]
-  coordinates(ghcn_stations)<-coords
-  proj4string(ghcn_stations)<-proj_str  #Need to assign coordinates...
-  oc_all<-vector("numeric",nrow(ghcn_stations))
-  oc_all<-oc_all+1
+  #ghcn_sub<-as.data.frame(subset(ghcn, select=c("station","x_OR83M","y_OR83M")))
+  #ghcn_sub_melt<-melt(ghcn_sub,
+  #                    measure=c("x_OR83M","y_OR83M"), 
+  #                    id=c("station"),
+  #                    na.rm=F)
+  #ghcn_stations<-as.data.frame(cast(ghcn_sub_melt,station~variable,mean))
+  #coords<- ghcn_stations[,c('x_OR83M','y_OR83M')]
+  #coordinates(ghcn_stations)<-coords
+  #proj4string(ghcn_stations)<-proj_str  #Need to assign coordinates...
+  #oc_all<-vector("numeric",nrow(ghcn_stations))
+  #oc_all<-oc_all+1
   
-  ghcn_stations$oc_all<-oc_all
-  rast_oc_all<-rasterize(ghcn_stations,rast_agg,"oc_all",na.rm=TRUE,fun=sum)
-  ac_agg50$oc_all<-values(rast_oc_all)
+  #ghcn_stations$oc_all<-oc_all
+  #rast_oc_all<-rasterize(ghcn_stations,rast_agg,"oc_all",na.rm=TRUE,fun=sum)
+  #ac_agg50$oc_all<-values(rast_oc_all)
   
   td1<-aggregate(MAE_fus~oc,data=ac_agg50,mean) 
   td2<-aggregate(MAE_cai~oc,data=ac_agg50,mean)
@@ -697,7 +768,7 @@ for (k in 1:nel){
   
   plot(rast_oc, main="Number of val stations in coarsened 50km grid")
   plot(reg_outline, add=TRUE)
-  plot(rast_oc_all, main="Number of stations in coarsened 50km grid")
+  plot(rast_oc_t, main="Number of training stations in coarsened 50km grid")
   plot(reg_outline, add=TRUE)
   
   #MAKE IT AN OBJECT for future function return...
@@ -762,6 +833,11 @@ rownames(data_dist)<-NULL
 infile2<-"list_10_dates_04212012.txt"                             #List of 10 dates for the regression
 dates2<-read.table(paste(path,"/",infile2,sep=""), sep="")         #Column 1 contains the names of raster files
 date_list2<-as.list(as.character(dates2[,1]))
+names_statistics<-c("mean","sd","min","max")
+stat_val_m<-matrix(NA,nrow=length(date_list2),ncol=length(names_statistics))
+colnames(stat_val_m)<-names_statistics
+rownames(stat_val_m)<-date_list2
+stat_val_m<-as.data.frame(stat_val_m)
 
 for (k in 1:length(date_list2)){
   
@@ -769,11 +845,11 @@ for (k in 1:length(date_list2)){
   #date_proc<-date_list[[k]]
   index<-match(as.character(date_proc2),unlist(date_list)) #find the correct date... in the 365 stack
   #raster_pred<-raster(rp_raster,index)
-  raster_pred1<-raster(l_f[[index]])
+  raster_pred1<-raster(l_f[[index]])  # Fusion image
   projection(raster_pred1)<-proj_str
   raster_pred1<-mask(raster_pred1,mask_land_NA)
   
-  raster_pred2<-raster(l_f2[[index]])
+  raster_pred2<-raster(l_f2[[index]]) # CAI image
   projection(raster_pred2)<-proj_str
   raster_pred2<-mask(raster_pred2,mask_land_NA)
   
@@ -795,12 +871,24 @@ for (k in 1:length(date_list2)){
        axis=list(at=lab.breaks, labels=lab.breaks))
   #plot(reg_outline, add=TRUE)
   savePlot(paste("comparison_raster1_CAI_fusion_tmax_prediction_",date_list2[[k]],out_prefix,".png", sep=""), type="png")
-
-  hist(predictions, breaks=col.breaks,freq=FALSE,maxpixels=ncells(predictions),xlabel="tmax (C)")
+  
+  
+  stat_val_m$mean[i]<-cellStats(raster_pred1,na.rm=TRUE,stat=mean)    #Calculating the standard deviation for the 
+  t1<-cellStats(raster_pred1,na.rm=TRUE,stat=mean)    #Calculating the standard deviation for the 
+  t2<-cellStats(raster_pred2,na.rm=TRUE,stat=mean)    #Calculating the standard deviation for the 
+  t1<-cellStats(raster_pred1,na.rm=TRUE,stat=sd)    #Calculating the standard deviation for the 
+  t2<-cellStats(raster_pred2,na.rm=TRUE,stat=sd)    #Calculating the standard deviation for the 
+  t1<-cellStats(raster_pred1,na.rm=TRUE,stat=min)    #Calculating the standard deviation for the 
+  t2<-cellStats(raster_pred2,na.rm=TRUE,stat=min)    #Calculating the standard deviation for the 
+  t1<-cellStats(raster_pred1,na.rm=TRUE,stat=max)    #Calculating the standard deviation for the 
+  t2<-cellStats(raster_pred2,na.rm=TRUE,stat=max)    #Calculating the standard deviation for the 
+  
+  hist(predictions,freq=FALSE,maxpixels=ncells(predictions),xlabel="tmax (C)")
   savePlot(paste("comparison_histo_CAI_fusion_tmax_prediction_",date_list2[[k]],out_prefix,".png", sep=""), type="png")
   #plot(predictions)
   dev.off()
   
+  X11(6,12)
   diff<-raster_pred2-raster_pred1
   s.range <- c(min(minValue(diff)), max(maxValue(diff)))
   col.breaks <- pretty(s.range, n=50)
@@ -808,9 +896,11 @@ for (k in 1:length(date_list2)){
   temp.colors <- colorRampPalette(c('blue', 'white', 'red'))
   plot(diff, breaks=col.breaks, col=temp.colors(length(col.breaks)-1),
        axis=list(at=lab.breaks, labels=lab.breaks))
-  
-}  
+  title(paste("Difference between CAI and fusion for ",date_list2[[k]],sep=""))
+  savePlot(paste("comparison_diff_CAI_fusion_tmax_prediction_",date_list2[[k]],out_prefix,".png", sep=""), type="png")
+  dev.off()
 
+}  
 
 write.table(data_dist,file=paste("data_dist_",out_prefix,".txt",sep=""),sep=",")
 write.table(test,file=paste("ac_spat_dist",out_prefix,".txt",sep=""),sep=",")
@@ -818,6 +908,11 @@ write.table(var_stat,file=paste("moran_var_stat_",out_prefix,".txt",sep=""),sep=
 write.table(td,file=paste("MAE_density_station_",out_prefix,".txt",sep=""),sep=",")
 write.table(td_all,file=paste("MAE_density_station_all_",out_prefix,".txt",sep=""),sep=",")
 
-
-
-#### END OF THE SCRIPT
+symbols(c(2e5, 4e5), c(2e5, 3e5), circles=rep(2e4, 2), inches=FALSE, add=TRUE)
+text(c(2e5, 4e5), c(2e5, 3e5), labels=1:2,cex=0.5)
+points(coordinates(pts), type="c")
+text(coordinates(pts), labels=9:11, cex=0.8)
+points(coordinates(pts), type="b", pch=as.character(1:length(pts))
+       points(coordinates(pts), type="b", pch=as.character(9:11)
+              
+########### END OF THE SCRIPT #############
