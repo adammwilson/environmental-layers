@@ -6,7 +6,7 @@
 #Method is assedsed using constant sampling with variation  of validation sample with different  #
 #hold out proportions.                                                                           #
 #AUTHOR: Benoit Parmentier                                                                       #
-#DATE: 10/25/2012                                                                                #
+#DATE: 10/30/2012                                                                                #
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#491--                                  #
 ###################################################################################################
 
@@ -43,7 +43,7 @@ stat_loc<-read.table(paste(path,"/","location_study_area_OR_0602012.txt",sep="")
 #GHCN Database for 1980-2010 for study area (OR) 
 data3<-read.table(paste(path,"/","ghcn_data_TMAXy1980_2010_OR_0602012.txt",sep=""),sep=",", header=TRUE)
 
-nmodels<-8   #number of models running
+nmodels<-5   #number of models running
 y_var_name<-"dailyTmax"
 climgam=1                                                     #if 1, then GAM is run on the climatology rather than the daily deviation surface...
 predval<-1
@@ -51,7 +51,8 @@ prop<-0.3                                                     #Proportion of tes
 
 seed_number<- 100                                             #Seed number for random sampling, if seed_number<0, no seed number is used..
 #out_prefix<-"_365d_GAM_CAI2_const_10222012_"                  #User defined output prefix
-out_prefix<-"_365d_GAM_CAI2_all_lstd_10262012"                #User defined output prefix
+#out_prefix<-"_365d_GAM_CAI2_const_all_lstd_10272012"                #User defined output prefix
+out_prefix<-"_365d_GAM_CAI3_all_10302012"                #User defined output prefix
 
 bias_val<-0            #if value 1 then daily training data is used in the bias surface rather than the all monthly stations (added on 07/11/2012)
 bias_prediction<-1     #if value 1 then use GAM for the BIAS prediction otherwise GAM direct reprediction for y_var (daily tmax)
@@ -64,7 +65,8 @@ constant<-0            #if value 1 then use the same samples as date one for the
 CRS_interp<-"+proj=lcc +lat_1=43 +lat_2=45.5 +lat_0=41.75 +lon_0=-120.5 +x_0=400000 +y_0=0 +ellps=GRS80 +units=m +no_defs";
 CRS_locs_WGS84<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0") #Station coords WGS84
 
-source("GAM_CAI_function_multisampling_10252012.R")
+#source("GAM_CAI_function_multisampling_10252012.R")
+source("GAM_CAI_function_multisampling_10302012.R")
 
 ############ START OF THE SCRIPT ##################
 
@@ -139,12 +141,16 @@ LC6[is.na(LC6)]<-0
 
 LC_s<-stack(LC1,LC3,LC4,LC6)
 layerNames(LC_s)<-c("LC1_forest","LC3_grass","LC4_crop","LC6_urban")
-plot(LC_s)
+#plot(LC_s)
 
 pos<-match("CANHEIGHT",layerNames(s_raster)) #Find column with name "value"
 CANHEIGHT<-raster(s_raster,layer=pos)             #Select layer from stack
 s_raster<-dropLayer(s_raster,pos)
 CANHEIGHT[is.na(CANHEIGHT)]<-0
+pos<-match("ELEV_SRTM",layerNames(s_raster)) #Find column with name "ELEV_SRTM"
+ELEV_SRTM<-raster(s_raster,layer=pos)             #Select layer from stack on 10/30
+s_raster<-dropLayer(s_raster,pos)
+ELEV_SRTM[ELEV_SRTM <0]<-NA
 
 xy<-coordinates(r1)  #get x and y projected coordinates...
 xy_latlon<-project(xy, CRS, inv=TRUE) # find lat long for projected coordinats (or pixels...)
@@ -157,8 +163,8 @@ lat<-lon
 values(lon)<-xy_latlon[,1]
 values(lat)<-xy_latlon[,2]
 
-r<-stack(N,E,Nw,Ew,lon,lat,LC1,LC3,LC4,LC6, CANHEIGHT)
-rnames<-c("Northness","Eastness","Northness_w","Eastness_w", "lon","lat","LC1","LC3","LC4","LC6","CANHEIGHT")
+r<-stack(N,E,Nw,Ew,lon,lat,LC1,LC3,LC4,LC6, CANHEIGHT,ELEV_SRTM)
+rnames<-c("Northness","Eastness","Northness_w","Eastness_w", "lon","lat","LC1","LC3","LC4","LC6","CANHEIGHT","ELEV_SRTM")
 layerNames(r)<-rnames
 s_raster<-addLayer(s_raster, r)
 
@@ -222,6 +228,10 @@ stations_val<-extract(s_raster,dst_month)  #extraction of the infomration at sta
 stations_val<-as.data.frame(stations_val)
 dst_extract<-cbind(dst_month,stations_val)
 dst<-dst_extract
+#Now clean and screen monthly values
+dst_all<-dst
+dst<-subset(dst,dst$TMax>-15 & dst$TMax<40)
+dst<-subset(dst,dst$ELEV_SRTM>0) #This will drop two stations...or 24 rows
 
 ######### Preparing daily values for training and testing
 
@@ -263,8 +273,12 @@ sampling_dat$date<- as.character(sampling_dat[,1])
 #ghcn.subsets <-lapply(dates, function(d) subset(ghcn, date==d)) #this creates a list of 10 or 365 subsets dataset based on dates
 ghcn.subsets <-lapply(as.character(sampling_dat$date), function(d) subset(ghcn, date==d)) #this creates a list of 10 or 365 subsets dataset based on dates
 
-sampling<-vector("list",length(ghcn.subsets))
+if (seed_number>0) {
+  set.seed(seed_number)                        #Using a seed number allow results based on random number to be compared...
+}
 
+sampling<-vector("list",length(ghcn.subsets))
+sampling_station_id<-vector("list",length(ghcn.subsets))
 for(i in 1:length(ghcn.subsets)){
   n<-nrow(ghcn.subsets[[i]])
   prop<-(sampling_dat$prop[i])/100
@@ -272,16 +286,28 @@ for(i in 1:length(ghcn.subsets)){
   nv<-n-ns              #create a sample for validation with prop of the rows
   ind.training <- sample(nrow(ghcn.subsets[[i]]), size=ns, replace=FALSE) #This selects the index position for 70% of the rows taken randomly
   ind.testing <- setdiff(1:nrow(ghcn.subsets[[i]]), ind.training)
+  #Find the corresponding 
+  data_sampled<-ghcn.subsets[[i]][ind.training,] #selected the randomly sampled stations
+  station_id.training<-data_sampled$station     #selected id for the randomly sampled stations (115)
+  #Save the information
   sampling[[i]]<-ind.training
+  sampling_station_id[[i]]<- station_id.training
 }
-
+## Use same samples across the year...
 if (constant==1){
   sampled<-sampling[[1]]
+  data_sampled<-ghcn.subsets[[1]][sampled,] #selected the randomly sampled stations
+  station_sampled<-data_sampled$station     #selected id for the randomly sampled stations (115)
   list_const_sampling<-vector("list",sn)
+  list_const_sampling_station_id<-vector("list",sn)
   for(i in 1:sn){
-    list_const_sampling[[i]]<-sampled
+    station_id.training<-intersect(station_sampled,ghcn.subsets[[i]]$station)
+    ind.training<-match(station_id.training,ghcn.subsets[[i]]$station)
+    list_const_sampling[[i]]<-ind.training
+    list_const_sampling_station_id[[i]]<-station_id.training
   }
-  sampling<-list_const_sampling  
+  sampling<-list_const_sampling 
+  sampling_station_id<-list_const_sampling_station_id
 }
 
 ######## Prediction for the range of dates
@@ -330,35 +356,14 @@ avg_RMSE<-subset(avg_tb,metric=="RMSE")
 
 # Save before plotting
 #sampling_obj<-list(sampling_dat=sampling_dat,training=sampling)
-sampling_obj<-list(sampling_dat=sampling_dat,training=sampling, tb=tb_diagnostic)
+#sampling_obj<-list(sampling_dat=sampling_dat,training=sampling, tb=tb_diagnostic)
+sampling_obj<-list(sampling_dat=sampling_dat,training=sampling, training_id=sampling_station_id, tb=tb_diagnostic)
 
 write.table(avg_tb, file= paste(path,"/","results2_fusion_Assessment_measure_avg_",out_prefix,".txt",sep=""), sep=",")
 write.table(median_tb, file= paste(path,"/","results2_fusion_Assessment_measure_median_",out_prefix,".txt",sep=""), sep=",")
 write.table(tb_diagnostic, file= paste(path,"/","results2_fusion_Assessment_measure",out_prefix,".txt",sep=""), sep=",")
 write.table(tb, file= paste(path,"/","results2_fusion_Assessment_measure_all",out_prefix,".txt",sep=""), sep=",")
 
-
-# tb_RMSE<-subset(tb, metric=="RMSE")
-# tb_MAE<-subset(tb,metric=="MAE")
-# tb_ME<-subset(tb,metric=="ME")
-# tb_R2<-subset(tb,metric=="R2")
-# tb_RMSE_f<-subset(tb, metric=="RMSE_f")
-# tb_MAE_f<-subset(tb,metric=="MAE_f")
-# tb_R2_f<-subset(tb,metric=="R2_f")
-# 
-# tb_diagnostic1<-rbind(tb_RMSE,tb_MAE,tb_ME,tb_R2)
-# #tb_diagnostic2<-rbind(tb_,tb_MAE,tb_ME,tb_R2)
-# 
-# mean_RMSE<-sapply(tb_RMSE[,4:(nmodels+4)],mean)
-# mean_MAE<-sapply(tb_MAE[,4:(nmodels+4)],mean)
-# mean_R2<-sapply(tb_R2[,4:(nmodels+4)],mean)
-# mean_ME<-sapply(tb_ME[,4:(nmodels+4)],mean)
-# mean_MAE_f<-sapply(tb_MAE[,4:(nmodels+4)],mean)
-# mean_RMSE_f<-sapply(tb_RMSE_f[,4:(nmodels+4)],mean)
-# 
-# #Wrting metric results in textfile and model objects in .RData file
-# write.table(tb_diagnostic1, file= paste(path,"/","results2_CAI_Assessment_measure1",out_prefix,".txt",sep=""), sep=",")
-# write.table(tb, file= paste(path,"/","results2_CAI_Assessment_measure_all",out_prefix,".txt",sep=""), sep=",")
 save(sampling_obj, file= paste(path,"/","results2_CAI_sampling_obj",out_prefix,".RData",sep=""))
 save(gam_CAI_mod,file= paste(path,"/","results2_CAI_Assessment_measure_all",out_prefix,".RData",sep=""))
 
