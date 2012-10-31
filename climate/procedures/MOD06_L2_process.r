@@ -1,49 +1,40 @@
+#!/bin/r
+
 ###################################################################################
 ###  R code to aquire and process MOD06_L2 cloud data from the MODIS platform
 
+## load command line arguments (mname)
+args=(commandArgs(TRUE)) ##args is now a list of character vectors
+## Then cycle through each element of the list and evaluate the expressions.
+eval(parse(text=args))
+
+system("source ~/moduleload")
+
+print(args)
+
+tile="h11v08"
+outdir="2_daily"  #directory for separate daily files
+outdir2="3_summary" #directory for combined daily files and summarized files
+
+print(paste("Processing tile",tile," for date",date))
 
 ## load libraries
-require(rgdal)
 require(reshape)
 #require(ncdf4)
 require(geosphere)
 require(raster)
+#require(rgdal)
 require(spgrass6)
-## packages for parallelization
-#library(foreach)
-#library(doMPI)
-library(multicore)
 
-## register cluster and number of cores to use
-ncores=as.numeric(system("echo $NCORES",intern=T))
-#cl=startMPIcluster(20,verbose=F)
-#registerDoMPI(cl)
 
 ## specify some working directories
 setwd("/nobackupp1/awilso10/mod06")
 
-outdir="2_daily"  #directory for separate daily files
-outdir2="3_summary" #directory for combined daily files and summarized files
-
 print(paste("tempdir()=",tempdir()))
 print(paste("TMPDIR=",Sys.getenv("TMPDIR")))
 
-### get list of files to process
-datadir="/nobackupp4/datapool/modis/MOD06_L2.005/"
-
-fs=data.frame(path=list.files(datadir,full=T,recursive=T,pattern="hdf"),stringsAsFactors=F)
-fs$file=basename(fs$path)
-fs$date=as.Date(substr(fs$file,11,17),"%Y%j")
-fs$month=format(fs$date,"%m")
-fs$year=format(fs$date,"%Y")
-fs$time=substr(fs$file,19,22)
-fs$datetime=as.POSIXct(strptime(paste(substr(fs$file,11,17),substr(fs$file,19,22)), '%Y%j %H%M'))
-fs$dateid=format(fs$date,"%Y%m%d")
-fs$path=as.character(fs$path)
-fs$file=as.character(fs$file)
-
-## get all unique dates
-alldates=unique(fs$dateid)
+## load ancillary data
+load(file="allfiles.Rdata")
 
 ## load tile information
 load(file="modlandTiles.Rdata")
@@ -51,13 +42,6 @@ load(file="modlandTiles.Rdata")
 #modt=readOGR("modgrid","modis_sinusoidal_grid_world",)
 #modt@data[,colnames(tb)[3:6]]=tb[match(paste(modt$h,modt$v),paste(tb$ih,tb$iv)),3:6]
 #write.csv(modt@data,file="modistile.csv")
-tile="h11v08"   #can move this to submit script if needed
-
-
-## identify which have been completed
-done=alldates%in%substr(list.files(outdir),7,14)
-table(done)
-notdone=alldates[!done]  #these are the dates that still need to be processed
 
 ## vars to process
 vars=as.data.frame(matrix(c(
@@ -120,7 +104,7 @@ END
   print(log)
   ## confirm file is present
   print(paste("Confirming output file (",outfile,") is present and readable by GDAL"))
-  gi=GDALinfo(outfile);  print(gi)
+  system(paste("gdalinfo ",outfile))
   print(paste("Finished ", file))
 }
 
@@ -144,11 +128,6 @@ loadcloud<-function(date,fs){
   tf=paste(tempdir(),"/grass", Sys.getpid(),"/", sep="")
   print(paste("Set up temporary grass session in",tf))
 
-  ## load a MOD11A1 file to define grid
-  gridfile=list.files("/nobackupp4/datapool/modis/MOD11A1.005/2006.01.27/",pattern=paste(tile,".*hdf$",sep=""),full=T)[1]
-  td=readGDAL(paste("HDF4_EOS:EOS_GRID:\"",gridfile,"\":MODIS_Grid_Daily_1km_LST:Night_view_angl",sep=""))
-  projection(td)="+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs +datum=WGS84 +ellps=WGS84 "
-
   ## set up temporary grass instance for this PID
   initGRASS(gisBase="/nobackupp1/awilso10/software/grass-6.4.3svn",gisDbase=tf,SG=td,override=T,location="mod06",mapset="PERMANENT",home=tf,pid=Sys.getpid())
   system(paste("g.proj -c proj4=\"",projection(td),"\"",sep=""))
@@ -161,6 +140,7 @@ loadcloud<-function(date,fs){
 
   ## Identify which files to process
   tfs=fs$file[fs$dateid==date]
+  tfs=tfs[tfs%in%list.files(tempdir())]
   nfs=length(tfs)
 
   ## loop through scenes and process QA flags
@@ -170,6 +150,7 @@ loadcloud<-function(date,fs){
      execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",file,"\":mod06:Cloud_Mask_1km_0",sep=""),
               output=paste("CM1_",i,sep=""),flags=c("overwrite","o")) ; print("")
     ## extract cloudy and 'confidently clear' pixels
+
     system(paste("r.mapcalc <<EOF
                 CM_cloud_",i," =  ((CM1_",i," / 2^0) % 2) == 1  &&  ((CM1_",i," / 2^1) % 2^2) == 0 
                 CM_clear_",i," =  ((CM1_",i," / 2^0) % 2) == 1  &&  ((CM1_",i," / 2^1) % 2^2) == 3 
@@ -289,48 +270,12 @@ mod06<-function(date,tile){
  
 ## test it
 ##date=notdone[1]
-##mod06(date,tile)
+mod06(date,tile)
 
 ## run it for all dates
-mclapply(notdone,mod06,tile,mc.cores=ncores) # use ncores/2 because system() commands can add second process for each spawned R
-
+#mclapply(notdone,mod06,tile,mc.cores=ncores) # use ncores/2 because system() commands can add second process for each spawned R
 #foreach(i=notdone[1:3],.packages=(.packages())) %dopar% mod06(i,tile)
-
 #foreach(i=1:20) %dopar% print(i)
 
 
-################################################################################
-## now generate the climatologies
-fdly=data.frame(
-  path=list.files(outdir,pattern="nc$",full=T),
-  file=list.files(outdir,pattern="nc$"))
-fdly$date=as.Date(substr(fdly$file,7,14),"%Y%m%d")
-fdly$month=format(fdly$date,"%m")
-fdly$year=format(fdly$date,"%Y")
-
-## check validity (via npar and ntime) of nc files
-for(i in 1:nrow(fdly)){
-  fdly$ntime[i]=as.numeric(system(paste("cdo  sinfo ",fdly$path[i]),intern=T))
-  fdly$npar[i]=as.numeric(system(paste("cdo -s npar ",fdly$path[i]),intern=T))
-  print(i)
-}
-
-## Combine all days within years into a single file (can't mergetime all days at once because this opens too many files)
-tsdir=paste(tempdir(),"/summary",sep="")
-dir.create(tsdir)
-lapply(unique(fdly$year),function(y){
-  system(paste("cdo -O mergetime ",paste(fdly$path[fdly$year==y],collapse=" ")," ",tsdir,"/MOD09_",tile,"_",y,"_daily.nc",sep=""))
-  print(paste("Finished merging daily files for year",y))
-})
-## Combine the year-by-year files into a single daily file
-system(paste("cdo -O mergetime ",paste(list.files(tsdir,full=T,pattern="daily[.]nc$"),collapse=" ")," ",outdir2,"/MOD09_",tile,"_daily.nc",sep=""))
-
-system(paste("cdo -O monmean ",outdir2,"/MOD09_",tile,"_daily.nc ",outdir2,"/",tile,"_monmean.nc",sep=""))
-system(paste("cdo -O ymonmean ",outdir2,"/MOD09_",tile,"_daily.nc ",outdir2,"/",tile,"_ymonmean.nc",sep=""))
-system(paste("cdo -O ymonstd ",outdir2,"/MOD09_",tile,"_daily.nc ",outdir2,"/",tile,"_ymonstd.nc",sep=""))
-
-print("Finished!   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
-## quit R
 q("no")
- 
-
