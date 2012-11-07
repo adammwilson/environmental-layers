@@ -49,15 +49,17 @@ inlistf<-"list_files_05032012.txt"                        #list of raster images
 infile6<-"OR83M_state_outline.shp"
 #stat_loc<-read.table(paste(path,"/","location_study_area_OR_0602012.txt",sep=""),sep=",", header=TRUE)
 
-out_prefix<-"methods_09262012_"
+out_prefix<-"methods_11072012_"
 #output path
 path<-"/home/parmentier/Data/IPLANT_project/data_Oregon_stations_07192012_GAM"
+path<-"/home/parmentier/Data/IPLANT_project/data_Oregon_stations_07192012_GAM"
+
 setwd(path)
 
 ##### LOAD USEFUL DATA
 
 obj_list<-"list_obj_08262012.txt"                                  #Results of fusion from the run on ATLAS
-path<-"/home/parmentier/Data/IPLANT_project/methods_interpolation_comparison" #Jupiter LOCATION on Atlas for kriging                              #Jupiter Location on XANDERS
+path<-"/home/parmentier/Data/IPLANT_project/methods_interpolation_comparison_10242012" #Jupiter LOCATION on Atlas for kriging                              #Jupiter Location on XANDERS
 #path<-"/Users/benoitparmentier/Dropbox/Data/NCEAS/Oregon_covariates/"            #Local dropbox folder on Benoit's laptop
 setwd(path) 
 proj_str="+proj=lcc +lat_1=43 +lat_2=45.5 +lat_0=41.75 +lon_0=-120.5 +x_0=400000 +y_0=0 +ellps=GRS80 +units=m +no_defs";
@@ -70,6 +72,9 @@ gam_fus_mod1<-load_obj("results2_fusion_Assessment_measure_all_10d_GAM_fusion_mu
 
 filename<-sub(".shp","",infile1)             #Removing the extension from file.
 ghcn<-readOGR(".", filename)                 #reading shapefile 
+filename<-sub(".shp","",infile6)             #Removing the extension from file.
+#reg_outline<-readOGR(".", filename)                 #reading shapefile 
+reg_outline<-readOGR(dsn=".", layer=filename)                 #reading shapefile 
 
 #CRS<-proj4string(ghcn)                       #Storing projection information (ellipsoid, datum,etc.)
 lines<-read.table(paste(path,"/",inlistf,sep=""), sep="")                      #Column 1 contains the names of raster files
@@ -101,8 +106,8 @@ mm_01<-mm_01-273.15
 mm_01<-mask(mm_01,mask_land_NA)  #Raster image used as backround
 #mention this is the last... files
 
-################# PART 1: COMPARING RESULTS USING ALL MONTHNLY DATA AND SAMPLED FROM DAILY###################
-######## Visualize data: USING ALL MONTHLY DATA...
+################# PART 1: COMPARING RESULTS USING ALL MONTHNLY DATA AND SAMPLED FROM DAILY ###################
+######## Visualize data: USING ALL MONTHLY DATA...  
 
 file_pat<-glob2rx("GAMCAI_tmax_pred_predicted_mod*_365d_GAM_CAI2_all_lstd_10262012.rst")   
 lf_cai_all<-list.files(pattern=file_pat)
@@ -269,7 +274,7 @@ plot(nobslst)
 savePlot("lst_climatology_OR_nobs.png",type="png")
 dev.off)
 
-#note differnces in patternin agricultural areas and 
+#note differences in patternin agricultural areas and 
 extremeValues(molst) #not yet implemented...
 min_values<-cellStats(molst,"min")
 max_values<-cellStats(molst,"max")
@@ -460,87 +465,7 @@ dev.off()
 #legend("topleft",legend=c("fo","LST","LST_forest","LST_grass"), cex=0.8, col=c("black","blue","green","red"),
               #lty=1)
                   
-############ PART 4: RESIDUALS ANALYSIS: ranking, plots, focus regions  ##################
-############## EXAMINING STATION RESIDUALS ###########
-########### CONSTANT OVER 365 AND SAMPLING OVER 365
-#Plot daily_deltaclim_rast, bias_rast,add data_s and data_v
-                  
-# RANK STATION by average or median RMSE
-# Count the number of times a station is in the extremum group of outliers...
-# LOOK at specific date...
-                  
-#Examine residuals for a spciefic date...Jan, 1 using run of const_all i.e. same training over 365 dates
-path_data_cai<-"/home/parmentier/Data/IPLANT_project/data_Oregon_stations_10242012_CAI"  #Change to constant
-path_data_fus<-"/home/parmentier/Data/IPLANT_project/data_Oregon_stations_10242012_GAM"
-setwd(path_data) #output data
-
-#list files that contain raster tmax prediction (maps) for CAI and Fusion
-#lf_c<-"GAM_predicted_mod7_20101231_30_1_365d_GAM_fusion_const_10172012.rst"
-lf_cg<-list.files(pattern="GAM_predicted_mod2_.*_30_1_365d_GAM_fusion_const_10172012.rst$")    #changee to constant 
-lf_ck<-list.files(pattern="fusion_tmax_predicted_.*_30_1_365d_GAM_fusion_const_10172012.rst$") #Fusion+Kriging
-                  
-#list files that contain model objects and ratingin-testing information for CAI and Fusion
-fus1_c<-load_obj("results2_fusion_Assessment_measure_all_365d_GAM_fusion_const_10172012.RData")
-#fus1_c<-load_obj("results2_fusion_Assessment_measure_all_365d_GAM_fusion_const_10172012.RData")
-                  
-gam_fus<-load_obj(file.path(path_data_fus,
-                          "results2_fusion_Assessment_measure_all_365d_GAM_fusion_all_lstd_10242012.RData"))
-gam_cai<-load_obj(file.path(path_dat_cai,
-                          "results2_CAI_Assessment_measure_all_365d_GAM_CAI2_all_lstd_10262012.RData")  #This contains all the info
-sampling_obj_cai<-load_obj(file.path(path_data_cai,
-                                          "results2_CAI_sampling_obj_365d_GAM_CAI2_all_lstd_10262012.RData"))
-sampling_date_list<-sampling_obj_cai$sampling_dat$date
-                                    
-date_selected<-"20100103"
-                  
-k<-match(date_selected,sampling_date_list)
-                  
-data_sf<-gam_fus[[k]]$data_s #object for the first date...20100103                  
-data_vf<-gam_fus[[k]]$data_v #object for the first date...20100103                  
-data_sc<-gam_fus[[k]]$data_s #object for the first date...20100103                  
-data_vc<-gam_fus[[k]]$data_v #object for the first date...20100103                  
-
-#Select background image for plotting
-mod_pat<-glob2rx(paste("*",date_selected,"*",sep=""))   
-image_file<-grep(mod_pat,lf_ck,value=TRUE) # using grep with "value" extracts the matching names         
-raster_pred_k<-raster(image_file)
-image_file<-grep(mod_pat,lf_cg,value=TRUE) # using grep with "value" extracts the matching names         
-raster_pred_g<-raster(image_file)
-plot(data_sf,add=TRUE)
-plot(data_vf,pch=1,add=TRUE)
-                  
-#Create a residual table...
-res_mod9_list<-vector("list",365)
-res_mod2_list<-vector("list",365)
-                  
-tab_nv<-matrix(NA,365,1)
-for(k in 1:365){
-      tab_nv[k]<-length(fus1_c[[k]]$data_v$res_mod9)
-}
-#note that there might be some variation in the number!!!
-                  
-for(k in 1:365){
-   res_mod9<-fus1_c[[k]]$data_v$res_mod9
-   res_mod2<-fus1_c[[k]]$data_v$res_mod2
-   res_mod9_list[[k]]<-res_mod9
-   res_mod2_list[[k]]<-res_mod2
-   #subset data frame? or rbind them...and reshape?? think about it
-}
-tab_resmod9<-do.call(rbind,res_mod9_list)
-                  
-data_v_list<-vector("list",365)
-                  
-for(k in 1:365){
-      data_v<-as.data.frame(fus1_c[[k]]$data_v)
-      data_v<-data_v[,c("id","res_mod9")]
-      #subset data frame? or rbind them...and reshape?? think about it
-      data_v_list[[k]]<-data_v
-}
-tab_resmod9<-do.call(rbind,data_v_list)
-                  
-#NOW USE RESHAPE TO CREATE TABLE....
-
-#updated the analysis
+###################### Visualization of results ######################
                   
 "tmax_predicted*20100103_30_1_365d_GAM_fusion_all_lstd_10242012.rst"
 oldpath<-getwd()
