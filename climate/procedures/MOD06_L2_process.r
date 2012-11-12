@@ -1,5 +1,3 @@
-#!/bin/r
-
 ###################################################################################
 ###  R code to aquire and process MOD06_L2 cloud data from the MODIS platform
 
@@ -8,7 +6,9 @@ args=(commandArgs(TRUE)) ##args is now a list of character vectors
 ## Then cycle through each element of the list and evaluate the expressions.
 eval(parse(text=args))
 
-system("source ~/moduleload")
+#system("module list")
+#system("source ~/moduleload")
+#system("module list")
 
 print(args)
 
@@ -18,12 +18,14 @@ outdir2="3_summary" #directory for combined daily files and summarized files
 
 print(paste("Processing tile",tile," for date",date))
 
+#system("module list")
+#system("ldd /u/awilso10/R/x86_64-unknown-linux-gnu-library/2.15/rgdal/libs/rgdal.so")
+
 ## load libraries
 require(reshape)
-#require(ncdf4)
 require(geosphere)
 require(raster)
-#require(rgdal)
+library(rgdal)
 require(spgrass6)
 
 
@@ -126,6 +128,8 @@ END
 ### Function to extract various SDSs from a single gridded HDF file and use QA data to throw out 'bad' observations
 loadcloud<-function(date,fs){
   tf=paste(tempdir(),"/grass", Sys.getpid(),"/", sep="")
+  dir.create(tf)
+
   print(paste("Set up temporary grass session in",tf))
 
   ## set up temporary grass instance for this PID
@@ -140,6 +144,7 @@ loadcloud<-function(date,fs){
 
   ## Identify which files to process
   tfs=fs$file[fs$dateid==date]
+  ## drop swaths that did not produce an output file (typically due to not overlapping the ROI)
   tfs=tfs[tfs%in%list.files(tempdir())]
   nfs=length(tfs)
 
@@ -227,13 +232,14 @@ EOF",sep=""))
    
   ncfile=paste(outdir,"/MOD06_",date,".nc",sep="")
   execGRASS("r.out.gdal",input="mod06",output=ncfile,type="Int16",nodata=-32768,flags=c("quiet"),createopt=c("WRITE_GDAL_TAGS=YES","WRITE_LONLAT=NO"),format="netCDF")
-  system(paste("/nasa/nco/3.9.8/bin/ncecat -O -u time ",ncfile," ",ncfile,sep=""))
-  system(paste("/nasa/nco/3.9.8/bin/ncap -O -s 'time[time]=",as.integer(fs$date[fs$dateid==date]-as.Date("2000-01-01")),"'",ncfile," ",ncfile))
-  system(paste("/nasa/nco/3.9.8/bin/ncatted -a calendar,time,c,c,\"standard\" -a long_name,time,c,c,\"time\" -a units,time,c,c,\"days since 2000-01-01 12:00:00\"",ncfile))
-  system(paste("/nasa/nco/3.9.8/bin/ncrename -v Band1,CER -v Band2,COT -v Band3,CLD",ncfile))
-  system(paste("/nasa/nco/3.9.8/bin/ncatted -a scale_factor,CER,o,d,0.01 -a units,CER,o,c,\"micron\" -a missing_value,CER,o,d,-32768 -a long_name,CER,o,c,\"Cloud Particle Effective Radius\"",ncfile))
-  system(paste("/nasa/nco/3.9.8/bin/ncatted -a scale_factor,COT,o,d,0.01 -a units,COT,o,c,\"none\" -a missing_value,COT,o,d,-32768 -a long_name,COT,o,c,\"Cloud Optical Thickness\"",ncfile))
-  system(paste("/nasa/nco/3.9.8/bin/ncatted -a scale_factor,CLD,o,d,0.01 -a units,CLD,o,c,\"none\" -a missing_value,CLD,o,d,-32768 -a long_name,CLD,o,c,\"Cloud Mask\"",ncfile))
+  ncopath="/nasa/sles11/nco/4.0.8/gcc/mpt/bin/"
+  system(paste(ncopath,"ncecat -O -u time ",ncfile," ",ncfile,sep=""))
+  system(paste(ncopath,"ncap2 -O -s 'time[time]=",as.integer(fs$date[fs$dateid==date]-as.Date("2000-01-01")),"'",ncfile," ",ncfile,sep=""))
+  system(paste(ncopath,"ncatted -a calendar,time,c,c,\"standard\" -a long_name,time,c,c,\"time\" -a units,time,c,c,\"days since 2000-01-01 12:00:00\" ",ncfile,sep=""))
+  system(paste(ncopath,"ncrename -v Band1,CER -v Band2,COT -v Band3,CLD ",ncfile,sep=""))
+  system(paste(ncopath,"ncatted -a scale_factor,CER,o,d,0.01 -a units,CER,o,c,\"micron\" -a missing_value,CER,o,d,-32768 -a long_name,CER,o,c,\"Cloud Particle Effective Radius\" ",ncfile,sep=""))
+  system(paste(ncopath,"ncatted -a scale_factor,COT,o,d,0.01 -a units,COT,o,c,\"none\" -a missing_value,COT,o,d,-32768 -a long_name,COT,o,c,\"Cloud Optical Thickness\" ",ncfile,sep=""))
+  system(paste(ncopath,"ncatted -a scale_factor,CLD,o,d,0.01 -a units,CLD,o,c,\"none\" -a missing_value,CLD,o,d,-32768 -a long_name,CLD,o,c,\"Cloud Mask\" ",ncfile,sep=""))
    
   
 ### delete the temporary files 

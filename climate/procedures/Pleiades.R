@@ -1,6 +1,8 @@
 #### Script to facilitate processing of MOD06 data
 
 setwd("/nobackupp1/awilso10/mod06")
+library(rgdal)
+library(raster)
 
 ## get MODLAND tile information
 tb=read.table("http://landweb.nascom.nasa.gov/developers/sn_tiles/sn_bound_10deg.txt",skip=6,nrows=648,header=T)
@@ -43,9 +45,26 @@ notdone=alldates[!done]  #these are the dates that still need to be processed
 tile="h11v08"   #can move this to submit script if needed
 script="/u/awilso10/environmental-layers/climate/procedures/MOD06_L2_process.r"
 #write.table(paste("--verbose ",script," date=",notdone," tile=\"",tile,"\"",sep=""),file="notdone.txt",row.names=F,col.names=F,quote=F)
-write.table(paste("--verbose ",script," date=",notdone[1:30],sep=""),file="notdone.txt",row.names=F,col.names=F,quote=F)
+#write.table(paste("--verbose ",script," date=",notdone[1:30],sep=""),file="notdone.txt",row.names=F,col.names=F,quote=F)
+write.table(notdone[1:30],file="notdone.txt",row.names=F,col.names=F,quote=F)
 
 save(fs,alldates,gridfile,td,file="allfiles.Rdata")
+
+## run script
+cat(paste("
+#! /bin/bash
+source ~/moduleload
+source ~/.bashrc
+Rscript --verbose --vanilla /u/awilso10/environmental-layers/climate/procedures/MOD06_L2_process.r date=$1
+#Rscript --verbose --vanilla rtest
+",sep=""),file="MOD06_process2")
+system("chmod +x MOD06_process2")
+
+cat(paste("
+library(rgdal)
+GDALinfo
+",sep=""),file="rtest")
+
 
 ## Submission script
 
@@ -76,19 +95,17 @@ cd /nobackupp1/awilso10/mod06
 ## export a few important variables
   export NNODES=32
   export R_LIBS=\"/u/awilso10/R/x86_64-unknown-linux-gnu-library/2.15/\"
-## load modules
-#  module load gcc comp-intel/2012.0.032 netcdf mpi-sgi/mpt.2.06r6 hdf4 udunits R nco
 ## Run the script!
 ## current version not parallelizing across nodes!
-  TMPDIR=$TMPDIR Rscript --verbose --vanilla /u/awilso10/environmental-layers/climate/procedures/MOD06_L2_process.r date=20000403
+#  TMPDIR=$TMPDIR Rscript --verbose --vanilla /u/awilso10/environmental-layers/climate/procedures/MOD06_L2_process.r date=20000403
 
 WORKLIST=notdone.txt
-EXE="Rscript"
+#EXE=\"Rscript\"
+EXE="./MOD06_process2"
 LOG=log/log_DataCompile.log
+MQUEUE=/nobackupp4/pvotava/software/share/mqueue-eg/mqueue/mqueue
 
-TMPDIR=$TMPDIR mpiexec -np $NNODES  /nobackupp4/pvotava/software/share/mqueue-eg/mqueue/mqueue -l $WORKLIST -p $EXE -v -v -v --random-starts 2-4 --work-analyze #> $LOG
-#mpiexec -np 2  /nobackupp4/pvotava/software/share/mqueue-eg/mqueue/mqueue -l testrun.txt -p $EXE -v -v -v  #> $LOG
-#TMPDIR=$TMPDIR mpiexec -np $NNODES  /nobackupp4/pvotava/software/share/mqueue-eg/mqueue/mqueue -l $WORKLIST -p $EXE -v -v -v #> $LOG
+TMPDIR=$TMPDIR mpiexec -np $NNODES $MQUEUE -l $WORKLIST -p $EXE -v -v -v --random-starts 2-4 --work-analyze #> $LOG
 exit 0
 ",sep=""),file="MOD06_process")
 
@@ -98,10 +115,11 @@ system("cat MOD06_process")
 
 ## check queue status
 system("/u/scicon/tools/bin/node_stats.sh")
-system("/u/scicon/tools/bin/qtop.pl 479343")
+system("/u/scicon/tools/bin/qtop.pl 492352")
 
 ## Submit it (and keep the pid)!
 system("qsub MOD06_process")
+system("/u/scicon/tools/bin/pdsh_gdb -j 493281 -d tmp -s -u awilso10")
 
 ## work in interactive mode
 # system("qsub -I -l walltime=2:00:00 -lselect=2:ncpus=16:model=san -q devel")
