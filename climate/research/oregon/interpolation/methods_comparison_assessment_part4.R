@@ -505,6 +505,47 @@ for (i in 1:length(dates)){
   grid(lwd=0.5,col="black")
   title(paste("Testing stations LST vs TMax ",date_selected,sep=" "))
   savePlot(paste("fig8_testing_TMax_fusion_",date_selected,out_prefix,".png", sep=""), type="png")
+  
+  ##Elevation and residuals of temperature prediction
+  diff_fc<-data_vf$pred_mod7-data_vc$pred_mod9
+  
+ 
+  y_range<-range(c(diff_fc))
+  x_range<-range(c(data_vf$ELEV_SRTM,data_vc$ELEV_SRTM))
+  plot(data_vf$ELEV_SRTM,diff_fc, ylab="diff_fc", xlab="ELEV_SRTM (m) ", 
+       ylim=y_range, xlim=x_range)
+  text(data_vf$ELEV_SRTM,diff_fc,labels=data_vf$idx,pos=3)
+  grid(lwd=0.5,col="black")
+  title(paste("Testing stations residuals fusion vs Elevation",date_selected,sep=" "))
+  
+  brks<-c(0,500,1000,1500,2000,2500,4000)
+  lab_brks<-1:6
+  elev_rcstat<-cut(data_vf$ELEV_SRTM,breaks=brks,labels=lab_brks,right=F)
+  y_range<-range(c(diff_fc))
+  x_range<-range(c(elev_rcstat))
+  plot(elev_rcstat,diff_fc, ylab="diff_cf", xlab="ELEV_SRTM (m) ", 
+       ylim=y_range, xlim=x_range)
+  text(elev_rcstat,diff_cf,labels=data_vf$idx,pos=3)
+  grid(lwd=0.5,col="black")
+  title(paste("Testing stations residuals fusion vs Elevation",date_selected,sep=" "))
+  
+  # Combine both training and testing
+  pred_fus<-c(data_vf$pred_mod7,data_sf$pred_mod7)
+  pred_cai<-c(data_vc$pred_mod9,data_sc$pred_mod9)
+  elev_station<-c(data_vf$ELEV_SRTM,data_sf$ELEV_SRTM)
+  diff_fc<-pred_fus-pred_cai
+    
+  elev_rcstat<-cut(elev_station,breaks=brks,labels=lab_brks,right=F)
+  y_range<-range(diff_fc)
+  x_range<-range(elev_station)
+  plot(elev_station,diff_fc, ylab="diff_fc", xlab="ELEV_SRTM (m) ", 
+       ylim=y_range, xlim=x_range)
+  text(elev_rcstat,diff_fc,labels=data_vf$idx,pos=3)
+  grid(lwd=0.5,col="black")
+  title(paste("Testing stations residuals fusion vs Elevation",date_selected,sep=" "))
+  
+  #USING BOTH validation and training
+  
   dev.off()
 }
       
@@ -663,5 +704,5 @@ axis(2,pos=0)
 text(loadings$PC1,loadings$PC2,rownames(loadings), adj = c(0,0),offset=2, col="red",cex=1.2)
 draw.circle(0,0,radius=1)
                  
-
+#DO PCA ON SELECTED DATE...
 
