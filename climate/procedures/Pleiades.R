@@ -42,75 +42,106 @@ done=alldates%in%substr(list.files(outdir),7,14)
 table(done)
 notdone=alldates[!done]  #these are the dates that still need to be processed
 
+if(exists("fdly")){
+  notdone=notdone[notdone%in%fdly$dateid[is.na(fdly$npar)]]
+
+
 tile="h11v08"   #can move this to submit script if needed
 script="/u/awilso10/environmental-layers/climate/procedures/MOD06_L2_process.r"
-#write.table(paste("--verbose ",script," date=",notdone," tile=\"",tile,"\"",sep=""),file="notdone.txt",row.names=F,col.names=F,quote=F)
+write.table(paste("--verbose ",script," --date ",notdone," --tile \"",tile,"\"",sep=""),file="notdone.txt",row.names=F,col.names=F,quote=F)
 #write.table(paste("--verbose ",script," date=",notdone[1:30],sep=""),file="notdone.txt",row.names=F,col.names=F,quote=F)
-write.table(notdone[1:30],file="notdone.txt",row.names=F,col.names=F,quote=F)
+#write.table(notdone[1:30],file="notdone.txt",row.names=F,col.names=F,quote=F)
 
 save(fs,alldates,gridfile,td,file="allfiles.Rdata")
 
 ## run script
-cat(paste("
-#! /bin/bash
-source ~/moduleload
-source ~/.bashrc
-Rscript --verbose --vanilla /u/awilso10/environmental-layers/climate/procedures/MOD06_L2_process.r date=$1
+#cat(paste("
+##! /bin/bash
+#source ~/moduleload
+#source ~/.bashrc
+#Rscript --verbose --vanilla /u/awilso10/environmental-layers/climate/procedures/MOD06_L2_process.r date=$1
 #Rscript --verbose --vanilla rtest
-",sep=""),file="MOD06_process2")
-system("chmod +x MOD06_process2")
+#",sep=""),file="MOD06_process2")
+#system("chmod +x MOD06_process2")
 
-cat(paste("
-library(rgdal)
-GDALinfo
-",sep=""),file="rtest")
+#cat(paste("
+#library(rgdal)
+#GDALinfo
+#",sep=""),file="rtest")
 
 
 ## Submission script
 
-cat(paste("
-#PBS -S /bin/bash
-#PBS -l select=2:ncpus=16:model=san
-###PBS -l select=4:ncpus=8:model=neh
-##PBS -l select=1:ncpus=12:model=wes
-####### old: select=48:ncpus=8:mpiprocs=8:model=neh
-#PBS -l walltime=2:00:00
-#PBS -j oe
-#PBS -m e
-#PBS -V
-#PBS -q devel
-#PBS -o log/log_^array_index^
-#PBS -o log/log_DataCompile.log
-#PBS -M adam.wilson@yale.edu
-#PBS -N MOD06
+#cat(paste("
+##PBS -S /bin/bash
+##PBS -l select=2:ncpus=16:model=san
+####PBS -l select=4:ncpus=8:model=neh
+###PBS -l select=1:ncpus=12:model=wes
+######## old: select=48:ncpus=8:mpiprocs=8:model=neh
+##PBS -l walltime=2:00:00
+##PBS -j oe
+##PBS -m e
+##PBS -V
+##PBS -q devel
+##PBS -o log/log_^array_index^
+##PBS -o log/log_DataCompile.log
+##PBS -M adam.wilson@yale.edu
+##PBS -N MOD06
 
 ## cd to working directory
-cd /nobackupp1/awilso10/mod06
+#cd /nobackupp1/awilso10/mod06
 
 ## set some memory limits
 #  ulimit -d 1500000 -m 1500000 -v 1500000  #limit memory usage
-  source /usr/local/lib/global.profile
-  source /u/awilso10/.bashrc
-  source /u/awilso10/moduleload
-## export a few important variables
-  export NNODES=32
-  export R_LIBS=\"/u/awilso10/R/x86_64-unknown-linux-gnu-library/2.15/\"
-## Run the script!
+#  source /usr/local/lib/global.profile
+#  source /u/awilso10/.bashrc
+#  source /u/awilso10/moduleload
+### export a few important variables
+#  export NNODES=32
+#  export R_LIBS=\"/u/awilso10/R/x86_64-unknown-linux-gnu-library/2.15/\"
+### Run the script!
 ## current version not parallelizing across nodes!
 #  TMPDIR=$TMPDIR Rscript --verbose --vanilla /u/awilso10/environmental-layers/climate/procedures/MOD06_L2_process.r date=20000403
 
-WORKLIST=notdone.txt
-#EXE=\"Rscript\"
-EXE="./MOD06_process2"
-LOG=log/log_DataCompile.log
-MQUEUE=/nobackupp4/pvotava/software/share/mqueue-eg/mqueue/mqueue
+#WORKLIST=notdone.txt
+##EXE=\"Rscript\"
+#EXE="./MOD06_process2"
+#LOG=log/log_DataCompile.log
+#MQUEUE=/nobackupp4/pvotava/software/share/mqueue-eg/mqueue/mqueue
 
-TMPDIR=$TMPDIR mpiexec -np $NNODES $MQUEUE -l $WORKLIST -p $EXE -v -v -v --random-starts 2-4 --work-analyze #> $LOG
-exit 0
-",sep=""),file="MOD06_process")
+#TMPDIR=$TMPDIR mpiexec -np $NNODES $MQUEUE -l $WORKLIST -p $EXE -v -v -v --random-starts 2-4 --work-analyze #> $LOG
+#exit 0
+#",sep=""),file="MOD06_process")
+
+
+### simplified qsub script
+cat(paste("
+#PBS -S /bin/bash
+#PBS -l select=48:ncpus=8:mpiprocs=8
+##PBS -l select=2:ncpus=4:mpiprocs=4
+#PBS -l walltime=02:00:00
+#PBS -j n
+#PBS -m be
+#PBS -N mod06
+#PBS -q devel
+#PBS -V
+
+CORES=384
+HDIR=/u/armichae/pr/
+  source $HDIR/etc/environ.sh
+  source /u/awilso10/.bashrc
+IDIR=/nobackupp1/awilso10/mod06/
+##WORKLIST=$HDIR/var/run/pxrRgrs/work.txt
+WORKLIST=$IDIR/notdone.txt
+EXE=Rscript
+LOGSTDOUT=$IDIR/log/log.stdout
+LOGSTDERR=$IDIR/log/log.stderr
+mpiexec -np $CORES pxargs -a $WORKLIST -p $EXE -v -v -v --work-analyze 1> $LOGSTDOUT 2> $LOGSTDERR
+"),file="mod06_qsub")
+
 
 ### Check the file
-system("cat MOD06_process")
+system("cat mod06_qsub")
 #system("cat ~/environmental-layers/climate/procedures/MOD06_L2_process.r")
 
 ## check queue status
@@ -118,8 +149,8 @@ system("/u/scicon/tools/bin/node_stats.sh")
 system("/u/scicon/tools/bin/qtop.pl 492352")
 
 ## Submit it (and keep the pid)!
-system("qsub MOD06_process")
-system("/u/scicon/tools/bin/pdsh_gdb -j 493281 -d tmp -s -u awilso10")
+system("qsub mod06_qsub")
+system("/u/scicon/tools/bin/pdsh_gdb -j 568835 -d tmp -s -u awilso10")
 
 ## work in interactive mode
 # system("qsub -I -l walltime=2:00:00 -lselect=2:ncpus=16:model=san -q devel")
@@ -127,7 +158,7 @@ system("/u/scicon/tools/bin/pdsh_gdb -j 493281 -d tmp -s -u awilso10")
 
 ## check progress
 system("qstat -u awilso10")
-system(paste("/u/scicon/tools/bin/qps ",pid))
+system(paste("/u/scicon/tools/bin/qps ",568835))
 system(paste("qstat -t -x",pid))
 
 system("qstat devel ") 
@@ -141,14 +172,15 @@ system("qstat devel ")
 fdly=data.frame(
   path=list.files(outdir,pattern="nc$",full=T),
   file=list.files(outdir,pattern="nc$"))
-fdly$date=as.Date(substr(fdly$file,7,14),"%Y%m%d")
-fdly$month=format(fdly$date,"%m")
-fdly$year=format(fdly$date,"%Y")
+  fdly$dateid=substr(fdly$file,7,14)
+  fdly$date=as.Date(substr(fdly$file,7,14),"%Y%m%d")
+  fdly$month=format(fdly$date,"%m")
+  fdly$year=format(fdly$date,"%Y")
 
 ## check validity (via npar and ntime) of nc files
 for(i in 1:nrow(fdly)){
-  fdly$ntime[i]=as.numeric(system(paste("cdo  sinfo ",fdly$path[i]),intern=T))
-  fdly$npar[i]=as.numeric(system(paste("cdo -s npar ",fdly$path[i]),intern=T))
+ # fdly$ntime[i]<-as.numeric(system(paste("cdo  sinfo ",fdly$path[i]),intern=T))
+  fdly$npar[i]<-as.numeric(system(paste("cdo -s npar ",fdly$path[i]),intern=T))
   print(i)
 }
 
@@ -156,7 +188,7 @@ for(i in 1:nrow(fdly)){
 tsdir=paste(tempdir(),"/summary",sep="")
 dir.create(tsdir)
 lapply(unique(fdly$year),function(y){
-  system(paste("cdo -O mergetime ",paste(fdly$path[fdly$year==y],collapse=" ")," ",tsdir,"/MOD09_",tile,"_",y,"_daily.nc",sep=""))
+  system(paste("cdo -O mergetime ",paste(fdly$path[!is.na(fdly$npar)&fdly$year==y],collapse=" ")," ",tsdir,"/MOD09_",tile,"_",y,"_daily.nc",sep=""))
   print(paste("Finished merging daily files for year",y))
 })
 ## Combine the year-by-year files into a single daily file
@@ -168,20 +200,19 @@ system(paste("cdo -O ymonstd ",outdir2,"/MOD09_",tile,"_daily.nc ",outdir2,"/",t
 
 print("Finished!   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
 ## quit R
-q("no")
+#q("no")
  
 
 #################################################################
 
 ### copy the files back to Yale
 list.files("2_daily")
-system("scp 2_daily/* adamw@acrobates.eeb.yale.edu:/data/personal/adamw/projects/interp/data/modis/Venezuela")
+system(paste("scp ",outdir2,"/*_ymonmean.nc adamw@acrobates.eeb.yale.edu:/data/personal/adamw/projects/interp/data/modis/Venezuela/summary",sep=""))
 
 system("scp  /tmp/Rtmp6I6tFn/MOD06_L2.A2000061.1615.051.2010273184629.hdf adamw@acrobates.eeb.yale.edu:/data/personal/adamw/projects/interp/data/modis/Venezuela")
 system("scp 2_daily/MOD06_20000410.nc adamw@acrobates.eeb.yale.edu:/data/personal/adamw/projects/interp/data/modis/Venezuela")
 
 
-list.files(" /tmp/Rtmp6I6tFn")
 
 
 

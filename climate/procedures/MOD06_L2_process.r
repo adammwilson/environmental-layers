@@ -1,20 +1,40 @@
 ###################################################################################
 ###  R code to aquire and process MOD06_L2 cloud data from the MODIS platform
 
-## load command line arguments (mname)
-args=(commandArgs(TRUE)) ##args is now a list of character vectors
+## import commandline arguments
+library(getopt)
+## get options
+opta <- getopt(matrix(c(
+                        'date', 'd', 1, 'character',
+                        'tile', 't', 1, 'character',
+                        'help', 'h', 0, 'logical'
+                        ), ncol=4, byrow=TRUE))
+if ( !is.null(opta$help) )
+  {
+       prg <- commandArgs()[1];
+          cat(paste("Usage: ", prg,  " --date | -d <file> :: The date to process\n", sep=""));
+          q(status=1);
+     }
+
+#gridfile = paste("HDF4_EOS:EOS_GRID:\"", opta$data,"\":MODIS_Grid_Daily_1km_LST:Night_view_angl", sep="")
+#cat(paste("Checking : ", gridfile, " ...\n"));
+
+
+## Load command line arguments (mname)
+#args=(commandArgs(TRUE)) ##args is now a list of character vectors
 ## Then cycle through each element of the list and evaluate the expressions.
-eval(parse(text=args))
+#eval(parse(text=args))
+#print(args)
 
 #system("module list")
 #system("source ~/moduleload")
 #system("module list")
 
-print(args)
 
-tile="h11v08"
+date=opta$date  #date="20030301"
+tile=opta$tile #tile="h11v08"
 outdir="2_daily"  #directory for separate daily files
-outdir2="3_summary" #directory for combined daily files and summarized files
+#outdir2="3_summary" #directory for combined daily files and summarized files
 
 print(paste("Processing tile",tile," for date",date))
 
@@ -133,7 +153,9 @@ loadcloud<-function(date,fs){
   print(paste("Set up temporary grass session in",tf))
 
   ## set up temporary grass instance for this PID
-  initGRASS(gisBase="/nobackupp1/awilso10/software/grass-6.4.3svn",gisDbase=tf,SG=td,override=T,location="mod06",mapset="PERMANENT",home=tf,pid=Sys.getpid())
+#  initGRASS(gisBase="/nobackupp1/awilso10/software/grass-6.4.3svn",gisDbase=tf,SG=td,override=T,location="mod06",mapset="PERMANENT",home=tf,pid=Sys.getpid())
+  initGRASS(gisBase="/u/armichae/pr/grass-6.4.2/",gisDbase=tf,SG=td,override=T,location="mod06",mapset="PERMANENT",home=tf,pid=Sys.getpid())
+
   system(paste("g.proj -c proj4=\"",projection(td),"\"",sep=""))
 
   ## Define region by importing one MOD11A1 raster.
@@ -231,11 +253,40 @@ EOF",sep=""))
     execGRASS("i.group",group="mod06",input=c("CER_daily","COT_daily","CLD_daily")) ; print("")
    
   ncfile=paste(outdir,"/MOD06_",date,".nc",sep="")
-  execGRASS("r.out.gdal",input="mod06",output=ncfile,type="Int16",nodata=-32768,flags=c("quiet"),createopt=c("WRITE_GDAL_TAGS=YES","WRITE_LONLAT=NO"),format="netCDF")
+  file.remove(ncfile)
+  execGRASS("r.out.gdal",input="mod06",output=ncfile,type="Int16",nodata=-32768,flags=c("quiet"),
+#      createopt=c("FORMAT=NC4","ZLEVEL=5","COMPRESS=DEFLATE","WRITE_GDAL_TAGS=YES","WRITE_LONLAT=NO"),format="netCDF")
+      createopt=c("FORMAT=NC","WRITE_GDAL_TAGS=YES","WRITE_LONLAT=NO"),format="netCDF")
+
   ncopath="/nasa/sles11/nco/4.0.8/gcc/mpt/bin/"
   system(paste(ncopath,"ncecat -O -u time ",ncfile," ",ncfile,sep=""))
-  system(paste(ncopath,"ncap2 -O -s 'time[time]=",as.integer(fs$date[fs$dateid==date]-as.Date("2000-01-01")),"'",ncfile," ",ncfile,sep=""))
-  system(paste(ncopath,"ncatted -a calendar,time,c,c,\"standard\" -a long_name,time,c,c,\"time\" -a units,time,c,c,\"days since 2000-01-01 12:00:00\" ",ncfile,sep=""))
+#  system(paste("cdo setdate,",as.integer(fs$date[fs$dateid==date]-as.Date("2000-01-01"))," -settaxis,2000-01-01,12:00:00,1day ",ncfile," ",ncfile,sep=""))
+#  timdimf=paste(tempdir(),"/time.nc",sep="")
+#  nc_dtime=ncdim_def("time","days since 2000-01-01 12:00:00",
+#                                  vals=as.integer(fs$date[fs$dateid==date]-as.Date("2000-01-01")),
+#                                  calendar="gregorian",longname="time")
+#  nc_vtime=ncvar_def("time","
+#  nc=nc_create(timdimf,nc_time)
+## create temporary nc file with time information to append to MOD06 data
+  cat(paste("
+    netcdf time {
+      dimensions:
+        time = 1 ;
+      variables:
+        int time(time) ;
+      time:units = \"days since 2000-01-01 12:00:00\" ;
+      time:calendar = \"gregorian\";
+      time:long_name = \"time of observation\"; 
+    data:
+      time=",as.integer(fs$date[fs$dateid==date][1]-as.Date("2000-01-01")),";
+    }"),file=paste(tempdir(),"/time.cdl",sep=""))
+system(paste("ncgen -o ",tempdir(),"/time.nc ",tempdir(),"/time.cdl",sep=""))
+system(paste(ncopath,"ncks -A ",tempdir(),"/time.nc ",ncfile,sep=""))
+
+# ncwa -O -h -a record out.nc out.nc
+#  ncvar_put( nc, "time", vals=as.integer(fs$date[fs$dateid==date]-as.Date("2000-01-01")), start=NA, count=NA, verbose=FALSE )
+#  system(paste(ncopath,"ncap2 -O -s 'time[time]=",as.integer(fs$date[fs$dateid==date]-as.Date("2000-01-01")),"'",ncfile," ",ncfile,sep=""))
+#  system(paste(ncopath,"ncatted -O calendar,time,c,c,\"standard\" -a long_name,time,c,c,\"time\" -a units,time,c,c,\"days since 2000-01-01 12:00:00\" ",ncfile,sep=""))
   system(paste(ncopath,"ncrename -v Band1,CER -v Band2,COT -v Band3,CLD ",ncfile,sep=""))
   system(paste(ncopath,"ncatted -a scale_factor,CER,o,d,0.01 -a units,CER,o,c,\"micron\" -a missing_value,CER,o,d,-32768 -a long_name,CER,o,c,\"Cloud Particle Effective Radius\" ",ncfile,sep=""))
   system(paste(ncopath,"ncatted -a scale_factor,COT,o,d,0.01 -a units,COT,o,c,\"none\" -a missing_value,COT,o,d,-32768 -a long_name,COT,o,c,\"Cloud Optical Thickness\" ",ncfile,sep=""))
@@ -244,7 +295,7 @@ EOF",sep=""))
   
 ### delete the temporary files 
   unlink_.gislock()
-  system("/nobackupp1/awilso10/software/grass-6.4.3svn/etc/clean_temp")
+#  system("/nobackupp1/awilso10/software/grass-6.4.3svn/etc/clean_temp")
   system(paste("rm -rR ",tf,sep=""))
 }
 
@@ -283,5 +334,4 @@ mod06(date,tile)
 #foreach(i=notdone[1:3],.packages=(.packages())) %dopar% mod06(i,tile)
 #foreach(i=1:20) %dopar% print(i)
 
-
-q("no")
+q("no",status=0)
