@@ -1,10 +1,16 @@
 #####################################  METHODS COMPARISON part 5 ##########################################
 #################################### Spatial Analysis ############################################
 #This script utilizes the R ojbects created during the interpolation phase.                       #
-#At this stage the script produces figures of various accuracy metrics and compare methods:       #
-#This scripts focuses on a detailed studay of differences in the predictions of CAI_kr and FUsion_Kr                              #
+#This scripts focuses on a detailed study of differences in the predictions of CAI_kr and FUsion_Kr  
+#Differences are examined through:
+#1) per land cover classes
+#2) per elevation classes
+#3) through spiatial transects
+#
+#Note this code is for exploratory analyses so some sections are not succinct and
+#can be improve for repeatability and clarity.
 #AUTHOR: Benoit Parmentier                                                                        #
-#DATE: 11/23/2012                                                                                 #
+#DATE: 12/04/2012                                                                                 #
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#491 --                                  #
 ###################################################################################################
 
@@ -182,17 +188,29 @@ inlistf<-"list_files_05032012.txt"                        #list of raster images
 infile6<-"OR83M_state_outline.shp"
 #stat_loc<-read.table(paste(path,"/","location_study_area_OR_0602012.txt",sep=""),sep=",", header=TRUE)
 
-out_prefix<-"methods_11292012_"
+out_prefix<-"methods_comp5_12042012_"
 nb_transect<-4
 ##### LOAD USEFUL DATA
 
 #obj_list<-"list_obj_08262012.txt"                                  #Results of fusion from the run on ATLAS
-path<-"/home/parmentier/Data/IPLANT_project/methods_interpolation_comparison_10242012" #Jupiter LOCATION on Atlas for kriging                              #Jupiter Location on XANDERS
+path_wd<-"/home/parmentier/Data/IPLANT_project/methods_interpolation_comparison_10242012" #Jupiter LOCATION on Atlas for kriging                              #Jupiter Location on XANDERS
 #path<-"/Users/benoitparmentier/Dropbox/Data/NCEAS/Oregon_covariates/"            #Local dropbox folder on Benoit's laptop
-setwd(path) 
+setwd(path_wd) 
+path_data_cai<-"/home/parmentier/Data/IPLANT_project/data_Oregon_stations_10242012_CAI"  #Change to constant
+path_data_fus<-"/home/parmentier/Data/IPLANT_project/data_Oregon_stations_10242012_GAM"
+#list files that contain model objects and ratingin-testing information for CAI and Fusion
+obj_mod_fus_name<-"results_mod_obj__365d_GAM_fusion_const_all_lstd_11022012.RData"
+obj_mod_cai_name<-"results_mod_obj__365d_GAM_CAI2_const_all_10312012.RData"
+
+gam_fus<-load_obj(file.path(path_data_fus,obj_mod_fus_name))
+gam_cai<-load_obj(file.path(path_data_cai,obj_mod_cai_name))  #This contains all the info
+sampling_date_list<-gam_fus$sampling_obj$sampling_dat$date
+
+### Projection for the current region
 proj_str="+proj=lcc +lat_1=43 +lat_2=45.5 +lat_0=41.75 +lon_0=-120.5 +x_0=400000 +y_0=0 +ellps=GRS80 +units=m +no_defs";
 #User defined output prefix
 
+### MAKE THIS A FUNCTION TO LOAD STACK AND DEFINE VALID RANGE...
 #CRS<-proj4string(ghcn)                       #Storing projection information (ellipsoid, datum,etc.)
 lines<-read.table(paste(path,"/",inlistf,sep=""), sep="")                      #Column 1 contains the names of raster files
 inlistvar<-lines[,1]
@@ -516,8 +534,6 @@ for(i in 1:length(dates)){
   avg_elev_rec_forest<-zonal(rast_diff,zones=elev_rec_forest,stat="mean",na.rm=TRUE)
   std_elev_rec_forest<-zonal(rast_diff,zones=elev_rec_forest,stat="sd",na.rm=TRUE)
   
-  
-  
   ## CREATE plots
   X11()
   plot(avg_elev_rec[,1],avg_elev_rec[,2],type="b",ylim=c(-10,1),
@@ -534,16 +550,17 @@ for(i in 1:length(dates)){
 }
 
 ###################################################################
-################   TRANSECT THROUGH THE IMAGE: ####################
+################   SPATIAL TRANSECT THROUGH THE IMAGE: ####################
 
 #select date
 dates<-c("20100103","20100901")
-j=1
+#j=2
 
 for (j in 1:length(dates)){
   
   #Read predicted tmax raster surface and modeling information
   date_selected<-dates[j]
+  
   oldpath<-getwd()
   setwd(path_data_cai)
   file_pat<-glob2rx(paste("*tmax_predicted*",date_selected,"*_365d_GAM_CAI2_const_all_10312012.rst",sep="")) #Search for files in relation to fusion                  
@@ -562,8 +579,17 @@ for (j in 1:length(dates)){
   rast_fus_pred<-raster(rast_fus1c,1)
   rast_cai_pred<-raster(rast_cai2c,1)
   rast_diff_fc<-rast_fus_pred-rast_cai_pred
-  #Read in data_s and data_v
   
+  #Read in data_s and data_v
+
+  k<-match(date_selected,sampling_date_list)
+  names(gam_fus$gam_fus_mod[[k]])               #Show the name structure of the object/list
+  
+  #Extract the training and testing information for the given date...
+  data_sf<-gam_fus$gam_fus_mod[[k]]$data_s #object for the first date...20100103    #Make this a function??              
+  data_vf<-gam_fus$gam_fus_mod[[k]]$data_v #object for the first date...20100103                  
+  data_sc<-gam_cai$gam_CAI_mod[[k]]$data_s #object for the first date...20100103                  
+  data_vc<-gam_cai$gam_CAI_mod[[k]]$data_v #object for the first date...20100103
   
   ### CREATE A NEW TRANSECT BASED ON LOCATION OF SPECIFIED STATIONS
   
@@ -574,10 +600,11 @@ for (j in 1:length(dates)){
   data_vf$training<-rep(0,nrow(data_vf))
   data_sf$training<-rep(1,nrow(data_sf))
   
-  data_stat<-rbind(data_vf[,c("id","training")],data_sf[,c("id","training")])
+  data_stat<-rbind(data_vf[,c("id","training")],data_sf[,c("id","training")]) #bringing together data_v and data_s
   m<-match(selected_stations,data_stat$id)
-  
+  m<-as.integer(na.omit(m))
   trans4_stations<-transect_from_spdf(data_stat,m)
+  point4_stations<-data_stat[m,]
   #tmp<-as.data.frame(data_stat[1,])
   #row.names(tmp)<-rep("X",1)
   #test<-SpatialLinesDataFrame(trans4_stations,data=tmp)
@@ -597,7 +624,7 @@ for (j in 1:length(dates)){
   list_transect2[[1]]<-c("t1_line.shp",paste("figure_13_tmax_elevation_transect1_OR",date_selected,out_prefix,sep="_"))
   list_transect2[[2]]<-c("t2_line.shp",paste("figure_14_tmax_elevation_transect2_OR",date_selected,out_prefix,sep="_"))
   list_transect2[[3]]<-c("t3_line.shp",paste("figure_15_tmax_elevation_transect3_OR",date_selected,out_prefix,sep="_"))
-  list_transect2[[4]]<-c("t4_line.shp",paste("figure_16_tmax_elevation_transect3_OR",date_selected,out_prefix,sep="_"))
+  list_transect2[[4]]<-c("t4_line.shp",paste("figure_16_tmax_elevation_transect4_OR",date_selected,out_prefix,sep="_"))
   
   names(list_transect2)<-c("transect_OR1","transect_OR2","transect_OR3","transect_OR4")
   
@@ -634,41 +661,72 @@ for (j in 1:length(dates)){
   trans_data2<-plot_transect_m(list_transect2,rast_pred2,title_plot2,disp=TRUE,m_layers_sc)
   dev.off()
   
+  ### PLOT LOCATIONS OF STATION ON FIGURES
   
-  X11(width=18,height=9) 
-  trans_elev<-vector("list",nb_transect)
-  for (k in 1:nb_transect){
-    
-    trans_file<-list_transect[[k]]
-    filename<-sub(".shp","",trans_file)             #Removing the extension from file.
-    transect<-readOGR(".", filename)                 #reading shapefile 
-    trans_elev[[k]]<-extract(ELEV_SRTM,transect)  
-    y<-as.numeric(trans_elev[[k]][[1]])
-    elev_y<-y
-    x<-1:length(y)
-    plot(x,y,type="l", ylab="Elevation (in meters)",xlab="Transect position (in km)")
-    data_y<-(trans_data[[k]][[1]])  # data for the first transect
-    #as.data.frame(data_y)
-    par(new=TRUE)              # key: ask for new plot without erasing old
-    y<-data_y[,1]
-    x <- 1:length(y)
-    fus_y<-y
-    plot(x,y,type="l",col="red",axes=F) #plotting fusion profile
-    axis(4,xlab="",ylab="tmax (in degree C)")
-    y<-data_y[,2]
-    cai_y<-y
-    lines(x,y,col="green")
-    
-    #title(title_plot[i]))
-    legend("topleft",legend=c("elev","fus","CAI"), 
-         cex=1.2, col=c("black","red","green"),
+  data_stat<-rbind(data_vf[,c("id","training")],data_sf[,c("id","training")]) #bringing together data_v and data_s
+  m<-match(selected_stations,data_stat$id)
+  m<-as.integer(na.omit(m))
+  trans4_stations<-transect_from_spdf(data_stat,m)
+  point4_stations<-data_stat[m,]
+
+  pos<-match(c("x_OR83M","y_OR83M"),layerNames(s_raster)) #Find column with name "value"
+  xy_stack<-subset(s_raster,pos)   #Select multiple layers from the stack
+  r_stack<-stack(xy_stack, rast_pred2)
+  trans4_data<-extract(r_stack,trans4_stations,cellnumbers=TRUE) #This extracts a list
+  trans4_data<-as.data.frame(trans4_data[[1]])
+  point4_cellID<-cellFromXY(r_stack,coordinates(point4_stations)) #This contains the cell ID the points
+  pos<-match(point4_cellID,trans4_data$cell)
+  
+  #Plots lines where there are stations...
+  X11(width=18,height=9)
+  y<-trans4_data$fus
+  x <- 1:length(y)
+  plot(x,y,type="l",col="red", #plotting fusion profile
+  ,xlab="",ylab="tmax (in degree C)")
+  y<-trans4_data$CAI
+  lines(x,y,col="green")
+  abline(v=pos)#addlines whtere the stations area...
+  #plot(elev)
+  #title(title_plot[i]))
+  legend("topleft",legend=c("fus","CAI"), 
+  cex=1.2, col=c("red","green"),
+  lty=1)
+  savePlot(paste("fig17_transect_path_tmax_diff_CAI_fusion_",date_selected,out_prefix,".png", sep=""), type="png")
+  
+  
+  y<-trans4_data$fus[1:150]
+  x <- 1:150
+  plot(x,y,type="l",col="red", #plotting fusion profile
+       ,xlab="",ylab="tmax (in degree C)")
+  y<-trans4_data$CAI[1:150]
+  lines(x,y,col="green")
+  abline(v=pos)#addlines whtere the stations area...
+  #plot(elev)
+  #title(title_plot[i]))
+  legend("topleft",legend=c("fus","CAI"), 
+         cex=1.2, col=c("red","green"),
          lty=1)
-    savePlot(file=paste(list_transect[[k]][2],".png",sep=""),type="png")
-    
-    cor(fus_y,elev_y)
-    cor(cai_y,elev_y)
-    cor(fus_y,cai_y)
-  }
-  dev.off
+  savePlot(paste("fig18a_transect_path_tmax_diff_CAI_fusion_",date_selected,out_prefix,".png", sep=""), type="png")
+  
+  
+  y<-trans4_data$fus[151:300]
+  x <- 151:300
+  plot(x,y,type="l",col="red", #plotting fusion profile
+       ,xlab="",ylab="tmax (in degree C)")
+  y<-trans4_data$CAI[151:300]
+  lines(x,y,col="green")
+  abline(v=pos)#addlines whtere the stations area...
+  #plot(elev)
+  #title(title_plot[i]))
+  legend("topleft",legend=c("fus","CAI"), 
+         cex=1.2, col=c("red","green"),
+         lty=1)
+  savePlot(paste("fig18b_transect_path_tmax_diff_CAI_fusion_",date_selected,out_prefix,".png", sep=""), type="png")
+  
+  dev.off()
+  
+  #cor(fus_y,elev_y)
+  #cor(cai_y,elev_y)
+  #cor(fus_y,cai_y)
 
 }
