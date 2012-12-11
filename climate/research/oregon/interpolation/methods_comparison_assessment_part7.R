@@ -27,6 +27,7 @@ library(plotrix)   #Draw circle on graph
 library(reshape)
 library(RCurl)
 ######### Functions used in the script
+#
 
 load_obj <- function(f)
 {
@@ -153,27 +154,40 @@ calc_accuracy_metrics<-function(x,y){
 #########
 #loading R objects that might have similar names
 
-out_prefix<-"_method_comp7_12042012_"
+out_prefix<-"_method_comp7_12102012b_"
 infile2<-"list_365_dates_04212012.txt"
+infile1<- "ghcn_or_tmax_covariates_06262012_OR83M.shp"    #GHCN shapefile containing variables for modeling 2010                 
+#infile2<-"list_10_dates_04212012.txt"                    #List of 10 dates for the regression
+infile2<-"list_365_dates_04212012.txt"                    #list of dates
+infile3<-"LST_dates_var_names.txt"                        #LST dates name
+infile4<-"models_interpolation_05142012.txt"              #Interpolation model names
+infile5<-"mean_day244_rescaled.rst"                       #mean LST for day 244
+inlistf<-"list_files_05032012.txt"                        #list of raster images containing the Covariates
+infile6<-"OR83M_state_outline.shp"
+#stat_loc<-read.table(paste(path,"/","location_study_area_OR_0602012.txt",sep=""),sep=",", header=TRUE)
 
 i=2
 ##### LOAD USEFUL DATA
 
 #obj_list<-"list_obj_08262012.txt"                                  #Results of fusion from the run on ATLAS
-path_wd<-"/home/parmentier/Data/IPLANT_project/methods_interpolation_comparison_10242012" #Jupiter LOCATION on Atlas for kriging                              #Jupiter Location on XANDERS
+path<-"/home/parmentier/Data/IPLANT_project/methods_interpolation_comparison_10242012" #Jupiter LOCATION on Atlas for kriging                              #Jupiter Location on XANDERS
+path_wd<-"/home/parmentier/Data/IPLANT_project/methods_interpolation_comparison_10242012" #Jupiter LOCATION on Atlas for kriging
 #path<-"/Users/benoitparmentier/Dropbox/Data/NCEAS/Oregon_covariates/"            #Local dropbox folder on Benoit's laptop
-setwd(path_wd) 
+setwd(path) 
 path_data_cai<-"/home/parmentier/Data/IPLANT_project/data_Oregon_stations_10242012_CAI"  #Change to constant
 path_data_fus<-"/home/parmentier/Data/IPLANT_project/data_Oregon_stations_10242012_GAM"
 #list files that contain model objects and ratingin-testing information for CAI and Fusion
 obj_mod_fus_name<-"results_mod_obj__365d_GAM_fusion_const_all_lstd_11022012.RData"
 obj_mod_cai_name<-"results_mod_obj__365d_GAM_CAI2_const_all_10312012.RData"
 
+#external function
+source("function_methods_comparison_assessment_part7_12102012.R")
 
 ### Projection for the current region
 proj_str="+proj=lcc +lat_1=43 +lat_2=45.5 +lat_0=41.75 +lon_0=-120.5 +x_0=400000 +y_0=0 +ellps=GRS80 +units=m +no_defs";
 #User defined output prefix
 
+### MAKE THIS A FUNCTION TO LOAD STACK AND DEFINE VALID RANGE...
 #CRS<-proj4string(ghcn)                       #Storing projection information (ellipsoid, datum,etc.)
 lines<-read.table(paste(path,"/",inlistf,sep=""), sep="")                      #Column 1 contains the names of raster files
 inlistvar<-lines[,1]
@@ -183,6 +197,68 @@ covar_names<-as.character(lines[,2])                                         #Co
 s_raster<- stack(inlistvar)                                                  #Creating a stack of raster images from the list of variables.
 layerNames(s_raster)<-covar_names                                            #Assigning names to the raster layers
 projection(s_raster)<-proj_str
+
+#Create mask using land cover data
+pos<-match("LC10",layerNames(s_raster))            #Find the layer which contains water bodies
+LC10<-subset(s_raster,pos)
+LC10[is.na(LC10)]<-0                               #Since NA values are 0, we assign all zero to NA
+mask_land<-LC10<100                                #All values below 100% water are assigned the value 1, value 0 is "water"
+mask_land_NA<-mask_land                            
+mask_land_NA[mask_land_NA==0]<-NA                  #Water bodies are assigned value 1
+
+data_name<-"mask_land_OR"
+raster_name<-paste(data_name,".rst", sep="")
+writeRaster(mask_land, filename=raster_name,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
+#writeRaster(r2, filename=raster_name,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
+
+pos<-match("ELEV_SRTM",layerNames(s_raster)) #Find column with name "ELEV_SRTM"
+ELEV_SRTM<-raster(s_raster,layer=pos)             #Select layer from stack on 10/30
+s_raster<-dropLayer(s_raster,pos)
+ELEV_SRTM[ELEV_SRTM <0]<-NA
+mask_ELEV_SRTM<-ELEV_SRTM>0
+
+#Change this a in loop...
+pos<-match("LC1",layerNames(s_raster)) #Find column with name "value"
+LC1<-raster(s_raster,layer=pos)             #Select layer from stack
+s_raster<-dropLayer(s_raster,pos)
+LC1[is.na(LC1)]<-0
+pos<-match("LC2",layerNames(s_raster)) #Find column with name "value"
+LC2<-raster(s_raster,layer=pos)             #Select layer from stack
+s_raster<-dropLayer(s_raster,pos)
+LC2[is.na(LC2)]<-0
+pos<-match("LC3",layerNames(s_raster)) #Find column with name "value"
+LC3<-raster(s_raster,layer=pos)             #Select layer from stack
+s_raster<-dropLayer(s_raster,pos)
+LC3[is.na(LC3)]<-0
+pos<-match("LC4",layerNames(s_raster)) #Find column with name "value"
+LC4<-raster(s_raster,layer=pos)             #Select layer from stack
+s_raster<-dropLayer(s_raster,pos)
+LC4[is.na(LC4)]<-0
+pos<-match("LC6",layerNames(s_raster)) #Find column with name "value"
+LC6<-raster(s_raster,layer=pos)             #Select layer from stack
+s_raster<-dropLayer(s_raster,pos)
+LC6[is.na(LC6)]<-0
+pos<-match("LC7",layerNames(s_raster)) #Find column with name "value"
+LC7<-raster(s_raster,layer=pos)             #Select layer from stack
+s_raster<-dropLayer(s_raster,pos)
+LC7[is.na(LC7)]<-0
+pos<-match("LC9",layerNames(s_raster)) #Find column with name "LC9", this is wetland...
+LC9<-raster(s_raster,layer=pos)             #Select layer from stack
+s_raster<-dropLayer(s_raster,pos)
+LC9[is.na(LC9)]<-0
+
+LC_s<-stack(LC1,LC2,LC3,LC4,LC6,LC7)
+layerNames(LC_s)<-c("LC1_forest","LC2_shrub","LC3_grass","LC4_crop","LC6_urban","LC7_barren")
+LC_s <-mask(LC_s,mask_ELEV_SRTM)
+plot(LC_s)
+
+s_raster<-addLayer(s_raster, LC_s)
+
+#mention this is the last... files
+
+#Read region outline...
+filename<-sub(".shp","",infile6)             #Removing the extension from file.
+reg_outline<-readOGR(".", filename)                 #reading shapefile 
 
 ########## Load Snotel data 
 infile_snotname<-"snot_OR_2010_sp2_methods_11012012_.shp" #load Snotel data
@@ -206,8 +282,8 @@ snot_OR_2010_sp$date_formatted<-date_test
 #Load GHCN data used in modeling: training and validation site
 
 ### load specific date...and plot: make a function to extract the diff and prediction...
-rast_diff_fc<-rast_fus_pred-rast_cai_pred
-layerNames(rast_diff)<-paste("diff",date_selected,sep="_")
+#rast_diff_fc<-rast_fus_pred-rast_cai_pred
+#layerNames(rast_diff)<-paste("diff",date_selected,sep="_")
 
 ####COMPARE WITH LOCATION OF GHCN and SNOTEL NETWORK
 
@@ -215,445 +291,57 @@ layerNames(rast_diff)<-paste("diff",date_selected,sep="_")
 i=1
 date_selected<-dates[i]
 
-X11(width=16,height=9)
-par(mfrow=c(1,2))
-
-plot(rast_diff_fc)
-plot(snot_OR_2010_sp,pch=2,col="red",add=T)
-plot(data_stat,add=T) #This is the GHCN network
-legend("bottom",legend=c("SNOTEL", "GHCN"), 
-       cex=0.8, col=c("red","black"),
-       pch=c(2,1))
-title(paste("SNOTEL and GHCN networks on ", date_selected, sep=""))
+X11(12,12)
+# #plot(rast_diff_fc)
+# plot(snot_OR_2010_sp,pch=2,col="red",add=T)
+# plot(data_stat,add=T) #This is the GHCN network
+# legend("bottom",legend=c("SNOTEL", "GHCN"), 
+#        cex=0.8, col=c("red","black"),
+#        pch=c(2,1))
+# title(paste("SNOTEL and GHCN networks on ", date_selected, sep=""))
 
 plot(ELEV_SRTM)
 plot(snot_OR_2010_sp,pch=2,col="red",add=T)
-plot(data_stat,add=T)
+#plot(data_stat,add=T)
 legend("bottom",legend=c("SNOTEL", "GHCN"), 
-     cex=0.8, col=c("red","black"),
-      pch=c(2,1))
+       cex=0.8, col=c("red","black"),
+       pch=c(2,1))
 title(paste("SNOTEL and GHCN networks", sep=""))
 savePlot(paste("fig1_map_SNOT_GHCN_network_diff_elev_bckgd",date_selected,out_prefix,".png", sep=""), type="png")
+dev.off()
 
 #add histogram of elev for SNOT and GHCN
-hist(snot_data_selected$ELEV_SRTM,main="")
-title(paste("SNOT stations and Elevation",date_selected,sep=" "))
-hist(data_vc$ELEV_SRTM,main="")
-title(paste("GHCN stations and Elevation",date_selected,sep=" "))
-savePlot(paste("fig2_hist_elev_SNOT_GHCN_",out_prefix,".png", sep=""), type="png")
-dev.off()
+#X11(width=16,height=9)
+#par(mfrow=c(1,2))
+#hist(snot_data_selected$ELEV_SRTM,main="")
+#title(paste("SNOT stations and Elevation",date_selected,sep=" "))
+#hist(data_vc$ELEV_SRTM,main="")
+#title(paste("GHCN stations and Elevation",date_selected,sep=" "))
+#savePlot(paste("fig2_hist_elev_SNOT_GHCN_",out_prefix,".png", sep=""), type="png")
+#dev.off()
 ## Select date from SNOT
 #not_selected<-subset(snot_OR_2010_sp, date=="90110" )
 list_ac_tab <-vector("list", length(dates))  #storing the accuracy metric data.frame in a list...
 names(list_ac_tab)<-paste("date",1:length(dates),sep="")
-X11(width=16,height=9)
-par(mfrow=c(1,2))
-#for(i in 1:length(dates)){
-for(i in 163:length(dates)){
-  date_selected<-dates[i]
-  
-  ## Get the relevant raster layers with prediction for fusion and CAI
-  oldpath<-getwd()
-  setwd(path_data_cai)
-  file_pat<-glob2rx(paste("*tmax_predicted*",date_selected,"*_365d_GAM_CAI2_const_all_10312012.rst",sep="")) #Search for files in relation to fusion                  
-  lf_cai2c<-list.files(pattern=file_pat) #Search for files in relation to fusion                  
-  rast_cai2c<-stack(lf_cai2c)                   #lf_cai2c CAI results with constant sampling over 365 dates
-  rast_cai2c<-mask(rast_cai2c,mask_ELEV_SRTM)
-  
-  oldpath<-getwd()
-  setwd(path_data_fus)
-  file_pat<-glob2rx(paste("*tmax_predicted*",date_selected,"*_365d_GAM_fusion_const_all_lstd_11022012.rst",sep="")) #Search for files in relation to fusion                  
-  lf_fus1c<-list.files(pattern=file_pat) #Search for files in relation to fusion                        
-  rast_fus1c<-stack(lf_fus1c)
-  rast_fus1c<-mask(rast_fus1c,mask_ELEV_SRTM)
-  
-  #PLOT ALL MODELS
-  #Prepare for plotting
-  
-  setwd(path) #set path to the output path
-  
-  rast_fus_pred<-raster(rast_fus1c,1)  # Select the first model from the stack i.e fusion with kriging for both steps
-  rast_cai_pred<-raster(rast_cai2c,1)  
-  layerNames(rast_cai_pred)<-paste("cai",date_selected,sep="_")
-  layerNames(rast_fus_pred)<-paste("fus",date_selected,sep="_")
-  rast_pred2<-stack(rast_fus_pred,rast_cai_pred)
-  #function to extract training and test from object from object models created earlier during interpolation...
- 
-  #load training and testing date for the specified date for fusion and CAI
-  data_vf<-station_data_interp(date_selected,file.path(path_data_fus,obj_mod_fus_name),training=FALSE,testing=TRUE)
-  #data_sf<-station_data_interp(date_selected,file.path(path_data_fus,obj_mod_fus_name),training=TRUE,testing=FALSE)
-  data_vc<-station_data_interp(date_selected,file.path(path_data_cai,obj_mod_cai_name),training=FALSE,testing=TRUE)
-  #data_sc<-station_data_interp(date_selected,file.path(path_data_cai,obj_mod_cai_name),training=TRUE,testing=FALSE)
-  
-  date_selected_snot<-strptime(date_selected,"%Y%m%d")
-  snot_selected <-snot_OR_2010_sp[snot_OR_2010_sp$date_formatted==date_selected_snot,]
-  #snot_selected<-na.omit(as.data.frame(snot_OR_2010_sp[snot_OR_2010_sp$date==90110,]))
-  rast_diff_fc<-rast_fus_pred-rast_cai_pred
-  LC_stack<-stack(LC1,LC2,LC3,LC4,LC6,LC7)
-  rast_pred3<-stack(rast_diff_fc,rast_pred2,ELEV_SRTM,LC_stack)
-  layerNames(rast_pred3)<-c("diff_fc","fus","CAI","ELEV_SRTM","LC1","LC2","LC3","LC4","LC6","LC7")   #extract amount of veg...
-  
-  #extract predicted tmax corresponding to 
-  extract_snot<-extract(rast_pred3,snot_selected)  #return value from extract is a matrix (with input SPDF)
-  snot_data_selected<-cbind(as.data.frame(snot_selected),extract_snot)  #bind data together
-  snot_data_selected$res_f<-snot_data_selected$fus-snot_data_selected$tmax #calculate the residuals for Fusion
-  snot_data_selected$res_c<-snot_data_selected$CAI-snot_data_selected$tmax #calculate the residuals for CAI
-  #snot_data_selected<-(na.omit(as.data.frame(snot_data_selected))) #remove rows containing NA, this may need to be modified later.
-  
-  ###fig3: Plot predicted vs observed tmax
-  #fig3a: FUS
-  x_range<-range(c(data_vf$pred_mod7,snot_data_selected$fus,data_vc$pred_mod9,snot_data_selected$CAI),na.rm=T)
-  y_range<-range(c(data_vf$dailyTmax,snot_data_selected$tmax,data_vc$dailyTmax,snot_data_selected$tmax),na.rm=T)
-  plot(data_vf$pred_mod7,data_vf$dailyTmax, ylab="Observed daily tmax (C)", xlab="Fusion predicted daily tmax (C)", 
-       ylim=y_range,xlim=x_range)
-  #text(data_vf$pred_mod7,data_vf$dailyTmax,labels=data_vf$idx,pos=3)
-  abline(0,1) #takes intercept at 0 and slope as 1 so display 1:1 ine
-  grid(lwd=0.5,col="black")
-  points(snot_data_selected$fus,snot_data_selected$tmax,pch=2,co="red")
-  title(paste("Testing stations tmax fusion vs daily tmax",date_selected,sep=" "))
-  legend("topleft",legend=c("GHCN", "SNOT"), 
-         cex=1.2, col=c("black","red"),
-         pch=c(1,2))  
-  #fig 3b: CAI
-  #x_range<-range(c(data_vc$pred_mod9,snot_data_selected$CAI))
-  #y_range<-range(c(data_vc$dailyTmax,snot_data_selected$tmax))
-  plot(data_vc$pred_mod9,data_vc$dailyTmax, ylab="Observed daily tmax (C)", xlab="CAI predicted daily tmax (C)", 
-       ylim=y_range,xlim=x_range)
-  #text(data_vc$pred_mod9,data_vc$dailyTmax,labels=data_vf$idx,pos=3)
-  abline(0,1) #takes intercept at 0 and slope as 1 so display 1:1 ine
-  grid(lwd=0.5,col="black")
-  points(snot_data_selected$CAI,snot_data_selected$tmax,pch=2,co="red") 
-  #text(snot_data_selected$CAI,snot_data_selected$tmax,labels=1:nrow(snot_data_selected),pos=3)
-  #title(paste("Testing stations tmax CAI vs daily tmax",date_selected,sep=" "))
-  legend("topleft",legend=c("GHCN", "SNOT"), 
-         cex=1.2, col=c("black","red"),
-         pch=c(1,2))
-  savePlot(paste("fig3_testing_scatterplot_pred_fus_CAI_observed_SNOT_GHCN_",date_selected,out_prefix,".png", sep=""), type="png")
-    
-  ##### Fig4a: ELEV-CAI
-  y_range<-range(c(data_vc$pred_mod9,snot_data_selected$CAI),na.rm=T)
-  #y_range<-range(c(data_vc$pred_mod9,snot_data_selected$CAI),na.rm=T)
-  x_range<-range(c(data_vc$ELEV_SRTM,snot_data_selected$ELEV_SRTM),na.rm=T)
-  lm_mod1<-lm(data_vc$pred_mod9~data_vc$ELEV_SRTM)
-  lm_mod2<-lm(snot_data_selected$CAI~snot_data_selected$ELEV_SRTM)
-  plot(data_vc$ELEV_SRTM,data_vc$pred_mod9,ylab="Observed daily tmax (C)", xlab="Elevation (m)", 
-       ylim=y_range,xlim=x_range)
-  #text(data_vc$ELEV_SRTM,data_vc$pred_mod9,labels=data_vc$idx,pos=3)
-  abline(lm_mod1) #takes intercept at 0 and slope as 1 so display 1:1 ine
-  abline(lm_mod2,col="red") #takes intercept at 0 and slope as 1 so display 1:1 ine
-  grid(lwd=0.5, col="black")
-  points(snot_data_selected$ELEV_SRTM,snot_data_selected$CAI,pch=2,co="red")
-  title(paste("Testing stations tmax CAI vs elevation",date_selected,sep=" "))
-  legend("topleft",legend=c("GHCN", "SNOT"), 
-         cex=1.2, col=c("black","red"),
-         pch=c(1,2))
-  
-  #Fig4bELEV-FUS
-  y_range<-range(c(data_vf$pred_mod7,snot_data_selected$fus),na.rm=T)
-  x_range<-range(c(data_vf$ELEV_SRTM,snot_data_selected$ELEV_SRTM),na.rm=T)
-  lm_mod1<-lm(data_vf$pred_mod7~data_vf$ELEV_SRTM)
-  lm_mod2<-lm(snot_data_selected$fus~snot_data_selected$ELEV_SRTM)
-  plot(data_vf$ELEV_SRTM,data_vf$pred_mod7,ylab="Observed daily tmax (C)", xlab="Elevation (m)", 
-       ylim=y_range,xlim=x_range)
-  #text(data_vc$ELEV_SRTM,data_vc$pred_mod9,labels=data_vc$idx,pos=3)
-  abline(lm_mod1) #takes intercept at 0 and slope as 1 so display 1:1 ine
-  abline(lm_mod2,col="red") #takes intercept at 0 and slope as 1 so display 1:1 ine
-  grid(lwd=0.5, col="black")
-  points(snot_data_selected$ELEV_SRTM,snot_data_selected$fus,pch=2,co="red")
-  title(paste("Testing stations tmax  vs elevation",date_selected,sep=" "))
-  legend("topleft",legend=c("GHCN", "SNOT"), 
-         cex=1.2, col=c("black","red"),
-         pch=c(1,2))
-  savePlot(paste("fig4_testing_scatterplot_pred_fus_CIA_elev_SNOT_GHCN_",date_selected,out_prefix,".png", sep=""), type="png") 
-  
-  ############ ACCURACY METRICS AND RESIDUALS #############
-  
-  #START FIG 5
-  #####Fig5a: CAI vs FUSION: difference by plotting on in terms of the other
-  lm_mod<-lm(snot_data_selected$CAI~snot_data_selected$fus)
-  y_range<-range(c(data_vc$pred_mod9,snot_data_selected$CAI),na.rm=T)
-  x_range<-range(c(data_vf$pred_mod7,snot_data_selected$fus),na.rm=T)
-  
-  plot(data_vf$pred_mod7,data_vc$pred_mod9,ylab="Predicted CAI daily tmax (C)", xlab="Predicted fusion daily tmax (C)", 
-       ylim=y_range,xlim=x_range)
-  #text(data_vc$ELEV_SRTM,data_vc$dailyTmax,labels=data_vc$idx,pos=3)
-  abline(0,1) #takes intercept at 0 and slope as 1 so display 1:1 ine
-  abline(lm_mod,col="red")
-  grid(lwd=0.5, col="black")
-  points(snot_data_selected$fus,snot_data_selected$CAI,pch=2,co="red")
-  title(paste("Testing stations predicted tmax fusion vs CAI tmax",date_selected,sep=" "))
-  legend("topleft",legend=c("GHCN", "SNOT"), 
-         cex=1.2, col=c("black","red"),
-         pch=c(1,2))
-  ####Fig5b: diff vs elev: difference by plotting on in terms of elev
-  diff_fc<-data_vf$pred_mod7-data_vc$pred_mod9
-  plot(snot_data_selected$ELEV_SRTM,snot_data_selected$diff_fc,pch=2,col="red")
-  lm_mod<-lm(snot_data_selected$diff_fc~snot_data_selected$ELEV_SRTM)
-  abline(lm_mod,col="red")
-  points(data_vf$ELEV_SRTM,diff_fc)
-  lm_mod<-lm(diff_fc~data_vf$ELEV_SRTM)
-  abline(lm_mod)
-  legend("topleft",legend=c("GHCN", "SNOT"), 
-         cex=1.2, col=c("black","red"),
-         pch=c(1,2))
-  title(paste("Prediction tmax difference and elevation ",sep=""))
-  savePlot(paste("fig5_testing_scatterplot_pred_fus_CAI_observed_SNOT_GHCN_",date_selected,out_prefix,".png", sep=""), type="png")
 
-  #DO diff IN TERM OF ELEVATION CLASSES as well as diff..
-    
-  #### START FIG 6: difference fc vs elev
-  #fig6a
-  brks<-c(0,500,1000,1500,2000,2500,4000)
-  lab_brks<-1:6
-  elev_rcstat<-cut(snot_data_selected$ELEV_SRTM,breaks=brks,labels=lab_brks,right=F)
-  snot_data_selected$elev_rec<-elev_rcstat
-  y_range<-range(c(snot_data_selected$diff_fc),na.rm=T)
-  x_range<-range(c(elev_rcstat),na.rm=T)
-  plot(elev_rcstat,snot_data_selected$diff_fc, ylab="diff_fc", xlab="ELEV_SRTM (m) ", 
-       ylim=y_range, xlim=x_range)
-  #text(elev_rcstat,diff_cf,labels=data_vf$idx,pos=3)
-  grid(lwd=0.5,col="black")
-  title(paste("SNOT stations diff f vs Elevation",date_selected,sep=" "))
-  
-  ###With fewer classes...fig6b
-  brks<-c(0,1000,2000,3000,4000)
-  lab_brks<-1:4
-  elev_rcstat<-cut(snot_data_selected$ELEV_SRTM,breaks=brks,labels=lab_brks,right=F)
-  snot_data_selected$elev_rec<-elev_rcstat
-  y_range<-range(c(snot_data_selected$diff_fc),na.rm=T)
-  x_range<-range(c(elev_rcstat),na.rm=T)
-  plot(elev_rcstat,snot_data_selected$diff_fc, ylab="diff_fc", xlab="ELEV_SRTM (m) ", 
-       ylim=y_range, xlim=x_range)
-  #text(elev_rcstat,diff_cf,labels=data_vf$idx,pos=3)
-  grid(lwd=0.5,col="black")
-  title(paste("SNOT stations diff f vs Elevation",date_selected,sep=" "))
-  savePlot(paste("fig6_elevation_classes_diff_SNOT_GHCN_network",date_selected,out_prefix,".png", sep=""), type="png")
-  
-  #START FIG 7 with residuals
-  #fig 7a
-  brks<-c(0,1000,2000,3000,4000)
-  lab_brks<-1:4
-  elev_rcstat<-cut(snot_data_selected$ELEV_SRTM,breaks=brks,labels=lab_brks,right=F)
-  snot_data_selected$elev_rec<-elev_rcstat
-  y_range<-range(c(snot_data_selected$res_f,snot_data_selected$res_c),na.rm=T)
-  x_range<-range(c(elev_rcstat),na.rm=T)
-  plot(elev_rcstat,snot_data_selected$res_f, ylab="res_f", xlab="ELEV_SRTM (m) ", 
-       ylim=y_range, xlim=x_range)
-  #text(elev_rcstat,diff_cf,labels=data_vf$idx,pos=3)
-  grid(lwd=0.5,col="black")
-  title(paste("SNOT stations residuals fusion vs Elevation",date_selected,sep=" "))
-  #fig 7b
-  elev_rcstat<-cut(snot_data_selected$ELEV_SRTM,breaks=brks,labels=lab_brks,right=F)
-  y_range<-range(c(snot_data_selected$res_c,snot_data_selected$res_f),na.rm=T)
-  x_range<-range(c(elev_rcstat))
-  plot(elev_rcstat,snot_data_selected$res_c, ylab="res_c", xlab="ELEV_SRTM (m) ", 
-       ylim=y_range, xlim=x_range)
-  #text(elev_rcstat,diff_cf,labels=data_vf$idx,pos=3)
-  grid(lwd=0.5,col="black")
-  title(paste("SNOT stations residuals CAI vs Elevation",date_selected,sep=" "))
-  savePlot(paste("fig7_elevation_classes_residuals_SNOT_GHCN_network",date_selected,out_prefix,".png", sep=""), type="png")
-  
-  ####### COMPARE CAI FUSION USING SNOTEL DATA WITH ACCURACY METRICS###############
-  ################ RESIDUALS and MAE etc.  #####################
-  
-  ### Run for full list of date? --365
-  ac_tab_snot_fus<-calc_accuracy_metrics(snot_data_selected$tmax,snot_data_selected$fus) 
-  ac_tab_snot_cai<-calc_accuracy_metrics(snot_data_selected$tmax,snot_data_selected$CAI) 
-  ac_tab_ghcn_fus<-calc_accuracy_metrics(data_vf$dailyTmax,data_vf$pred_mod7) 
-  ac_tab_ghcn_cai<-calc_accuracy_metrics(data_vc$dailyTmax,data_vc$pred_mod9)
-  
-  ac_tab<-do.call(rbind,list(ac_tab_snot_fus,ac_tab_snot_cai,ac_tab_ghcn_fus,ac_tab_ghcn_cai))
-  rownames(ac_tab)<-c("snot_fus","snot_cai","ghcn_fus","ghcn_cai")
-  ac_tab$date<-date_selected
-  list_ac_tab[[i]]<-ac_tab  #storing the accuracy metric data.frame in a list...
-  #save(list_ac_tab,)
-  save(list_ac_tab,file= paste("list_ac_tab_", date_selected,out_prefix,".RData",sep=""))
 
-  #FIG8: boxplot of residuals for methods (fus, cai) using SNOT and GHCN data
-  #fig8a
-  y_range<-range(c(snot_data_selected$res_f,snot_data_selected$res_c,data_vf$res_mod7,data_vc$res_mod9),na.rm=T)
-  boxplot(snot_data_selected$res_f,snot_data_selected$res_c,names=c("FUS","CAI"),ylim=y_range,ylab="Residuals tmax degree C")
-  title(paste("Residuals for fusion and CAI methods for SNOT data ",date_selected,sep=" "))
-  #fig8b
-  boxplot(data_vf$res_mod7,data_vc$res_mod9,names=c("FUS","CAI"),ylim=y_range,ylab="Residuals tmax degree C")
-  title(paste("Residuals for fusion and CAI methods for GHCN data ",date_selected,sep=" "))
-  savePlot(paste("fig8_residuals_boxplot_SNOT_GHCN_network",date_selected,out_prefix,".png", sep=""), type="png")
-  
-  mae_fun<-function(residuals){
-    mean(abs(residuals),na.rm=T)
-  }
-  
-  mean_diff_fc<-aggregate(diff_fc~elev_rec,data=snot_data_selected,mean)
-  mean_mae_c<-aggregate(res_c~elev_rec,data=snot_data_selected,mae_fun)
-  mean_mae_f<-aggregate(res_f~elev_rec,data=snot_data_selected,mae_fun)
-  
-  ####FIG 9: plot MAE for fusion and CAI as well as boxplots of both thechnique
-  #fig 9a: boxplot of residuals for MAE and CAI
-  height<-cbind(snot_data_selected$res_f,snot_data_selected$res_c)
-  boxplot(height,names=c("FUS","CAI"),ylab="Residuals tmax degree C")
-  title(paste("Residuals for fusion and CAI methods for SNOT data ",date_selected,sep=" "))
-  #par(new=TRUE)
-  #abline(h=ac_tab[1,1],col="red")
-  points(1,ac_tab[1,1],pch=5,col="red")
-  points(2,ac_tab[2,1],pch=5,col="black")
-  legend("bottom",legend=c("FUS_MAE", "CAI_MAE"), 
-         cex=0.8, col=c("red","black"),
-         pch=c(2,1))
-  #fig 9b: MAE per 3 elevation classes:0-1000,1000-2000,2000-3000,3000-4000
-  y_range<-c(0,max(c(mean_mae_c[,2],mean_mae_f[,2]),na.rm=T))
-  plot(1:3,mean_mae_c[,2],ylim=y_range,type="n",ylab="MAE in degree C",xlab="elevation classes")
-  points(mean_mae_c,ylim=y_range)
-  lines(1:3,mean_mae_c[,2],col="black")
-  par(new=TRUE)              # key: ask for new plot without erasing old
-  points(mean_mae_f,ylim=y_range)
-  lines(1:3,mean_mae_f[,2],col="red")
-  legend("bottom",legend=c("FUS_MAE", "CAI_MAE"), 
-         cex=0.8, col=c("red","black"),
-         pch=c(2,1))
-  title(paste("MAE per elevation classes for SNOT data ",date_selected,sep=" "))
-  savePlot(paste("fig9_residuals_boxplot_MAE_SNOT_GHCN_network",date_selected,out_prefix,".png", sep=""), type="png")
-  
-  ### LM MODELS for difference and elevation categories
-  ## Are the differences plotted on fig 9 significant??
-  diffelev_mod<-lm(diff_fc~elev_rec,data=snot_data_selected)
-  summary(diffelev_mod)
-  ##LM MODEL MAE PER ELEVATION CLASS: residuals for CAI
-  diffelev_mod<-lm(res_c~elev_rec,data=snot_data_selected)
-  summary(diffelev_mod)
-  ##LM MODEL MAE PER ELEVATION CLASS: residuals for Fusions
-  diffelev_mod<-lm(res_f~elev_rec,data=snot_data_selected)
-  summary(diffelev_mod)
-  
-  ### LM MODELS for RESIDUALS BETWEEN CAI AND FUSION
-  ## Are the differences plotted on fig 9 significant??
-  ## STORE THE p values...?? overall and per cat?
-  
-  #diffelev_mod<-lm(res_f~elev_rec,data=snot_data_selected)
-  #table(snot_data_selected$elev_rec) #Number of observation per class
-  #max(snot_data_selected$E_STRM)
-  
-  #res
-  
-  #############################################
-  #USING BOTH validation and training
-  #This part is exploratory....
-  ################## EXAMINING RESIDUALS AND DIFFERENCES IN LAND COVER......############
-  ######
+#ac_mod<-mclapply(1:length(dates), accuracy_comp_CAI_fus_function,mc.preschedule=FALSE,mc.cores = 8) #This is the end bracket from mclapply(...) statement
+source("function_methods_comparison_assessment_part7_12102012.R")
+#Use mcMap or mappply for function with multiple arguments...
+#ac_mod<-mclapply(1:6, accuracy_comp_CAI_fus_function,mc.preschedule=FALSE,mc.cores = 1) #This is the end bracket from mclapply(...) statement
+ac_mod<-mclapply(1:length(dates), accuracy_comp_CAI_fus_function,mc.preschedule=FALSE,mc.cores = 8) #This is the end bracket from mclapply(...) statement
 
-  #LC_names<-c("LC1_rec","LC2_rec","LC3_rec","LC4_rec","LC6_rec")
-  suf_name<-c("rec1")
-  sum_var<-c("diff_fc")
-  LC_names<-c("LC1","LC2","LC3","LC4","LC6")
-  brks<-c(-1,20,40,60,80,101)
-  lab_brks<-seq(1,5,1)
-  #var_name<-LC_names; suffix<-"rec1"; s_function<-"mean";df<-snot_data_selected;summary_var<-"diff_fc"
-  #reclassify_df(snot_data_selected,LC_names,var_name,brks,lab_brks,suffix,summary_var)
-  
-  #Calculate mean per land cover percentage
-  data_agg<-reclassify_df(snot_data_selected,LC_names,brks,lab_brks,suf_name,sum_var)
-  data_lc<-data_agg[[1]]
-  snot_data_selected<-data_agg[[2]]
-  
-  by_name<-"rec1"
-  df_lc_diff_fc<-merge_multiple_df(data_lc,by_name)
-  
-  ###### FIG10: PLOT LAND COVER
-  zones_stat<-df_lc_diff_fc #first land cover
-  #names(zones_stat)<-c("lab_brks","LC")
-  y_range<-range(as.vector(t(zones_stat[,-1])),na.rm=T)
-  lab_brks_mid<-c(10,30,50,70,90)
-  plot(lab_brks_mid,zones_stat[,2],type="b",ylim=y_range,col="black", lwd=2,
-       ylab="difference between fusion and CAI",xlab="land cover percent classes")
-  lines(lab_brks_mid,zones_stat[,3],col="red",type="b")
-  lines(lab_brks_mid,zones_stat[,4],col="blue",type="b")
-  lines(lab_brks_mid,zones_stat[,5],col="darkgreen",type="b")
-  lines(lab_brks_mid,zones_stat[,6],col="purple",type="b")
-  legend("topleft",legend=c("LC1_forest", "LC2_shrub", "LC3_grass", "LC4_crop", "LC6_urban"), 
-         cex=1.2, col=c("black","red","blue","darkgreen","purple"),
-         lty=1,lwd=1.8)
-  title(paste("Prediction tmax difference and land cover ",date_selected,sep=""))
+tb<-ac_mod[[1]][[4]][0,]  #empty data frame with metric table structure that can be used in rbinding...
+tb_tmp<-ac_mod #copy
 
-  ###NOW USE RESIDUALS FOR FUSION
-  sum_var<-"res_f"
-  suf_name<-"rec2"
-  data_agg2<-reclassify_df(snot_data_selected,LC_names,brks,lab_brks,suf_name,sum_var)
-  data_resf_lc<-data_agg2[[1]]
-  #snot_data_selected<-data_agg[[2]]
-  
-  by_name<-"rec2"
-  df_lc_resf<-merge_multiple_df(data_resf_lc,by_name)
-  
-  zones_stat<-df_lc_resf #first land cover
-  #names(zones_stat)<-c("lab_brks","LC")
-  lab_brks_mid<-c(10,30,50,70,90)
-  plot(lab_brks_mid,zones_stat[,2],type="b",ylim=y_range,col="black",lwd=2,
-       ylab="tmax residuals fusion ",xlab="land cover percent classes")
-  lines(lab_brks_mid,zones_stat[,3],col="red",type="b")
-  lines(lab_brks_mid,zones_stat[,4],col="blue",type="b")
-  lines(lab_brks_mid,zones_stat[,5],col="darkgreen",type="b")
-  lines(lab_brks_mid,zones_stat[,6],col="purple",type="b")
-  legend("topleft",legend=c("LC1_forest", "LC2_shrub", "LC3_grass", "LC4_crop", "LC6_urban"), 
-         cex=1.2, col=c("black","red","blue","darkgreen","purple"),
-         lty=1,lwd=1.2)
-  title(paste("Prediction tmax residuals and land cover ",date_selected,sep=""))
-  savePlot(paste("fig10_diff_prediction_tmax_diff_res_f_land cover",date_selected,out_prefix,".png", sep=""), type="png")
-  
-  #### FIGURE11: res_f and res_c per land cover
-  
-  sum_var<-"res_c"
-  suf_name<-"rec3"
-  data_agg3<-reclassify_df(snot_data_selected,LC_names,brks,lab_brks,suf_name,sum_var)
-  data_resc_lc<-data_agg3[[1]]
-  snot_data_selected<-data_agg3[[2]]
-  
-  by_name<-"rec3"
-  df_lc_resc<-merge_multiple_df(data_resc_lc,by_name)
-  
-  zones_stat<-df_lc_resc #first land cover
-  #names(zones_stat)<-c("lab_brks","LC")
-  y_range<-range(as.vector(t(zones_stat[,-1])),na.rm=T)
-  lab_brks_mid<-c(10,30,50,70,90)
-  plot(lab_brks_mid,zones_stat[,2],type="b",ylim=y_range,col="black",lwd=2,
-       ylab="tmax residuals CAI",xlab="land cover percent classes")
-  lines(lab_brks_mid,zones_stat[,3],col="red",type="b")
-  lines(lab_brks_mid,zones_stat[,4],col="blue",type="b")
-  lines(lab_brks_mid,zones_stat[,5],col="darkgreen",type="b")
-  lines(lab_brks_mid,zones_stat[,6],col="purple",type="b")
-  legend("topleft",legend=c("LC1_forest", "LC2_shrub", "LC3_grass", "LC4_crop", "LC6_urban"), 
-         cex=1.2, col=c("black","red","blue","darkgreen","purple"),
-         lty=1,lwd=1.2)
-  title(paste("Prediction tmax residuals CAI and land cover ",date_selected,sep=""))
-  
-  #fig11b
-  zones_stat<-df_lc_resf #first land cover
-  #names(zones_stat)<-c("lab_brks","LC")
-  y_range<-range(as.vector(t(zones_stat[,-1])),na.rm=T)
-  lab_brks_mid<-c(10,30,50,70,90)
-  plot(lab_brks_mid,zones_stat[,2],type="b",ylim=y_range,col="black",lwd=2,
-       ylab="tmax residuals fusion ",xlab="land cover percent classes")
-  lines(lab_brks_mid,zones_stat[,3],col="red",type="b")
-  lines(lab_brks_mid,zones_stat[,4],col="blue",type="b")
-  lines(lab_brks_mid,zones_stat[,5],col="darkgreen",type="b")
-  lines(lab_brks_mid,zones_stat[,6],col="purple",type="b")
-  legend("topleft",legend=c("LC1_forest", "LC2_shrub", "LC3_grass", "LC4_crop", "LC6_urban"), 
-         cex=1.2, col=c("black","red","blue","darkgreen","purple"),
-         lty=1,lwd=1.2)
-  title(paste("Prediction tmax residuals and land cover ",date_selected,sep=""))
-  #savePlot(paste("fig10_diff_prediction_tmax_diff_res_f_land cover",date_selected,out_prefix,".png", sep=""), type="png")
-  savePlot(paste("fig11_prediction_tmax_res_f_res_c_land cover",date_selected,out_prefix,".png", sep=""), type="png")
-    
-} 
-
-#Collect accuracy information for different dates
-ac_data_xdates<-do.call(rbind,list_ac_tab)
-
-ac_data_xdates$mod_id<-rownames(ac_data_xdates)
-
-tmp_rownames<-rownames(ac_data_xdates)
-rowstr<-strsplit(tmp_rownames,"\\.")
-for (i in 1:length(rowstr)){
-  ac_data_xdates$mod_id[i]<-rowstr[[i]][[2]]
+for (i in 1:length(tb_tmp)){
+  tmp<-tb_tmp[[i]][[4]]
+  tb<-rbind(tb,tmp)
 }
+rm(tb_tmp)
+#Collect accuracy information for different dates
+#ac_data_xdates<-do.call(rbind,tb)
+ac_data_xdates<-tb
 ##Now subset for each model...
 
 mod_names<-unique(ac_data_xdates$mod_id)
@@ -684,6 +372,7 @@ mean(data_ac_snot_cai)
 mean(data_ac_ghcn_fus)
 mean(data_ac_ghcn_cai)
 
+### END OF CODE
 ### END OF CODE
 #Write a part to caculate MAE per date...
 #ac_table_metrics<-do.call(rbind,ac_tab_list)
