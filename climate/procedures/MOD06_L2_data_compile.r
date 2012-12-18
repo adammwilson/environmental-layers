@@ -35,7 +35,9 @@ roi=spTransform(roi,CRS(" +proj=sinu +lon_0=0 +x_0=0 +y_0=0"))
 
 ### use MODIS tile as ROI instead
 modt=readOGR("/home/adamw/acrobates/Global/modis_sinusoidal","modis_sinusoidal_grid_world",)
-tiles=c("H9V4")
+tiles=c("H9V4") #oregon
+tiles=c("H11V8") #Venezuela
+
 roi=modt[modt$HV%in%tiles,]
 
 ## Bounding box of region in lat/lon
@@ -51,9 +53,13 @@ roi_bb=bbox(roi_ll)
 
 ## specify some working directories
 gdir="output/"
-datadir="data/modis/MOD06_L2_hdf"
-outdir="data/modis/MOD06_L2_hdf2"
-tifdir="/media/data/MOD06_L2_tif"
+#datadir="data/modis/MOD06_L2_hdf"
+#outdir="data/modis/MOD06_L2_hdf2"
+#tifdir="/media/data/MOD06_L2_tif"
+#summarydatadir="data/modis/MOD06_climatologies"
+datadir="data/modis/Venezuela/MOD06"
+outdir="data/modis/Venezuela/MOD06_"
+#tifdir="/media/data/MOD06_L2_tif"
 summarydatadir="data/modis/MOD06_climatologies"
 
 

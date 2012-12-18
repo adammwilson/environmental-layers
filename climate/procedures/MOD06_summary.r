@@ -20,45 +20,29 @@ library(rgl)
 library(hdf5)
 library(rasterVis)
 library(heR.Misc)
+library(car)
 
 X11.options(type="Xlib")
 ncores=20  #number of threads to use
 
-#setwd("/home/adamw/personal/projects/interp")
 setwd("/home/adamw/acrobates/projects/interp")
 
+psin=CRS("+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs")
 
-### Produce shapefile of all stations globally
-ghcn=read.fwf("data/ghcn/ghcnd-stations.txt",header=F,widths=c(11,-1,8,-1,9,-1,6,-1,2,-1,29,-1,3,-1,3,-1,5),comment.char="")
-colnames(ghcn)=c("id","lat","lon","dem","state","name","gsnflag","hcnflag","wmoid")
-ghcn=ghcn[,c("id","dem","lat","lon")]
-ghcn$id=as.character(ghcn$id)
-ghcn$type="GHCN"
+## get MODLAND tile information
+tb=read.table("http://landweb.nascom.nasa.gov/developers/sn_tiles/sn_bound_10deg.txt",skip=6,nrows=648,header=T)
+tb$tile=paste("h",sprintf("%02d",tb$ih),"v",sprintf("%02d",tb$iv),sep="")
+save(tb,file="modlandTiles.Rdata")
 
-### FAO station normals
-fao=read.csv("data/stationdata/FAOCLIM2/world.csv")
-fao=fao[,c("ID","Elevation","Lat","Lon")]
-colnames(fao)=c("id","dem","lat","lon")
-fao$type="FAO"
+tile="h11v08"   #can move this to submit script if needed
+#tile="h09v04"   #oregon
 
-st=rbind.data.frame(ghcn,fao)
-coordinates(st)=c("lon","lat")
-projection(st)=CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs ")
-writeOGR(st,dsn="data/",layer="stationlocations",driver="ESRI Shapefile")
+tile_bb=tb[tb$tile==tile,] ## identify tile of interest
+roi_ll=extent(tile_bb$lon_min,tile_bb$lon_max,tile_bb$lat_min,tile_bb$lat_max) 
+#roi=spTransform(roi,psin)
+#roil=as(roi,"SpatialLines")
 
-plot(fao,pch=16,cex=.2,col="blue")
-plot(st,pch=16,cex=.2,col="red",add=T)
-
-
-###########################
-
-roi=readOGR("data/regions/Test_sites/Oregon.shp","Oregon")
-roi_geo=as(roi,"SpatialLines")
-roi=spTransform(roi,CRS(" +proj=sinu +lon_0=0 +x_0=0 +y_0=0"))
-roil=as(roi,"SpatialLines")
-
-summarydatadir="data/modis/MOD06_climatologies"
-
+dmod06="data/modis/mod06/summary"
 
 
 ##########################
@@ -66,119 +50,86 @@ summarydatadir="data/modis/MOD06_climatologies"
 
 months=seq(as.Date("2000-01-15"),as.Date("2000-12-15"),by="month")
 
+getmod06<-function(variable){
+  d=brick(list.files(dmod06,pattern=paste("MOD06_",tile,".nc",sep=""),full=T),varname=toupper(variable))
+  projection(d)=psin
+  setZ(d,format(as.Date(d@z$Date),"%m"),name="time")
+#  d@z=list(months)
+  layerNames(d) <- as.character(format(as.Date(d@z$Date),"%b"))
+  return(d)
+}
 
-## load data
-cerfiles=list.files(summarydatadir,pattern="CER_mean_.*tif$",full=T); cerfiles
-cer=brick(stack(cerfiles))
-setZ(cer,months,name="time")
-cer@z=list(months)
-cer@zname="time"
-layerNames(cer) <- as.character(format(months,"%b"))
-#cer=projectRaster(from=cer,crs="+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0",method="ngb")
-### TODO: change to bilinear!
+cer=getmod06("cer")
+cld=getmod06("cld")
+cot=getmod06("cot")
 
-cotfiles=list.files(summarydatadir,pattern="COT_mean_.*tif$",full=T); cotfiles
-cot=brick(stack(cotfiles))
-setZ(cot,months,name="time")
-cot@z=list(months)
-cot@zname="time"
-layerNames(cot) <- as.character(format(months,"%b"))
-#cot=projectRaster(from=cot,crs="+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0",method="ngb")
-cotm=mean(cot,na.rm=T)
-### TODO: change to bilinear!
+pcol=colorRampPalette(c("brown","red","yellow","darkgreen"))
+#levelplot(cer,col.regions=pcol(20))
 
-cldfiles=list.files(summarydatadir,pattern="CLD_mean_.*tif$",full=T); cldfiles
-cld=brick(stack(cldfiles))
-cld[cld==0]=NA
-setZ(cld,months,name="time")
-cld@z=list(months)
-cld@zname="time"
-layerNames(cld) <- as.character(format(months,"%b"))
-#cot=projectRaster(from=cot,crs="+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0",method="ngb")
-cldm=mean(cld,na.rm=T)
-### TODO: change to bilinear if reprojecting!
+## load WorldClim data for comparison (download then uncompress)
+#system("wget -P data/worldclim/ http://biogeo.ucdavis.edu/data/climate/worldclim/1_4/grid/cur/prec_30s_bil.zip",wait=F)
+#system("wget -P data/worldclim/ http://biogeo.ucdavis.edu/data/climate/worldclim/1_4/grid/cur/alt_30s_bil.zip",wait=F)
 
-cer20files=list.files(summarydatadir,pattern="CER_P20um_.*tif$",full=T); cer20files
-cer20=brick(stack(cer20files))
-setZ(cer20,months,name="time")
-cer20@z=list(months)
-cer20@zname="time"
-layerNames(cer20) <- as.character(format(months,"%b"))
-#cot=projectRaster(from=cot,crs="+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0",method="ngb")
-cotm=mean(cot,na.rm=T)
-### TODO: change to bilinear!
+### load WORLDCLIM data for comparison
+wc=stack(list.files("data/worldclim/prec_30s_bil/",pattern="bil$",full=T)[c(4:12,1:3)])
+projection(wc)=CRS("+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0")
+wc=crop(wc,roi_ll)
+wc[wc==55537]=NA
+wc=projectRaster(wc,cer)#crs=projection(psin))
+setZ(wc,months,name="time")
+wc@z=list(months)
+layerNames(wc) <- as.character(format(months,"%b"))
+writeRaster(wc,file=paste("data/tiles/",tile,"/worldclim_",tile,".tif",sep=""),format="GTiff")
+
+### load WORLDCLIM elevation 
+dem=raster(list.files("data/worldclim/alt_30s_bil/",pattern="bil$",full=T))
+projection(dem)=CRS("+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0")
+dem=crop(dem,roi_ll)
+dem[dem>60000]=NA
+dem=projectRaster(dem,cer)
+writeRaster(dem,file=paste("data/tiles/",tile,"/dem_",tile,".tif",sep=""),format="GTiff")
 
 
-### load PRISM data for comparison
-prism=brick("data/prism/prism_climate.nc",varname="ppt")
-## project to sinusoidal
-projection(prism)=CRS("+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0")
-prism=projectRaster(prism,cer)
-prism[prism<0]=NA  #for some reason NAvalue() wasn't working
-setZ(prism,months,name="time")
-prism@z=list(months)
-prism@zname="time"
-layerNames(prism) <- as.character(format(months,"%b"))
-
-####  build a pixel by variable matrix
-vars=c("cer","cer20","cld","cot","prism")
-bd=melt(as.matrix(vars[1]))
-colnames(bd)=c("cell","month",vars[1])
-for(v in vars[-1]) {print(v); bd[,v]=melt(as.matrix(get(v)))$value}
-bd=bd[!is.na(bd$cer)|is.na(bd$prism),]
-
-## Summarize annual metrics for full rasters
-
-### get all variables from all months
-c01=brick(mclapply(vars,function(v) projectRaster(get(v),crs="+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0")))
-layerNames(m01)=paste(vars,months,sep="_")
-
-m01=brick(mclapply(vars,function(v) mean(get(v))))#mean(cer),mean(cld),mean(cot),mean(prism))
-layerNames(m01)=vars
-m01=projectRaster(from=m01,crs="+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0")
-m01=crop(m01,extent(-125,-115,41,47))
 ### get station data, subset to stations in region, and transform to sinusoidal
-load("data/ghcn/roi_ghcn.Rdata")
-load("data/allstations.Rdata")
-
-st2_sin=spTransform(st2,CRS(projection(cer)))
-
-d2=d[d$variable=="ppt"&d$date>=as.Date("2000-01-01"),]
-d2=d2[,-grep("variable",colnames(d2)),]
-st2=st[st$id%in%d$id,]
-#st2=spTransform(st2,CRS(" +proj=sinu +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +towgs84=0,0,0"))
-d2[,c("lon","lat")]=coordinates(st2)[match(d2$id,st2$id),]
-d2$elev=st2$elev[match(d2$id,st2$id)]
-d2$month=format(d2$date,"%m")
-d2$value=d2$value/10 #convert to mm
+dm=readOGR(paste("data/tiles/",tile,sep=""),paste("station_monthly_",tile,"_PRCP",sep=""))
+xyplot(latitude~longitude|month,data=dm@data)
+dm2=spTransform(dm,CRS(projection(cer)))
+dm2@data[,c("x","y")]=coordinates(dm2)
 
 ### extract MOD06 data for each station
-stcer=extract(cer,st2)#;colnames(stcer)=paste("cer_mean_",1:12,sep="")
-stcer20=extract(cer20,st2)#;colnames(stcer)=paste("cer_mean_",1:12,sep="")
-stcot=extract(cot,st2)#;colnames(stcot)=paste("cot_mean_",1:12,sep="")
-stcld=extract(cld,st2)#;colnames(stcld)=paste("cld_mean_",1:12,sep="")
-mod06=cbind.data.frame(id=st2$id,lat=st2$lat,lon=st2$lon,stcer,stcer20,stcot,stcld)
-mod06l=melt(mod06,id.vars=c("id","lon","lat"))
+stcer=extract(cer,dm2,fun=mean);colnames(stcer)=paste("cer_mean_",as.numeric(format(as.Date(cer@z$Date),"%m")),sep="")
+#stcer20=extract(cer20,st2)#;colnames(stcer)=paste("cer_mean_",1:12,sep="")
+stcot=extract(cot,dm2);colnames(stcot)=paste("cot_mean_",as.numeric(format(as.Date(cot@z$Date),"%m")),sep="")
+stcld=extract(cld,dm2);colnames(stcld)=paste("cld_mean_",as.numeric(format(as.Date(cld@z$Date),"%m")),sep="")
+stdem=extract(dem,dm2)
+mod06=cbind.data.frame(station=dm$station,stcer,stcot,stcld)
+mod06l=melt(mod06,id.vars=c("station"));colnames(mod06l)[grep("value",colnames(mod06l))]="mod06"
 mod06l[,c("variable","moment","month")]=do.call(rbind,strsplit(as.character(mod06l$variable),"_"))
-mod06l=as.data.frame(cast(mod06l,id+lon+lat+month~variable+moment,value="value"))
+mod06l=unique(mod06l)
+mod06l=cast(mod06l,station+moment+month~variable,value="mod06")
+mod06l=merge(dm2@data,mod06l,by=c("station","month"))
+mod06l=mod06l[!is.na(mod06l$cer),]
 
-### Identify stations that have < 10 years of data
-cnts=cast(d2,id~.,fun=function(x) length(x[!is.na(x)]),value="count");colnames(cnts)[colnames(cnts)=="(all)"]="count"
-summary(cnts)
-## drop them
-d2=d2[d2$id%in%cnts$id[cnts$count>=365*10],]
+                                        #mod06l=melt(mod06,id.vars=c("station","longitude","latitude","elevation","month","count","value"))
+#mod06l[,c("variable","moment","month2")]=do.call(rbind,strsplit(as.character(mod06l$variable),"_"))
+#mod06l=as.data.frame(cast(mod06l,station+longitude+latitude+month~variable,value="value.1"))
+#mod06l=mod06l[mod06l$month==mod06l$month2&!is.na(mod06l$value.1),]
+mod06l=mod06l[order(mod06l$month),]
+
+xyplot(value~cer|month,data=mod06l,scales=list(relation="free"),pch=16,cex=.5)
+xyplot(value~cer|station,data=mod06l[mod06l$count>400,],pch=16,cex=.5)
+
+xyplot(cot~month,groups=station,data=mod06l,type="l")
 
 
-### generate monthly means of station data
-dc=cast(d2,id+lon+lat+elev~month,value="value",fun=function(x) mean(x,na.rm=T)*30)
-dcl=melt(dc,id.vars=c("id","lon","lat","elev"),value="ppt")
-colnames(dcl)[colnames(dcl)=="value"]="ppt"
+## explore fit of simple model
+m=11
+cor(mod06l[mod06l$month==m,c("value","cer","cld","cot")])
+lm1=lm(value~latitude+longitude+elevation+cer+cld+cot,data=mod06l[mod06l$month==m,])
+summary(lm1)
+crPlots(lm1)
 
-
-
-## merge station data with mod06
-mod06s=merge(dcl,mod06l)
-
+plot(mod06l$value[mod06l$month==m],as.vector(predict(lm1,data=mod06l[mod06l$month==m,])))
 
 ### draw some plots
 gq=function(x,n=10,cut=F) {
