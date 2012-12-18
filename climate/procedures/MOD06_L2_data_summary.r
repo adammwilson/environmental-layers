@@ -24,8 +24,33 @@ library(heR.Misc)
 X11.options(type="Xlib")
 ncores=20  #number of threads to use
 
-setwd("/home/adamw/personal/projects/interp")
+#setwd("/home/adamw/personal/projects/interp")
 setwd("/home/adamw/acrobates/projects/interp")
+
+
+### Produce shapefile of all stations globally
+ghcn=read.fwf("data/ghcn/ghcnd-stations.txt",header=F,widths=c(11,-1,8,-1,9,-1,6,-1,2,-1,29,-1,3,-1,3,-1,5),comment.char="")
+colnames(ghcn)=c("id","lat","lon","dem","state","name","gsnflag","hcnflag","wmoid")
+ghcn=ghcn[,c("id","dem","lat","lon")]
+ghcn$id=as.character(ghcn$id)
+ghcn$type="GHCN"
+
+### FAO station normals
+fao=read.csv("data/stationdata/FAOCLIM2/world.csv")
+fao=fao[,c("ID","Elevation","Lat","Lon")]
+colnames(fao)=c("id","dem","lat","lon")
+fao$type="FAO"
+
+st=rbind.data.frame(ghcn,fao)
+coordinates(st)=c("lon","lat")
+projection(st)=CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs ")
+writeOGR(st,dsn="data/",layer="stationlocations",driver="ESRI Shapefile")
+
+plot(fao,pch=16,cex=.2,col="blue")
+plot(st,pch=16,cex=.2,col="red",add=T)
+
+
+###########################
 
 roi=readOGR("data/regions/Test_sites/Oregon.shp","Oregon")
 roi_geo=as(roi,"SpatialLines")
