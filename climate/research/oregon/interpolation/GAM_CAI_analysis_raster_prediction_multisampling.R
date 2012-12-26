@@ -6,7 +6,7 @@
 #Method is assedsed using constant sampling with variation  of validation sample with different  #
 #hold out proportions.                                                                           #
 #AUTHOR: Benoit Parmentier                                                                       #
-#DATE: 10/30/2012                                                                                #
+#DATE: 12/27/2012                                                                                #
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#491--                                  #
 ###################################################################################################
 
@@ -43,16 +43,16 @@ stat_loc<-read.table(paste(path,"/","location_study_area_OR_0602012.txt",sep="")
 #GHCN Database for 1980-2010 for study area (OR) 
 data3<-read.table(paste(path,"/","ghcn_data_TMAXy1980_2010_OR_0602012.txt",sep=""),sep=",", header=TRUE)
 
-nmodels<-5   #number of models running
-y_var_name<-"dailyTmax"
-climgam=1                                                     #if 1, then GAM is run on the climatology rather than the daily deviation surface...
-predval<-1
-prop<-0.3                                                     #Proportion of testing retained for validation   
+nmodels<-9                #number of models running
+y_var_name<-"dailyTmax"   #climate variable interpolated
+climgam<-1                                             #if 1, then GAM is run on the climatology rather than the daily deviation surface...
+predval<-1                                              #if 1, produce raster prediction
+prop<-0.3                                               #Proportion of testing retained for validation   
 
 seed_number<- 100                                             #Seed number for random sampling, if seed_number<0, no seed number is used..
-#out_prefix<-"_365d_GAM_CAI2_const_10222012_"                  #User defined output prefix
-#out_prefix<-"_365d_GAM_CAI2_const_all_lstd_10272012"                #User defined output prefix
-out_prefix<-"_365d_GAM_CAI3_all_10302012"                #User defined output prefix
+#out_prefix<-"_365d_GAM_CAI2_const_10222012_"                 #User defined output prefix
+#out_prefix<-"_365d_GAM_CAI2_const_all_lstd_10272012"         #User defined output prefix
+out_prefix<-"_365d_GAM_CAI4_all_12272012"               #User defined output prefix
 
 bias_val<-0            #if value 1 then daily training data is used in the bias surface rather than the all monthly stations (added on 07/11/2012)
 bias_prediction<-1     #if value 1 then use GAM for the BIAS prediction otherwise GAM direct reprediction for y_var (daily tmax)
@@ -60,13 +60,26 @@ nb_sample<-1           #number of time random sampling must be repeated for ever
 prop_min<-0.3          #if prop_min=prop_max and step=0 then predicitons are done for the number of dates...
 prop_max<-0.3
 step<-0         
-constant<-0            #if value 1 then use the same samples as date one for the all set of dates
+constant<-0            #if value 1 then use the same sample used in the first date for interpolation over the set of dates
 #projection used in the interpolation of the study area
 CRS_interp<-"+proj=lcc +lat_1=43 +lat_2=45.5 +lat_0=41.75 +lon_0=-120.5 +x_0=400000 +y_0=0 +ellps=GRS80 +units=m +no_defs";
 CRS_locs_WGS84<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0") #Station coords WGS84
 
+#This can be entered as textfile or option later...ok for running now on 12/07/2012
+list_formulas<-vector("list",nmodels)
+
+list_formulas[[1]] <- as.formula("y_var~ s(ELEV_SRTM)", env=.GlobalEnv)
+list_formulas[[2]] <- as.formula("y_var~ s(LST)", env=.GlobalEnv)
+list_formulas[[3]] <- as.formula("y_var~ s(ELEV_SRTM,LST)", env=.GlobalEnv)
+list_formulas[[4]] <- as.formula("y_var~ s(lat)+s(lon)+s(ELEV_SRTM)", env=.GlobalEnv)
+list_formulas[[5]] <- as.formula("y_var~ s(lat,lon,ELEV_SRTM)", env=.GlobalEnv)
+list_formulas[[6]] <- as.formula("y_var~ s(lat,lon)+s(ELEV_SRTM)+s(Northness_w,Eastness_w)+s(LST)", env=.GlobalEnv)
+list_formulas[[7]] <- as.formula("y_var~ s(lat,lon)+s(ELEV_SRTM)+s(Northness_w,Eastness_w)+s(LST)+s(LC1)", env=.GlobalEnv)
+list_formulas[[8]] <- as.formula("y_var~ s(lat,lon)+s(ELEV_SRTM)+s(Northness_w,Eastness_w)+s(LST)+s(LC3)", env=.GlobalEnv)
+list_formulas[[9]] <- as.formula("y_var~ s(x_OR83M,y_OR83M)", env=.GlobalEnv)
+
 #source("GAM_CAI_function_multisampling_10252012.R")
-source("GAM_CAI_function_multisampling_10302012.R")
+source("GAM_CAI_function_multisampling_12072012.R")
 
 ############ START OF THE SCRIPT ##################
 
@@ -315,8 +328,9 @@ if (constant==1){
 #Start loop here...
 
 #gam_CAI_mod<-mclapply(1:length(dates), runGAMCAI,mc.preschedule=FALSE,mc.cores = 8) #This is the end bracket from mclapply(...) statement
-gam_CAI_mod<-mclapply(1:length(ghcn.subsets), runGAMCAI,mc.preschedule=FALSE,mc.cores = 8) #This is the end bracket from mclapply(...) statement
-#gam_CAI_mod<-mclapply(1:1, runGAMCAI,mc.preschedule=FALSE,mc.cores = 1) #This is the end bracket from mclapply(...) statement
+gam_CAI_mod<-mclapply(1:length(ghcn.subsets), runGAMCAI,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
+#gam_CAI_mod<-mclapply(1:2, runGAMCAI,mc.preschedule=FALSE,mc.cores = 2) #This is the end bracket from mclapply(...) statement#
+#gam_CAI_mod<-mclapply(1:2, runGAMCAI,mc.preschedule=FALSE,mc.cores = 2) #This is the end bracket from mclapply(...) statement
 
 tb<-gam_CAI_mod[[1]][[3]][0,]  #empty data frame with metric table structure that can be used in rbinding...
 tb_tmp<-gam_CAI_mod #copy
@@ -341,12 +355,15 @@ for(i in 1:length(metrics)){            # Reorganizing information in terms of m
   assign(metric_name,tb_metric)
   tb_metric_list[[i]]<-tb_metric
 }
+mod_labels<-rep("mod",nmodels+1)
+index<-as.character(1:(nmodels+1))
+mod_labels<-paste(mod_labels,index,sep="")
 
 tb_diagnostic<-do.call(rbind,tb_metric_list)  #produce a data.frame from the list ...
 tb_diagnostic[["prop"]]<-as.factor(tb_diagnostic[["prop"]])
 
 t<-melt(tb_diagnostic,
-        measure=c("mod1","mod2","mod3","mod4", "mod5", "mod6", "mod7", "mod8","mod9"), 
+        measure=mod_labels, 
         id=c("dates","metric","prop"),
         na.rm=F)
 avg_tb<-cast(t,metric+prop~variable,mean)
@@ -366,5 +383,9 @@ write.table(tb, file= paste(path,"/","results2_fusion_Assessment_measure_all",ou
 
 save(sampling_obj, file= paste(path,"/","results2_CAI_sampling_obj",out_prefix,".RData",sep=""))
 save(gam_CAI_mod,file= paste(path,"/","results2_CAI_Assessment_measure_all",out_prefix,".RData",sep=""))
+
+#new combined object used since november 2012
+gam_CAI_mod_obj<-list(gam_CAI_mod=gam_CAI_mod,sampling_obj=sampling_obj)
+save(gam_CAI_mod_obj,file= paste(path,"/","results_mod_obj_",out_prefix,".RData",sep=""))
 
 #### END OF SCRIPT
