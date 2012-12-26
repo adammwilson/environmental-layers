@@ -1,6 +1,6 @@
 runGAMCAI <- function(i) {            # loop over dates
   
-  #With upates from 10/26/2012
+  #ith upates from 10/26/2012
   #date<-strptime(dates[i], "%Y%m%d")   # interpolation date being processed
   date<-strptime(sampling_dat$date[i], "%Y%m%d")   # interpolation date being processed, converting the string using specific format
   month<-strftime(date, "%m")          # current month of the date being processed
@@ -157,10 +157,22 @@ runGAMCAI <- function(i) {            # loop over dates
   }
   
   sta_clim<-modst$TMax #This contains the monthly climatology...used in the prediction of the monthly surface
-  
+  clim_covar<-data_month$ELEV_SRTM
   #fitbias<-Krig(bias_xy,sta_bias,theta=1e5) #use TPS or krige 
   fitclim<-Krig(clim_xy,sta_clim,theta=1e5)
   
+  theta_val<-100000
+  kf<-exp(-rdist(clim_xy/theta_val))
+  image(kf)
+  kf_fun<-function(dist,theta=1,C=NA){
+    exp(-rdist(dist/theta))
+  }
+  plot(sort(kf[1,],decreasing=T),type="l")
+  
+  fitclim2<-Krig(x=clim_xy,Y=sta_clim,Z=clim_covar,theta=1e5)
+  fitclim2<-Krig(clim_xy,sta_clim,theta=theta_val)
+  fitclim2<-Krig(clim_xy,sta_clim,cov.function="kf_fun",theta=1e5)      
+            
   #The output is a krig object using fields: modif 10/30
   #mod9a<-fitbias
   mod_krtmp1<-fitclim
@@ -226,7 +238,9 @@ runGAMCAI <- function(i) {            # loop over dates
   #bias_rast=interpolate(themolst,fitbias) #interpolation using function from raster package
   clim_rast=interpolate(themolst,fitclim) #interpolation using function from raster package
   #themolst is raster layer, fitbias is "Krig" object from bias surface
-  #plot(bias_rast,main="Raster bias") #This not displaying...
+  clim_rast2=interpolate(themolst,fitclim2) #interpolation using function from raster package
+          
+  clim_rast2=interpolate(ELEV_SRTM,fitclim2,xyOnly=FALSE) #interpolation using function from raster package
   
   #Saving kriged surface in raster images
   data_name<-paste("clim_",sampling_dat$date[i],"_",sampling_dat$prop[i],"_",sampling_dat$run_samp[i],sep="")
@@ -321,44 +335,26 @@ runGAMCAI <- function(i) {            # loop over dates
   }
   
   #Model and response variable can be changed without affecting the script
+  #list_formulas<-vector("list",nmodels)
   
-  #formula1 <- as.formula("y_var ~ s(lat) + s(lon) + s(ELEV_SRTM)", env=.GlobalEnv)
-  #formula2 <- as.formula("y_var~ s(lat,lon)+ s(ELEV_SRTM)", env=.GlobalEnv)
-  #formula3 <- as.formula("y_var~ s(lat) + s (lon) + s (ELEV_SRTM) +  s (Northness)+ s (Eastness) + s(DISTOC)", env=.GlobalEnv)
-  #formula4 <- as.formula("y_var~ s(lat) + s (lon) + s(ELEV_SRTM) + s(Northness) + s (Eastness) + s(DISTOC) + s(LST)", env=.GlobalEnv)
-  #formula5 <- as.formula("y_var~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST)", env=.GlobalEnv)
-  #formula6 <- as.formula("y_var~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST)+s(LC1)", env=.GlobalEnv)
-  #formula7 <- as.formula("y_var~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST)+s(LC3)", env=.GlobalEnv)
-  #formula8 <- as.formula("y_var~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST) + s(LC1,LC3)", env=.GlobalEnv)
+  #list_formulas[[1]] <- as.formula("y_var ~ s(lat) + s(lon) + s(ELEV_SRTM)", env=.GlobalEnv)
+  #list_formulas[[2]] <- as.formula("y_var~ s(lat,lon)+ s(ELEV_SRTM)", env=.GlobalEnv)
+  #list_formulas[[3]] <- as.formula("y_var~ s(lat) + s (lon) + s (ELEV_SRTM) +  s (Northness)+ s (Eastness) + s(DISTOC)", env=.GlobalEnv)
+  #list_formulas[[4]] <- as.formula("y_var~ s(lat) + s (lon) + s(ELEV_SRTM) + s(Northness) + s (Eastness) + s(DISTOC) + s(LST)", env=.GlobalEnv)
+  #list_formulas[[5]] <- as.formula("y_var~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST)", env=.GlobalEnv)
+  #list_formulas[[6]] <- as.formula("y_var~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST)+s(LC1)", env=.GlobalEnv)
+  #list_formulas[[7]] <- as.formula("y_var~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST)+s(LC3)", env=.GlobalEnv)
+  #list_formulas[[8]] <- as.formula("y_var~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST) + s(LC1,LC3)", env=.GlobalEnv)
   
-  list_formulas<-vector("list",nmodels)
   
   #This can be entered as textfile or option later...ok for running now on 10/30/2012
-  list_formulas[[1]] <- as.formula("y_var~ s(ELEV_SRTM)", env=.GlobalEnv)
-  list_formulas[[2]] <- as.formula("y_var~ s(LST)", env=.GlobalEnv)
-  list_formulas[[3]] <- as.formula("y_var~ s(LST) + s(ELEV_SRTM)", env=.GlobalEnv)
-  list_formulas[[4]] <- as.formula("y_var~ s(LST,ELEV_SRTM)", env=.GlobalEnv)
-  list_formulas[[5]] <- as.formula("y_var~ s(lat,lon,ELEV_SRTM)", env=.GlobalEnv)
+  #list_formulas[[1]] <- as.formula("y_var~ s(ELEV_SRTM)", env=.GlobalEnv)
+  #list_formulas[[2]] <- as.formula("y_var~ s(LST)", env=.GlobalEnv)
+  #list_formulas[[3]] <- as.formula("y_var~ s(LST) + s(ELEV_SRTM)", env=.GlobalEnv)
+  #list_formulas[[4]] <- as.formula("y_var~ s(LST,ELEV_SRTM)", env=.GlobalEnv)
+  #list_formulas[[5]] <- as.formula("y_var~ s(lat,lon,ELEV_SRTM)", env=.GlobalEnv)
   
-  
-  #mod1<- try(gam(formula1, data=data_s))
-  #mod2<- try(gam(formula2, data=data_s)) #modified nesting....from 3 to 2
-  #mod3<- try(gam(formula3, data=data_s))
-  #mod4<- try(gam(formula4, data=data_s))
-  #mod5<- try(gam(formula5, data=data_s))
-  #mod6<- try(gam(formula6, data=data_s))
-  #mod7<- try(gam(formula7, data=data_s))
-  #mod8<- try(gam(formula8, data=data_s))
-
   if (climgam==1){          #This will automatically use monthly station data in the second step
-    #mod1<- try(gam(formula1, data=data_month))
-    #mod2<- try(gam(formula2, data=data_month)) #modified nesting....from 3 to 2
-    #mod3<- try(gam(formula3, data=data_month))
-    #mod4<- try(gam(formula4, data=data_month))
-    #mod5<- try(gam(formula5, data=data_month))
-    #mod6<- try(gam(formula6, data=data_month))   Change this in a loop around model !!! mod-j ....
-    #mod7<- try(gam(formula7, data=data_month))
-    #mod8<- try(gam(formula8, data=data_month)) 
     
     for (j in 1:nmodels){
       formula<-list_formulas[[j]]
@@ -369,14 +365,6 @@ runGAMCAI <- function(i) {            # loop over dates
     
   } else if (climgam==0){ #This will use daily delta in the second step
     
-    #mod1<- try(gam(formula1, data=data_s))
-    #mod2<- try(gam(formula2, data=data_s)) #modified nesting....from 3 to 2
-    #mod3<- try(gam(formula3, data=data_s))
-    #mod4<- try(gam(formula4, data=data_s))
-    #mod5<- try(gam(formula5, data=data_s))
-    #mod6<- try(gam(formula6, data=data_s))
-    #mod7<- try(gam(formula7, data=data_s))
-    #mod8<- try(gam(formula8, data=data_s))
     for (j in 1:nmodels){
       formula<-list_formulas[[j]]
       mod<- try(gam(formula, data=data_s))
