@@ -10,7 +10,7 @@
 #4)use seed number: use seed if random samples must be repeatable
 #5)GAM fusion: possibilty of running GAM+FUSION or GAM separately 
 #AUTHOR: Benoit Parmentier                                                                        
-#DATE: 10/27/2012                                                                                 
+#DATE: 12/27/2012                                                                                 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363--                                   
 ###################################################################################################
 
@@ -46,13 +46,14 @@ stat_loc<-read.table(paste(path,"/","location_study_area_OR_0602012.txt",sep="")
 #GHCN Database for 1980-2010 for study area (OR) 
 data3<-read.table(paste(path,"/","ghcn_data_TMAXy1980_2010_OR_0602012.txt",sep=""),sep=",", header=TRUE)
 
-nmodels<-8   #number of models running
+nmodels<-9   #number of models running
 y_var_name<-"dailyTmax"
 predval<-1
 prop<-0.3             #Proportion of testing retained for validation   
 #prop<-0.25
 seed_number<- 100  #if seed zero then no seed?                                                                 #Seed number for random sampling
-out_prefix<-"_365d_GAM_fusion_const_all_lstd_10282012"                #User defined output prefix
+out_prefix<-"_365d_GAM_fusion_all_lstd_12272012"                #User defined output prefix
+#out_prefix<-"_365d_GAM_12272012"                #User defined output prefix
 
 bias_val<-0            #if value 1 then training data is used in the bias surface rather than the all monthly stations
 bias_prediction<-1     #if value 1 then use GAM for the BIAS prediction otherwise GAM direct repdiction for y_var (daily tmax)
@@ -60,12 +61,12 @@ nb_sample<-1           #number of time random sampling must be repeated for ever
 prop_min<-0.3          #if prop_min=prop_max and step=0 then predicitons are done for the number of dates...
 prop_max<-0.3
 step<-0         
-constant<-1             #if value 1 then use the same samples as date one for the all set of dates
+constant<-0             #if value 1 then use the same samples as date one for the all set of dates
 #projection used in the interpolation of the study area
 CRS_interp<-"+proj=lcc +lat_1=43 +lat_2=45.5 +lat_0=41.75 +lon_0=-120.5 +x_0=400000 +y_0=0 +ellps=GRS80 +units=m +no_defs";
 CRS_locs_WGS84<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0") #Station coords WGS84
 
-source("GAM_fusion_function_multisampling_10272012.R")
+source("GAM_fusion_function_multisampling_12272012.R")
 
 ###################### START OF THE SCRIPT ########################
 
@@ -87,6 +88,8 @@ ghcn <- transform(ghcn,Eastness_w = sin(slope*pi/180)*sin(ASPECT*pi/180))  #addi
 ghcn$LC1[is.na(ghcn$LC1)]<-0
 ghcn$LC3[is.na(ghcn$LC3)]<-0
 ghcn$CANHEIGHT[is.na(ghcn$CANHEIGHT)]<-0
+ghcn$LC4[is.na(ghcn$LC4)]<-0
+ghcn$LC6[is.na(ghcn$LC6)]<-0
 
 dates <-readLines(paste(path,"/",infile2, sep=""))
 LST_dates <-readLines(paste(path,"/",infile3, sep=""))
@@ -141,6 +144,10 @@ pos<-match("CANHEIGHT",layerNames(s_raster)) #Find column with name "value"
 CANHEIGHT<-raster(s_raster,layer=pos)             #Select layer from stack
 s_raster<-dropLayer(s_raster,pos)
 CANHEIGHT[is.na(CANHEIGHT)]<-0
+pos<-match("ELEV_SRTM",layerNames(s_raster)) #Find column with name "ELEV_SRTM"
+ELEV_SRTM<-raster(s_raster,layer=pos)             #Select layer from stack on 10/30
+s_raster<-dropLayer(s_raster,pos)
+ELEV_SRTM[ELEV_SRTM <0]<-NA
 
 xy<-coordinates(r1)  #get x and y projected coordinates...
 xy_latlon<-project(xy, CRS, inv=TRUE) # find lat long for projected coordinats (or pixels...)
@@ -153,8 +160,8 @@ lat<-lon
 values(lon)<-xy_latlon[,1]
 values(lat)<-xy_latlon[,2]
 
-r<-stack(N,E,Nw,Ew,lon,lat,LC1,LC3,LC4,LC6, CANHEIGHT)
-rnames<-c("Northness","Eastness","Northness_w","Eastness_w", "lon","lat","LC1","LC3","LC4","LC6","CANHEIGHT")
+r<-stack(N,E,Nw,Ew,lon,lat,LC1,LC3,LC4,LC6, CANHEIGHT,ELEV_SRTM)
+rnames<-c("Northness","Eastness","Northness_w","Eastness_w", "lon","lat","LC1","LC3","LC4","LC6","CANHEIGHT","ELEV_SRTM")
 layerNames(r)<-rnames
 s_raster<-addLayer(s_raster, r)
 
@@ -170,7 +177,6 @@ molst<-molst-273.16  #K->C          #LST stack of monthly average...
 idx <- seq(as.Date('2010-01-15'), as.Date('2010-12-15'), 'month')
 molst <- setZ(molst, idx)
 layerNames(molst) <- month.abb
-
 
 ######  Preparing tables for model assessment: specific diagnostic/metrics
 
@@ -219,6 +225,10 @@ stations_val<-extract(s_raster,dst_month)  #extraction of the infomration at sta
 stations_val<-as.data.frame(stations_val)
 dst_extract<-cbind(dst_month,stations_val)
 dst<-dst_extract
+#Now clean and screen monthly values
+dst_all<-dst
+dst<-subset(dst,dst$TMax>-15 & dst$TMax<40)
+dst<-subset(dst,dst$ELEV_SRTM>0) #This will drop two stations...or 24 rows
 
 ######### Preparing daily values for training and testing
 
@@ -298,32 +308,11 @@ if (constant==1){
   sampling_station_id<-list_const_sampling_station_id
 }
 
-# sampling<-vector("list",length(ghcn.subsets))
-# 
-# for(i in 1:length(ghcn.subsets)){
-#   n<-nrow(ghcn.subsets[[i]])
-#   prop<-(sampling_dat$prop[i])/100
-#   ns<-n-round(n*prop)   #Create a sample from the data frame with 70% of the rows
-#   nv<-n-ns              #create a sample for validation with prop of the rows
-#   ind.training <- sample(nrow(ghcn.subsets[[i]]), size=ns, replace=FALSE) #This selects the index position for 70% of the rows taken randomly
-#   ind.testing <- setdiff(1:nrow(ghcn.subsets[[i]]), ind.training)
-#   sampling[[i]]<-ind.training
-# }
-# 
-# if (constant==1){
-#   sampled<-sampling[[1]]
-#   list_const_sampling<-vector("list",sn)
-#   for(i in 1:sn){
-#     list_const_sampling[[i]]<-sampled
-#   }
-#   sampling<-list_const_sampling  
-# }
-
 ######## Prediction for the range of dates and sampling data
 
 #gam_fus_mod<-mclapply(1:length(dates), runGAMFusion,mc.preschedule=FALSE,mc.cores = 8) #This is the end bracket from mclapply(...) statement
 #gam_fus_mod_s<-mclapply(1:1, runGAMFusion,mc.preschedule=FALSE,mc.cores = 1) #This is the end bracket from mclapply(...) statement
-gam_fus_mod_s<-mclapply(1:length(ghcn.subsets), runGAMFusion,mc.preschedule=FALSE,mc.cores = 8) #This is the end bracket from mclapply(...) statement
+gam_fus_mod_s<-mclapply(1:length(ghcn.subsets), runGAMFusion,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
 #gam_fus_mod2<-mclapply(4:4, runGAMFusion,mc.preschedule=FALSE,mc.cores = 1) #This is the end bracket from mclapply(...) statement
 
 save(gam_fus_mod_s,file= paste(path,"/","results2_fusion_Assessment_measure_all",out_prefix,".RData",sep=""))
@@ -355,21 +344,30 @@ for(i in 1:length(metrics)){            # Reorganizing information in terms of m
 }
 
 tb_diagnostic<-do.call(rbind,tb_metric_list)
-#tb_diagnostic[["prop"]]<-as.factor(tb_diagnostic[["prop"]])
+tb_diagnostic[["prop"]]<-as.factor(tb_diagnostic[["prop"]])
+
+mod_pat<-glob2rx("mod*")   
+mod_var<-grep(mod_pat,names(tb_diagnostic),value=TRUE) # using grep with "value" extracts the matching names         
+
+t<-melt(tb_diagnostic,
+        measure=mod_var, 
+        id=c("dates","metric","prop"),
+        na.rm=F)
+avg_tb<-cast(t,metric+prop~variable,mean)
+median_tb<-cast(t,metric+prop~variable,median)
+avg_tb[["prop"]]<-as.numeric(as.character(avg_tb[["prop"]]))
+avg_RMSE<-subset(avg_tb,metric=="RMSE")
+
 sampling_obj<-list(sampling_dat=sampling_dat,training=sampling, training_id=sampling_station_id, tb=tb_diagnostic)
 
-#write.table(avg_tb, file= paste(path,"/","results2_fusion_Assessment_measure_avg_",out_prefix,".txt",sep=""), sep=",")
-#write.table(median_tb, file= paste(path,"/","results2_fusion_Assessment_measure_median_",out_prefix,".txt",sep=""), sep=",")
+write.table(avg_tb, file= paste(path,"/","results2_fusion_Assessment_measure_avg_",out_prefix,".txt",sep=""), sep=",")
+write.table(median_tb, file= paste(path,"/","results2_fusion_Assessment_measure_median_",out_prefix,".txt",sep=""), sep=",")
 write.table(tb_diagnostic, file= paste(path,"/","results2_fusion_Assessment_measure",out_prefix,".txt",sep=""), sep=",")
 write.table(tb, file= paste(path,"/","results2_fusion_Assessment_measure_all",out_prefix,".txt",sep=""), sep=",")
-save(sampling_obj, file= paste(path,"/","results2_fusion_sampling_obj",out_prefix,".RData",sep=""))
-save(gam_fus_mod_s,file= paste(path,"/","results2_fusion_Assessment_measure_all",out_prefix,".RData",sep=""))
 
-## Summary of number of files and results
-#l_f<-list.files(pattern="GAM_bias_tmax_predicted_mod1_20100103_30_1_365d_GAM_fusion_lstd_10062012.rst$")
-#r6<-raster(l_f)
-#plot(r6)
-#results_list_metrics_objects_*_20101231_30_1_365d_GAM_fusion_lstd_10062012.RData
-#l_f<-list.files(pattern=paste(".*","tmax_predicted_mod1","*outprefix,".rst",sep="""))
+save(sampling_obj, file= paste(path,"/","results2_fusion_sampling_obj",out_prefix,".RData",sep=""))
+#save(gam_fus_mod_s,file= paste(path,"/","results2_fusion_Assessment_measure_all",out_prefix,".RData",sep=""))
+gam_fus_mod_obj<-list(gam_fus_mod=gam_fus_mod_s,sampling_obj=sampling_obj)
+save(gam_fus_mod_obj,file= paste(path,"/","results_mod_obj_",out_prefix,".RData",sep=""))
 
 #### END OF SCRIPT
