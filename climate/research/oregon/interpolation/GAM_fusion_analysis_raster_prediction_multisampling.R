@@ -52,7 +52,7 @@ predval<-1
 prop<-0.3             #Proportion of testing retained for validation   
 #prop<-0.25
 seed_number<- 100  #if seed zero then no seed?                                                                 #Seed number for random sampling
-out_prefix<-"_365d_GAM_fusion_all_lstd_12272012"                #User defined output prefix
+out_prefix<-"_365d_GAM_fus5_all_lstd_12302012"                #User defined output prefix
 #out_prefix<-"_365d_GAM_12272012"                #User defined output prefix
 
 bias_val<-0            #if value 1 then training data is used in the bias surface rather than the all monthly stations
@@ -66,7 +66,7 @@ constant<-0             #if value 1 then use the same samples as date one for th
 CRS_interp<-"+proj=lcc +lat_1=43 +lat_2=45.5 +lat_0=41.75 +lon_0=-120.5 +x_0=400000 +y_0=0 +ellps=GRS80 +units=m +no_defs";
 CRS_locs_WGS84<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0") #Station coords WGS84
 
-source("GAM_fusion_function_multisampling_12272012.R")
+source("GAM_fusion_function_multisampling_12302012.R")
 
 ###################### START OF THE SCRIPT ########################
 
