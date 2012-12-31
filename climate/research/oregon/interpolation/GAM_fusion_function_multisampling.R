@@ -1,19 +1,20 @@
 runGAMFusion <- function(i) {            # loop over dates
   
-  #date<-strptime(dates[i], "%Y%m%d")   # interpolation date being processed
   date<-strptime(sampling_dat$date[i], "%Y%m%d")   # interpolation date being processed
-  
   month<-strftime(date, "%m")          # current month of the date being processed
   LST_month<-paste("mm_",month,sep="") # name of LST month to be matched
   
   #Adding layer LST to the raster stack
-  
-  pos<-match("LST",layerNames(s_raster)) #Find column with name "LST"
-  s_raster<-dropLayer(s_raster,pos) # If it exists drop layer
+
+  pos<-match("LST",layerNames(s_raster)) #Find the position of the layer with name "LST", if not present pos=NA
+  s_raster<-dropLayer(s_raster,pos)      # If it exists drop layer
   pos<-match(LST_month,layerNames(s_raster)) #Find column with the current month for instance mm12
   r1<-raster(s_raster,layer=pos)             #Select layer from stack
   layerNames(r1)<-"LST"
-  s_raster<-addLayer(s_raster,r1)            #Adding current month as "LST"
+  #Screen for extreme values" 10/30
+  min_val<-(-15+273.16) #if values less than -15C then screen out (note the Kelvin units that will need to be changed later in all datasets)
+  r1[r1 < (min_val)]<-NA
+  s_raster<-addLayer(s_raster,r1)            #Adding current month
   
   ###Regression part 1: Creating a validation dataset by creating training and testing datasets
   
@@ -45,6 +46,9 @@ runGAMFusion <- function(i) {            # loop over dates
   ###########
 
   themolst<-raster(molst,mo) #current month being processed saved in a raster image
+  min_val<-(-15)     #Screening for extreme values
+  themolst[themolst < (min_val)]<-NA
+  
   plot(themolst)
   
   ###########
@@ -134,8 +138,12 @@ runGAMFusion <- function(i) {            # loop over dates
   }
   
   fitbias<-Krig(bias_xy,sta_bias,theta=1e5) #use TPS or krige 
-  #The output is a krig object using fields
-  mod9a<-fitbias
+  #The output is a krig object using fields: modif 10/30
+  #mod9a<-fitbias
+  mod_krtmp1<-fitbias
+  model_name<-paste("mod_kr","month",sep="_")
+  assign(model_name,mod_krtmp1)
+  
     
   ##########
   # STEP 7 - interpolate delta across space
@@ -147,9 +155,12 @@ runGAMFusion <- function(i) {            # loop over dates
   
   #fitdelta<-Tps(daily_sta_xy,daily_delta) #use TPS or krige
   fitdelta<-Krig(daily_sta_xy,daily_delta,theta=1e5) #use TPS or krige
-  #Kriging using fields package
-  mod9b<-fitdelta
-
+  #Kriging using fields package: modif 10/30
+  #mod9b<-fitdelta
+  mod_krtmp2<-fitdelta
+  model_name<-paste("mod_kr","day",sep="_")
+  assign(model_name,mod_krtmp2)
+  
   png(paste("Delta_surface_LST_TMax_",sampling_dat$date[i],"_",sampling_dat$prop[i],
             "_",sampling_dat$run_samp[i],out_prefix,".png", sep=""))
   surface(fitdelta,col=rev(terrain.colors(100)),asp=1,main=paste("Interpolated delta for",datelabel,sep=" "))
@@ -260,35 +271,60 @@ runGAMFusion <- function(i) {            # loop over dates
   
   #Model and response variable can be changed without affecting the script
   
-  formula1 <- as.formula("y_var ~ s(lat) + s(lon) + s(ELEV_SRTM)", env=.GlobalEnv)
-  formula2 <- as.formula("y_var~ s(lat,lon)+ s(ELEV_SRTM)", env=.GlobalEnv)
-  formula3 <- as.formula("y_var~ s(lat) + s (lon) + s (ELEV_SRTM) +  s (Northness)+ s (Eastness) + s(DISTOC)", env=.GlobalEnv)
-  formula4 <- as.formula("y_var~ s(lat) + s (lon) + s(ELEV_SRTM) + s(Northness) + s (Eastness) + s(DISTOC) + s(LST)", env=.GlobalEnv)
-  formula5 <- as.formula("y_var~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST)", env=.GlobalEnv)
-  formula6 <- as.formula("y_var~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST)+s(LC1)", env=.GlobalEnv)
-  formula7 <- as.formula("y_var~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST)+s(LC3)", env=.GlobalEnv)
-  formula8 <- as.formula("y_var~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC) + s(LST) + s(LC1,LC3)", env=.GlobalEnv)
+  list_formulas<-vector("list",nmodels)
+  
+  list_formulas[[1]] <- as.formula("y_var ~ s(ELEV_SRTM)", env=.GlobalEnv)
+  list_formulas[[2]] <- as.formula("y_var ~ s(LST)", env=.GlobalEnv)
+  list_formulas[[3]] <- as.formula("y_var ~ s(ELEV_SRTM,LST)", env=.GlobalEnv)
+  list_formulas[[4]] <- as.formula("y_var ~ s(lat) + s(lon)+ s(ELEV_SRTM)", env=.GlobalEnv)
+  list_formulas[[5]] <- as.formula("y_var ~ s(lat,lon,ELEV_SRTM)", env=.GlobalEnv)
+  list_formulas[[6]] <- as.formula("y_var ~ s(lat,lon) + s(ELEV_SRTM) + s(Northness_w,Eastness_w) + s(LST)", env=.GlobalEnv)
+  list_formulas[[7]] <- as.formula("y_var ~ s(lat,lon) + s(ELEV_SRTM) + s(Northness_w,Eastness_w) + s(LST) + s(LC1)", env=.GlobalEnv)
+  list_formulas[[8]] <- as.formula("y_var ~ s(lat,lon) + s(ELEV_SRTM) + s(Northness_w,Eastness_w) + s(LST) + s(LC3)", env=.GlobalEnv)
+  list_formulas[[9]] <- as.formula("y_var ~ s(lat,lon) + s(ELEV_SRTM) + s(Northness_w,Eastness_w) + s(LST) + s(DISTOC)", env=.GlobalEnv)
+  
+  #list_formulas[[1]] <- as.formula("y_var ~ s(ELEV_SRTM)", env=.GlobalEnv)
+  #list_formulas[[2]] <- as.formula("y_var ~ s(lat,lon)", env=.GlobalEnv)
+  #list_formulas[[3]] <- as.formula("y_var~ s(lat,lon,ELEV_SRTM)", env=.GlobalEnv)
+  #list_formulas[[4]] <- as.formula("y_var~ s(lat) + s (lon) + s (ELEV_SRTM) + s(DISTOC)", env=.GlobalEnv)
+  #list_formulas[[5]] <- as.formula("y_var~ s(lat,lon,ELEV_SRTM) + s(Northness) + s (Eastness) + s(DISTOC)", env=.GlobalEnv)
+  #list_formulas[[6]] <- as.formula("y_var~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC)", env=.GlobalEnv)
   
   if (bias_prediction==1){
-    mod1<- try(gam(formula1, data=data_month))
-    mod2<- try(gam(formula2, data=data_month)) #modified nesting....from 3 to 2
-    mod3<- try(gam(formula3, data=data_month))
-    mod4<- try(gam(formula4, data=data_month))
-    mod5<- try(gam(formula5, data=data_month))
-    mod6<- try(gam(formula6, data=data_month))
-    mod7<- try(gam(formula7, data=data_month))
-    mod8<- try(gam(formula8, data=data_month)) 
+    #mod1<- try(gam(formula1, data=data_month))
+    #mod2<- try(gam(formula2, data=data_month)) #modified nesting....from 3 to 2
+    #mod3<- try(gam(formula3, data=data_month))
+    #mod4<- try(gam(formula4, data=data_month))
+    #mod5<- try(gam(formula5, data=data_month))
+    #mod6<- try(gam(formula6, data=data_month))
+    #mod7<- try(gam(formula7, data=data_month))
+    #mod8<- try(gam(formula8, data=data_month)) 
     
-  } else if (bias_prediction==0){
+    for (j in 1:nmodels){
+      formula<-list_formulas[[j]]
+      mod<- try(gam(formula, data=data_month))
+      model_name<-paste("mod",j,sep="")
+      assign(model_name,mod) 
+    }
     
-    mod1<- try(gam(formula1, data=data_s))
-    mod2<- try(gam(formula2, data=data_s)) #modified nesting....from 3 to 2
-    mod3<- try(gam(formula3, data=data_s))
-    mod4<- try(gam(formula4, data=data_s))
-    mod5<- try(gam(formula5, data=data_s))
-    mod6<- try(gam(formula6, data=data_s))
-    mod7<- try(gam(formula7, data=data_s))
-    mod8<- try(gam(formula8, data=data_s))
+  } else if (bias_prediction==0){      #Use daily data for direct prediction using GAM
+    
+    #mod1<- try(gam(formula1, data=data_s))
+    #mod2<- try(gam(formula2, data=data_s)) #modified nesting....from 3 to 2
+    #mod3<- try(gam(formula3, data=data_s))
+    #mod4<- try(gam(formula4, data=data_s))
+    #mod5<- try(gam(formula5, data=data_s))
+    #mod6<- try(gam(formula6, data=data_s))
+    #mod7<- try(gam(formula7, data=data_s))
+    #mod8<- try(gam(formula8, data=data_s))
+    
+    for (j in 1:nmodels){
+      formula<-list_formulas[[j]]
+      mod<- try(gam(formula, data=data_s))
+      model_name<-paste("mod",j,sep="")
+      assign(model_name,mod) 
+    }
+    
   }
 
   #Added
@@ -345,6 +381,9 @@ runGAMFusion <- function(i) {            # loop over dates
   data_v[[name2]]<-as.numeric(res_mod_v)
   data_s[[name2]]<-as.numeric(res_mod_s)
   
+  mod_obj<-vector("list",nmodels+2)  #This will contain the model objects fitting: 10/30
+  mod_obj[[nmodels+1]]<-mod_kr_month  #Storing climatology object
+  mod_obj[[nmodels+2]]<-mod_kr_day  #Storing delta object
   
   for (j in 1:nmodels){
     
@@ -352,6 +391,7 @@ runGAMFusion <- function(i) {            # loop over dates
     
     name<-paste("mod",j,sep="")  #modj is the name of The "j" model (mod1 if j=1) 
     mod<-get(name)               #accessing GAM model ojbect "j"
+    mod_obj[[j]]<-mod  #storing current model object
     
     #If mod "j" is not a model object
     if (inherits(mod,"try-error")) {
@@ -459,7 +499,7 @@ runGAMFusion <- function(i) {            # loop over dates
           writeRaster(raster_pred, filename=raster_name,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
           bias_rast<-raster_pred
           
-          raster_pred=themolst+daily_delta_rast-bias_rast #Final surface  as a raster layer...
+          raster_pred=themolst+daily_delta_rast-bias_rast #Final surface  as a raster layer...wiht daily surface calculated earlier...
           layerNames(raster_pred)<-"y_pred"
           #=themolst+daily_delta_rast-bias_rast #Final surface  as a raster layer...
           
@@ -571,25 +611,33 @@ runGAMFusion <- function(i) {            # loop over dates
   
   tb_metrics1<-rbind(results_table_RMSE,results_table_MAE, results_table_ME, results_table_R2,results_table_RMSE_f,results_table_MAE_f)   #
   tb_metrics2<-rbind(results_table_AIC,results_table_GCV, results_table_DEV)
-  cname<-c("dates","ns","metric","mod1", "mod2","mod3", "mod4", "mod5", "mod6", "mod7","mod8","mod9")
+  
+  #Preparing labels 10/30
+  mod_labels<-rep("mod",nmodels+1)
+  index<-as.character(1:(nmodels+1))
+  mod_labels<-paste(mod_labels,index,sep="")
+  cname<-c("dates","ns","metric", mod_labels)
+  #cname<-c("dates","ns","metric","mod1", "mod2","mod3", "mod4", "mod5", "mod6", "mod7","mod8","mod9")
   colnames(tb_metrics1)<-cname
-  cname<-c("dates","ns","metric","mod1", "mod2","mod3", "mod4", "mod5", "mod6", "mod7","mod8")
-  colnames(tb_metrics2)<-cname
-  #colnames(results_table_RMSE)<-cname
-  #colnames(results_table_RMSE_f)<-cname
-  #tb_diagnostic1<-results_table_RMSE      #measures of validation
-  #tb_diagnostic2<-results_table_RMSE_f    #measures of fit
+  #cname<-c("dates","ns","metric","mod1", "mod2","mod3", "mod4", "mod5", "mod6", "mod7","mod8")
+  #colnames(tb_metrics2)<-cname
+  colnames(tb_metrics2)<-cname[1:(nmodels+3)]
   
   #write.table(tb_diagnostic1, file= paste(path,"/","results_fusion_Assessment_measure1",out_prefix,".txt",sep=""), sep=",")
   
   #}  
   print(paste(sampling_dat$date[i],"processed"))
   # end of the for loop1
-  mod_obj<-list(mod1,mod2,mod3,mod4,mod5,mod6,mod7,mod8,mod9a,mod9b)
-  names(mod_obj)<-c("mod1","mod2","mod3","mod4","mod5","mod6","mod7","mod8","mod9a","mod9b")
+  #mod_obj<-list(mod1,mod2,mod3,mod4,mod5,mod6,mod7,mod8,mod9a,mod9b)
+  #names(mod_obj)<-c("mod1","mod2","mod3","mod4","mod5","mod6","mod7","mod8","mod9a","mod9b")
+  mod_labels_kr<-c("mod_kr_month", "mod_kr_day")
+  names(mod_obj)<-c(mod_labels[1:nmodels],mod_labels_kr)
+  results_list<-list(data_s,data_v,tb_metrics1,tb_metrics2,mod_obj,data_month,list_formulas)
+  names(results_list)<-c("data_s","data_v","tb_metrics1","tb_metrics2","mod_obj","data_month","formulas")
+  
   #results_list<-list(data_s,data_v,tb_metrics1,tb_metrics2)
-  results_list<-list(data_s,data_v,tb_metrics1,tb_metrics2,mod_obj,sampling_dat[i,],data_month)
-  names(results_list)<-c("data_s","data_v","tb_metrics1","tb_metrics2","mod_obj","sampling_dat","data_month")
+  #results_list<-list(data_s,data_v,tb_metrics1,tb_metrics2,mod_obj,sampling_dat[i,],data_month)
+  #names(results_list)<-c("data_s","data_v","tb_metrics1","tb_metrics2","mod_obj","sampling_dat","data_month")
   save(results_list,file= paste(path,"/","results_list_metrics_objects_",sampling_dat$date[i],"_",sampling_dat$prop[i],
                                 "_",sampling_dat$run_samp[i],out_prefix,".RData",sep=""))
   return(results_list)
