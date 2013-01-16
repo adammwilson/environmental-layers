@@ -26,33 +26,40 @@ if ( !is.null(opta$help) )
      }
 
 
-date=opta$date  #date="20101225"
+date=opta$date  #date="20030301"
 tile=opta$tile #tile="h11v08"
 verbose=opta$verbose  #print out extensive information for debugging?
 outdir=paste("daily/",tile,"/",sep="")  #directory for separate daily files
 
-## permanent storage on lou:
-ldir=paste("lfe1.nas.nasa.gov:/u/awilso10/mod06/daily/",tile,sep="")
+## location of MOD06 files
+datadir="/nobackupp4/datapool/modis/MOD06_L2.005/"
 
+### print some status messages
 print(paste("Processing tile",tile," for date",date))
 
 ## load libraries
 require(reshape)
 require(geosphere)
 require(raster)
-library(rgdal)
+require(rgdal)
 require(spgrass6)
-#require(RSQLite)
+require(RSQLite)
 
+## path to swath database
+db="/nobackupp4/pvotava/DB/export/swath_geo.sql.sqlite3.db"
+## path to NCO
+ncopath="/nasa/sles11/nco/4.0.8/gcc/mpt/bin/"
 
-## specify some working directories
+## specify working directory
 setwd("/nobackupp1/awilso10/mod06")
-
-## load ancillary data
-load(file="allfiles.Rdata")
 
 ## load tile information
 load(file="modlandTiles.Rdata")
+
+## path to MOD11A1 file for this tile to align grid/extent
+gridfile=list.files("/nobackupp4/datapool/modis/MOD11A1.005/2006.01.27",pattern=paste(tile,".*[.]hdf$",sep=""),recursive=T,full=T)[1]
+td=readGDAL(paste("HDF4_EOS:EOS_GRID:\"",gridfile,"\":MODIS_Grid_Daily_1km_LST:Night_view_angl",sep=""))
+projection(td)="+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs +datum=WGS84 +ellps=WGS84 "
 
 ## vars to process
 vars=as.data.frame(matrix(c(
@@ -68,15 +75,12 @@ vars=as.data.frame(matrix(c(
   "Quality_Assurance_1km",               "QA"),
   byrow=T,ncol=2,dimnames=list(1:10,c("variable","varid"))),stringsAsFactors=F)
 
+## vector of variables expected to be in final netcdf file.  If these are not present, the file will be deleted at the end.
+finalvars=c("CER","COT","CLD")
 
 ############################################################################
 ############################################################################
 ### Define functions to process a particular date-tile
-
-#### get swaths
-#getswaths<-function(tile,db="/nobackupp4/pvotava/DB/export/swath_geo.sql.sqlite3.db"){
-#  db=dbConnect(
-#  }
 
 swath2grid=function(file,vars,upleft,lowright){
   ## Function to generate hegtool parameter file for multi-band HDF-EOS file
@@ -115,8 +119,6 @@ END
   ## write the gridded file and save the log including the pid of the parent process
 #  log=system(paste("( /nobackupp1/awilso10/software/heg/bin/swtif -p ",tempdir(),"/",basename(file),"_MODparms.txt -d ; echo $$)",sep=""),intern=T)
   log=system(paste("( /nobackupp1/awilso10/software/heg/bin/swtif -p ",tempdir(),"/",basename(file),"_MODparms.txt -d ; echo $$)",sep=""),intern=T,ignore.stderr=T)
-  log=system(paste("(sudo MRTDATADIR=/usr/local/heg/data PGSHOME=/usr/local/heg/TOOLKIT_MTD PWD=/home/adamw /usr/local/heg/bin/swtif -p ",tempdir(),"/",basename(file),"_MODparms.txt -d )",sep=""))
-
   ## clean up temporary files in working directory
   file.remove(list.files(pattern=
               paste("filetable.temp_",
@@ -141,26 +143,28 @@ END
   Sys.setenv(GRASS_GUI="txt")
 
 ### Function to extract various SDSs from a single gridded HDF file and use QA data to throw out 'bad' observations
-loadcloud<-function(date,fs,ncfile){
-  tf=paste(tempdir(),"/grass", Sys.getpid(),"/", sep="")
-  if(!file.exists(tf))dir.create(tf)
-
-  print(paste("Set up temporary grass session in",tf))
-
+loadcloud<-function(date,swaths,ncfile){
+  ## make temporary working directory
+  tf=paste(tempdir(),"/grass", Sys.getpid(),"/", sep="")  #temporar
+  if(!file.exists(tf)) dir.create(tf)
+  ## create output directory if needed
+  if(!file.exists(dirname(ncfile))) dir.create(dirname(ncfile))
+  
   ## set up temporary grass instance for this PID
+  if(verbose) print(paste("Set up temporary grass session in",tf))
   initGRASS(gisBase="/u/armichae/pr/grass-6.4.2/",gisDbase=tf,SG=td,override=T,location="mod06",mapset="PERMANENT",home=tf,pid=Sys.getpid())
-  initGRASS(gisBase="/usr/lib/grass64/",SG=td,gisDbase=tf,override=T,location="mod06",mapset="PERMANENT",home=tf,pid=Sys.getpid())
   system(paste("g.proj -c proj4=\"",projection(td),"\"",sep=""),ignore.stdout=T,ignore.stderr=T)
 
   ## Define region by importing one MOD11A1 raster.
   print("Import one MOD11A1 raster to define grid")
-  execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",gridfile,"\":MODIS_Grid_Daily_1km_LST:Night_view_angl",sep=""),            output="modisgrid",flags=c("quiet","overwrite","o"))
-  execGRASS("r.in.gdal",input=paste("NETCDF:\"",gridfile,"\":CER",sep=""),            output="modisgrid",flags=c("o"))
-  system("g.region rast=modisgrid.1 save=roi --overwrite",ignore.stdout=T,ignore.stderr=T)
+  execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",gridfile,"\":MODIS_Grid_Daily_1km_LST:Night_view_angl",sep=""),
+            output="modisgrid",flags=c("quiet","overwrite","o"))
+  system("g.region rast=modisgrid save=roi --overwrite",ignore.stdout=T,ignore.stderr=T)
+
   ## Identify which files to process
-  tfs=fs$file[fs$dateid==date]
+  tfs=basename(swaths)
   ## drop swaths that did not produce an output file (typically due to not overlapping the ROI)
-  tfs=tfs[tfs%in%list.files(tempdir(),pattern="hdf$")]
+  tfs=tfs[tfs%in%list.files(tempdir())]
   nfs=length(tfs)
 
   ## loop through scenes and process QA flags
@@ -169,15 +173,10 @@ loadcloud<-function(date,fs,ncfile){
      ## Cloud Mask
      execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",file,"\":mod06:Cloud_Mask_1km_0",sep=""),
               output=paste("CM1_",i,sep=""),flags=c("overwrite","o")) ; print("")
+    ## extract cloudy and 'probably/confidently clear' pixels
     system(paste("r.mapcalc <<EOF
-                CM_determined_",i," =  ((CM1_",i," / 2^0) % 2) 
-                CM_state_",i," =  ((CM1_",i," / 2^1) % 2^2)
-EOF",sep=""))
-
-     ## extract cloudy and 'confidently clear' pixels
-    system(paste("r.mapcalc <<EOF
-                CM_cloud_",i," =  (((CM1_",i," / 2^0) % 2) == 1)  &&  (((CM1_",i," / 2^1) % 2^2) == 0 )
-                CM_clear_",i," =  ((CM1_",i," / 2^0) % 2) == 1  &&  ( ((CM1_",i," / 2^1) % 2^2) > 2  )
+                CM_cloud_",i," =  ((CM1_",i," / 2^0) % 2) == 1  &&  ((CM1_",i," / 2^1) % 2^2) == 0 
+                CM_clear_",i," =  ((CM1_",i," / 2^0) % 2) == 1  &&  ((CM1_",i," / 2^1) % 2^2) >  2 
 EOF",sep=""))
     ## QA
      execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",file,"\":mod06:Quality_Assurance_1km_0",sep=""),
@@ -199,7 +198,7 @@ EOF",sep=""))
             title="cloud_effective_radius",
             flags=c("overwrite","o")) ; print("")
    execGRASS("r.null",map=paste("COT_",i,sep=""),setnull="-9999")
-   ## keep only positive COT values where quality is 'useful' and 'very good' & scale to real units
+   ## keep only positive COT values where quality is 'useful' and '>= good' & scale to real units
    system(paste("r.mapcalc \"COT_",i,"=if(QA_COT_",i,"&&QA_COT2_",i,"&&QA_COT3_",i,"&&COT_",i,">=0,COT_",i,"*0.009999999776482582,null())\"",sep=""))   
    ## set COT to 0 in clear-sky pixels
    system(paste("r.mapcalc \"COT2_",i,"=if(CM_clear_",i,"==0,COT_",i,",0)\"",sep=""))   
@@ -210,7 +209,7 @@ EOF",sep=""))
             title="cloud_effective_radius",
             flags=c("overwrite","o")) ; print("")
    execGRASS("r.null",map=paste("CER_",i,sep=""),setnull="-9999")
-   ## keep only positive CER values where quality is 'useful' and 'very good' & scale to real units
+   ## keep only positive CER values where quality is 'useful' and '>= good' & scale to real units
    system(paste("r.mapcalc \"CER_",i,"=if(QA_CER_",i,"&&QA_CER2_",i,"&&CER_",i,">=0,CER_",i,"*0.009999999776482582,null())\"",sep=""))   
    ## set CER to 0 in clear-sky pixels
    system(paste("r.mapcalc \"CER2_",i,"=if(CM_clear_",i,"==0,CER_",i,",0)\"",sep=""))   
@@ -262,7 +261,7 @@ EOF",sep=""))
       time:calendar = \"gregorian\";
       time:long_name = \"time of observation\"; 
     data:
-      time=",as.integer(fs$date[fs$dateid==date][1]-as.Date("2000-01-01")),";
+      time=",as.integer(as.Date(date,"%Y%m%d")-as.Date("2000-01-01")),";
     }"),file=paste(tempdir(),"/time.cdl",sep=""))
 system(paste("ncgen -o ",tempdir(),"/time.nc ",tempdir(),"/time.cdl",sep=""))
 system(paste(ncopath,"ncks -A ",tempdir(),"/time.nc ",ncfile,sep=""))
@@ -275,7 +274,6 @@ system(paste(ncopath,"ncks -A ",tempdir(),"/time.nc ",ncfile,sep=""))
   
 ### delete the temporary files 
   unlink_.gislock()
-  system("clean_temp")
   system(paste("rm -frR ",tf,sep=""))
 }
 
@@ -289,36 +287,51 @@ mod06<-function(date,tile){
   ## Run the gridding procedure
   tile_bb=tb[tb$tile==tile,] ## identify tile of interest
   
-#  if(venezuela) tile_bb$lat_max=11.0780999176  #increase northern boundary for KT
+  ##find swaths in region from sqlite database for the specified date/tile
+  if(verbose) print("Accessing swath ID's from database")
+  con=dbConnect("SQLite", dbname = db)
+  fs=dbGetQuery(con,paste("SELECT * from swath_geo
+            WHERE east>=",tile_bb$lon_min," AND
+                  west<=",tile_bb$lon_max," AND
+                  north>=",tile_bb$lat_min," AND
+                  south<=",tile_bb$lat_max," AND
+                  year==",format(as.Date(date,"%Y%m%d"),"%Y")," AND
+                  day==",as.numeric(format(as.Date(date,"%Y%m%d"),"%j"))
+    ))
+  con=dbDisconnect(con)
+  fs$id=substr(fs$id,7,19)
+  if(verbose) print(paste("###############",nrow(fs)," swath IDs recieved from database"))
+  
+  ## find the swaths on disk (using datadir)
+  swaths=list.files(datadir,pattern=paste(fs$id,collapse="|"),recursive=T,full=T)
 
-  lapply(fs$path[fs$dateid==date],swath2grid,vars=vars,upleft=paste(tile_bb$lat_max,tile_bb$lon_min),lowright=paste(tile_bb$lat_min,tile_bb$lon_max))
+  ## Run the gridding procedure
+  lapply(swaths,swath2grid,vars=vars,upleft=paste(tile_bb$lat_max,tile_bb$lon_min),lowright=paste(tile_bb$lat_min,tile_bb$lon_max))
 
   ## confirm at least one file for this date is present
-    outfiles=paste(tempdir(),"/",basename(fs$path[fs$dateid==date]),sep="")
+    outfiles=paste(tempdir(),"/",basename(swaths),sep="")
     if(!any(file.exists(outfiles))) {
       print(paste("########################################   No gridded files for region exist for tile",tile," on date",date))
       q("no",status=0)
     }
 
-  #####################################################
+#####################################################
   ## Process the gridded files
-
-  ## run themod06 processing for this date
+  
+  ## run the mod06 processing for this date
   ncfile=paste(outdir,"/MOD06_",tile,"_",date,".nc",sep="")  #this is the 'final' daily output file
-  loadcloud(date,fs=fs,ncfile=ncfile)
-
+  loadcloud(date,swaths=swaths,ncfile=ncfile)
+  
   ## Confirm that the file has the correct attributes, otherwise delete it
   ntime=as.numeric(system(paste("cdo -s ntime ",ncfile),intern=T))
-  npar=as.numeric(system(paste("cdo -s npar ",ncfile),intern=T))
-  if(!ntime==1&npar>0) {
-    print(paste("File for tile ",tile," and date ",date," was not outputted correctly, deleting... "))
-    file.remove(ncfile)
-  }
+  ## confirm it has all 'final variables as specified above"
+  fvar=all(finalvars%in%do.call(c,strsplit(system(paste("cdo -s showvar ",ncfile),intern=T)," ")))
 
-  ## push file to lou and then delete it from pfe
-#  system(paste("scp ",ncfile," ",ldir,sep="")  )
-#  file.remove(ncfile)
- 
+  if(!ntime==1&fvar) {
+      print(paste("FILE ERROR:  tile ",tile," and date ",date," was not outputted correctly, deleting... "))
+      file.remove(ncfile)
+    }
+    
   ## print out some info
   print(paste(" ###################################################################               Finished ",date,"
 ################################################################"))
@@ -334,6 +347,6 @@ mod06(date,tile)
 #foreach(i=1:20) %dopar% print(i)
 
 ## delete old files
-#system("cleartemp")
+system("cleartemp")
 
 q("no",status=0)
