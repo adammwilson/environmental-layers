@@ -33,6 +33,7 @@ infile2<-"ghcnd-stations.txt"                             #This is the textfile 
 new_proj<-"+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
 #tile="h11v08" 
 tile="h09v04"
+tile="h21v09"
 
 #out_prefix<-"20121212"                                                 #User defined output prefix
 

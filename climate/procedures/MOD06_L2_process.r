@@ -26,7 +26,7 @@ if ( !is.null(opta$help) )
      }
 
 
-date=opta$date  #date="20030301"
+date=opta$date  #date="20101225"
 tile=opta$tile #tile="h11v08"
 verbose=opta$verbose  #print out extensive information for debugging?
 outdir=paste("daily/",tile,"/",sep="")  #directory for separate daily files
@@ -42,7 +42,7 @@ require(geosphere)
 require(raster)
 library(rgdal)
 require(spgrass6)
-require(RSQLite)
+#require(RSQLite)
 
 
 ## specify some working directories
@@ -115,6 +115,8 @@ END
   ## write the gridded file and save the log including the pid of the parent process
 #  log=system(paste("( /nobackupp1/awilso10/software/heg/bin/swtif -p ",tempdir(),"/",basename(file),"_MODparms.txt -d ; echo $$)",sep=""),intern=T)
   log=system(paste("( /nobackupp1/awilso10/software/heg/bin/swtif -p ",tempdir(),"/",basename(file),"_MODparms.txt -d ; echo $$)",sep=""),intern=T,ignore.stderr=T)
+  log=system(paste("(sudo MRTDATADIR=/usr/local/heg/data PGSHOME=/usr/local/heg/TOOLKIT_MTD PWD=/home/adamw /usr/local/heg/bin/swtif -p ",tempdir(),"/",basename(file),"_MODparms.txt -d )",sep=""))
+
   ## clean up temporary files in working directory
   file.remove(list.files(pattern=
               paste("filetable.temp_",
@@ -147,18 +149,18 @@ loadcloud<-function(date,fs,ncfile){
 
   ## set up temporary grass instance for this PID
   initGRASS(gisBase="/u/armichae/pr/grass-6.4.2/",gisDbase=tf,SG=td,override=T,location="mod06",mapset="PERMANENT",home=tf,pid=Sys.getpid())
+  initGRASS(gisBase="/usr/lib/grass64/",SG=td,gisDbase=tf,override=T,location="mod06",mapset="PERMANENT",home=tf,pid=Sys.getpid())
   system(paste("g.proj -c proj4=\"",projection(td),"\"",sep=""),ignore.stdout=T,ignore.stderr=T)
 
   ## Define region by importing one MOD11A1 raster.
   print("Import one MOD11A1 raster to define grid")
-  execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",gridfile,"\":MODIS_Grid_Daily_1km_LST:Night_view_angl",sep=""),
-            output="modisgrid",flags=c("quiet","overwrite","o"))
-  system("g.region rast=modisgrid save=roi --overwrite",ignore.stdout=T,ignore.stderr=T)
-
+  execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",gridfile,"\":MODIS_Grid_Daily_1km_LST:Night_view_angl",sep=""),            output="modisgrid",flags=c("quiet","overwrite","o"))
+  execGRASS("r.in.gdal",input=paste("NETCDF:\"",gridfile,"\":CER",sep=""),            output="modisgrid",flags=c("o"))
+  system("g.region rast=modisgrid.1 save=roi --overwrite",ignore.stdout=T,ignore.stderr=T)
   ## Identify which files to process
   tfs=fs$file[fs$dateid==date]
   ## drop swaths that did not produce an output file (typically due to not overlapping the ROI)
-  tfs=tfs[tfs%in%list.files(tempdir())]
+  tfs=tfs[tfs%in%list.files(tempdir(),pattern="hdf$")]
   nfs=length(tfs)
 
   ## loop through scenes and process QA flags
@@ -167,10 +169,15 @@ loadcloud<-function(date,fs,ncfile){
      ## Cloud Mask
      execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",file,"\":mod06:Cloud_Mask_1km_0",sep=""),
               output=paste("CM1_",i,sep=""),flags=c("overwrite","o")) ; print("")
-    ## extract cloudy and 'confidently clear' pixels
     system(paste("r.mapcalc <<EOF
-                CM_cloud_",i," =  ((CM1_",i," / 2^0) % 2) == 1  &&  ((CM1_",i," / 2^1) % 2^2) == 0 
-                CM_clear_",i," =  ((CM1_",i," / 2^0) % 2) == 1  &&  ((CM1_",i," / 2^1) % 2^2) == 3 
+                CM_determined_",i," =  ((CM1_",i," / 2^0) % 2) 
+                CM_state_",i," =  ((CM1_",i," / 2^1) % 2^2)
+EOF",sep=""))
+
+     ## extract cloudy and 'confidently clear' pixels
+    system(paste("r.mapcalc <<EOF
+                CM_cloud_",i," =  (((CM1_",i," / 2^0) % 2) == 1)  &&  (((CM1_",i," / 2^1) % 2^2) == 0 )
+                CM_clear_",i," =  ((CM1_",i," / 2^0) % 2) == 1  &&  ( ((CM1_",i," / 2^1) % 2^2) > 2  )
 EOF",sep=""))
     ## QA
      execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",file,"\":mod06:Quality_Assurance_1km_0",sep=""),
@@ -178,10 +185,10 @@ EOF",sep=""))
    ## QA_CER
    system(paste("r.mapcalc <<EOF
                  QA_COT_",i,"=   ((QA_",i," / 2^0) % 2^1 )==1
-                 QA_COT2_",i,"=  ((QA_",i," / 2^1) % 2^2 )==3
+                 QA_COT2_",i,"=  ((QA_",i," / 2^1) % 2^2 )>=2
                  QA_COT3_",i,"=  ((QA_",i," / 2^3) % 2^2 )==0
                  QA_CER_",i,"=   ((QA_",i," / 2^5) % 2^1 )==1
-                 QA_CER2_",i,"=  ((QA_",i," / 2^6) % 2^2 )==3
+                 QA_CER2_",i,"=  ((QA_",i," / 2^6) % 2^2 )>=2
 EOF",sep="")) 
 #                 QA_CWP_",i,"=   ((QA_",i," / 2^8) % 2^1 )==1
 #                 QA_CWP2_",i,"=  ((QA_",i," / 2^9) % 2^2 )==3
