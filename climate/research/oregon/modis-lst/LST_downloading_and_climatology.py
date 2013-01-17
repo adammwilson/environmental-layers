@@ -1,326 +1,402 @@
-{\rtf1\ansi\ansicpg1252\cocoartf1138\cocoasubrtf320
-{\fonttbl\f0\fnil\fcharset0 Menlo-Regular;}
-{\colortbl;\red255\green255\blue255;\red0\green116\blue0;\red170\green13\blue145;\red196\green26\blue22;
-\red28\green0\blue207;\red63\green105\blue30;}
-\margl1440\margr1440\vieww28360\viewh15140\viewkind0
-\deftab560
-\pard\tx560\pardeftab560\pardirnatural
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Oct 26 23:48:57 2012
 
-\f0\fs28 \cf2 \CocoaLigature0 #!/usr/bin/python\cf0 \
-\cf2 #\cf0 \
-\cf2 # Early version of assorted Python code to download MODIS 11A1 (daily)\cf0 \
-\cf2 # data associated with specified dates and tiles, then interface with\cf0 \
-\cf2 # GRASS to calculate temporally averaged LST in a way that accounts for\cf0 \
-\cf2 # QC flags.\cf0 \
-\cf2 #\cf0 \
-\cf2 # TODO:\cf0 \
-\cf2 #  - functionalize to encapsulate high level procedural steps\cf0 \
-\cf2 #  - create a 'main' function to allow script to be run as a command\cf0 \
-\cf2 #    that can accept arguments?\cf0 \
-\cf2 #  - put downloaded data somewhere other than working directory?\cf0 \
-\cf2 #  - write code to set up and take down a temporary GRASS location/mapset\cf0 \
-\cf2 #  - write code to export climatology rasters to file (geotiff? compressed?)\cf0 \
-\cf2 #  - calculate other aggregate stats? (stddev, ...)\cf0 \
-\cf2 #  - deal with nightly LST too?\cf0 \
-\cf2 #  - deal with more than just first two bits of QC flags?\cf0 \
-\cf2 #     e.g.: r.mapcalc 'qc_level2 = (qc>>2) & 0x03'   \
-#     0x03?? that means 0000_0011 and >>2 means shit twice on the right for \cf0 \
-\cf2 #  - record all downloads to a log file?\cf0 \
-\cf2 #\cf0 \
-\cf2 # Jim Regetz\cf0 \
-\cf2 # NCEAS\cf0 \
-\cf2 # Created on 16-May-2012\
-# Modified by Benoit Parmentier\
-# NCEAS on 18-October-2012\
-# \cf0 \
-\
-\cf3 import\cf0  os, glob\
-\cf3 import\cf0  datetime, calendar\
-\cf3 import\cf0  ftplib\
-\cf3 import\cf0  grass.script \cf3 as\cf0  gs\
-\
-\cf2 #------------------\cf0 \
-\cf2 # helper functions\cf0 \
-\cf2 #------------------\cf0 \
-\
-\cf3 def\cf0  yj_to_ymd(year, doy):\
-    \cf4 """Return date as e.g. '2000.03.05' based on specified year and\
-    numeric day-of-year (doy) """\cf0 \
-    date = datetime.datetime.strptime(\cf5 '%d%03d'\cf0  % (year, doy), \cf5 '%Y%j'\cf0 )\
-    \cf3 return\cf0  date.strftime(\cf5 '%Y.%m.%d'\cf0 )\
-\
-\cf3 def\cf0  get_doy_range(year, month):\
-    \cf4 """Determine starting and ending numeric day-of-year (doy)\
-    asscociated with the specified month and year.\
-\
-    Arguments:\
-    year -- four-digit integer year\
-    month -- integer month (1-12)\
-\
-    Returns tuple of start and end doy for that month/year.\
-    """\cf0 \
-    last_day_of_month = calendar.monthrange(year, month)[\cf5 1\cf0 ]\
-    start_doy = int(datetime.datetime.strptime(\cf5 '%d.%02d.%02d'\cf0  % (year,\
-        month, \cf5 1\cf0 ), \cf5 '%Y.%m.%d'\cf0 ).strftime(\cf5 '%j'\cf0 ))\
-    end_doy = int(datetime.datetime.strptime(\cf5 '%d.%02d.%02d'\cf0  % (year,\
-        month, last_day_of_month), \cf5 '%Y.%m.%d'\cf0 ).strftime(\cf5 '%j'\cf0 ))\
-    \cf3 return\cf0  (int(start_doy), int(end_doy))\
-\
-\cf2 # quick function to return list of dirs in wd\cf0 \
-\cf3 def\cf0  list_contents(ftp):\
-    \cf4 """Parse ftp directory listing into list of names of the files\
-    and/or directories contained therein. May or may not be robust in\
-    general, but seems to work fine for LP DAAP ftp server."""\cf0 \
-    listing = []\
-    ftp.dir(listing.append)\
-    contents = [item.split()[-\cf5 1\cf0 ] \cf3 for\cf0  item \cf3 in\cf0  listing[\cf5 1\cf0 :]]\
-    \cf3 return\cf0  contents\
-\
-\cf3 def\cf0  download_mod11a1(destdir, tile, start_doy, end_doy, year, ver=\cf5 5\cf0 ):\
-    \cf4 """Download into destination directory the MODIS 11A1 HDF files\
-    matching a given tile, year, and day range. If for some unexpected\
-    reason there are multiple matches for a given day, only the first is\
-    used. If no matches, the day is skipped with a warning message.\
-\
-    Arguments:\
-    destdir -- path to local destination directory\
-    tile -- tile identifier (e.g., 'h08v04')\
-    start_doy -- integer start of day range (0-366)\
-    end_doy -- integer end of day range (0-366)\
-    year -- integer year (>=2000)\
-    ver -- MODIS version (4 or 5)\
-\
-    Returns list of absolute paths to the downloaded HDF files.\
-    """\cf0 \
-    \cf2 # connect to data pool and change to the right directory\cf0 \
-    ftp = ftplib.FTP(\cf5 'e4ftl01.cr.usgs.gov'\cf0 )\
-    ftp.login(\cf5 'anonymous'\cf0 , \cf5 ''\cf0 )\
-    ftp.cwd(\cf5 'MOLT/MOD11A1.%03d'\cf0  % ver)\
-    \cf2 # make list of daily directories to traverse\cf0 \
-    available_days = list_contents(ftp)\
-    desired_days = [yj_to_ymd(year, x) \cf3 for\cf0  x \cf3 in\cf0  range(start_doy, end_doy+\cf5 1\cf0 )]\
-    days_to_get = filter(\cf3 lambda\cf0  day: day \cf3 in\cf0  desired_days, available_days)\
-    \cf3 if\cf0  len(days_to_get) < len(desired_days):\
-        missing_days = [day \cf3 for\cf0  day \cf3 in\cf0  desired_days \cf3 if\cf0  day \cf3 not\cf0  \cf3 in\cf0  days_to_get]\
-        \cf3 print\cf0  \cf5 'skipping %d day(s) not found on server:'\cf0  % len(missing_days)\
-        \cf3 print\cf0  \cf5 '\\n'\cf0 .join(missing_days)\
-    \cf2 # get each tile in turn\cf0 \
-    hdfs = list()\
-    \cf3 for\cf0  day \cf3 in\cf0  days_to_get:\
-        ftp.cwd(day)\
-        files_to_get = [file \cf3 for\cf0  file \cf3 in\cf0  list_contents(ftp)\
-            \cf3 if\cf0  tile \cf3 in\cf0  file \cf3 and\cf0  file[-\cf5 3\cf0 :]==\cf5 'hdf'\cf0 ]\
-        \cf3 if\cf0  len(files_to_get)==\cf5 0\cf0 :\
-            \cf2 # no file found -- print message and move on\cf0 \
-            \cf3 print\cf0  \cf5 'no hdf found on server for tile'\cf0 , tile, \cf5 'on'\cf0 , day\
-            ftp.cwd(\cf5 '..'\cf0 ) \cf2 #added by Benoit\cf0 \
-            \cf3 continue\cf0 \
-        \cf3 elif\cf0  \cf5 1\cf0 <len(files_to_get):\
-            \cf2 # multiple files found! -- just use the first...\cf0 \
-            \cf3 print\cf0  \cf5 'multiple hdfs found on server for tile'\cf0 , tile, \cf5 'on'\cf0 , day\
-        file = files_to_get[\cf5 0\cf0 ]\
-        local_file = os.path.join(destdir, file)\
-        ftp.retrbinary(\cf5 'RETR %s'\cf0  % file, open(local_file, \cf5 'wb'\cf0 ).write)\
-        hdfs.append(os.path.abspath(local_file))\
-        ftp.cwd(\cf5 '..'\cf0 )\
-    \cf2 # politely disconnect\cf0 \
-    ftp.quit()\
-    \cf2 # return list of downloaded paths\cf0 \
-    \cf3 return\cf0  hdfs\
-\
-\cf3 def\cf0  get_hdf_paths(hdfdir, tile, start_doy, end_doy, year):\
-    \cf4 """Look in supplied directory to find the MODIS 11A1 HDF files\
-    matching a given tile, year, and day range. If for some unexpected\
-    reason there are multiple matches for a given day, only the first is\
-    used. If no matches, the day is skipped with a warning message.\
-\
-    Arguments:\
-    hdfdir -- path to directory containing the desired HDFs\
-    tile -- tile identifier (e.g., 'h08v04')\
-    start_doy -- integer start of day range (0-366)\
-    end_doy -- integer end of day range (0-366)\
-    year -- integer year (>=2000)\
-\
-    Returns list of absolute paths to the located HDF files.\
-    """\cf0 \
-    hdfs = list()\
-    \cf3 for\cf0  doy \cf3 in\cf0  range(start_doy, end_doy+\cf5 1\cf0 ):\
-        fileglob = \cf5 'MOD11A1.A%d%03d.%s*hdf'\cf0  % (year, doy, tile)\
-        pathglob = os.path.join(hdfdir, fileglob)\
-        files = glob.glob(pathglob)\
-        \cf3 if\cf0  len(files)==\cf5 0\cf0 :\
-            \cf2 # no file found -- print message and move on\cf0 \
-            \cf3 print\cf0  \cf5 'cannot access %s: no such file'\cf0  % pathglob\
-            \cf3 continue\cf0 \
-        \cf3 elif\cf0  \cf5 1\cf0 <len(files):\
-            \cf2 # multiple files found! -- just use the first...\cf0 \
-            \cf3 print\cf0  \cf5 'multiple hdfs found for tile'\cf0 , tile, \cf5 'on'\cf0 , day\
-        hdfs.append(os.path.abspath(files[\cf5 0\cf0 ]))\
-    \cf3 return\cf0  hdfs\
-\
-\cf3 def\cf0  calc_clim(maplist, name, overwrite=False):\
-    \cf4 """Generate some climatalogies in GRASS based on the input list of\
-    maps. As usual, current GRASS region settings apply. Produces the\
-    following output rasters:\
-      * nobs: count of number of (non-null) values over the input maps\
-      * mean: arithmetic mean of (non-null) values over the input maps\
-\
-    Arguments:\
-    maplist -- list of names of GRASS maps to be aggregated\
-    name -- template (suffix) for GRASS output map names\
-\
-    Returns list of names of the output maps created in GRASS.\
-    """\cf0 \
-    denominator = \cf5 '(%s)'\cf0  % \cf5 '+'\cf0 .join([\cf5 'if(!isnull(%s))'\cf0  % m\
-        \cf3 for\cf0  m \cf3 in\cf0  maplist])\
-    gs.mapcalc(\cf5 'nobs_%s = %s'\cf0  % (name, denominator), overwrite=overwrite)\
-    numerator = \cf5 '(%s)'\cf0  % \cf5 '+'\cf0 .join([\cf5 'if(isnull(%s), 0, %s)'\cf0  % (m, m)\
-        \cf3 for\cf0  m \cf3 in\cf0  maplist])\
-    gs.mapcalc(\cf5 'mean_%s = round(float(%s)/nobs_%s)'\cf0  % (name, numerator, name),\
-        overwrite=overwrite)\
-    \cf3 return\cf0  [\cf5 '%s_%s'\cf0  % (s, name) \cf3 for\cf0  s \cf3 in\cf0  [\cf5 'nobs'\cf0 , \cf5 'mean'\cf0 ]]\
-\
-\cf3 def\cf0  load_qc_adjusted_lst(hdf):\
-    \cf4 """Load LST_Day_1km into GRASS from the specified hdf file, and\
-    nullify any cells for which QA flags indicate anything other than\
-    high quality.\
-\
-    Argument:\
-    hdf -- local path to the 11A1 HDF file\
-\
-    Returns the name of the QC-adjusted LST map created in GRASS.\
-    """\cf0 \
-    lstname =  \cf5 'LST_'\cf0  + \cf5 '_'\cf0 .join(os.path.basename(hdf).split(\cf5 '.'\cf0 )[\cf5 1\cf0 :\cf5 3\cf0 ])               \
-    \cf2 # read in lst grid\cf0 \
-    gs.run_command(\cf5 'r.in.gdal'\cf0 ,\
-        input=\cf5 'HDF4_EOS:EOS_GRID:%s:MODIS_Grid_Daily_1km_LST:LST_Day_1km'\cf0  % hdf,\
-        output=lstname)            \cf2 # No new location created since it has already been done with r.in.gdal before!!!\cf0 \
-\
-    \cf2 # read in qc grid\cf0 \
-    gs.run_command(\cf5 'r.in.gdal'\cf0 ,\
-        input = \cf5 'HDF4_EOS:EOS_GRID:%s:MODIS_Grid_Daily_1km_LST:QC_Day'\cf0  % hdf,\
-        output = \cf5 'qc_this_day'\cf0 )\
-    gs.run_command(\cf5 'g.region'\cf0 , rast=lstname)\
-    \cf2 # null out any LST cells for which QC is not high [00]  #THIS WHERE WE MIGHT NEED TO CHANGE...\cf0 \
-    gs.mapcalc(\cf5 '$\{lst\} = if((qc_this_day & 0x03)==0, $\{lst\}, null())'\cf0 ,\
-        lst=lstname, overwrite=True)\
-    \cf2 # clean up\cf0 \
-    gs.run_command(\cf5 'g.remove'\cf0 , rast=\cf5 'qc_this_day'\cf0 )\
-    \cf2 # return name of qc-adjusted LST raster in GRASS\cf0 \
-    \cf3 return\cf0  lstname\
-\
-\
-\cf3 def\cf0  main():\
-    \cf2 #--------------------------------------------\cf0 \
-    \cf2 # Download and Calculate monthly climatology for daily LST time series for a specific area\cf0 \
-    \cf2 #--------------------------------------------\cf0 \
-\
-    \cf2 # TODO: set up a (temporary?) GRASS database to use for processing? code\cf0 \
-    \cf2 # currently assumes it's being run within an existing GRASS session\cf0 \
-    \cf2 # using an appropriately configured LOCATION...\cf0 \
-    \cf2 #\cf0 \
-    \cf2 # note the following trick to fix datum for modis sinu;\cf0 \
-    \cf2 # TODO: check that this works properly...compare to MRT output?\cf0 \
-    \cf2 # gs.run_command('g.proj', flags='c',\cf0 \
-    \cf2 #     proj4='+proj=sinu +a=6371007.181 +b=6371007.181 +ellps=sphere')\cf0 \
-    \cf2 ##    proj4='+proj=sinu +R=6371007.181 +nadgrids=@null +wktext')\cf0 \
-\cf5 \
- \
-    \cf6 #### Added by Benoit on 18 October 2012\
-    \
-    #Parameters\cf5 \
-    \cf0 tiles = ['h11v08','h11v07','h12v08']\
-    start_year = 2001\
-    end_year = 2010\
-    end_month=12\
-    start_month=1\
-    \
-    \cf2 ################## First step: download data ###################\cf0 \
-    \cf2 # Added tile loop \cf0 \
-    \cf3 for\cf0  tile \cf3 in\cf0  tiles:	\
-        \cf3 for\cf0  year \cf3 in\cf0  range(start_year, end_year+\cf5 1\cf0 ):\
-            		if year==end_year:\
-            				start_doy, end_doy = get_doy_range(year, end_month)\
-                			start_doy=1  #Fix problem later\
-                			hdfs = download_mod11a1(hdfdir, tile, start_doy, end_doy, year)\
-\
-            		\cf3 elif\cf0  year==start_year:\
-                			start_doy, end_doy = get_doy_range(year, start_month)\
-                			end_doy=365\
-                	if calendar.isleap(year):\
-                			end_doy=366\
-                			hdfs = download_mod11a1(hdfdir, tile, start_doy, end_doy, year)\
-            \
-            		\cf3 elif\cf0  (year!=start_year and year!=end_year):\
-                			start_doy=1\
-                			end_doy=365\
-                			if calendar.isleap(year):\
-                					end_doy=366\
-                			hdfs = download_mod11a1(hdfdir, tile, start_doy, end_doy, year)\
-    \
-    \cf2 # modify loop to take into account "hdfs", list of hdf files needed in the next steps\'85  \cf0 \
-\
-    \cf2 ################# Second step: compute climatology #################\
-\cf0 \
-    \
-    \cf2 # Set up a temporary GRASS data base \
+@author: benoitparmentier
+"""
+
+#!/usr/bin/python
+#
+# Early version of assorted Python code to download MODIS 11A1 (daily)
+# data associated with specified dates and tiles, then interface with
+# GRASS to calculate temporally averaged LST in a way that accounts for
+# QC flags.
+#
+# TODO:
+#  - functionalize to encapsulate high level procedural steps
+#  - create a 'main' function to allow script to be run as a command
+#    that can accept arguments?
+#  - put downloaded data somewhere other than working directory?
+#  - write code to set up and take down a temporary GRASS location/mapset
+#  - write code to export climatology rasters to file (geotiff? compressed?)
+#  - calculate other aggregate stats? (stddev, ...)
+#  - deal with nightly LST too?
+#  - deal with more than just first two bits of QC flags?
+#     e.g.: r.mapcalc 'qc_level2 = (qc>>2) & 0x03'   
+#     0x03?? that means 0000_0011 and >>2 means shit twice on the right for 
+#  - record all downloads to a log file?
+#
+# Jim Regetz
+# NCEAS
+# Created on 16-May-2012
+# Modified by Benoit Parmentier
+# NCEAS on 18-October-2012
+# 
+
+import os, glob
+import datetime, calendar
+import ftplib
+import grass.script as gs
+#from datetime import date
+#from datetime import datetime
+
+
+#------------------
+# helper functions
+#------------------
+
+def yj_to_ymd(year, doy):
+    """Return date as e.g. '2000.03.05' based on specified year and
+    numeric day-of-year (doy) """
+    date = datetime.datetime.strptime('%d%03d' % (year, doy), '%Y%j')
+    return date.strftime('%Y.%m.%d')
+
+def get_doy_range(year, month):
+    """Determine starting and ending numeric day-of-year (doy)
+    asscociated with the specified month and year.
+
+    Arguments:
+    year -- four-digit integer year
+    month -- integer month (1-12)
+
+    Returns tuple of start and end doy for that month/year.
+    """
+    last_day_of_month = calendar.monthrange(year, month)[1]
+    start_doy = int(datetime.datetime.strptime('%d.%02d.%02d' % (year,
+        month, 1), '%Y.%m.%d').strftime('%j'))
+    end_doy = int(datetime.datetime.strptime('%d.%02d.%02d' % (year,
+        month, last_day_of_month), '%Y.%m.%d').strftime('%j'))
+    return (int(start_doy), int(end_doy))
+
+#added by Benoit, to create a list of raster images for particular month (2001-2010)
+
+def date_sequence(year_start,month_start,day_start,year_end,month_end,day_end):
+    """Create a date sequence for a start date and end date defined by year, month, date
+    Arguments:
+    year_start -- starting year
+ 
+    Returns list of absolute paths to the downloaded HDF files.Note the format yyyydoy
+    """
+    from datetime import date
+    from dateutil.rrule import rrule, DAILY
+
+    a = date(year_start, month_start,day_start)
+    b = date(year_end, month_end, day_end)
+    date_seq=list()
+    for dt in rrule(DAILY, dtstart=a, until=b):
+        print dt.strftime("%Y%j")    
+        date_seq.append(dt.strftime("%Y%j"))
+        
+    return(date_seq)
+
+#Added on January 16, 2012 by Benoit NCEAS
+def list_raster_per_month(listmaps):
+    """Determine starting and ending numeric day-of-year (doy)
+    asscociated with the specified month and year.
+
+    Arguments:
+    maplist -- list of raster grass-digit integer year
+    month -- integer month (1-12)
+    year_range -- list of years
+
+    Returns tuple of start and end doy for that month/year.
+    """
+    list_maps_month=list()
+    nb_month=12
+    for i in range(1,nb_month+1):
+        #i=i+1
+        #filename = listfiles_wd2[i] #list the files of interest
+        #monthlist[:]=[] #empty the list
+        monthlist=list()
+        #monthlist2[:]=[] #empty the list
+        j=0  #counter
+        for mapname in listmaps:
+            #tmp_str=LST[0]
+            date_map=mapname.split('_')[1][1:8]
+            #date = filename[filename.rfind('_MOD')-8:filename.rfind('_MOD')]
+            d=datetime.datetime.strptime(date_map,'%Y%j') #This produces a date object from a string extracted from the file name.
+            month=d.strftime('%m') #Extract the month of the current map
+            if int(month)==i:
+                #monthlist.append(listmaps[j])
+                monthlist.append(mapname)
+                #monthlist2.append(listmaps[j])
+            j=j+1
+        list_maps_month.append(monthlist)   #This is a list of a list containing a list for each month
+        #list_files2.append(monthlist2)
+    return(list_maps_month)    
     
-\fs22 \cf0 \
+# quick function to return list of dirs in wd
+def list_contents(ftp):
+    """Parse ftp directory listing into list of names of the files
+    and/or directories contained therein. May or may not be robust in
+    general, but seems to work fine for LP DAAP ftp server."""
+    listing = []
+    ftp.dir(listing.append)
+    contents = [item.split()[-1] for item in listing[1:]]
+    return contents
 
-\fs28     tmp_location = \cf5 'tmp'\cf0  + str(os.getpid())        \cf2 # Name of the temporary GRASS data base \cf0 \
-    orig_location = gs.gisenv()[\cf5 'LOCATION_NAME'\cf0 ]\
-    orig_mapset = gs.gisenv()[\cf5 'MAPSET'\cf0 ]
-\fs22 \
+def download_mod11a1(destdir, tile, start_doy, end_doy, year, ver=5):
+    """Download into destination directory the MODIS 11A1 HDF files
+    matching a given tile, year, and day range. If for some unexpected
+    reason there are multiple matches for a given day, only the first is
+    used. If no matches, the day is skipped with a warning message.
 
-\fs28     gs.os.environ[\cf5 'GRASS_OVERWRITE'\cf0 ] = \cf5 '1'         \cf2 # Allow for overwrite?? GRASS data base\cf5   \cf0 \
-\cf2     \
-\
-    #load a file that will define the region of interest and location at the same time\cf0 \
-	name_of_file = \cf5 'MOD11A1.A2003364.h12v08.005.2008163211649.hdf'\cf0 \
-\cf2      # first load daytime LST, by accessing specific layers in the hdd??\
-    #SUBDATASET_1_NAME=HDF4_EOS:EOS_GRID:"MOD11A1.A2003364.h12v08.005.2008163211649.hdf":MODIS_Grid_Daily_1km_LST:LST_Day_1km\
-\cf0     path_file = os.getcwd() \
-	lst1day = \cf5 'HDF4_EOS:EOS_GRID:%s/%s:%s'\cf0  % (\
-    path_file,\
-    name_of_file,\
-     \cf5 '\cf2 MODIS_Grid_Daily_1km_LST:LST_Day_1km\cf5 '\cf0 )\
-	 gs.run_command(\cf5 'r.in.gdal'\cf0 , input=lst1day, output=\cf5 'LST_1day_h12v08'\cf0 ,\
-           location=tmp_location)\
-\
-   \cf2 	# Now that the new location has been create, switch to new location\cf0 \
-	gs.run_command(\cf5 'g.gisenv'\cf0 , set=\cf5 'LOCATION_NAME=%s'\cf0  % tmp_location)\
-	gs.run_command(\cf5 'g.gisenv'\cf0 , set=\cf5 'MAPSET=PERMANENT'\cf0 )\
-\
-\cf2 	# set GRASS the projection system and GRASS region to match the extent of the file\cf0 \
-	gs.run_command(\cf5 'g.proj'\cf0 , flags=\cf5 'c'\cf0 ,\
-    proj4=\cf5 '+proj=sinu +a=6371007.181 +b=6371007.181 +ellps=sphere'\cf0 )\
-	gs.run_command(\cf5 'g.region'\cf0 , rast=\cf5 'LST_1day_h12v08'\cf0 )\
-\cf2 \
-    \
-    #generate monthly pixelwise mean & count of high-quality daytime LST\
-\cf0    \
-    gs.os.environ[\cf5 'GRASS_OVERWRITE'\cf0 ] = \cf5 '1'\
-\
-    \cf2 #Provide a list of file "hdfs" to process\'85\
-\cf0     tile= 'h12v08'\cf2 \
-\cf0     fileglob = \cf5 'MOD11A1.A*.%s*hdf'\cf0  % (tile)\
-    pathglob = os.path.join(path_file, fileglob)\
-    files = glob.glob(pathglob)\
-    hdfs = files\
-    \cf2 ### LST values in images must be masked out if they have low quality: this is done using QC flags from the layer subset in hdf files\cf0 \
-    LST = [load_qc_adjusted_lst(hdf) \cf3 for\cf0  hdf \cf3 in\cf0  hdfs]\
-    \cf2 ### LST is a list that contains the name of the new lst files in the GRASS format. The files are stored in the temporary GRASS database.\cf0 \
-    clims = calc_clim(LST, \cf5 'LST_%s_%d_%02d'\cf0  % (tile, year, month))\
-    \cf2 # clean up\cf0 \
-    gs.run_command(\cf5 'g.remove'\cf0 , rast=\cf5 ','\cf0 .join(LST))\
-    gs.os.environ[\cf5 'GRASS_OVERWRITE'\cf0 ] = \cf5 '0'\cf0 \
-    \
-    \cf2 # clean up\cf0 \
-    gs.run_command(\cf5 'g.gisenv'\cf0 , set=\cf5 'LOCATION_NAME=%s'\cf0  % orig_location)\
-    gs.run_command(\cf5 'g.gisenv'\cf0 , set=\cf5 'MAPSET=%s'\cf0  % orig_mapset)\
-    shutil.rmtree(os.path.join(gs.gisenv()[\cf5 'GISDBASE'\cf0 ], tmp_location))
-\fs22 \
+    Arguments:
+    destdir -- path to local destination directory
+    tile -- tile identifier (e.g., 'h08v04')
+    start_doy -- integer start of day range (0-366)
+    end_doy -- integer end of day range (0-366)
+    year -- integer year (>=2000)
+    ver -- MODIS version (4 or 5)
 
-\fs28 \
-    \cf3 return\cf0  \cf3 None\cf0 \
-}
+    Returns list of absolute paths to the downloaded HDF files.
+    """
+    # connect to data pool and change to the right directory
+    ftp = ftplib.FTP('e4ftl01.cr.usgs.gov')
+    ftp.login('anonymous', '')
+    ftp.cwd('MOLT/MOD11A1.%03d' % ver)
+    # make list of daily directories to traverse
+    available_days = list_contents(ftp)
+    desired_days = [yj_to_ymd(year, x) for x in range(start_doy, end_doy+1)]
+    days_to_get = filter(lambda day: day in desired_days, available_days)
+    if len(days_to_get) < len(desired_days):
+        missing_days = [day for day in desired_days if day not in days_to_get]
+        print 'skipping %d day(s) not found on server:' % len(missing_days)
+        print '\n'.join(missing_days)
+    # get each tile in turn
+    hdfs = list()
+    for day in days_to_get:
+        ftp.cwd(day)
+        files_to_get = [file for file in list_contents(ftp)
+            if tile in file and file[-3:]=='hdf']
+        if len(files_to_get)==0:
+            # no file found -- print message and move on
+            print 'no hdf found on server for tile', tile, 'on', day
+            ftp.cwd('..') #added by Benoit
+            continue
+        elif 1<len(files_to_get):
+            # multiple files found! -- just use the first...
+            print 'multiple hdfs found on server for tile', tile, 'on', day
+        file = files_to_get[0]
+        local_file = os.path.join(destdir, file)
+        ftp.retrbinary('RETR %s' % file, open(local_file, 'wb').write)
+        hdfs.append(os.path.abspath(local_file))
+        ftp.cwd('..')
+    # politely disconnect
+    ftp.quit()
+    # return list of downloaded paths
+    return hdfs
+
+def get_hdf_paths(hdfdir, tile, start_doy, end_doy, year):
+    """Look in supplied directory to find the MODIS 11A1 HDF files
+    matching a given tile, year, and day range. If for some unexpected
+    reason there are multiple matches for a given day, only the first is
+    used. If no matches, the day is skipped with a warning message.
+
+    Arguments:
+    hdfdir -- path to directory containing the desired HDFs
+    tile -- tile identifier (e.g., 'h08v04')
+    start_doy -- integer start of day range (0-366)
+    end_doy -- integer end of day range (0-366)
+    year -- integer year (>=2000)
+
+    Returns list of absolute paths to the located HDF files.
+    """
+    hdfs = list()
+    for doy in range(start_doy, end_doy+1):
+        fileglob = 'MOD11A1.A%d%03d.%s*hdf' % (year, doy, tile)
+        pathglob = os.path.join(hdfdir, fileglob)
+        files = glob.glob(pathglob)
+        if len(files)==0:
+            # no file found -- print message and move on
+            print 'cannot access %s: no such file' % pathglob
+            continue
+        elif 1<len(files):
+            # multiple files found! -- just use the first...
+            print 'multiple hdfs found for tile', tile, 'on', day
+        hdfs.append(os.path.abspath(files[0]))
+    return hdfs
+
+def calc_clim(maplist, name, overwrite=False):
+    """Generate some climatalogies in GRASS based on the input list of
+    maps. As usual, current GRASS region settings apply. Produces the
+    following output rasters:
+      * nobs: count of number of (non-null) values over the input maps
+      * mean: arithmetic mean of (non-null) values over the input maps
+
+    Arguments:
+    maplist -- list of names of GRASS maps to be aggregated
+    name -- template (suffix) for GRASS output map names
+
+    Returns list of names of the output maps created in GRASS.
+    """
+    denominator = '(%s)' % '+'.join(['if(!isnull(%s))' % m
+        for m in maplist])
+    gs.mapcalc('nobs_%s = %s' % (name, denominator), overwrite=overwrite)
+    numerator = '(%s)' % '+'.join(['if(isnull(%s), 0, %s)' % (m, m)
+        for m in maplist])
+    gs.mapcalc('mean_%s = round(float(%s)/nobs_%s)' % (name, numerator, name),
+        overwrite=overwrite)
+    return ['%s_%s' % (s, name) for s in ['nobs', 'mean']]
+
+def load_qc_adjusted_lst(hdf):
+    """Load LST_Day_1km into GRASS from the specified hdf file, and
+    nullify any cells for which QA flags indicate anything other than
+    high quality.
+
+    Argument:
+    hdf -- local path to the 11A1 HDF file
+
+    Returns the name of the QC-adjusted LST map created in GRASS.
+    """
+    lstname =  'LST_' + '_'.join(os.path.basename(hdf).split('.')[1:3])               
+    # read in lst grid
+    gs.run_command('r.in.gdal',
+        input='HDF4_EOS:EOS_GRID:%s:MODIS_Grid_Daily_1km_LST:LST_Day_1km' % hdf,
+        output=lstname)            # No new location created since it has already been done with r.in.gdal before!!!
+
+    # read in qc grid
+    gs.run_command('r.in.gdal',
+        input = 'HDF4_EOS:EOS_GRID:%s:MODIS_Grid_Daily_1km_LST:QC_Day' % hdf,
+        output = 'qc_this_day')
+    gs.run_command('g.region', rast=lstname)
+    # null out any LST cells for which QC is not high [00]  #THIS WHERE WE MIGHT NEED TO CHANGE...
+    gs.mapcalc('${lst} = if((qc_this_day & 0x03)==0, ${lst}, null())',
+        lst=lstname, overwrite=True)
+    # clean up
+    gs.run_command('g.remove', rast='qc_this_day')
+    # return name of qc-adjusted LST raster in GRASS
+    return lstname
+
+
+def main():
+    #--------------------------------------------
+    # Download and Calculate monthly climatology for daily LST time series for a specific area
+    #--------------------------------------------
+
+    # TODO: set up a (temporary?) GRASS database to use for processing? code
+    # currently assumes it's being run within an existing GRASS session
+    # using an appropriately configured LOCATION...
+    #
+    # note the following trick to fix datum for modis sinu;
+    # TODO: check that this works properly...compare to MRT output?
+    # gs.run_command('g.proj', flags='c',
+    #     proj4='+proj=sinu +a=6371007.181 +b=6371007.181 +ellps=sphere')
+    ##    proj4='+proj=sinu +R=6371007.181 +nadgrids=@null +wktext')
+
+ 
+    #### Added by Benoit on 18 October 2012
+    
+    #Parameters
+    tiles = ['h11v08','h11v07','h12v08'] #These tiles correspond to Venezuela.
+    start_year = 2001
+    end_year = 2010
+    end_month=12
+    start_month=1
+    hdfdir =  '/home/parmentier/Data/benoit_test' #destination file where hdf files are stored locally after download.
+    ################## First step: download data ###################
+    # Added tile loop 
+    year_list=range(start_year,end_year+1) #list of year to loop through
+    year_list=[2001,2002]
+    for tile in tiles:	
+        for year in year_list:
+            		if year==end_year:
+            				start_doy, end_doy = get_doy_range(year, end_month)
+                			start_doy=1  #Fix problem later
+                			hdfs = download_mod11a1(hdfdir, tile, start_doy, end_doy, year)
+
+            		elif year==start_year:
+                			start_doy, end_doy = get_doy_range(year, start_month)
+                			end_doy=365
+                	if calendar.isleap(year):
+                			end_doy=366
+                			hdfs = download_mod11a1(hdfdir, tile, start_doy, end_doy, year)
+            
+            		elif (year!=start_year and year!=end_year):
+                			start_doy=1
+                			end_doy=365
+                			if calendar.isleap(year):
+                					end_doy=366
+                			hdfs = download_mod11a1(hdfdir, tile, start_doy, end_doy, year)
+    
+    # modify loop to take into account "hdfs", list of hdf files needed in the next steps…  
+
+    ################# Second step: compute climatology #################
+
+    # Set up a temporary GRASS data base 
+    
+    tmp_location = 'tmp' + str(os.getpid())        # Name of the temporary GRASS data base 
+    orig_location = gs.gisenv()['LOCATION_NAME']
+    orig_mapset = gs.gisenv()['MAPSET']
+    gs.os.environ['GRASS_OVERWRITE'] = '1'         # Allow for overwrite?? GRASS data base  
+    
+    ##NEED TO LOOP OVER DIFFERENT TILES!!!
+    ##start loop for tile
+    #load a file that will define the region of interest and location at the same time
+        
+    tile= 'h12v08'
+    tile=tiles[2]
+    #tile= 'h12v08'
+    
+    path_file = '/home/parmentier/Data/benoit_test'
+    os.chdir(path_file)    #set working directory
+    os.getcwd()            #get current working directory
+    listfiles_wd2 = glob.glob('*'+tile+'*'+'.hdf') #list the all the LST files of interest
+    name_of_file = listfiles_wd2[0]    
+    #name_of_file = 'MOD11A1.A2003364.h12v08.005.2008163211649.hdf'
+     # first load daytime LST, by accessing specific layers in the hdd??
+    #SUBDATASET_1_NAME=HDF4_EOS:EOS_GRID:"MOD11A1.A2003364.h12v08.005.2008163211649.hdf":MODIS_Grid_Daily_1km_LST:LST_Day_1km
+    #path_file = os.getcwd() 
+    #Create the name of the layer to extract from the hdf file used for definition of the database
+    lst1day = 'HDF4_EOS:EOS_GRID:%s/%s:%s' % (
+    path_file,
+    name_of_file,
+     'MODIS_Grid_Daily_1km_LST:LST_Day_1km')
+     
+    #now import one image and set the location, mapset and database !!create name per tile
+    gs.run_command('r.in.gdal', input=lst1day, output='LST_1day_h12v08',
+           location=tmp_location)
+
+    # Now that the new location has been create, switch to new location
+    gs.run_command('g.gisenv', set='LOCATION_NAME=%s' % tmp_location)
+    gs.run_command('g.gisenv', set='MAPSET=PERMANENT')
+
+    # set GRASS the projection system and GRASS region to match the extent of the file
+    gs.run_command('g.proj', flags='c',
+    proj4='+proj=sinu +a=6371007.181 +b=6371007.181 +ellps=sphere')
+    gs.run_command('g.region', rast='LST_1day_h12v08')
+
+    
+    #generate monthly pixelwise mean & count of high-quality daytime LST
+   
+    gs.os.environ['GRASS_OVERWRITE'] = '1'
+
+    #Provide a list of file "hdfs" to process…
+    #tile= 'h12v08'
+    fileglob = 'MOD11A1.A*.%s*hdf' % (tile)
+    pathglob = os.path.join(path_file, fileglob)
+    files = glob.glob(pathglob)
+    hdfs = files
+    ### LST values in images must be masked out if they have low quality: this is done using QC flags from the layer subset in hdf files
+    LST = [load_qc_adjusted_lst(hdf) for hdf in hdfs]
+    ### LST is a list that contains the name of the new lst files in the GRASS format. The files are stored in the temporary GRASS database.
+    list_maps_month=list_raster_per_month(LST)    
+    list_maps_name=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec']
+    ##Now calculate clim per month, do a test for year1
+    nb_month=12
+    for i in range(1,nb_month+1):
+        #clims = calc_clim(LST, 'LST_%s_%d_%02d' % (tile, year, month))
+        clims = calc_clim(list_maps_month[i-1],list_maps_name[i-1]+'_'+str(i-1))
+
+    #clims = calc_clim(LST, 'LST_%s_%d_%02d' % (tile, year, month))
+    
+    # clean up  if necessary
+    gs.run_command('g.remove', rast=','.join(LST))
+    gs.os.environ['GRASS_OVERWRITE'] = '0'
+    
+    # clean up
+    gs.run_command('g.gisenv', set='LOCATION_NAME=%s' % orig_location)
+    gs.run_command('g.gisenv', set='MAPSET=%s' % orig_mapset)
+    shutil.rmtree(os.path.join(gs.gisenv()['GISDBASE'], tmp_location))
+
+    return None
