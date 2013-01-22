@@ -294,34 +294,34 @@ def main():
     end_month=12
     start_month=1
     hdfdir =  '/home/parmentier/Data/benoit_test' #destination file where hdf files are stored locally after download.
+    
     ################## First step: download data ###################
     # Added tile loop 
     year_list=range(start_year,end_year+1) #list of year to loop through
-    year_list=[2001,2002]
-    for tile in tiles:	
+    #for testing...
+    #year_list=[2001,2002]
+    #hdfdir = '/home/parmentier/Data/benoit_test2' 
+    for tile in tiles:
         for year in year_list:
-            		if year==end_year:
-            				start_doy, end_doy = get_doy_range(year, end_month)
-                			start_doy=1  #Fix problem later
-                			hdfs = download_mod11a1(hdfdir, tile, start_doy, end_doy, year)
-
-            		elif year==start_year:
-                			start_doy, end_doy = get_doy_range(year, start_month)
-                			end_doy=365
-                	if calendar.isleap(year):
-                			end_doy=366
-                			hdfs = download_mod11a1(hdfdir, tile, start_doy, end_doy, year)
-            
-            		elif (year!=start_year and year!=end_year):
-                			start_doy=1
-                			end_doy=365
-                			if calendar.isleap(year):
-                					end_doy=366
-                			hdfs = download_mod11a1(hdfdir, tile, start_doy, end_doy, year)
+            start_doy = 1
+            end_doy = 365
+            if calendar.isleap(year):
+                end_doy=366
+                
+            hdfs = download_mod11a1(hdfdir, tile, start_doy, end_doy, year)
     
     # modify loop to take into account "hdfs", list of hdf files needed in the next steps…  
 
     ################# Second step: compute climatology #################
+    ## Process tile by tile...
+    
+    ##NEED TO LOOP OVER DIFFERENT TILES!!!
+    ##start loop for tile
+    #load a file that will define the region of interest and location at the same time
+      
+    #for tile in tiles: 
+    #tile= 'h12v08'
+    tile=tiles[2]
 
     # Set up a temporary GRASS data base 
     
@@ -329,16 +329,8 @@ def main():
     orig_location = gs.gisenv()['LOCATION_NAME']
     orig_mapset = gs.gisenv()['MAPSET']
     gs.os.environ['GRASS_OVERWRITE'] = '1'         # Allow for overwrite?? GRASS data base  
-    
-    ##NEED TO LOOP OVER DIFFERENT TILES!!!
-    ##start loop for tile
-    #load a file that will define the region of interest and location at the same time
         
-    tile= 'h12v08'
-    tile=tiles[2]
-    #tile= 'h12v08'
-    
-    path_file = '/home/parmentier/Data/benoit_test'
+    path_file = hdfdir
     os.chdir(path_file)    #set working directory
     os.getcwd()            #get current working directory
     listfiles_wd2 = glob.glob('*'+tile+'*'+'.hdf') #list the all the LST files of interest
@@ -352,9 +344,10 @@ def main():
     path_file,
     name_of_file,
      'MODIS_Grid_Daily_1km_LST:LST_Day_1km')
+     #change the above line later to allow night LST for tmin
      
     #now import one image and set the location, mapset and database !!create name per tile
-    gs.run_command('r.in.gdal', input=lst1day, output='LST_1day_h12v08',
+    gs.run_command('r.in.gdal', input=lst1day, output='LST_1day_'+tile,
            location=tmp_location)
 
     # Now that the new location has been create, switch to new location
@@ -364,14 +357,12 @@ def main():
     # set GRASS the projection system and GRASS region to match the extent of the file
     gs.run_command('g.proj', flags='c',
     proj4='+proj=sinu +a=6371007.181 +b=6371007.181 +ellps=sphere')
-    gs.run_command('g.region', rast='LST_1day_h12v08')
+    gs.run_command('g.region', rast='LST_1day_'+tile)
 
-    
     #generate monthly pixelwise mean & count of high-quality daytime LST
-   
     gs.os.environ['GRASS_OVERWRITE'] = '1'
 
-    #Provide a list of file "hdfs" to process…
+    #Provide a list of file "hdfs" to process…this should be in a loop...
     #tile= 'h12v08'
     fileglob = 'MOD11A1.A*.%s*hdf' % (tile)
     pathglob = os.path.join(path_file, fileglob)
@@ -383,13 +374,16 @@ def main():
     list_maps_month=list_raster_per_month(LST)    
     list_maps_name=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec']
     ##Now calculate clim per month, do a test for year1
-    nb_month=12
+    nb_month = 12
     for i in range(1,nb_month+1):
-        #clims = calc_clim(LST, 'LST_%s_%d_%02d' % (tile, year, month))
-        clims = calc_clim(list_maps_month[i-1],list_maps_name[i-1]+'_'+str(i-1))
-
+        clims = calc_clim(list_maps_month[i-1],tile+'_'+list_maps_name[i-1]+'_'+str(i-1))
+        for j in range(1, len(clims))
+        gs.run_command('r.out.gdal', input= clims[0], output=clims[0]+'.tif', type='Float64')
     #clims = calc_clim(LST, 'LST_%s_%d_%02d' % (tile, year, month))
     
+    
+    #Now write out files: added on 01/22/2013
+    gs.run_command('r.out.gdal', input= clims[0], output=clims[0]+'.tif', type='Float64')
     # clean up  if necessary
     gs.run_command('g.remove', rast=','.join(LST))
     gs.os.environ['GRASS_OVERWRITE'] = '0'
