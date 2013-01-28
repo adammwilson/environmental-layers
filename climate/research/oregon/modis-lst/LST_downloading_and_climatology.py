@@ -285,15 +285,18 @@ def main():
     ##    proj4='+proj=sinu +R=6371007.181 +nadgrids=@null +wktext')
 
  
-    #### Added by Benoit on 18 October 2012
+    #### MOdified by Benoit in October 2012 and January 2013
     
     #Parameters
-    tiles = ['h11v08','h11v07','h12v08'] #These tiles correspond to Venezuela.
+    tiles = ['h11v08','h11v07','h12v07','h12v08','h10v07','h10v08'] #These tiles correspond to Venezuela.
     start_year = 2001
     end_year = 2010
     end_month=12
     start_month=1
     hdfdir =  '/home/parmentier/Data/benoit_test' #destination file where hdf files are stored locally after download.
+    night=0    # if 1 then produce night climatology
+    out_suffix="_01252013"
+    download=1  # if 1 then download files
     
     ################## First step: download data ###################
     # Added tile loop 
@@ -301,96 +304,96 @@ def main():
     #for testing...
     #year_list=[2001,2002]
     #hdfdir = '/home/parmentier/Data/benoit_test2' 
-    for tile in tiles:
-        for year in year_list:
-            start_doy = 1
-            end_doy = 365
-            if calendar.isleap(year):
-                end_doy=366
-                
-            hdfs = download_mod11a1(hdfdir, tile, start_doy, end_doy, year)
+    #tiles = ['h10v07','h10v08','h12v07']
+    if download==1:
+        for tile in tiles:
+            for year in year_list:
+                start_doy = 1
+                end_doy = 365
+                if calendar.isleap(year):
+                    end_doy=366
+                    
+                hdfs = download_mod11a1(hdfdir, tile, start_doy, end_doy, year)
     
     # modify loop to take into account "hdfs", list of hdf files needed in the next steps…  
-
     ################# Second step: compute climatology #################
     ## Process tile by tile...
-    
-    ##NEED TO LOOP OVER DIFFERENT TILES!!!
     ##start loop for tile
-    #load a file that will define the region of interest and location at the same time
-      
-    #for tile in tiles: 
     #tile= 'h12v08'
-    tile=tiles[2]
-
-    # Set up a temporary GRASS data base 
-    
-    tmp_location = 'tmp' + str(os.getpid())        # Name of the temporary GRASS data base 
-    orig_location = gs.gisenv()['LOCATION_NAME']
-    orig_mapset = gs.gisenv()['MAPSET']
-    gs.os.environ['GRASS_OVERWRITE'] = '1'         # Allow for overwrite?? GRASS data base  
+    #tiles = ['h12v07','h12v08']
+    var_name = ['LST_Day_1km','LST_Night_1km']
+    if night==1:
+        lst_var = var_name[1]
+    if night==0:
+        lst_var = var_name[0]
         
-    path_file = hdfdir
-    os.chdir(path_file)    #set working directory
-    os.getcwd()            #get current working directory
-    listfiles_wd2 = glob.glob('*'+tile+'*'+'.hdf') #list the all the LST files of interest
-    name_of_file = listfiles_wd2[0]    
-    #name_of_file = 'MOD11A1.A2003364.h12v08.005.2008163211649.hdf'
-     # first load daytime LST, by accessing specific layers in the hdd??
-    #SUBDATASET_1_NAME=HDF4_EOS:EOS_GRID:"MOD11A1.A2003364.h12v08.005.2008163211649.hdf":MODIS_Grid_Daily_1km_LST:LST_Day_1km
-    #path_file = os.getcwd() 
-    #Create the name of the layer to extract from the hdf file used for definition of the database
-    lst1day = 'HDF4_EOS:EOS_GRID:%s/%s:%s' % (
-    path_file,
-    name_of_file,
-     'MODIS_Grid_Daily_1km_LST:LST_Day_1km')
-     #change the above line later to allow night LST for tmin
-     
-    #now import one image and set the location, mapset and database !!create name per tile
-    gs.run_command('r.in.gdal', input=lst1day, output='LST_1day_'+tile,
-           location=tmp_location)
-
-    # Now that the new location has been create, switch to new location
-    gs.run_command('g.gisenv', set='LOCATION_NAME=%s' % tmp_location)
-    gs.run_command('g.gisenv', set='MAPSET=PERMANENT')
-
-    # set GRASS the projection system and GRASS region to match the extent of the file
-    gs.run_command('g.proj', flags='c',
-    proj4='+proj=sinu +a=6371007.181 +b=6371007.181 +ellps=sphere')
-    gs.run_command('g.region', rast='LST_1day_'+tile)
-
-    #generate monthly pixelwise mean & count of high-quality daytime LST
-    gs.os.environ['GRASS_OVERWRITE'] = '1'
-
-    #Provide a list of file "hdfs" to process…this should be in a loop...
-    #tile= 'h12v08'
-    fileglob = 'MOD11A1.A*.%s*hdf' % (tile)
-    pathglob = os.path.join(path_file, fileglob)
-    files = glob.glob(pathglob)
-    hdfs = files
-    ### LST values in images must be masked out if they have low quality: this is done using QC flags from the layer subset in hdf files
-    LST = [load_qc_adjusted_lst(hdf) for hdf in hdfs]
-    ### LST is a list that contains the name of the new lst files in the GRASS format. The files are stored in the temporary GRASS database.
-    list_maps_month=list_raster_per_month(LST)    
-    list_maps_name=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec']
-    ##Now calculate clim per month, do a test for year1
-    nb_month = 12
-    for i in range(1,nb_month+1):
-        clims = calc_clim(list_maps_month[i-1],tile+'_'+list_maps_name[i-1]+'_'+str(i-1))
-        for j in range(1, len(clims))
-        gs.run_command('r.out.gdal', input= clims[0], output=clims[0]+'.tif', type='Float64')
-    #clims = calc_clim(LST, 'LST_%s_%d_%02d' % (tile, year, month))
+    #start = time.clock()    
+    for tile in tiles:        
+        # Set up a temporary GRASS data base   
+        tmp_location = 'tmp' + "_"+ tile + "_"+ str(os.getpid())        # Name of the temporary GRASS data base 
+        orig_location = gs.gisenv()['LOCATION_NAME']
+        orig_mapset = gs.gisenv()['MAPSET']
+        gs.os.environ['GRASS_OVERWRITE'] = '1'         # Allow for overwrite?? GRASS data base  
+            
+        path_file = hdfdir
+        os.chdir(path_file)    #set working directory
+        os.getcwd()            #get current working directory
+        listfiles_wd2 = glob.glob('*'+tile+'*'+'.hdf') #list the all the LST files of interest
+        name_of_file = listfiles_wd2[0]    
+       #Create the name of the layer to extract from the hdf file used for definition of the database
+        lst1day = 'HDF4_EOS:EOS_GRID:%s/%s:%s' % (
+        path_file,
+        name_of_file,
+         'MODIS_Grid_Daily_1km_LST:'+ lst_var)
+         #'LST_Night_1km'
+         #change the above line later to allow night LST for tmin
+         
+        #now import one image and set the location, mapset and database !!create name per tile
+        gs.run_command('r.in.gdal', input=lst1day, output='LST_1day_'+tile,
+               location=tmp_location)
     
+        # Now that the new location has been create, switch to new location
+        gs.run_command('g.gisenv', set='LOCATION_NAME=%s' % tmp_location)
+        gs.run_command('g.gisenv', set='MAPSET=PERMANENT')
     
-    #Now write out files: added on 01/22/2013
-    gs.run_command('r.out.gdal', input= clims[0], output=clims[0]+'.tif', type='Float64')
-    # clean up  if necessary
-    gs.run_command('g.remove', rast=','.join(LST))
-    gs.os.environ['GRASS_OVERWRITE'] = '0'
+        # set GRASS the projection system and GRASS region to match the extent of the file
+        gs.run_command('g.proj', flags='c',
+        proj4='+proj=sinu +a=6371007.181 +b=6371007.181 +ellps=sphere')
+        gs.run_command('g.region', rast='LST_1day_'+tile)
     
-    # clean up
-    gs.run_command('g.gisenv', set='LOCATION_NAME=%s' % orig_location)
-    gs.run_command('g.gisenv', set='MAPSET=%s' % orig_mapset)
-    shutil.rmtree(os.path.join(gs.gisenv()['GISDBASE'], tmp_location))
+        #generate monthly pixelwise mean & count of high-quality daytime LST
+        gs.os.environ['GRASS_OVERWRITE'] = '1'
+    
+        #Provide a list of file "hdfs" to process…this should be in a loop...
+        #tile= 'h12v08'
+        fileglob = 'MOD11A1.A*.%s*hdf' % (tile)
+        pathglob = os.path.join(path_file, fileglob)
+        files = glob.glob(pathglob)
+        hdfs = files
+        ### LST values in images must be masked out if they have low quality, determined from QC flags stored in hdf files
+        LST = [load_qc_adjusted_lst(hdf) for hdf in hdfs]
+        ### LST is a list that contains the name of the new lst files in the GRASS format. The files are stored in the temporary GRASS database.
+        list_maps_month=list_raster_per_month(LST)    
+        list_maps_name=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec']
+        ##Now calculate clim per month, do a test for year1
+        nb_month = 12
+        for i in range(1,nb_month+1):
+            clims = calc_clim(list_maps_month[i-1],tile+'_'+list_maps_name[i-1]+'_'+str(i-1))
+            for j in range(1, len(clims)+1):
+                if j-1 ==0:
+                    gs.run_command('r.out.gdal', input= clims[j-1], output=clims[j-1]+ out_suffix +'.tif', type='Float32')
+                if j-1 ==1:
+                    gs.mapcalc(' clim_rescaled = ('+ clims[j-1 ]+ ' * 0.02) -273.15')  
+                    gs.run_command('r.out.gdal', input= 'clim_rescaled', output=clims[j-1]+ out_suffix+'.tif', type='Float32')
+        #clims = calc_clim(LST, 'LST_%s_%d_%02d' % (tile, year, month))
+        # clean up  if necessary
+        
+        #gs.run_command('g.remove', rast=','.join(LST))
+        #gs.os.environ['GRASS_OVERWRITE'] = '0'
+        
+        # clean up
+        #gs.run_command('g.gisenv', set='LOCATION_NAME=%s' % orig_location)
+        #gs.run_command('g.gisenv', set='MAPSET=%s' % orig_mapset)
+        #shutil.rmtree(os.path.join(gs.gisenv()['GISDBASE'], tmp_location))
 
     return None
