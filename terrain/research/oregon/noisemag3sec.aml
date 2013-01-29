@@ -1,0 +1,55 @@
+&args DEMgrid
+
+/* Calculates a measure of the noisiness of the surface.
+/* John Gallant 8 Jan 2009
+/*
+/* Modified from noisemag on 15 Oct 2010 to work at 3 second resolution
+/*
+/* The principle is that noise is characterised by short-range variation.
+/* The difference from the local mean will vary erratically over a short
+/* distance in the presence of noise. Terrain features are generally smoother
+/* so do not vary as erratically. The noise is measured as the local standard
+/* deviation of the difference from the mean.
+/*
+/* The local mean is calculated using an annulus so that local peaks and
+/* holes are further accentuated.
+/*
+/* The raw noise magnitude is smoothed using two steps of median filtering
+/* to give the median value over a 25-cell circle.
+/*
+/* The calculated values can be used as the standard deviation of the
+/* noise of the surface.
+/*
+/* One flaw is that higher relief terrain is considered "noisy" by this method.
+/* (Lower relief terrain is not.)
+/*
+/* Could remove the effect of steeper terrain by using a fitted polynomial
+/* rather than a simple mean as the basis for calculating the difference.
+/* Not pursued at this time because the application is to control where
+/* vegetation edges are visible in SRTM data, and high relief areas also
+/* obscure the veg edges, so including the high relief as "high noise"
+/* is not a problem.
+
+setwindow %DEMgrid%
+setcell %DEMgrid%
+
+noisemean = focalmean(%DEMgrid% , annulus, 1, 2)
+noisediffmn = %DEMgrid%  - noisemean
+noiseraw = focalstd(noisediffmn, circle, 2)
+/* setcell minof
+/* noisemag2 = focalmedian(aggregate(noiseraw, 2, median), circle, 2)
+/* setcell %DEMgrid%
+/* noisemag = resample(noisemag2, #, bilinear)
+
+/* testing rejection of terrain signal by capturing longer-range differences from mean
+/* noisemag_d3 looks particularly good - terrain effects almost completely absent, for both small and extended features
+
+noisemndf = focalmean(noisediffmn, circle, 2)		/* calculate mean difference from mean
+noisemndf_abs = sqrt(1 + sqr(noisemndf)) - 1		/* soft absolute value of that
+noisemndf_mdn = focalmedian(noisemndf_abs, circle, 3)	/* smooth, this is the terrain signal
+noiseraw_rdc = noiseraw / (1 + 2 * mndiffmn2bfmd)	/* reduce noiseraw by the terrain signal
+
+setcell minof
+noisemag_2_2 = focalmedian(aggregate(noiseraw_rdc, 2, median), circle, 2)
+setcell %DEMgrid%
+noisemag = resample(noisemag_2_2, #, bilinear)
