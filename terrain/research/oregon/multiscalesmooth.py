@@ -154,7 +154,8 @@ def multiscalesmooth(input, smooth, sd, alpha=0.05):
 
         # calc variance-weighted neighborhood mean
         refine_region()
-        gs.mapcalc('tmp = w.finer * z%d / w' % j, quiet=True)
+        gs.mapcalc('tmp = w.finer * z%d / w' % j, quiet=True,
+            overwrite=True)
         tmp_rast.add('tmp')
         coarsen_region()
         gs.run_command('r.resamp.stats', method='sum', input='tmp',
@@ -164,7 +165,7 @@ def multiscalesmooth(input, smooth, sd, alpha=0.05):
         # calc between-cell variance, taken over neighborhood
         refine_region()
         gs.mapcalc('tmp = w.finer * (z%d - z%d)^2 / w' % (j, i),
-            quiet=True)
+            quiet=True, overwrite=True)
         tmp_rast.add('tmp')
         coarsen_region()
         gs.run_command('r.resamp.stats', method='sum', input='tmp',
@@ -173,11 +174,12 @@ def multiscalesmooth(input, smooth, sd, alpha=0.05):
 
         # calc wtd avg of within-cell variance, taken over neighborhood
         if (i==1):
-            gs.mapcalc('v.wg = 0', quiet=True)
+            gs.mapcalc('v.wg = 0', quiet=True, overwrite=True)
             tmp_rast.add('v.wg')
         else:
             refine_region()
-            gs.mapcalc('tmp = w.finer * v.g / w', quiet=True)
+            gs.mapcalc('tmp = w.finer * v.g / w', quiet=True,
+                overwrite=True)
             tmp_rast.add('tmp')
             coarsen_region()
             gs.run_command('r.resamp.stats', method='sum', input='tmp',
@@ -185,7 +187,7 @@ def multiscalesmooth(input, smooth, sd, alpha=0.05):
 
         # calc total group variance
         # ~= total variance of cell vals in the underlying neighborhood
-        gs.mapcalc('v.g = v.bg + v.wg', quiet=True)
+        gs.mapcalc('v.g = v.bg + v.wg', quiet=True, overwrite=True)
         tmp_rast.add('v.g')
 
         # calc chisq critical values (where df = n.eff - 1)
@@ -234,9 +236,9 @@ def multiscalesmooth(input, smooth, sd, alpha=0.05):
         z_c = 'if(isnull(z%d), 0, z%d)' % (j, j)
         v_c = 'if(isnull(v%d), %f, v%d)' % (j, bigvar, j)
         gs.mapcalc('${smooth} = (${z_c}/${v_c} + zs/vs) / (1/${v_c} + 1/vs)',
-            smooth=smooth, z_c=z_c, v_c=v_c, quiet=True)
+            smooth=smooth, z_c=z_c, v_c=v_c, quiet=True, overwrite=True)
         gs.mapcalc('v.smooth = 1 / (1/${v_c} + 1/vs)', v_c = v_c,
-            quiet=True)
+            quiet=True, overwrite=True)
 
     cleanup()
     return None
@@ -268,7 +270,7 @@ def main():
     # subset input if desired
     region = options.get('region')
     if region:
-        if not gs.find_file(sd)['file']:
+        if not gs.find_file(region)['file']:
             gs.fatal(_("Raster map <%s> not found") % region)
         gs.message("Setting region to %s" % region, flag='i')
         gs.run_command('g.region', rast=region, align=input)
