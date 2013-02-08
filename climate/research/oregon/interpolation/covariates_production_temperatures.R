@@ -143,7 +143,7 @@ if (infile_reg_outline!=""){
 if (infile_reg_outline==""){
   reg_outline<-create_modis_tiles_region(modis_grid,list_tiles_modis) #problem...this does not 
                                                                       #align with extent of modis LST!!!
-  writeOGR(reg_outline,dsn= ".",layer= paste(out_region_name,"_",out_suffix,sep=""), driver="ESRI Shapefile")
+  writeOGR(reg_outline,dsn= ".",layer= paste("outline",out_region_name,"_",out_suffix,sep=""), driver="ESRI Shapefile")
 }
 
 tmp<-extent(ref_rast)
