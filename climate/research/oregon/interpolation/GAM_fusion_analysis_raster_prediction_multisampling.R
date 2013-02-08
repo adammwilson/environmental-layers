@@ -10,7 +10,7 @@
 #4)use seed number: use seed if random samples must be repeatable
 #5)GAM fusion: possibilty of running GAM+FUSION or GAM separately 
 #AUTHOR: Benoit Parmentier                                                                        
-#DATE: 12/27/2012                                                                                 
+#DATE: 02/06/2013                                                                                 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363--                                   
 ###################################################################################################
 
@@ -31,20 +31,21 @@ library(plotrix)
 
 infile1<- "ghcn_or_tmax_covariates_06262012_OR83M.shp"             #GHCN shapefile containing variables for modeling 2010                 
 infile2<-"list_365_dates_04212012.txt"
-infile3<-"LST_dates_var_names.txt"                        #LST dates name
-infile4<-"models_interpolation_05142012.txt"              #Interpolation model names
-infile5<-"mean_day244_rescaled.rst"                       #Raster or grid for the locations of predictions
+#infile3<-"LST_dates_var_names.txt"                        #LST dates name
+#infile4<-"models_interpolation_05142012.txt"              #Interpolation model names
+#infile5<-"mean_day244_rescaled.rst"                       #Raster or grid for the locations of predictions
 #infile6<-"lst_climatology.txt"
-infile6<-"LST_files_monthly_climatology.txt"
-inlistf<-"list_files_05032012.txt"                        #Stack of images containing the Covariates
+#infile6<-"LST_files_monthly_climatology.txt"
+#inlistf<-"list_files_05032012.txt"                        #Stack of images containing the Covariates
 
-path<-"/home/parmentier/Data/IPLANT_project/data_Oregon_stations_10242012_GAM"
+infile_monthly<-"monthly_covariates_ghcn_data_TMAXy2010_2010_VE_02062013.shp"
+infile_daily<-"daily_covariates_ghcn_data_TMAXy2010_2010_VE_02062013.shp"
+infile_locs<-"stations_venezuela_region_y2010_2010_VE_02062013.shp"
+infile3<-"covariates__venezuela_region__VE_01292013.tif" #this is an output from covariate script
 
-setwd(path)
-#Station location of the study area
-stat_loc<-read.table(paste(path,"/","location_study_area_OR_0602012.txt",sep=""),sep=",", header=TRUE)
-#GHCN Database for 1980-2010 for study area (OR) 
-data3<-read.table(paste(path,"/","ghcn_data_TMAXy1980_2010_OR_0602012.txt",sep=""),sep=",", header=TRUE)
+in_path<-"/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/input_data"
+out_path<-"/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/output_data"
+setwd(in_path)
 
 nmodels<-9   #number of models running
 y_var_name<-"dailyTmax"
@@ -52,7 +53,7 @@ predval<-1
 prop<-0.3             #Proportion of testing retained for validation   
 #prop<-0.25
 seed_number<- 100  #if seed zero then no seed?                                                                 #Seed number for random sampling
-out_prefix<-"_365d_GAM_fus5_all_lstd_12302012"                #User defined output prefix
+out_prefix<-"_10d_GAM_fus5_all_lstd_020632013"                #User defined output prefix
 #out_prefix<-"_365d_GAM_12272012"                #User defined output prefix
 
 bias_val<-0            #if value 1 then training data is used in the bias surface rather than the all monthly stations
@@ -62,60 +63,58 @@ prop_min<-0.3          #if prop_min=prop_max and step=0 then predicitons are don
 prop_max<-0.3
 step<-0         
 constant<-0             #if value 1 then use the same samples as date one for the all set of dates
-#projection used in the interpolation of the study area
+#projection used in the interpolation of the study area: should be read directly from the outline of the study area
 CRS_interp<-"+proj=lcc +lat_1=43 +lat_2=45.5 +lat_0=41.75 +lon_0=-120.5 +x_0=400000 +y_0=0 +ellps=GRS80 +units=m +no_defs";
 CRS_locs_WGS84<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0") #Station coords WGS84
 
-source("GAM_fusion_function_multisampling_12302012.R")
+source("GAM_fusion_function_multisampling_02062013.R")
 
 ###################### START OF THE SCRIPT ########################
 
-###Reading the station data and setting up for models' comparison
-filename<-sub(".shp","",infile1)             #Removing the extension from file.
-ghcn<-readOGR(".", filename)                 #reading shapefile 
+###Reading the daily station data and setting up for models' comparison
+#filename<-sub(".shp","",infile1)             #Removing the extension from file.
+#ghcn<-readOGR(".", filename)                 #reading shapefile 
+ghcn<-readOGR(dsn=in_path,layer=sub(".shp","",infile_daily))
+CRS_interp<-proj4string(ghcn)                       #Storing projection information (ellipsoid, datum,etc.)
 
-CRS<-proj4string(ghcn)                       #Storing projection information (ellipsoid, datum,etc.)
+#mean_LST<- readGDAL(infile5)                 #Reading the whole raster in memory. This provides a grid for kriging
+#proj4string(mean_LST)<-CRS_interp                   #Assigning coordinate information to prediction grid.
 
-mean_LST<- readGDAL(infile5)                 #Reading the whole raster in memory. This provides a grid for kriging
-proj4string(mean_LST)<-CRS                   #Assigning coordinate information to prediction grid.
+#Station location of the study area
+#stat_loc<-read.table(paste(path,"/","location_study_area_OR_0602012.txt",sep=""),sep=",", header=TRUE)
+stat_loc<-readOGR(dsn=in_path,layer=sub(".shp","",infile_locs))
 
-ghcn <- transform(ghcn,Northness = cos(ASPECT*pi/180)) #Adding a variable to the dataframe
-ghcn <- transform(ghcn,Eastness = sin(ASPECT*pi/180))  #adding variable to the dataframe.
-ghcn <- transform(ghcn,Northness_w = sin(slope*pi/180)*cos(ASPECT*pi/180)) #Adding a variable to the dataframe
-ghcn <- transform(ghcn,Eastness_w = sin(slope*pi/180)*sin(ASPECT*pi/180))  #adding variable to the dataframe.
+#GHCN Database for 1980-2010 for study area (OR) 
+#data3<-read.table(paste(path,"/","ghcn_data_TMAXy1980_2010_OR_0602012.txt",sep=""),sep=",", header=TRUE)
+#data3<-file.path(in_path,infile_monthly)
+data3<-readOGR(dsn=in_path,layer=sub(".shp","",infile_monthly))
 
-#Remove NA for LC and CANHEIGHT
+#Remove NA for LC and CANHEIGHT: Need to check this part
 ghcn$LC1[is.na(ghcn$LC1)]<-0
 ghcn$LC3[is.na(ghcn$LC3)]<-0
 ghcn$CANHEIGHT[is.na(ghcn$CANHEIGHT)]<-0
 ghcn$LC4[is.na(ghcn$LC4)]<-0
 ghcn$LC6[is.na(ghcn$LC6)]<-0
 
-dates <-readLines(paste(path,"/",infile2, sep=""))
-LST_dates <-readLines(paste(path,"/",infile3, sep=""))
-models <-readLines(paste(path,"/",infile4, sep=""))
+dates <-readLines(paste(file.path(in_path,infile2))
+#LST_dates <-readLines(file.path(in_path,infile3))
+#models <-readLines(paste(path,"/",infile4, sep=""))
 
 ##Extracting the variables values from the raster files                                             
 
-lines<-read.table(paste(path,"/",inlistf,sep=""), sep=" ")                  #Column 1 contains the names of raster files
-inlistvar<-lines[,1]
-inlistvar<-paste(path,"/",as.character(inlistvar),sep="")
-covar_names<-as.character(lines[,2])                                         #Column two contains short names for covaraites
+#The names of covariates can be changed...
+rnames<-c("x","y","lon","lat","N","E","N_w","E_w","elev","slope","aspect","CANHEIGHT","DISTOC")
+lc_names<-c("LC1","LC2","LC3","LC4","LC5","LC6","LC7","LC8","LC9","LC10","LC11","LC12")
+lst_names<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_09","mm_10","mm_11","mm_12",
+                    "nobs_01","nobs_02","nobs_03","nobs_04","nobs_05","nobs_06","nobs_07","nobs_08",
+                    "nobs_09","nobs_10","nobs_11","nobs_12")
+                  
+covar_names<-c(rnames,lc_names,lst_names)
+                  
+s_raster<-stack(infile3)                   #read in the data stack
+names(s_raster)<-covar_names               #Assigning names to the raster layers: making sure it is included in the extraction
 
-s_raster<- stack(inlistvar)                                                  #Creating a stack of raster images from the list of variables.
-layerNames(s_raster)<-covar_names                                            #Assigning names to the raster layers
-projection(s_raster)<-CRS
-
-#stat_val<- extract(s_raster, ghcn3)                                          #Extracting values from the raster stack for every point location in coords data frame.
-pos<-match("ASPECT",layerNames(s_raster)) #Find column with name "value"
-r1<-raster(s_raster,layer=pos)             #Select layer from stack
-pos<-match("slope",layerNames(s_raster)) #Find column with name "value"
-r2<-raster(s_raster,layer=pos)             #Select layer from stack
-N<-cos(r1*pi/180)
-E<-sin(r1*pi/180)
-Nw<-sin(r2*pi/180)*cos(r1*pi/180)   #Adding a variable to the dataframe
-Ew<-sin(r2*pi/180)*sin(r1*pi/180)   #Adding variable to the dataframe.
-
+#Deal with no data value and zero      
 pos<-match("LC1",layerNames(s_raster)) #Find column with name "value"
 LC1<-raster(s_raster,layer=pos)             #Select layer from stack
 s_raster<-dropLayer(s_raster,pos)
@@ -126,20 +125,6 @@ LC3<-raster(s_raster,layer=pos)             #Select layer from stack
 s_raster<-dropLayer(s_raster,pos)
 LC3[is.na(LC3)]<-0
 
-pos<-match("LC4",layerNames(s_raster)) #Find column with name "value"
-LC4<-raster(s_raster,layer=pos)             #Select layer from stack
-s_raster<-dropLayer(s_raster,pos)
-LC4[is.na(LC4)]<-0
-
-pos<-match("LC6",layerNames(s_raster)) #Find column with name "value"
-LC6<-raster(s_raster,layer=pos)             #Select layer from stack
-s_raster<-dropLayer(s_raster,pos)
-LC6[is.na(LC6)]<-0
-
-LC_s<-stack(LC1,LC3,LC4,LC6)
-layerNames(LC_s)<-c("LC1_forest","LC3_grass","LC4_crop","LC6_urban")
-plot(LC_s)
-
 pos<-match("CANHEIGHT",layerNames(s_raster)) #Find column with name "value"
 CANHEIGHT<-raster(s_raster,layer=pos)             #Select layer from stack
 s_raster<-dropLayer(s_raster,pos)
@@ -148,22 +133,6 @@ pos<-match("ELEV_SRTM",layerNames(s_raster)) #Find column with name "ELEV_SRTM"
 ELEV_SRTM<-raster(s_raster,layer=pos)             #Select layer from stack on 10/30
 s_raster<-dropLayer(s_raster,pos)
 ELEV_SRTM[ELEV_SRTM <0]<-NA
-
-xy<-coordinates(r1)  #get x and y projected coordinates...
-xy_latlon<-project(xy, CRS, inv=TRUE) # find lat long for projected coordinats (or pixels...)
-lon<-raster(xy_latlon) #Transform a matrix into a raster object ncol=ncol(r1), nrow=nrow(r1))
-ncol(lon)<-ncol(r1)
-nrow(lon)<-nrow(r1)
-extent(lon)<-extent(r1)
-projection(lon)<-CRS  #At this stage this is still an empty raster with 536 nrow and 745 ncell 
-lat<-lon
-values(lon)<-xy_latlon[,1]
-values(lat)<-xy_latlon[,2]
-
-r<-stack(N,E,Nw,Ew,lon,lat,LC1,LC3,LC4,LC6, CANHEIGHT,ELEV_SRTM)
-rnames<-c("Northness","Eastness","Northness_w","Eastness_w", "lon","lat","LC1","LC3","LC4","LC6","CANHEIGHT","ELEV_SRTM")
-layerNames(r)<-rnames
-s_raster<-addLayer(s_raster, r)
 
 #s_sgdf<-as(s_raster,"SpatialGridDataFrame") #Conversion to spatial grid data frame
 
@@ -199,49 +168,55 @@ results_MAE_f <- matrix(1,1,nmodels+4)
 
 # do this work outside of (before) this function
 # to avoid making a copy of the data frame inside the function call
-date1<-ISOdate(data3$year,data3$month,data3$day) #Creating a date object from 3 separate column
-date2<-as.POSIXlt(as.Date(date1))
-data3$date<-date2
-d<-subset(data3,year>=2000 & mflag=="0" ) #Selecting dataset 2000-2010 with good quality: 193 stations
-#May need some screeing??? i.e. range of temp and elevation...
-d1<-aggregate(value~station+month, data=d, mean)  #Calculate monthly mean for every station in OR
-id<-as.data.frame(unique(d1$station))     #Unique station in OR for year 2000-2010: 193 but 7 loss of monthly avg    
-
-dst<-merge(d1, stat_loc, by.x="station", by.y="STAT_ID")   #Inner join all columns are retained
-
-#This allows to change only one name of the data.frame
-pos<-match("value",names(dst)) #Find column with name "value"
-names(dst)[pos]<-c("TMax")
-dst$TMax<-dst$TMax/10                #TMax is the average max temp for monthy data
-#dstjan=dst[dst$month==9,]  #dst contains the monthly averages for tmax for every station over 2000-2010
-
-#Extracting covariates from stack
-coords<- dst[c('lon','lat')]              #Define coordinates in a data frame
-coordinates(dst)<-coords                      #Assign coordinates to the data frame
-proj4string(dst)<-CRS_locs_WGS84                  #Assign coordinates reference system in PROJ4 format
-dst_month<-spTransform(dst,CRS(CRS_interp))     #Project from WGS84 to new coord. system
-
-stations_val<-extract(s_raster,dst_month)  #extraction of the infomration at station location
-stations_val<-as.data.frame(stations_val)
-dst_extract<-cbind(dst_month,stations_val)
-dst<-dst_extract
+# date1<-ISOdate(data3$year,data3$month,data3$day) #Creating a date object from 3 separate column
+# date2<-as.POSIXlt(as.Date(date1))
+# data3$date<-date2
+# d<-subset(data3,year>=2000 & mflag=="0" ) #Selecting dataset 2000-2010 with good quality: 193 stations
+# #May need some screeing??? i.e. range of temp and elevation...
+# d1<-aggregate(value~station+month, data=d, mean)  #Calculate monthly mean for every station in OR
+# id<-as.data.frame(unique(d1$station))     #Unique station in OR for year 2000-2010: 193 but 7 loss of monthly avg    
+# 
+# dst<-merge(d1, stat_loc, by.x="station", by.y="STAT_ID")   #Inner join all columns are retained
+# 
+# #This allows to change only one name of the data.frame
+# pos<-match("value",names(dst)) #Find column with name "value"
+# names(dst)[pos]<-c("TMax")
+# dst$TMax<-dst$TMax/10                #TMax is the average max temp for monthy data
+# #dstjan=dst[dst$month==9,]  #dst contains the monthly averages for tmax for every station over 2000-2010
+# 
+# #Extracting covariates from stack
+# coords<- dst[c('lon','lat')]              #Define coordinates in a data frame
+# coordinates(dst)<-coords                      #Assign coordinates to the data frame
+# proj4string(dst)<-CRS_locs_WGS84                  #Assign coordinates reference system in PROJ4 format
+# dst_month<-spTransform(dst,CRS(CRS_interp))     #Project from WGS84 to new coord. system
+# 
+# stations_val<-extract(s_raster,dst_month)  #extraction of the infomration at station location
+# stations_val<-as.data.frame(stations_val)
+# dst_extract<-cbind(dst_month,stations_val)
+# dst<-dst_extract
+                  
 #Now clean and screen monthly values
-dst_all<-dst
-dst<-subset(dst,dst$TMax>-15 & dst$TMax<40)
-dst<-subset(dst,dst$ELEV_SRTM>0) #This will drop two stations...or 24 rows
+#dst_all<-dst
+dst_all<-data3
+dst<-data3
+#dst<-subset(dst,dst$TMax>-15 & dst$TMax<45) #may choose different threshold??
+#dst<-subset(dst,dst$ELEV_SRTM>0) #This will drop two stations...or 24 rows
 
 ######### Preparing daily values for training and testing
-
+                  
 #Screening for bad values: value is tmax in this case
 #ghcn$value<-as.numeric(ghcn$value)
-ghcn_all<-ghcn
-ghcn_test<-subset(ghcn,ghcn$value>-150 & ghcn$value<400)
-ghcn_test2<-subset(ghcn_test,ghcn_test$ELEV_SRTM>0)
-ghcn<-ghcn_test2
+#ghcn_all<-ghcn
+#ghcn_test<-subset(ghcn,ghcn$value>-150 & ghcn$value<400)
+#ghcn_test<-ghcn
+#ghcn_test2<-subset(ghcn_test,ghcn_test$elev_1>0)
+#ghcn<-ghcn_test2
 #coords<- ghcn[,c('x_OR83M','y_OR83M')]
 
 ##Sampling: training and testing sites.
 
+#Make this a a function
+                  
 if (seed_number>0) {
   set.seed(seed_number)                        #Using a seed number allow results based on random number to be compared...
 }
