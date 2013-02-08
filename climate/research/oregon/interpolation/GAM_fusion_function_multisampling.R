@@ -12,14 +12,14 @@ runGAMFusion <- function(i) {            # loop over dates
   r1<-raster(s_raster,layer=pos)             #Select layer from stack
   layerNames(r1)<-"LST"
   #Screen for extreme values" 10/30
-  min_val<-(-15+273.16) #if values less than -15C then screen out (note the Kelvin units that will need to be changed later in all datasets)
-  r1[r1 < (min_val)]<-NA
+  #min_val<-(-15+273.16) #if values less than -15C then screen out (note the Kelvin units that will need to be changed later in all datasets)
+  #r1[r1 < (min_val)]<-NA
   s_raster<-addLayer(s_raster,r1)            #Adding current month
   
   ###Regression part 1: Creating a validation dataset by creating training and testing datasets
-  
+  #Problem here...
   mod_LST <-ghcn.subsets[[i]][,match(LST_month, names(ghcn.subsets[[i]]))]  #Match interpolation date and monthly LST average
-  ghcn.subsets[[i]] = transform(ghcn.subsets[[i]],LST = mod_LST)            #Add the variable LST to the subset dataset
+  ghcn.subsets[[i]] = transform(ghcn.subsets[[i]],LST = as.data.frame(mod_LST))            #Add the variable LST to the subset dataset
   dst$LST<-dst[[LST_month]]
   #n<-nrow(ghcn.subsets[[i]])
   #ns<-n-round(n*prop)   #Create a sample from the data frame with 70% of the rows
@@ -44,10 +44,11 @@ runGAMFusion <- function(i) {            # loop over dates
   ###########
   #  STEP 1 - LST 10 year monthly averages
   ###########
-
-  themolst<-raster(molst,mo) #current month being processed saved in a raster image
-  min_val<-(-15)     #Screening for extreme values
-  themolst[themolst < (min_val)]<-NA
+  pos<-match("LST",layerNames(s_raster)) #Find the position of the layer with name "LST", 
+  themolst<-raster(s_raster,layer=pos)
+  #themolst<-raster(molst,mo) #current month being processed saved in a raster image
+  #min_val<-(-15)     #Screening for extreme values
+  #themolst[themolst < (min_val)]<-NA
   
   plot(themolst)
   
@@ -61,16 +62,16 @@ runGAMFusion <- function(i) {            # loop over dates
   # STEP 3 - get LST at stations  
   ##########
   
-  sta_lola=modst[,c("lon","lat")] #Extracting locations of stations for the current month..
+  #sta_lola=modst[,c("lon","lat")] #Extracting locations of stations for the current month..
   
-  proj_str="+proj=lcc +lat_1=43 +lat_2=45.5 +lat_0=41.75 +lon_0=-120.5 +x_0=400000 +y_0=0 +ellps=GRS80 +units=m +no_defs";
-  lookup<-function(r,lat,lon) {
-    xy<-project(cbind(lon,lat),proj_str);
-    cidx<-cellFromXY(r,xy);
-    return(r[cidx])
-  }
-  sta_tmax_from_lst=lookup(themolst,sta_lola$lat,sta_lola$lon) #Extracted values of LST for the stations
-  
+  #proj_str="+proj=lcc +lat_1=43 +lat_2=45.5 +lat_0=41.75 +lon_0=-120.5 +x_0=400000 +y_0=0 +ellps=GRS80 +units=m +no_defs";
+  #lookup<-function(r,lat,lon) {
+  #  xy<-project(cbind(lon,lat),proj_str);
+  #  cidx<-cellFromXY(r,xy);
+  #  return(r[cidx])
+  #}
+  #sta_tmax_from_lst=lookup(themolst,sta_lola$lat,sta_lola$lon) #Extracted values of LST for the stations
+  sta_tmax_from_lst<-modst$LST
   #########
   # STEP 4 - bias at stations     
   #########
