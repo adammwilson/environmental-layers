@@ -3,7 +3,7 @@ runGAMFusion <- function(i) {            # loop over dates
   date<-strptime(sampling_dat$date[i], "%Y%m%d")   # interpolation date being processed
   month<-strftime(date, "%m")          # current month of the date being processed
   LST_month<-paste("mm_",month,sep="") # name of LST month to be matched
-  
+  proj_str<-proj4string(dst)
   #Adding layer LST to the raster stack
 
   pos<-match("LST",layerNames(s_raster)) #Find the position of the layer with name "LST", if not present pos=NA
@@ -16,19 +16,18 @@ runGAMFusion <- function(i) {            # loop over dates
   #r1[r1 < (min_val)]<-NA
   s_raster<-addLayer(s_raster,r1)            #Adding current month
   
+  pos<-match("elev",layerNames(s_raster))
+  layerNames(s_raster)[pos]<-"elev_1"
   ###Regression part 1: Creating a validation dataset by creating training and testing datasets
-  #Problem here...
-  mod_LST <-ghcn.subsets[[i]][,match(LST_month, names(ghcn.subsets[[i]]))]  #Match interpolation date and monthly LST average
-  ghcn.subsets[[i]] = transform(ghcn.subsets[[i]],LST = as.data.frame(mod_LST))            #Add the variable LST to the subset dataset
-  dst$LST<-dst[[LST_month]]
-  #n<-nrow(ghcn.subsets[[i]])
-  #ns<-n-round(n*prop)   #Create a sample from the data frame with 70% of the rows
-  #nv<-n-ns              #create a sample for validation with prop of the rows
-  #ind.training <- sample(nrow(ghcn.subsets[[i]]), size=ns, replace=FALSE) #This selects the index position for 70% of the rows taken randomly
+  data_day<-ghcn.subsets[[i]]
+  mod_LST <- ghcn.subsets[[i]][,match(LST_month, names(ghcn.subsets[[i]]))]  #Match interpolation date and monthly LST average
+  data_day$LST <- as.data.frame(mod_LST)[,1] #Add the variable LST to the dataset
+  dst$LST<-dst[[LST_month]] #Add the variable LST to the monthly dataset
+  
   ind.training<-sampling[[i]]
-  ind.testing <- setdiff(1:nrow(ghcn.subsets[[i]]), ind.training)
-  data_s <- ghcn.subsets[[i]][ind.training, ]   #Training dataset currently used in the modeling
-  data_v <- ghcn.subsets[[i]][ind.testing, ]    #Testing/validation dataset using input sampling
+  ind.testing <- setdiff(1:nrow(data_day), ind.training)
+  data_s <- data_day[ind.training, ]   #Training dataset currently used in the modeling
+  data_v <- data_day[ind.testing, ]    #Testing/validation dataset using input sampling
   
   ns<-nrow(data_s)
   nv<-nrow(data_v)
@@ -50,8 +49,6 @@ runGAMFusion <- function(i) {            # loop over dates
   #min_val<-(-15)     #Screening for extreme values
   #themolst[themolst < (min_val)]<-NA
   
-  plot(themolst)
-  
   ###########
   # STEP 2 - Weather station means across same days: Monthly mean calculation
   ###########
@@ -65,11 +62,11 @@ runGAMFusion <- function(i) {            # loop over dates
   #sta_lola=modst[,c("lon","lat")] #Extracting locations of stations for the current month..
   
   #proj_str="+proj=lcc +lat_1=43 +lat_2=45.5 +lat_0=41.75 +lon_0=-120.5 +x_0=400000 +y_0=0 +ellps=GRS80 +units=m +no_defs";
-  #lookup<-function(r,lat,lon) {
-  #  xy<-project(cbind(lon,lat),proj_str);
-  #  cidx<-cellFromXY(r,xy);
-  #  return(r[cidx])
-  #}
+  lookup<-function(r,lat,lon) {
+    xy<-project(cbind(lon,lat),proj_str);
+    cidx<-cellFromXY(r,xy);
+    return(r[cidx])
+  }
   #sta_tmax_from_lst=lookup(themolst,sta_lola$lat,sta_lola$lon) #Extracted values of LST for the stations
   sta_tmax_from_lst<-modst$LST
   #########
@@ -80,24 +77,38 @@ runGAMFusion <- function(i) {            # loop over dates
   #Added by Benoit
   modst$LSTD_bias<-sta_bias  #Adding bias to data frame modst containning the monthly average for 10 years
   
-  bias_xy=project(as.matrix(sta_lola),proj_str)
+  #bias_xy=project(as.matrix(sta_lola),proj_str)
   png(paste("LST_TMax_scatterplot_",sampling_dat$date[i],"_",sampling_dat$prop[i],"_",sampling_dat$run_samp[i], out_prefix,".png", sep=""))
   plot(modst$TMax,sta_tmax_from_lst,xlab="Station mo Tmax",ylab="LST mo Tmax",main=paste("LST vs TMax for",datelabel,sep=" "))
   abline(0,1)
+  nb_point<-paste("n=",length(modst$TMax),sep="")
+  mean_bias<-paste("LST bias= ",format(mean(modst$LSTD_bias,na.rm=TRUE),digits=3),sep="")
+  #Add the number of data points on the plot
+  legend("topleft",legend=c(mean_bias,nb_point),bty="n")
   dev.off()
   
   #added by Benoit 
   #x<-ghcn.subsets[[i]]  #Holds both training and testing for instance 161 rows for Jan 1
-  x<-data_v
-  d<-data_s
-  
+  x<-as.data.frame(data_v)
+  d<-as.data.frame(data_s)
+  #x[x$value==-999.9]<-NA
+  for (j in 1:nrow(x)){
+    if (x$value[j]== -999.9){
+      x$value[j]<-NA
+    }
+  }
+  for (j in 1:nrow(d)){
+    if (d$value[j]== -999.9){
+      d$value[j]<-NA
+    }
+  }
+  #x[x$value==-999.9]<-NA
+  #d[d$value==-999.9]<-NA
   pos<-match("value",names(d)) #Find column with name "value"
   #names(d)[pos]<-c("dailyTmax")
   names(d)[pos]<-y_var_name
   names(x)[pos]<-y_var_name
   #names(x)[pos]<-c("dailyTmax")
-  d$dailyTmax=(as.numeric(d$dailyTmax))/10 #stored as 1/10 degree C to allow integer storage
-  x$dailyTmax=(as.numeric(x$dailyTmax))/10 #stored as 1/10 degree C to allow integer storage
   pos<-match("station",names(d)) #Find column with name "value"
   names(d)[pos]<-c("id")
   names(x)[pos]<-c("id")
@@ -131,8 +142,9 @@ runGAMFusion <- function(i) {            # loop over dates
   #fitbias<-Tps(bias_xy,sta_bias) #use TPS or krige
   
   #Adding options to use only training stations : 07/11/2012
-  bias_xy=project(as.matrix(sta_lola),proj_str)
+  #bias_xy=project(as.matrix(sta_lola),proj_str)
   #bias_xy2=project(as.matrix(c(dmoday$lon,dmoday$lat),proj_str)
+  bias_xy<-coordinates(modst)
   if(bias_val==1){
     sta_bias<-dmoday$LSTD_bias
     bias_xy<-cbind(dmoday$x_OR83M,dmoday$y_OR83M)
@@ -152,6 +164,7 @@ runGAMFusion <- function(i) {            # loop over dates
   
   daily_sta_lola=dmoday[,c("lon","lat")] #could be same as before but why assume merge does this - assume not
   daily_sta_xy=project(as.matrix(daily_sta_lola),proj_str)
+  
   daily_delta=dmoday$dailyTmax-dmoday$TMax
   
   #fitdelta<-Tps(daily_sta_xy,daily_delta) #use TPS or krige
@@ -213,13 +226,14 @@ runGAMFusion <- function(i) {            # loop over dates
   ########
   # check: assessment of results: validation
   ########
-  RMSE<-function(x,y) {return(mean((x-y)^2)^0.5)}
-  MAE_fun<-function(x,y) {return(mean(abs(x-y)))}
+  RMSE<-function(res) {return(((mean(res,na.rm=TRUE))^2)^0.5)}
+  MAE_fun<-function(res) {return(mean(abs(res),na.rm=TRUE))}
   #ME_fun<-function(x,y){return(mean(abs(y)))}
   #FIT ASSESSMENT
   sta_pred_data_s=lookup(tmax_predicted,data_s$lat,data_s$lon)
-  rmse_fit=RMSE(sta_pred_data_s,data_s$dailyTmax)
-  mae_fit=MAE_fun(sta_pred_data_s,data_s$dailyTmax)
+  
+  rmse_fit=RMSE(sta_pred_data_s-data_s$dailyTmax)
+  mae_fit=MAE_fun(sta_pred_data_s-data_s$dailyTmax)
     
   sta_pred=lookup(tmax_predicted,data_v$lat,data_v$lon)
   #sta_pred=lookup(tmax_predicted,daily_sta_lola$lat,daily_sta_lola$lon)
@@ -228,10 +242,10 @@ runGAMFusion <- function(i) {            # loop over dates
   #names(data_v)[pos]<-c("dailyTmax")
   tmax<-data_v$dailyTmax
   #data_v$dailyTmax<-tmax
-  rmse=RMSE(sta_pred,tmax)
-  mae<-MAE_fun(sta_pred,tmax)
+  rmse=RMSE(sta_pred-tmax)
+  mae<-MAE_fun(sta_pred-tmax)
   r2<-cor(sta_pred,tmax)^2              #R2, coef. of var
-  me<-mean(sta_pred-tmax)
+  me<-mean(sta_pred-tmax,na.rm=T)
    
   png(paste("Predicted_tmax_versus_observed_scatterplot_",sampling_dat$date[i],"_",sampling_dat$prop[i],
             "_",sampling_dat$run_samp[i],out_prefix,".png", sep=""))
@@ -243,15 +257,15 @@ runGAMFusion <- function(i) {            # loop over dates
   
   ###BEFORE GAM prediction the data object must be transformed to SDF
   
-  coords<- data_v[,c('x_OR83M','y_OR83M')]
+  coords<- data_v[,c('x','y')]
   coordinates(data_v)<-coords
-  proj4string(data_v)<-CRS  #Need to assign coordinates...
-  coords<- data_s[,c('x_OR83M','y_OR83M')]
+  proj4string(data_v)<-proj_str  #Need to assign coordinates...
+  coords<- data_s[,c('x','y')]
   coordinates(data_s)<-coords
-  proj4string(data_s)<-CRS  #Need to assign coordinates..
-  coords<- modst[,c('x_OR83M','y_OR83M')]
-  coordinates(modst)<-coords
-  proj4string(modst)<-CRS  #Need to assign coordinates..
+  proj4string(data_s)<-proj_str  #Need to assign coordinates..
+  coords<- modst[,c('x','y')]
+  #coordinates(modst)<-coords
+  #proj4string(modst)<-proj_str  #Need to assign coordinates..
   
   ns<-nrow(data_s) #This is added to because some loss of data might have happened because of the averaging...
   nv<-nrow(data_v)
@@ -274,15 +288,15 @@ runGAMFusion <- function(i) {            # loop over dates
   
   list_formulas<-vector("list",nmodels)
   
-  list_formulas[[1]] <- as.formula("y_var ~ s(ELEV_SRTM)", env=.GlobalEnv)
+  list_formulas[[1]] <- as.formula("y_var ~ s(elev_1)", env=.GlobalEnv)
   list_formulas[[2]] <- as.formula("y_var ~ s(LST)", env=.GlobalEnv)
-  list_formulas[[3]] <- as.formula("y_var ~ s(ELEV_SRTM,LST)", env=.GlobalEnv)
-  list_formulas[[4]] <- as.formula("y_var ~ s(lat) + s(lon)+ s(ELEV_SRTM)", env=.GlobalEnv)
-  list_formulas[[5]] <- as.formula("y_var ~ s(lat,lon,ELEV_SRTM)", env=.GlobalEnv)
-  list_formulas[[6]] <- as.formula("y_var ~ s(lat,lon) + s(ELEV_SRTM) + s(Northness_w,Eastness_w) + s(LST)", env=.GlobalEnv)
-  list_formulas[[7]] <- as.formula("y_var ~ s(lat,lon) + s(ELEV_SRTM) + s(Northness_w,Eastness_w) + s(LST) + s(LC1)", env=.GlobalEnv)
-  list_formulas[[8]] <- as.formula("y_var ~ s(lat,lon) + s(ELEV_SRTM) + s(Northness_w,Eastness_w) + s(LST) + s(LC3)", env=.GlobalEnv)
-  list_formulas[[9]] <- as.formula("y_var ~ s(lat,lon) + s(ELEV_SRTM) + s(Northness_w,Eastness_w) + s(LST) + s(DISTOC)", env=.GlobalEnv)
+  list_formulas[[3]] <- as.formula("y_var ~ s(elev_1,LST)", env=.GlobalEnv)
+  list_formulas[[4]] <- as.formula("y_var ~ s(lat) + s(lon)+ s(elev_1)", env=.GlobalEnv)
+  list_formulas[[5]] <- as.formula("y_var ~ s(lat,lon,elev_1)", env=.GlobalEnv)
+  list_formulas[[6]] <- as.formula("y_var ~ s(lat,lon) + s(elev_1) + s(N_w,E_w) + s(LST)", env=.GlobalEnv)
+  list_formulas[[7]] <- as.formula("y_var ~ s(lat,lon) + s(elev_1) + s(N_w,E_w) + s(LST) + s(LC2)", env=.GlobalEnv)
+  list_formulas[[8]] <- as.formula("y_var ~ s(lat,lon) + s(elev_1) + s(N_w,E_w) + s(LST) + s(LC6)", env=.GlobalEnv)
+  list_formulas[[9]] <- as.formula("y_var ~ s(lat,lon) + s(elev_1) + s(N_w,E_w) + s(LST) + s(DISTOC)", env=.GlobalEnv)
   
   #list_formulas[[1]] <- as.formula("y_var ~ s(ELEV_SRTM)", env=.GlobalEnv)
   #list_formulas[[2]] <- as.formula("y_var ~ s(lat,lon)", env=.GlobalEnv)
