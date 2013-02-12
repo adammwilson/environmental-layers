@@ -21,7 +21,7 @@ library(sp)                                             # Spatial pacakge with c
 library(spdep)                               # Spatial pacakge with methods and spatial stat. by Bivand et al.
 library(rgdal)                               # GDAL wrapper for R, spatial utilities
 library(gstat)                               # Kriging and co-kriging by Pebesma et al.
-library(fields)                              # NCAR Spatial Interpolation methods such as kriging, splines
+library(fields)                             # NCAR Spatial Interpolation methods such as kriging, splines
 library(raster)                              # Hijmans et al. package for raster processing
 library(rasterVis)
 library(parallel)                            # Urbanek S. and Ripley B., package for multi cores & parralel processing

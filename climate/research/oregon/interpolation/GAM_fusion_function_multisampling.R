@@ -1,5 +1,141 @@
+#Function to be used with GAM_fusion_analysis_raster_prediction_mutlisampling.R
+#runClimFusion<-function(r_stack,data_training,data_testing,data_training){
+
+####
+#TODO:
+#Add log file and calculate time and sizes for processes-outputs
+
+
+runClimFusion<-function(j){
+  #Make this a function with multiple argument that can be used by mcmapply??
+  #This creates clim fusion layers...
+  
+  #Functions used in the script
+  predict_raster_model<-function(in_models,r_stack,out_filename){
+    #This functions performs predictions on a raster grid given input models.
+    #Arguments: list of fitted models, raster stack of covariates
+    #Output: spatial grid data frame of the subset of tiles
+    #s_sgdf<-as(r_stack,"SpatialGridDataFrame") #Conversion to spatial grid data frame
+    list_rast_pred<-vector("list",length(in_models))
+    for (i in 1:length(in_models)){
+      mod <-in_models[[i]] #accessing GAM model ojbect "j"
+      raster_name<-out_filename[[i]]
+      if (inherits(mod,"gam")) {           
+        #rpred<- predict(mod, newdata=s_sgdf, se.fit = TRUE) #Using the coeff to predict new values.
+        #rast_pred2<- predict(object=s_raster,model=mod,na.rm=TRUE) #Using the coeff to predict new values.
+        raster_pred<- predict(object=s_raster,model=mod,na.rm=FALSE) #Using the coeff to predict new values.
+        names(raster_pred)<-"y_pred"  
+        writeRaster(raster_pred, filename=raster_name,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
+        print(paste("Interpolation:","mod", j ,sep=" "))
+        list_rast_pred[[i]]<-raster_name
+      }
+    }
+    if (inherits(mod,"try-error")) {
+      print(paste("no gam model fitted:",mod[1],sep=" "))
+    }
+    return(list_rast_pred)
+  }
+  
+  fit_models<-function(list_formulas,data_training){
+    #This functions several models and returns model objects.
+    #Arguments: - list of formulas for GAM models
+    #           - fitting data in a data.frame or SpatialPointDataFrame
+    #Output: list of model objects 
+    list_fitted_models<-vector("list",length(list_formulas))
+    for (k in 1:length(list_formulas)){
+      formula<-list_formulas[[k]]
+      mod<- try(gam(formula, data=data_training))
+      model_name<-paste("mod",k,sep="")
+      assign(model_name,mod) 
+      list_fitted_models[[k]]<-mod
+    }
+    return(list_fitted_models) 
+  }
+  #Model and response variable can be changed without affecting the script
+  prop_month<-0 #proportion retained for validation
+  run_samp<-1
+  list_formulas<-vector("list",nmodels)
+  
+  list_formulas[[1]] <- as.formula("y_var ~ s(elev_1)", env=.GlobalEnv)
+  list_formulas[[2]] <- as.formula("y_var ~ s(LST)", env=.GlobalEnv)
+  list_formulas[[3]] <- as.formula("y_var ~ s(elev_1,LST)", env=.GlobalEnv)
+  list_formulas[[4]] <- as.formula("y_var ~ s(lat) + s(lon)+ s(elev_1)", env=.GlobalEnv)
+  list_formulas[[5]] <- as.formula("y_var ~ s(lat,lon,elev_1)", env=.GlobalEnv)
+  list_formulas[[6]] <- as.formula("y_var ~ s(lat,lon) + s(elev_1) + s(N_w,E_w) + s(LST)", env=.GlobalEnv)
+  list_formulas[[7]] <- as.formula("y_var ~ s(lat,lon) + s(elev_1) + s(N_w,E_w) + s(LST) + s(LC2)", env=.GlobalEnv)
+  list_formulas[[8]] <- as.formula("y_var ~ s(lat,lon) + s(elev_1) + s(N_w,E_w) + s(LST) + s(LC6)", env=.GlobalEnv)
+  list_formulas[[9]] <- as.formula("y_var ~ s(lat,lon) + s(elev_1) + s(N_w,E_w) + s(LST) + s(DISTOC)", env=.GlobalEnv)
+  lst_avg<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_09","mm_10","mm_11","mm_12")  
+  
+  data_month<-dst[dst$month==j,] #Subsetting dataset for the relevant month of the date being processed
+  LST_name<-lst_avg[j] # name of LST month to be matched
+  data_month$LST<-data_month[[LST_name]]
+  
+  #LST bias to model...
+  data_month$LSTD_bias<-data_month$LST-data_month$TMax
+  data_month$y_var<-data_month$LSTD_bias #Adding bias as the variable modeled
+  mod_list<-fit_models(list_formulas,data_month) #only gam at this stage
+  cname<-paste("mod",1:length(mod_list),sep="")
+  names(mod_list)<-cname
+  #Adding layer LST to the raster stack  
+  pos<-match("elev",layerNames(s_raster))
+  layerNames(s_raster)[pos]<-"elev_1"
+  
+  pos<-match("LST",names(s_raster)) #Find the position of the layer with name "LST", if not present pos=NA
+  s_raster<-dropLayer(s_raster,pos)      # If it exists drop layer
+  LST<-subset(s_raster,LST_name)
+  names(LST)<-"LST"
+  #Screen for extreme values": this needs more thought, min and max val vary with regions
+  #min_val<-(-15+273.16) #if values less than -15C then screen out (note the Kelvin units that will need to be changed later in all datasets)
+  #r1[r1 < (min_val)]<-NA
+  s_raster<-addLayer(s_raster,LST)            #Adding current month
+  
+  #Now generate file names for the predictions...
+  list_out_filename<-vector("list",length(in_models))
+    
+  for (k in 1:length(list_out_filename)){
+    data_name<-paste("bias_LST_month_",j,"_mod_",k,"_",prop_month,
+                     "_",run_samp,sep="")
+    raster_name<-paste("fusion_",data_name,out_prefix,".tif", sep="")
+    list_out_filename[[k]]<-raster_name
+  }
+
+  #now predict values for raster image...
+  rast_list<-predict_raster_model(mod_list,s_raster,out_filename)
+  rast_list<-rast_list[!sapply(rast_list,is.null)] #remove NULL elements in list
+ 
+  mod_rast<-stack(rast_list)  
+  rast_clim_list<-vector("list",nlayers(mod_rast))
+  for (k in 1:nlayers(mod_rast)){
+    clim_fus_rast<-LST-subset(mod_rast,k)
+    data_name<-paste("clim_LST_month_",j,"_mod_",k,"_",prop_month,
+                     "_",run_samp,sep="")
+    raster_name<-paste("fusion_",data_name,out_prefix,".tif", sep="")
+    rast_clim_list[[k]]<-raster_name
+    writeRaster(clim_fus_rast, filename=raster_name,overwrite=TRUE)  #Wri
+  }
+  clim_obj<-list(rast_list,rast_clim_list,data_month,mod_list,list_formulas)
+  names(clim_obj)<-c("bias","clim","data_month","mod","formulas")
+  return(clim_obj)
+}
+
+## Run function for kriging...?
+
+
 runGAMFusion <- function(i) {            # loop over dates
   
+  #Function used in the script
+  
+  lookup<-function(r,lat,lon) {
+    #This functions extracts values in a projected raster
+    #given latitude and longitude vector locations
+    #Output: matrix with values
+    xy<-project(cbind(lon,lat),proj_str);
+    cidx<-cellFromXY(r,xy);
+    return(r[cidx])
+  }
+  
+
   date<-strptime(sampling_dat$date[i], "%Y%m%d")   # interpolation date being processed
   month<-strftime(date, "%m")          # current month of the date being processed
   LST_month<-paste("mm_",month,sep="") # name of LST month to be matched
@@ -62,11 +198,7 @@ runGAMFusion <- function(i) {            # loop over dates
   #sta_lola=modst[,c("lon","lat")] #Extracting locations of stations for the current month..
   
   #proj_str="+proj=lcc +lat_1=43 +lat_2=45.5 +lat_0=41.75 +lon_0=-120.5 +x_0=400000 +y_0=0 +ellps=GRS80 +units=m +no_defs";
-  lookup<-function(r,lat,lon) {
-    xy<-project(cbind(lon,lat),proj_str);
-    cidx<-cellFromXY(r,xy);
-    return(r[cidx])
-  }
+
   #sta_tmax_from_lst=lookup(themolst,sta_lola$lat,sta_lola$lon) #Extracted values of LST for the stations
   sta_tmax_from_lst<-modst$LST
   #########
@@ -74,7 +206,6 @@ runGAMFusion <- function(i) {            # loop over dates
   #########
   
   sta_bias=sta_tmax_from_lst-modst$TMax; #That is the difference between the monthly LST mean and monthly station mean
-  #Added by Benoit
   modst$LSTD_bias<-sta_bias  #Adding bias to data frame modst containning the monthly average for 10 years
   
   #bias_xy=project(as.matrix(sta_lola),proj_str)
@@ -137,9 +268,6 @@ runGAMFusion <- function(i) {            # loop over dates
   ########
   # STEP 5 - interpolate bias
   ########
-  
-  # ?? include covariates like elev, distance to coast, cloud frequency, tree heig
-  #fitbias<-Tps(bias_xy,sta_bias) #use TPS or krige
   
   #Adding options to use only training stations : 07/11/2012
   #bias_xy=project(as.matrix(sta_lola),proj_str)
@@ -298,49 +426,7 @@ runGAMFusion <- function(i) {            # loop over dates
   list_formulas[[8]] <- as.formula("y_var ~ s(lat,lon) + s(elev_1) + s(N_w,E_w) + s(LST) + s(LC6)", env=.GlobalEnv)
   list_formulas[[9]] <- as.formula("y_var ~ s(lat,lon) + s(elev_1) + s(N_w,E_w) + s(LST) + s(DISTOC)", env=.GlobalEnv)
   
-  #list_formulas[[1]] <- as.formula("y_var ~ s(ELEV_SRTM)", env=.GlobalEnv)
-  #list_formulas[[2]] <- as.formula("y_var ~ s(lat,lon)", env=.GlobalEnv)
-  #list_formulas[[3]] <- as.formula("y_var~ s(lat,lon,ELEV_SRTM)", env=.GlobalEnv)
-  #list_formulas[[4]] <- as.formula("y_var~ s(lat) + s (lon) + s (ELEV_SRTM) + s(DISTOC)", env=.GlobalEnv)
-  #list_formulas[[5]] <- as.formula("y_var~ s(lat,lon,ELEV_SRTM) + s(Northness) + s (Eastness) + s(DISTOC)", env=.GlobalEnv)
-  #list_formulas[[6]] <- as.formula("y_var~ s(lat,lon) +s(ELEV_SRTM) + s(Northness,Eastness) + s(DISTOC)", env=.GlobalEnv)
-  
-  if (bias_prediction==1){
-    #mod1<- try(gam(formula1, data=data_month))
-    #mod2<- try(gam(formula2, data=data_month)) #modified nesting....from 3 to 2
-    #mod3<- try(gam(formula3, data=data_month))
-    #mod4<- try(gam(formula4, data=data_month))
-    #mod5<- try(gam(formula5, data=data_month))
-    #mod6<- try(gam(formula6, data=data_month))
-    #mod7<- try(gam(formula7, data=data_month))
-    #mod8<- try(gam(formula8, data=data_month)) 
-    
-    for (j in 1:nmodels){
-      formula<-list_formulas[[j]]
-      mod<- try(gam(formula, data=data_month))
-      model_name<-paste("mod",j,sep="")
-      assign(model_name,mod) 
-    }
-    
-  } else if (bias_prediction==0){      #Use daily data for direct prediction using GAM
-    
-    #mod1<- try(gam(formula1, data=data_s))
-    #mod2<- try(gam(formula2, data=data_s)) #modified nesting....from 3 to 2
-    #mod3<- try(gam(formula3, data=data_s))
-    #mod4<- try(gam(formula4, data=data_s))
-    #mod5<- try(gam(formula5, data=data_s))
-    #mod6<- try(gam(formula6, data=data_s))
-    #mod7<- try(gam(formula7, data=data_s))
-    #mod8<- try(gam(formula8, data=data_s))
-    
-    for (j in 1:nmodels){
-      formula<-list_formulas[[j]]
-      mod<- try(gam(formula, data=data_s))
-      model_name<-paste("mod",j,sep="")
-      assign(model_name,mod) 
-    }
-    
-  }
+  mod_list<-fit_models(list_formulas,data_month) #only gam at this stage
 
   #Added
   #tmax_predicted=themolst+daily_delta_rast-bias_rast #Final surface?? but daily_rst
@@ -399,15 +485,16 @@ runGAMFusion <- function(i) {            # loop over dates
   mod_obj<-vector("list",nmodels+2)  #This will contain the model objects fitting: 10/30
   mod_obj[[nmodels+1]]<-mod_kr_month  #Storing climatology object
   mod_obj[[nmodels+2]]<-mod_kr_day  #Storing delta object
+  pred_sgdf<-as(raster_pred,"SpatialGridDataFrame") #Conversion to spatial grid data frame
   
   for (j in 1:nmodels){
     
     ##Model assessment: specific diagnostic/metrics for GAM
     
     name<-paste("mod",j,sep="")  #modj is the name of The "j" model (mod1 if j=1) 
-    mod<-get(name)               #accessing GAM model ojbect "j"
+    #mod<-get(name)               #accessing GAM model ojbect "j"
+    mod<-mod_list[[j]]
     mod_obj[[j]]<-mod  #storing current model object
-    
     #If mod "j" is not a model object
     if (inherits(mod,"try-error")) {
       results_AIC[1]<- sampling_dat$date[i]  #storing the interpolation dates in the first column
@@ -524,18 +611,7 @@ runGAMFusion <- function(i) {            # loop over dates
           writeRaster(raster_pred, filename=raster_name,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
           
         }
-        
-        if (bias_prediction==0){
-          data_name<-paste("predicted_mod",j,"_",sampling_dat$date[i],"_",sampling_dat$prop[i],
-                           "_",sampling_dat$run_samp[i],sep="")
-          raster_name<-paste("GAM_",data_name,out_prefix,".rst", sep="")
-          writeRaster(raster_pred, filename=raster_name,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
-          #writeRaster(r2, filename=raster_name,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
-          
-        }
-        
-        
-        pred_sgdf<-as(raster_pred,"SpatialGridDataFrame") #Conversion to spatial grid data frame
+               
         #rpred_val_s <- overlay(raster_pred,data_s)             #This overlays the kriged surface tmax and the location of weather stations
         
         rpred_val_s <- overlay(pred_sgdf,data_s)             #This overlays the interpolated surface tmax and the location of weather stations
