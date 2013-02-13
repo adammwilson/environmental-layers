@@ -50,10 +50,10 @@ infile4<-"srtm_1km.tif"  #this is the global file: replace later with the input 
 infile5<-"Simard_Pinto_3DGlobalVeg_JGR.tif"              #Canopy height
 list_tiles_modis = c('h11v08','h11v07','h12v07','h12v08','h10v07','h10v08') #tile for Venezuel and surrounding area
 infile_reg_outline=""  #input region outline defined by polygon
-CRS_interp<-"+proj=lcc +lat_1=43 +lat_2=45.5 +lat_0=41.75 +lon_0=-120.5 +x_0=400000 +y_0=0 +ellps=GRS80 +units=m +no_defs";
+CRS_interp<-"+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs";
 CRS_locs_WGS84<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0") #Station coords WGS84
 out_region_name<-"_venezuela_region"
-out_suffix<-"_VE_01292013"
+out_suffix<-"_VE_02082013"
 ref_rast_name<-""  #local raster name defining resolution, exent, local projection--. set on the fly??
                    #for the processing tile/region? This is a group fo six tiles for now.
 
@@ -204,6 +204,10 @@ ref_rast<-raster(mean_m_list[[1]])
 #"+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs" ??
 #reassign proj from modis tile to raster? there is a 10m diff in semi-axes...(a and b)
 
+#Screen LST for extreme values?
+#min_val<-(-15+273.16) #if values less than -15C then screen out (note the Kelvin units that will need to be changed later in all datasets)
+#LST[LST < (min_val)]<-NA
+
 
 #########################################
 ##2) Crop and reproject Canopy height data
@@ -275,14 +279,16 @@ for (i in 1:length(lc_list)){
   lc_reg_list[[i]]<-file.path(out_path,raster_name)
 }
 setwd(out_path)
-lc_reg_list<-mixedsort(list.files(pattern="reg_con.*.tif"))
+lc_reg_list<-mixedsort(list.files(pattern="^reg_con.*.tif"))
 lc_reg_s<-stack(lc_reg_list)
 #lc_reg_s<-as.character(lc_reg_list)
 #Now combine forest classes...in LC1 forest, LC2, LC3, LC4 and LC6-urban...??
 
 #create a local mask for the tile/processing region
 
-LC12<-raster(paste("reg_con_1km_class_12_",out_suffix,".tif",sep="")) #this is open water
+#LC12<-raster(paste("reg_con_1km_class_12_",out_suffix,".tif",sep="")) #this is open water
+LC12<-raster(lc_reg_s,layer=nlayers(lc_reg_s)) #this is open water
+
 LC_mask<-LC12
 LC_mask[LC_mask==100]<-NA
 LC_mask <- LC_mask > 100
@@ -339,14 +345,15 @@ lst_names<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm
              "nobs_09","nobs_10","nobs_11","nobs_12")
 names(lst_s)<-lst_names
 s_raster<-addLayer(s_raster, lst_s)
-s_raster<-mask(s_raster,LC_mask,filename="test.tif")
 
 covar_names<-c(rnames,lc_names,lst_names)
 names(s_raster)<-covar_names
 #Write out stack of number of change 
 data_name<-paste("covariates_",out_region_name,"_",sep="")
 raster_name<-paste(data_name,out_suffix,".tif", sep="")
-writeRaster(s_raster, filename=raster_name,NAflag=-999,bylayer=FALSE,bandorder="BSQ",overwrite=TRUE)  #Writing the data in a raster file format...
+#writeRaster(s_raster, filename=raster_name,NAflag=-999,bylayer=FALSE,bandorder="BSQ",overwrite=TRUE)  #Writing the data in a raster file format...
+s_raster<-mask(s_raster,LC_mask,filename=raster_name,
+               overwrite=TRUE,NAflag=-999,bylayer=FALSE,bandorder="BSQ")
 #using bil format more efficient??
 
 #######################################################
