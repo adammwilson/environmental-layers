@@ -56,14 +56,17 @@ print(table(fdly$fyear))
 print(table(fdly$fmonth))
 print(table(fdly$fvar))
 
+## Identify which files failed test
+fdly$drop=is.na(fdly$npar)|fdly$fvar!=finalvars
+
 ## delete files that fail check?
-delete=T
+delete=T  
 if(delete) {
-  fdly$drop=is.na(fdly$npar)|fdly$fvar!=finalvars
   print(paste(sum(fdly$drop),"files will be deleted"))
   file.remove(as.character(fdly$path[fdly$drop]))
-  fdly=fdly[!fdly$drop,]
 }
+## remove dropped files from list
+fdly=fdly[!fdly$drop,]
 
 #################################################################################
 ## Combine the year-by-year files into a single daily file in the summary directory (for archiving)
