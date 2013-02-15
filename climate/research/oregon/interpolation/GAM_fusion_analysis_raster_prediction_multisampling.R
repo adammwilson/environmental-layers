@@ -8,9 +8,10 @@
 #2)Constant sampling: use the same sample over the runs
 #3)over dates: run over for example 365 dates without mulitsampling
 #4)use seed number: use seed if random samples must be repeatable
-#5)GAM fusion: possibilty of running GAM+FUSION or GAM separately 
+#5)GAM fusion: possibilty of running GAM+FUSION and other options added
+#The interpolation is done first at the monthly time scale then delta surfaces are added.
 #AUTHOR: Benoit Parmentier                                                                        
-#DATE: 02/08/2013                                                                                 
+#DATE: 02/13/2013                                                                                 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363--                                   
 ###################################################################################################
 
@@ -27,6 +28,7 @@ library(rasterVis)
 library(parallel)                            # Urbanek S. and Ripley B., package for multi cores & parralel processing
 library(reshape)
 library(plotrix)
+library(maptools)
 ### Parameters and argument
 
 infile2<-"list_365_dates_04212012.txt"
@@ -44,7 +46,7 @@ nmodels<-9   #number of models running
 y_var_name<-"dailyTmax"
 predval<-1
 seed_number<- 100  #if seed zero then no seed?                                                                 #Seed number for random sampling
-out_prefix<-"_10d_GAM_fus5_all_lstd_02082013"                #User defined output prefix
+out_prefix<-"_365d_GAM_fus5_all_lstd_02132013"                #User defined output prefix
 
 bias_val<-0            #if value 1 then training data is used in the bias surface rather than the all monthly stations
 bias_prediction<-1     #if value 1 then use GAM for the BIAS prediction otherwise GAM direct repdiction for y_var (daily tmax)
@@ -57,8 +59,9 @@ constant<-0             #if value 1 then use the same samples as date one for th
 #CRS_interp<-"+proj=lcc +lat_1=43 +lat_2=45.5 +lat_0=41.75 +lon_0=-120.5 +x_0=400000 +y_0=0 +ellps=GRS80 +units=m +no_defs";
 CRS_locs_WGS84<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0") #Station coords WGS84
 
-source(file.path(script_path,"GAM_fusion_function_multisampling_02082013.R"))
-
+source(file.path(script_path,"GAM_fusion_function_multisampling_02132013.R"))
+source(file.path(script_path,"GAM_fusion_function_multisampling_validation_metrics_02132013.R"))
+                              
 ###################### START OF THE SCRIPT ########################
 
 ###Reading the daily station data and setting up for models' comparison
@@ -114,23 +117,6 @@ names(s_raster)<-covar_names               #Assigning names to the raster layers
 
 #s_sgdf<-as(s_raster,"SpatialGridDataFrame") #Conversion to spatial grid data frame
 
-######  Preparing tables for model assessment: specific diagnostic/metrics
-
-#Model assessment: specific diagnostics/metrics
-results_AIC<- matrix(1,1,nmodels+3)  
-results_GCV<- matrix(1,1,nmodels+3)
-results_DEV<- matrix(1,1,nmodels+3)
-#results_RMSE_f<- matrix(1,length(models)+3)
-
-#Model assessment: general diagnostic/metrics 
-results_RMSE <- matrix(1,1,nmodels+4)
-results_MAE <- matrix(1,1,nmodels+4)
-results_ME <- matrix(1,1,nmodels+4)       #There are 8+1 models
-results_R2 <- matrix(1,1,nmodels+4)       #Coef. of determination for the validation dataset
-
-results_RMSE_f<- matrix(1,1,nmodels+4)    #RMSE fit, RMSE for the training dataset
-results_MAE_f <- matrix(1,1,nmodels+4)
-
 ######### Preparing daily and monthly values for training and testing
                   
 #Screening for daily bad values: value is tmax in this case
@@ -181,6 +167,7 @@ sampling_dat$date<- as.character(sampling_dat[,1])
 #ghcn.subsets <-lapply(dates, function(d) subset(ghcn, date==d)) #this creates a list of 10 or 365 subsets dataset based on dates
 ghcn.subsets <-lapply(as.character(sampling_dat$date), function(d) subset(ghcn, date==d)) #this creates a list of 10 or 365 subsets dataset based on dates
 
+#Make this a function??
 ## adding choice of constant sample 
 if (seed_number>0) {
   set.seed(seed_number)                        #Using a seed number allow results based on random number to be compared...
@@ -221,64 +208,90 @@ if (constant==1){
 
 ######## Prediction for the range of dates and sampling data
 
-#gam_fus_mod<-mclapply(1:length(dates), runGAMFusion,mc.preschedule=FALSE,mc.cores = 8) #This is the end bracket from mclapply(...) statement
-#gam_fus_mod_s<-mclapply(1:1, runGAMFusion,mc.preschedule=FALSE,mc.cores = 1) #This is the end bracket from mclapply(...) statement
-gam_fus_mod_s<-mclapply(1:length(ghcn.subsets), runGAMFusion,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
-#gam_fus_mod2<-mclapply(4:4, runGAMFusion,mc.preschedule=FALSE,mc.cores = 1) #This is the end bracket from mclapply(...) statement
+#First predict at the monthly time scale: climatology
 
-save(gam_fus_mod_s,file= paste(path,"/","results2_fusion_Assessment_measure_all",out_prefix,".RData",sep=""))
+gamclim_fus_mod<-mclapply(1:12, runClim_KGFusion,mc.preschedule=FALSE,mc.cores = 4) #This is the end bracket from mclapply(...) statement
 
-## Plotting and saving diagnostic measures
+save(gamclim_fus_mod,file= paste("gamclim_fus_mod",out_prefix,".RData",sep=""))
 
-tb<-gam_fus_mod_s[[1]][[3]][0,]  #empty data frame with metric table structure that can be used in rbinding...
-tb_tmp<-gam_fus_mod_s #copy
+#now get list of raster clim layers
 
-for (i in 1:length(tb_tmp)){
-  tmp<-tb_tmp[[i]][[3]]
-  tb<-rbind(tb,tmp)
-}
-rm(tb_tmp)
-
-for(i in 4:ncol(tb)){            # start of the for loop #1
-  tb[,i]<-as.numeric(as.character(tb[,i]))  
+list_tmp<-vector("list",length(gamclim_fus_mod))
+for (i in 1:length(gamclim_fus_mod)){
+  tmp<-gamclim_fus_mod[[i]]$clim
+  list_tmp[[i]]<-tmp
 }
 
-metrics<-as.character(unique(tb$metric))            #Name of accuracy metrics (RMSE,MAE etc.)
-tb_metric_list<-vector("list",length(metrics))
+#put together list of clim models per month...
+rast_clim_yearlist<-list_tmp
+#Second predict at the daily time scale: delta
 
-for(i in 1:length(metrics)){            # Reorganizing information in terms of metrics 
-  metric_name<-paste("tb_",metrics[i],sep="")
-  tb_metric<-subset(tb, metric==metrics[i])
-  tb_metric<-cbind(tb_metric,sampling_dat[,2:3])
-  assign(metric_name,tb_metric)
-  tb_metric_list[[i]]<-tb_metric
+#gam_fus_mod<-mclapply(1:1, runGAMFusion,mc.preschedule=FALSE,mc.cores = 1) #This is the end bracket from mclapply(...) statement
+gam_fus_mod<-mclapply(1:length(ghcn.subsets), runGAMFusion,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
+
+save(gam_fus_mod,file= paste("gam_fus_mod",out_prefix,".RData",sep=""))
+
+#Add accuracy_metrics section/function
+#now get list of raster daily prediction layers
+#gam_fus_mod_tmp<-gam_fus_mod
+#this should be change later once correction has been made
+for (i in 1:length(gam_fus_mod)){
+  obj_names<-c(y_var_name,"clim","delta","data_s","sampling_dat","data_v",
+               "mod_kr_day")
+  names(gam_fus_mod[[i]])<-obj_names
+  names(gam_fus_mod[[i]][[y_var_name]])<-c("mod1","mod2","mod3","mod4","mod_kr")
 }
 
-tb_diagnostic<-do.call(rbind,tb_metric_list)
-tb_diagnostic[["prop"]]<-as.factor(tb_diagnostic[["prop"]])
+##
+list_tmp<-vector("list",length(gam_fus_mod))
+for (i in 1:length(gam_fus_mod)){
+  tmp<-gam_fus_mod[[i]][[y_var_name]]  #y_var_name is the variable predicted (tmax or tmin)
+  list_tmp[[i]]<-tmp
+}
+rast_day_yearlist<-list_tmp
 
-mod_pat<-glob2rx("mod*")   
-mod_var<-grep(mod_pat,names(tb_diagnostic),value=TRUE) # using grep with "value" extracts the matching names         
+#calculate_accuary_metrics<-function(i)
+gam_fus_validation_mod<-mclapply(1:length(gam_fus_mod), calculate_accuracy_metrics,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
+#gam_fus_validation_mod<-mclapply(1:1, calculate_accuracy_metrics,mc.preschedule=FALSE,mc.cores = 1) #This is the end bracket from mclapply(...) statement
 
+save(gam_fus_validation_mod,file= paste("gam_fus_validation_mod",out_prefix,".RData",sep=""))
+
+####This part concerns validation assessment and must be moved later...
+## make this a function??
+list_tmp<-vector("list",length(gam_fus_validation_mod))
+for (i in 1:length(gam_fus_validation_mod)){
+  tmp<-gam_fus_validation_mod[[i]]$metrics_v
+  list_tmp[[i]]<-tmp
+}
+tb_diagnostic<-do.call(rbind,list_tmp) #long rownames
+rownames(tb_diagnostic)<-NULL #remove row names
+
+mod_names<-unique(tb_diagnostic$pred_mod) #models that have accuracy metrics
+
+#now boxplots and mean per models
 t<-melt(tb_diagnostic,
-        measure=mod_var, 
-        id=c("dates","metric","prop"),
+        #measure=mod_var, 
+        id=c("date","pred_mod","prop"),
         na.rm=F)
-avg_tb<-cast(t,metric+prop~variable,mean)
-median_tb<-cast(t,metric+prop~variable,median)
-avg_tb[["prop"]]<-as.numeric(as.character(avg_tb[["prop"]]))
-avg_RMSE<-subset(avg_tb,metric=="RMSE")
+avg_tb<-cast(t,pred_mod~variable,mean)
+tb<-tb_diagnostic
+tb_mod_list<-vector("list",length(mod_names))
+for(i in 1:length(mod_names)){            # Reorganizing information in terms of metrics 
+  mod_name_tb<-paste("tb_",mod_names[i],sep="")
+  tb_mod<-subset(tb, pred_mod==mod_names[i])
+  assign(mod_name_tb,tb_mod)
+  tb_mod_list[[i]]<-tb_mod
+}
+names(tb_mod_list)<-mod_names
 
-sampling_obj<-list(sampling_dat=sampling_dat,training=sampling, training_id=sampling_station_id, tb=tb_diagnostic)
+mod_metrics<-do.call(cbind,tb_mod_list)
+mod_pat<-glob2rx("*.rmse")   
+mod_var<-grep(mod_pat,names(mod_metrics),value=TRUE) # using grep with "value" extracts the matching names         
 
-write.table(avg_tb, file= paste(path,"/","results2_fusion_Assessment_measure_avg_",out_prefix,".txt",sep=""), sep=",")
-write.table(median_tb, file= paste(path,"/","results2_fusion_Assessment_measure_median_",out_prefix,".txt",sep=""), sep=",")
-write.table(tb_diagnostic, file= paste(path,"/","results2_fusion_Assessment_measure",out_prefix,".txt",sep=""), sep=",")
-write.table(tb, file= paste(path,"/","results2_fusion_Assessment_measure_all",out_prefix,".txt",sep=""), sep=",")
+boxplot(mod_metrics[[mod_var]])
+test<-mod_metrics[mod_var]
+boxplot(test,outline=FALSE,horizontal=FALSE,cex=0.5)
 
-save(sampling_obj, file= paste(path,"/","results2_fusion_sampling_obj",out_prefix,".RData",sep=""))
-#save(gam_fus_mod_s,file= paste(path,"/","results2_fusion_Assessment_measure_all",out_prefix,".RData",sep=""))
-gam_fus_mod_obj<-list(gam_fus_mod=gam_fus_mod_s,sampling_obj=sampling_obj)
-save(gam_fus_mod_obj,file= paste(path,"/","results_mod_obj_",out_prefix,".RData",sep=""))
+####End of part to be changed...
 
-#### END OF SCRIPT
+#### END OF SCRIPT #######
