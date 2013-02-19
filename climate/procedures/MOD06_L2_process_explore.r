@@ -1,6 +1,6 @@
 ###################################################################################
 ###  R code to aquire and process MOD06_L2 cloud data from the MODIS platform
-
+## minor modification of the MOD06_L2_process.r script to explore data locally
 
 # Redirect all warnings to stderr()
 #options(warn = -1)
@@ -9,30 +9,13 @@
 #warning("2) warning()")
 
 
-## import commandline arguments
-library(getopt)
-## get options
-opta <- getopt(matrix(c(
-                        'date', 'd', 1, 'character',
-                        'tile', 't', 1, 'character',
-                        'verbose','v',1,'logical',
-                        'help', 'h', 0, 'logical'
-                        ), ncol=4, byrow=TRUE))
-if ( !is.null(opta$help) )
-  {
-       prg <- commandArgs()[1];
-          cat(paste("Usage: ", prg,  " --date | -d <file> :: The date to process\n", sep=""));
-          q(status=1);
-     }
 
-
-date=opta$date  #date="20030301"
-tile=opta$tile #tile="h11v08"
-verbose=opta$verbose  #print out extensive information for debugging?
+date="20030301"
+tile="h11v08"
 outdir=paste("daily/",tile,"/",sep="")  #directory for separate daily files
 
 ## location of MOD06 files
-datadir="/nobackupp4/datapool/modis/MOD06_L2.005/"
+datadir="~/acrobates/projects/interp/data/modis/Venezuela/MOD06"
 
 ### print some status messages
 print(paste("Processing tile",tile," for date",date))
@@ -45,26 +28,23 @@ require(rgdal)
 require(spgrass6)
 require(RSQLite)
 
-## path to swath database
-db="/nobackupp4/pvotava/DB/export/swath_geo.sql.sqlite3.db"
-## path to NCO
-ncopath="/nasa/sles11/nco/4.0.8/gcc/mpt/bin/"
-
 ## specify working directory
-setwd("/nobackupp1/awilso10/mod06")
-
+setwd(datadir)
 ## load tile information
-load(file="modlandTiles.Rdata")
+load(file="../../../../modlandTiles.Rdata")
 
 ## path to MOD11A1 file for this tile to align grid/extent
 gridfile=list.files("/nobackupp4/datapool/modis/MOD11A1.005/2006.01.27",pattern=paste(tile,".*[.]hdf$",sep=""),recursive=T,full=T)[1]
 td=readGDAL(paste("HDF4_EOS:EOS_GRID:\"",gridfile,"\":MODIS_Grid_Daily_1km_LST:Night_view_angl",sep=""))
+td=raster("~/acrobates/projects/interp/data/modis/mod06/summary/MOD06_h11v08.nc",varname="CER")
 projection(td)="+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs +datum=WGS84 +ellps=WGS84 "
 
 ## vars to process
 vars=as.data.frame(matrix(c(
   "Cloud_Effective_Radius",              "CER",
+  "Cloud_Effective_Radius_1621",         "CER1621",
   "Cloud_Effective_Radius_Uncertainty",  "CERU",
+  "Cloud_Effective_Radius_Uncertainty_1621",  "CERU1621",
   "Cloud_Optical_Thickness",             "COT",
   "Cloud_Optical_Thickness_Uncertainty", "COTU",
   "Cloud_Water_Path",                    "CWP",
@@ -73,7 +53,7 @@ vars=as.data.frame(matrix(c(
   "Cloud_Multi_Layer_Flag",              "CMLF",
   "Cloud_Mask_1km",                      "CM1",
   "Quality_Assurance_1km",               "QA"),
-  byrow=T,ncol=2,dimnames=list(1:10,c("variable","varid"))),stringsAsFactors=F)
+  byrow=T,ncol=2,dimnames=list(1:12,c("variable","varid"))),stringsAsFactors=F)
 
 ## vector of variables expected to be in final netcdf file.  If these are not present, the file will be deleted at the end.
 finalvars=c("CER","COT","CLD")
@@ -118,11 +98,12 @@ END
   ## now run the swath2grid tool
   ## write the gridded file and save the log including the pid of the parent process
 #  log=system(paste("( /nobackupp1/awilso10/software/heg/bin/swtif -p ",tempdir(),"/",basename(file),"_MODparms.txt -d ; echo $$)",sep=""),intern=T)
-  log=system(paste("( /nobackupp1/awilso10/software/heg/bin/swtif -p ",tempdir(),"/",basename(file),"_MODparms.txt -d ; echo $$)",sep=""),intern=T,ignore.stderr=T)
+  log=system(paste("(sudo MRTDATADIR=\"/usr/local/heg/data\" ",
+        "PGSHOME=/usr/local/heg/TOOLKIT_MTD PWD=/home/adamw /usr/local/heg/bin/swtif -p ",tempdir(),"/",basename(file),"_MODparms.txt)",sep=""),intern=T,ignore.stderr=F)
   ## clean up temporary files in working directory
-  file.remove(list.files(pattern=
-              paste("filetable.temp_",
-              as.numeric(log[length(log)]):(as.numeric(log[length(log)])+3),sep="",collapse="|")))  #Look for files with PID within 3 of parent process
+#  file.remove(list.files(pattern=
+#              paste("filetable.temp_",
+#              as.numeric(log[length(log)]):(as.numeric(log[length(log)])+3),sep="",collapse="|")))  #Look for files with PID within 3 of parent process
   if(verbose) print(log)
   print(paste("Finished ", file))
 }
@@ -152,14 +133,16 @@ loadcloud<-function(date,swaths,ncfile){
   
   ## set up temporary grass instance for this PID
   if(verbose) print(paste("Set up temporary grass session in",tf))
-  initGRASS(gisBase="/u/armichae/pr/grass-6.4.2/",gisDbase=tf,SG=td,override=T,location="mod06",mapset="PERMANENT",home=tf,pid=Sys.getpid())
+#  initGRASS(gisBase="/u/armichae/pr/grass-6.4.2/",gisDbase=tf,SG=td,override=T,location="mod06",mapset="PERMANENT",home=tf,pid=Sys.getpid())
+  initGRASS(gisBase="/usr/lib/grass64/",gisDbase=tf,SG=as(td,"SpatialGridDataFrame"),override=T,location="mod06",mapset="PERMANENT",home=tf,pid=Sys.getpid())
+
   system(paste("g.proj -c proj4=\"",projection(td),"\"",sep=""),ignore.stdout=T,ignore.stderr=T)
 
   ## Define region by importing one MOD11A1 raster.
   print("Import one MOD11A1 raster to define grid")
-  execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",gridfile,"\":MODIS_Grid_Daily_1km_LST:Night_view_angl",sep=""),
-            output="modisgrid",flags=c("quiet","overwrite","o"))
-  system("g.region rast=modisgrid save=roi --overwrite",ignore.stdout=T,ignore.stderr=T)
+  execGRASS("r.in.gdal",input="NETCDF:\"/home/adamw/acrobates/projects/interp/data/modis/mod06/summary/MOD06_h11v08.nc\":CER",output="modisgrid",flags=c("quiet","overwrite","o"))
+
+  system("g.region rast=modisgrid.1 save=roi --overwrite",ignore.stdout=T,ignore.stderr=T)
 
   ## Identify which files to process
   tfs=basename(swaths)
@@ -177,6 +160,7 @@ loadcloud<-function(date,swaths,ncfile){
     system(paste("r.mapcalc <<EOF
                 CM_cloud_",i," =  ((CM1_",i," / 2^0) % 2) == 1  &&  ((CM1_",i," / 2^1) % 2^2) == 0 
                 CM_clear_",i," =  ((CM1_",i," / 2^0) % 2) == 1  &&  ((CM1_",i," / 2^1) % 2^2) >  2 
+                CM_uncertain_",i," =  ((CM1_",i," / 2^0) % 2) == 1  &&  ((CM1_",i," / 2^1) % 2^2) ==  1 
 EOF",sep=""))
     ## QA
      execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",file,"\":mod06:Quality_Assurance_1km_0",sep=""),
@@ -188,6 +172,7 @@ EOF",sep=""))
                  QA_COT3_",i,"=  ((QA_",i," / 2^3) % 2^2 )==0
                  QA_CER_",i,"=   ((QA_",i," / 2^5) % 2^1 )==1
                  QA_CER2_",i,"=  ((QA_",i," / 2^6) % 2^2 )>=2
+
 EOF",sep="")) 
 #                 QA_CWP_",i,"=   ((QA_",i," / 2^8) % 2^1 )==1
 #                 QA_CWP2_",i,"=  ((QA_",i," / 2^9) % 2^2 )==3
@@ -202,7 +187,15 @@ EOF",sep=""))
    system(paste("r.mapcalc \"COT_",i,"=if(QA_COT_",i,"&&QA_COT2_",i,"&&QA_COT3_",i,"&&COT_",i,">=0,COT_",i,"*0.009999999776482582,null())\"",sep=""))   
    ## set COT to 0 in clear-sky pixels
    system(paste("r.mapcalc \"COT2_",i,"=if(CM_clear_",i,"==0,COT_",i,",0)\"",sep=""))   
-   
+
+        execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",file,"\":mod06:Cloud_Effective_Radius_1621",sep=""),
+            output=paste("CER1621_",i,sep=""),
+            title="cloud_effective_radius",
+            flags=c("overwrite","o")) ; print("")
+   execGRASS("r.null",map=paste("CER1621_",i,sep=""),setnull="-9999")
+  ## keep only positive CER values where quality is 'useful' and '>= good' & scale to real units
+   system(paste("r.mapcalc \"CER1621_",i,"=if(QA_CER_",i,"&&QA_CER2_",i,"&&CER_",i,">=0,CER1621_",i,"*0.009999999776482582,null())\"",sep=""))   
+ 
    ## Effective radius ##
    execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",file,"\":mod06:Cloud_Effective_Radius",sep=""),
             output=paste("CER_",i,sep=""),
@@ -301,13 +294,18 @@ mod06<-function(date,tile){
   con=dbDisconnect(con)
   fs$id=substr(fs$id,7,19)
   if(verbose) print(paste("###############",nrow(fs)," swath IDs recieved from database"))
+
+  fs=data.frame(path=basename(list.files(datadir, recursive=T,pattern="hdf$",full=F)))
+  fs$id=substr(fs$path,8,26)
+  fs=fs[1:50,]
   
   ## find the swaths on disk (using datadir)
-  swaths=list.files(datadir,pattern=paste(fs$id,collapse="|"),recursive=T,full=T)
+  dateid="20011365"
+  swaths=list.files(datadir,recursive=T,pattern="hdf$",full=T)
 
   ## Run the gridding procedure
-  lapply(swaths,swath2grid,vars=vars,upleft=paste(tile_bb$lat_max,tile_bb$lon_min),lowright=paste(tile_bb$lat_min,tile_bb$lon_max))
-
+  lapply(swaths[1:10],swath2grid,vars=vars,upleft=paste(tile_bb$lat_max,tile_bb$lon_min),lowright=paste(tile_bb$lat_min,tile_bb$lon_max))
+swaths=list.files(tempdir(),pattern="hdf$")
   ## confirm at least one file for this date is present
     outfiles=paste(tempdir(),"/",basename(swaths),sep="")
     if(!any(file.exists(outfiles))) {
@@ -345,6 +343,49 @@ mod06(date,tile)
 #mclapply(notdone,mod06,tile,mc.cores=ncores) # use ncores/2 because system() commands can add second process for each spawned R
 #foreach(i=notdone[1:3],.packages=(.packages())) %dopar% mod06(i,tile)
 #foreach(i=1:20) %dopar% print(i)
+
+
+#######################################
+#######################################
+library(rasterVis)
+
+### explore %missing and landcover data
+lulc=raster("~/acrobatesroot/data/environ/global/landcover/MODIS/MCD12Q1_IGBP_2005_v51.tif")
+lulc=as.factor(tlulc)
+lulc_levels=c("Water","Evergreen Needleleaf forest","Evergreen Broadleaf forest","Deciduous Needleleaf forest","Deciduous Broadleaf forest","Mixed forest","Closed shrublands","Open shrublands","Woody savannas","Savannas","Grasslands","Permanent wetlands","Croplands","Urban and built-up","Cropland/Natural vegetation mosaic","Snow and ice","Barren or sparsely vegetated")
+levels(lulc)=list(data.frame(ID=0:16,levels=lulc_levels))
+
+tiles=c("h21v09","h09v04","h21v11","h31v11")
+
+tile=tiles[1]
+month=1
+#mod06summary<-function(tile,month=1){
+  mod06=brick(
+    subset(brick(paste("../../mod06/summary/MOD06_",tile,".nc",sep=""),varname="CER"),subset=month),
+    subset(brick(paste("../../mod06/summary/MOD06_",tile,".nc",sep=""),varname="CER_pmiss"),subset=month),
+    subset(brick(paste("../../mod06/summary/MOD06_",tile,".nc",sep=""),varname="CLD"),subset=month)
+    )
+  projection(mod06)=projection(lulc)
+  ## get land cover
+  ## align lulc with nc
+  tlulc=crop(lulc,mod06)
+  tlulc=resample(tlulc,mod06,method="ngb")
+  plot(tlulc)
+
+plot(mod06)
+plot(tlulc,add=T)
+  
+levelplot(mod06)
+lulcl=cbind(melt(as.matrix(nc)),melt(as.matrix(lulc))[,3])
+colnames(lulcl)=c("x","y","CER_Pmiss","LULC")
+lulcl$LULC=factor(lulcl$LULC,labels=lulc_levels)
+
+top4=names(sort(table(lulcl$LULC),dec=T)[1:4])
+tapply(lulcl$CER_Pmiss,lulcl$LULC,summary)
+bwplot(LULC~CER_Pmiss,data=lulcl[lulcl$LULC%in%top4,],horizontal=T,main="Missing data in MOD06_L2 for tile H11V08 (Venezuela)",xlab="% missing data across all January swaths 2000-2011",sub="Showing only 4 most common LULC classes in tile from MCD12Q1")
+
+
+levelplot(LULC~x*y,data=lulcl,auto.key=T)
 
 ## delete old files
 system("cleartemp")
