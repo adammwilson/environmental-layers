@@ -11,6 +11,14 @@
 
 ## import commandline arguments
 library(getopt)
+## load libraries
+require(reshape)
+require(geosphere)
+require(raster)
+require(rgdal)
+require(spgrass6)
+require(RSQLite)
+
 ## get options
 opta <- getopt(matrix(c(
                         'date', 'd', 1, 'character',
@@ -27,7 +35,7 @@ if ( !is.null(opta$help) )
 
 
 ## default date and tile to play with
-date="20030301"
+date="20030102"
 tile="h11v08"
 platform="pleiades" 
 verbose=T
@@ -57,16 +65,16 @@ if(platform="pleiades"){
 }
 
 if(platform="litoria"){  #if running on local server, use different paths
-  ## location of MOD06 files
-  datadir="/nobackupp4/datapool/modis/MOD06_L2.005/"
+  ## specify working directory
+  setwd("~/acrobates/projects/interp")
+  gisBase="/usr/lib/grass64"
+   ## location of MOD06 files
+  datadir="~/acrobates/projects/interp/data/modis/Venezuela/MOD06"
   ## path to some executables
-  ncopath="/nasa/sles11/nco/4.0.8/gcc/mpt/bin/"
+  ncopath=""
   swtifpath="sudo MRTDATADIR=\"/usr/local/heg/data\" PGSHOME=/usr/local/heg/TOOLKIT_MTD PWD=/home/adamw /usr/local/heg/bin/swtif"
   ## path to swath database
-  db="/nobackupp4/pvotava/DB/export/swath_geo.sql.sqlite3.db"
-  ## specify working directory
-  setwd("/nobackupp1/awilso10/mod06")
-  gisBase="/usr/lib/grass64"
+  db="/home/adamw/acrobates/projects/interp/data/modis/mod06/swath_geo.sql.sqlite3.db"
   ## get grid file
   td=raster(paste("~/acrobates/projects/interp/data/modis/mod06/summary/MOD06_",tile,".nc",sep=""),varname="CER")
   projection(td)="+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs +datum=WGS84 +ellps=WGS84 "
@@ -75,15 +83,6 @@ if(platform="litoria"){  #if running on local server, use different paths
 
 ### print some status messages
 if(verbose) print(paste("Processing tile",tile," for date",date))
-
-## load libraries
-require(reshape)
-require(geosphere)
-require(raster)
-require(rgdal)
-require(spgrass6)
-require(RSQLite)
-
 
 ## load tile information and get bounding box
 load(file="modlandTiles.Rdata")
@@ -207,27 +206,28 @@ if(!any(file.exists(outfiles))) {
   tf=paste(tempdir(),"/grass", Sys.getpid(),"/", sep="")  #temporar
   if(!file.exists(tf)) dir.create(tf)
   ## create output directory if needed
-  if(!file.exists(dirname(ncfile))) dir.create(dirname(ncfile))
+  if(!file.exists(dirname(ncfile))) dir.create(dirname(ncfile),recursive=T)
   
   ## set up temporary grass instance for this PID
   if(verbose) print(paste("Set up temporary grass session in",tf))
-  initGRASS(gisBase=gisBase,gisDbase=tf,SG=td,override=T,location="mod06",mapset="PERMANENT",home=tf,pid=Sys.getpid())
+  initGRASS(gisBase=gisBase,gisDbase=tf,SG=as(td,"SpatialGridDataFrame"),override=T,location="mod06",mapset="PERMANENT",home=tf,pid=Sys.getpid())
   system(paste("g.proj -c proj4=\"",projection(td),"\"",sep=""),ignore.stdout=T,ignore.stderr=T)
 
   ## Define region by importing one MOD11A1 raster.
   print("Import one MOD11A1 raster to define grid")
   if(platform=="pleiades") execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",gridfile,"\":MODIS_Grid_Daily_1km_LST:Night_view_angl",sep=""),
             output="modisgrid",flags=c("quiet","overwrite","o"))
-   if(platform=="litoria") execGRASS("r.in.gdal",input=paste("NETCDF:\"/home/adamw/acrobates/projects/interp/data/modis/mod06/summary/MOD06_",tile,".nc\":CER",sep=""),output="modisgrid",flags=c("quiet","overwrite","o"))
+   if(platform=="litoria") execGRASS("r.in.gdal",input=paste("NETCDF:\"/home/adamw/acrobates/projects/interp/data/modis/mod06/summary/MOD06_",tile,".nc\":CER",sep=""),output="modisgrid",flags=c("overwrite","o"))
   
-system("g.region rast=modisgrid save=roi --overwrite",ignore.stdout=T,ignore.stderr=T)
+system("g.region rast=modisgrid save=roi --overwrite",ignore.stdout=F,ignore.stderr=F)
+system("g.region rast=modisgrid.1 save=roi --overwrite",ignore.stdout=F,ignore.stderr=F)
 
 ## Identify which files to process
 tfs=basename(swaths)
 ## drop swaths that did not produce an output file (typically due to not overlapping the ROI)
 tfs=tfs[tfs%in%list.files(tempdir())]
 nfs=length(tfs)
-if(verbose) print(nfs,"swaths available for processing")
+if(verbose) print(paste(nfs,"swaths available for processing"))
 
 ## loop through scenes and process QA flags
   for(i in 1:nfs){
@@ -239,9 +239,12 @@ if(verbose) print(nfs,"swaths available for processing")
     system(paste("r.mapcalc <<EOF
                 CM_cloud_",i," =  ((CM1_",i," / 2^0) % 2) == 1  &&  ((CM1_",i," / 2^1) % 2^2) == 0 
                 CM_clear_",i," =  ((CM1_",i," / 2^0) % 2) == 1  &&  ((CM1_",i," / 2^1) % 2^2) >  2 
+                CM_path_",i," =   ((CM1_",i," / 2^6) % 2^2) 
+                CM_cloud2_",i," = ((CM1_",i," / 2^1) % 2^2) 
+
 EOF",sep=""))
 
-     ## QA
+    ## QA
      execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",file,"\":mod06:Quality_Assurance_1km_0",sep=""),
              output=paste("QA_",i,sep=""),flags=c("overwrite","o")) ; print("")
    ## QA_CER
@@ -263,8 +266,8 @@ EOF",sep=""))
    execGRASS("r.null",map=paste("COT_",i,sep=""),setnull="-9999")
    ## keep only positive COT values where quality is 'useful' and '>= good' & scale to real units
    system(paste("r.mapcalc \"COT_",i,"=if(QA_COT_",i,"&&QA_COT2_",i,"&&QA_COT3_",i,"&&COT_",i,">=0,COT_",i,",null())\"",sep=""))   
-   ## set COT to 0 in clear-sky pixels
-   system(paste("r.mapcalc \"COT2_",i,"=if(CM_clear_",i,"==0,COT_",i,",0)\"",sep=""))   
+   ## set null COT to 0 in clear-sky pixels
+   system(paste("r.mapcalc \"COT2_",i,"=if(isnull(COT_",i,")&&CM_clear_",i,"==1,0,COT_",i,")\"",sep=""))   
    
    ## Effective radius ##
    execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",file,"\":mod06:Cloud_Effective_Radius",sep=""),
@@ -274,15 +277,16 @@ EOF",sep=""))
    execGRASS("r.null",map=paste("CER_",i,sep=""),setnull="-9999")
    ## keep only positive CER values where quality is 'useful' and '>= good' & scale to real units
    system(paste("r.mapcalc \"CER_",i,"=if(QA_CER_",i,"&&QA_CER2_",i,"&&CER_",i,">=0,CER_",i,",null())\"",sep=""))   
-   ## set CER to 0 in clear-sky pixels
-   system(paste("r.mapcalc \"CER2_",i,"=if(CM_clear_",i,"==0,CER_",i,",0)\"",sep=""))   
+   ## set null CER to 0 in clear-sky pixels
+   system(paste("r.mapcalc \"CER2_",i,"=if(isnull(CER_",i,")&&CM_clear_",i,"==1,0,CER_",i,")\"",sep=""))   
 
    ## Cloud Water Path
 #   execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",file,"\":mod06:Cloud_Water_Path",sep=""),
 #            output=paste("CWP_",i,sep=""),title="cloud_water_path",
 #            flags=c("overwrite","o")) ; print("")
 #   execGRASS("r.null",map=paste("CWP_",i,sep=""),setnull="-9999")
-   ## keep only positive CER values where quality is 'useful' and 'very good' & scale to real units
+#   system(paste("r.mapcalc \"CWP_",i,"=if(CWP_",i,"<0,null(),CWP_",i,")\"",sep=""))   
+     ## keep only positive CER values where quality is 'useful' and 'very good' & scale to real units
 #   system(paste("r.mapcalc \"CWP_",i,"=if(QA_CWP_",i,"&&QA_CWP2_",i,"&&CWP_",i,">=0,CWP_",i,",null())\"",sep=""))   
    ## set CER to 0 in clear-sky pixels
 #   system(paste("r.mapcalc \"CWP2_",i,"=if(CM_clear_",i,"==0,CWP_",i,",0)\"",sep=""))   
@@ -292,19 +296,26 @@ EOF",sep=""))
 #### Now generate daily averages (or maximum in case of cloud flag)
   
   system(paste("r.mapcalc <<EOF
-         COT_denom=",paste("!isnull(COT2_",1:nfs,")",sep="",collapse="+"),"
-         COT_numer=",paste("if(isnull(COT2_",1:nfs,"),0,COT2_",1:nfs,")",sep="",collapse="+"),"
+         COT_numer=",paste("if(isnull(COT_",1:nfs,"),0,COT_",1:nfs,")",sep="",collapse="+"),"
+         COT_denom=",paste("!isnull(COT_",1:nfs,")",sep="",collapse="+"),"
          COT_daily=int(COT_numer/COT_denom)
-         CER_denom=",paste("!isnull(CER2_",1:nfs,")",sep="",collapse="+"),"
-         CER_numer=",paste("if(isnull(CER2_",1:nfs,"),0,CER2_",1:nfs,")",sep="",collapse="+"),"
+         COT2_numer=",paste("if(isnull(COT2_",1:nfs,"),0,COT2_",1:nfs,")",sep="",collapse="+"),"
+         COT2_denom=",paste("!isnull(COT2_",1:nfs,")",sep="",collapse="+"),"
+         COT2_daily=int(COT2_numer/COT2_denom)
+         CER_numer=",paste("if(isnull(CER_",1:nfs,"),0,CER_",1:nfs,")",sep="",collapse="+"),"
+         CER_denom=",paste("!isnull(CER_",1:nfs,")",sep="",collapse="+"),"
          CER_daily=int(CER_numer/CER_denom)
-         CLD_daily=int((max(",paste("if(isnull(CM_cloud_",1:nfs,"),0,CM_cloud_",1:nfs,")",sep="",collapse=","),"))*100) 
+         CER2_numer=",paste("if(isnull(CER2_",1:nfs,"),0,CER2_",1:nfs,")",sep="",collapse="+"),"
+         CER2_denom=",paste("!isnull(CER2_",1:nfs,")",sep="",collapse="+"),"
+         CER2_daily=int(CER2_numer/CER2_denom)
+         CLD_daily=int((max(",paste("if(isnull(CM_cloud_",1:nfs,"),-9999,CM_cloud_",1:nfs,")",sep="",collapse=","),"))) 
 EOF",sep=""))
+   execGRASS("r.null",map="CLD_daily",setnull="-9999")
 
 
   ### Write the files to a netcdf file
   ## create image group to facilitate export as multiband netcdf
-    execGRASS("i.group",group="mod06",input=c("CER_daily","COT_daily","CLD_daily")) ; print("")
+    execGRASS("i.group",group="mod06",input=c("CER_daily","CER2_daily","COT_daily","COT2_daily","CLD_daily")) ; print("")
    
   if(file.exists(ncfile)) file.remove(ncfile)  #if it exists already, delete it
   execGRASS("r.out.gdal",input="mod06",output=ncfile,type="Int16",nodata=-32768,flags=c("quiet"),
@@ -328,10 +339,14 @@ EOF",sep=""))
 system(paste("ncgen -o ",tempdir(),"/time.nc ",tempdir(),"/time.cdl",sep=""))
 system(paste(ncopath,"ncks -A ",tempdir(),"/time.nc ",ncfile,sep=""))
 ## add other attributes
-  system(paste(ncopath,"ncrename -v Band1,CER -v Band2,COT -v Band3,CLD ",ncfile,sep=""))
+  system(paste(ncopath,"ncrename -v Band1,CER -v Band2,CER2 -v Band3,COT -v Band4,COT2 -v Band5,CLD ",ncfile,sep=""))
   system(paste(ncopath,"ncatted -a scale_factor,CER,o,d,0.01 -a units,CER,o,c,\"micron\" -a missing_value,CER,o,d,-32768 -a long_name,CER,o,c,\"Cloud Particle Effective Radius\" ",ncfile,sep=""))
-  system(paste(ncopath,"ncatted -a scale_factor,COT,o,d,0.01 -a units,COT,o,c,\"none\" -a missing_value,COT,o,d,-32768 -a long_name,COT,o,c,\"Cloud Optical Thickness\" ",ncfile,sep=""))
+  system(paste(ncopath,"ncatted -a scale_factor,CER2,o,d,0.01 -a units,CER2,o,c,\"micron\" -a missing_value,CER2,o,d,-32768 -a long_name,CER2,o,c,\"Cloud Particle Effective Radius with clear sky set to zero\" ",ncfile,sep=""))
+
+system(paste(ncopath,"ncatted -a scale_factor,COT,o,d,0.01 -a units,COT,o,c,\"none\" -a missing_value,COT,o,d,-32768 -a long_name,COT,o,c,\"Cloud Optical Thickness\" ",ncfile,sep=""))
+system(paste(ncopath,"ncatted -a scale_factor,COT2,o,d,0.01 -a units,COT2,o,c,\"none\" -a missing_value,COT2,o,d,-32768 -a long_name,COT2,o,c,\"Cloud Optical Thickness with clear sky set to zero\" ",ncfile,sep=""))
   system(paste(ncopath,"ncatted -a scale_factor,CLD,o,d,0.01 -a units,CLD,o,c,\"none\" -a missing_value,CLD,o,d,-32768 -a long_name,CLD,o,c,\"Cloud Mask\" ",ncfile,sep=""))
+#  system(paste(ncopath,"ncatted -a sourcecode,global,o,c,",script," ",ncfile,sep=""))
    
   
 ### delete the temporary files 
