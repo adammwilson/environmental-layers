@@ -1,0 +1,304 @@
+##################    Validation and analyses of results  #######################################
+############################ Covariate production for a given tile/region ##########################################
+#This script examines inputs and outputs from the interpolation step.                             
+#Part 1: Script produces plots for every selected date
+#Part 2: Examine 
+#AUTHOR: Benoit Parmentier                                                                       
+#DATE: 02/22/2013                                                                                 
+
+#PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#???--   
+
+##Comments and TODO:
+#Separate inteprolation results analyses from covariates analyses 
+
+##################################################################################################
+
+###Loading R library and packages   
+library(RPostgreSQL)
+library(sp)                                             # Spatial pacakge with class definition by Bivand et al.
+library(spdep)                                          # Spatial pacakge with methods and spatial stat. by Bivand et al.
+library(rgdal)                                          # GDAL wrapper for R, spatial utilities
+library(raster)
+library(gtools)
+library(rasterVis)
+library(graphics)
+library(grid)
+library(lattice)
+
+### Parameters and arguments
+
+##Paths to inputs and output
+in_path <- "/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/input_data/"
+out_path<- "/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/output_data/"
+infile3<-"covariates__venezuela_region__VE_01292013.tif" #this is an output from covariate script
+
+setwd(in_path)
+
+### Functions used in the script
+
+load_obj <- function(f) 
+{
+  env <- new.env()
+  nm <- load(f, env)[1]	
+  env[[nm]]
+}
+
+### PLOTTING RESULTS FROM VENEZUELA INTERPOLATION FOR ANALYSIS
+
+#Select relevant dates and load R objects created during the interpolation step
+
+date_selected<-c("20100103")
+
+gam_fus_mod<-load_obj("gam_fus_mod_365d_GAM_fus5_all_lstd_02202013.RData")
+validation_obj<-load_obj("gam_fus_validation_mod_365d_GAM_fus5_all_lstd_02202013.RData")
+clim_obj<-load_obj("gamclim_fus_mod_365d_GAM_fus5_all_lstd_02202013.RData")
+
+#determine index position matching date selected
+
+i_dates<-vector("list",length(date_selected))
+for (i in 1:length(gam_fus_mod)){
+  for (j in 1:length(date_selected)){
+    if(gam_fus_mod[[i]]$sampling_dat$date==date_selected[j]){  
+      i_dates[[j]]<-i
+    }
+  }
+}
+
+#Examine the first select date add loop or function later
+j=1
+
+date<-strptime(date_selected[j], "%Y%m%d")   # interpolation date being processed
+month<-strftime(date, "%m")          # current month of the date being processed
+
+#Get raster stack of interpolated surfaces
+index<-i_dates[[j]]
+pred_temp<-as.character(gam_fus_mod[[index]]$dailyTmax) #list of files
+rast_pred_temp<-stack(pred_temp) #stack of temperature predictions from models 
+
+#Get validation metrics, daily spdf training and testing stations, monthly spdf station input
+sampling_dat<-gam_fus_mod[[index]]$sampling_dat
+metrics_v<-validation_obj[[index]]$metrics_v
+metrics_s<-validation_obj[[index]]$metrics_s
+data_v<-validation_obj[[index]]$data_v
+data_s<-validation_obj[[index]]$data_s
+data_month<-clim_obj[[index]]$data_month
+
+#Adding layer LST to the raster stack of covariates
+#The names of covariates can be changed...
+rnames <-c("x","y","lon","lat","N","E","N_w","E_w","elev","slope","aspect","CANHEIGHT","DISTOC")
+lc_names<-c("LC1","LC2","LC3","LC4","LC5","LC6","LC7","LC8","LC9","LC10","LC11","LC12")
+lst_names<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_09","mm_10","mm_11","mm_12",
+             "nobs_01","nobs_02","nobs_03","nobs_04","nobs_05","nobs_06","nobs_07","nobs_08",
+             "nobs_09","nobs_10","nobs_11","nobs_12")
+
+covar_names<-c(rnames,lc_names,lst_names)
+
+s_raster<-stack(infile3)                   #read in the data stack
+names(s_raster)<-covar_names               #Assigning names to the raster layers: making sure it is included in the extraction
+
+LST_month<-paste("mm_",month,sep="") # name of LST month to be matched
+pos<-match("LST",layerNames(s_raster)) #Find the position of the layer with name "LST", if not present pos=NA
+s_raster<-dropLayer(s_raster,pos)      # If it exists drop layer
+pos<-match(LST_month,layerNames(s_raster)) #Find column with the current month for instance mm12
+r1<-raster(s_raster,layer=pos)             #Select layer from stack
+layerNames(r1)<-"LST"
+#Get mask image!!
+
+date_proc<-strptime(sampling_dat$date, "%Y%m%d")   # interpolation date being processed
+mo<-as.integer(strftime(date_proc, "%m"))          # current month of the date being processed
+day<-as.integer(strftime(date_proc, "%d"))
+year<-as.integer(strftime(date_proc, "%Y"))
+datelabel=format(ISOdate(year,mo,day),"%b %d, %Y")
+
+## Figure 1: LST_TMax_scatterplot 
+
+rmse<-metrics_v$rmse[nrow(metrics_v)]
+rmse_f<-metrics_s$rmse[nrow(metrics_s)]  
+
+png(paste("LST_TMax_scatterplot_",sampling_dat$date,"_",sampling_dat$prop,"_",sampling_dat$run_samp,
+          out_prefix,".png", sep=""))
+plot(data_month$TMax,data_month$LST,xlab="Station mo Tmax",ylab="LST mo Tmax")
+title(paste("LST vs TMax for",datelabel,sep=" "))
+abline(0,1)
+nb_point<-paste("n=",length(data_month$TMax),sep="")
+mean_bias<-paste("Mean LST bias= ",format(mean(data_month$LSTD_bias,na.rm=TRUE),digits=3),sep="")
+#Add the number of data points on the plot
+legend("topleft",legend=c(mean_bias,nb_point),bty="n")
+dev.off()
+
+## Figure 2: Daily_tmax_monthly_TMax_scatterplot 
+
+png(paste("Daily_tmax_monthly_TMax_scatterplot_",sampling_dat$date,"_",sampling_dat$prop,"_",sampling_dat$run_samp,
+          out_prefix,".png", sep=""))
+plot(dailyTmax~TMax,data=data_s,xlab="Mo Tmax",ylab=paste("Daily for",datelabel),main="across stations in VE")
+nb_point<-paste("ns=",length(data_s$TMax),sep="")
+nb_point2<-paste("ns_obs=",length(data_s$TMax)-sum(is.na(data_s[[y_var_name]])),sep="")
+nb_point3<-paste("n_month=",length(data_month$TMax),sep="")
+#Add the number of data points on the plot
+legend("topleft",legend=c(nb_point,nb_point2,nb_point3),bty="n",cex=0.8)
+dev.off()
+
+## Figure 3: Predicted_tmax_versus_observed_scatterplot 
+
+#This is for mod_kr!! add other models later...
+png(paste("Predicted_tmax_versus_observed_scatterplot_",sampling_dat$date,"_",sampling_dat$prop,"_",sampling_dat$run_samp,
+          out_prefix,".png", sep=""))
+plot(data_s$mod_kr~data_s[[y_var_name]],xlab=paste("Actual daily for",datelabel),ylab="Pred daily")
+#plot(data_v$mod_kr~data_v[[y_var_name]],xlab=paste("Actual daily for",datelabel),ylab="Pred daily")
+abline(0,1)
+title(paste("Predicted_tmax_versus_observed_scatterplot for",datelabel,sep=" "))
+nb_point1<-paste("ns_obs=",length(data_s$TMax)-sum(is.na(data_s[[y_var_name]])),sep="")
+rmse_str1<-paste("RMSE= ",format(rmse,digits=3),sep="")
+rmse_str2<-paste("RMSE_f= ",format(rmse_f,digits=3),sep="")
+
+#Add the number of data points on the plot
+legend("topleft",legend=c(nb_point1,rmse_str1,rmse_str2),bty="n",cex=0.8)
+dev.off()
+
+## Figure 4: delta surface and bias
+
+#Plot bias,delta and prediction?
+
+#To do
+#Delta surface
+#png(paste("Delta_surface_LST_TMax_",sampling_dat$date[i],"_",sampling_dat$prop[i],
+#          "_",sampling_dat$run_samp[i],out_prefix,".png", sep=""))
+#surface(fitdelta,col=rev(terrain.colors(100)),asp=1,main=paste("Interpolated delta for",datelabel,sep=" "))
+#dev.off()
+#
+#bias_d_rast<-raster("fusion_bias_LST_20100103_30_1_10d_GAM_fus5_all_lstd_02082013.rst")
+#plot(bias_d_rast)
+
+## Figure 5: prediction raster images
+png(paste("Raster_prediction_",sampling_dat$date,"_",sampling_dat$prop,"_",sampling_dat$run_samp,
+          out_prefix,".png", sep=""))
+#paste(metrics_v$pred_mod,format(metrics_v$rmse,digits=3),sep=":")
+names(rast_pred_temp)<-paste(metrics_v$pred_mod,format(metrics_v$rmse,digits=3),sep=":")
+plot(rast_pred_temp)
+dev.off()
+
+## Figure 6: training and testing stations used
+
+plot(raster(rast_pred_temp,layer=5))
+plot(data_s,col="black",cex=1.2,pch=4,add=TRUE)
+plot(data_v,col="red",cex=1.2,pch=2,add=TRUE)
+
+## Figure 7: monthly stations used 
+
+plot(raster(rast_pred_temp,layer=5))
+plot(data_month,col="black",cex=1.2,pch=4,add=TRUE)
+title("Monthly ghcn station in Venezuela for January")
+
+## Summarize information for the day: 
+
+# ################
+# #PART 2: Region Covariate analyses ###
+# ################
+# 
+# # This should be in a separate script to analyze covariates from region.
+# 
+# #MAP1:Study area with LC mask and tiles/polygon outline
+# 
+# 
+# #MAP 2: plotting land cover in the study region:
+# 
+# l1<-"LC1,Evergreen/deciduous needleleaf trees"
+# l2<-"LC2,Evergreen broadleaf trees"
+# l3<-"LC3,Deciduous broadleaf trees"
+# l4<-"LC4,Mixed/other trees"
+# l5<-"LC5,Shrubs"
+# l6<-"LC6,Herbaceous vegetation"
+# l7<-"LC7,Cultivated and managed vegetation"
+# l8<-"LC8,Regularly flooded shrub/herbaceous vegetation"
+# l9<-"LC9,Urban/built-up"
+# l10<-"LC10,Snow/ice"
+# l11<-"LC11,Barren lands/sparse vegetation"
+# l12<-"LC12,Open water"
+# lc_names_str<-c(l1,l2,l3,l4,l5,l6,l7,l8,l9,l10,l11,l12)
+# 
+# names(lc_reg_s)<-lc_names_str
+# 
+# png(paste("LST_TMax_scatterplot_",sampling_dat$date[i],"_",sampling_dat$prop[i],"_",sampling_dat$run_samp[i], out_prefix,".png", sep=""))
+# plot(modst$TMax,sta_tmax_from_lst,xlab="Station mo Tmax",ylab="LST mo Tmax",main=paste("LST vs TMax for",datelabel,sep=" "))
+# abline(0,1)
+# nb_point<-paste("n=",length(modst$TMax),sep="")
+# mean_bias<-paste("LST bigrasas= ",format(mean(modst$LSTD_bias,na.rm=TRUE),digits=3),sep="")
+# #Add the number of data points on the plot
+# legend("topleft",legend=c(mean_bias,nb_point),bty="n")
+# dev.off()
+# 
+# #Map 3: Elevation and LST in January
+# tmp_s<-stack(LST,elev_1)
+# png(paste("LST_elev_",sampling_dat$date[i],"_",sampling_dat$prop[i],"_",sampling_dat$run_samp[i], out_prefix,".png", sep=""))
+# plot(tmp_s)
+# 
+# #Map 4: LST climatology per month
+#         
+# names_tmp<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_09","mm_10","mm_11","mm_12")
+# LST_s<-subset(s_raster,names_tmp)
+# names_tmp<-c("nobs_01","nobs_02","nobs_03","nobs_04","nobs_05","nobs_06","nobs_07","nobs_08",
+#              "nobs_09","nobs_10","nobs_11","nobs_12")
+# LST_nobs<-subset(s_raster,names_tmp)
+# 
+# LST_nobs<-mask(LST_nobs,LC_mask,filename="test2.tif")
+# LST_s<-mask(LST_s,LC_mask,filename="test3.tif")
+# c("Jan","Feb")
+# plot(LST_s)
+# plot(LST_nobs)
+# 
+# #Map 5: LST and TMax
+# 
+# #note differnces in patternin agricultural areas and 
+# min_values<-cellStats(LST_s,"min")
+# max_values<-cellStats(LST_s,"max")
+# mean_values<-cellStats(LST_s,"mean")
+# sd_values<-cellStats(LST_s,"sd")
+# #median_values<-cellStats(molst,"median") Does not extist
+# statistics_LST_s<-cbind(min_values,max_values,mean_values,sd_values) #This shows that some values are extremes...especially in October
+# LST_stat_data<-as.data.frame(statistics_LST_s)
+# names(LST_stat_data)<-c("min","max","mean","sd")
+# # Statistics for number of valid observation stack
+# min_values<-cellStats(nobslst,"min")
+# max_values<-cellStats(nobslst,"max")
+# mean_values<-cellStats(nobslst,"mean")
+# sd_values<-cellStats(nobslst,"sd")
+# statistics_LSTnobs_s<-cbind(min_values,max_values,mean_values,sd_values) #This shows that some values are extremes...especially in October
+# LSTnobs_stat_data<-as.data.frame(statistics_LSTnobs_s)
+# 
+# X11(width=12,height=12)
+# #Plot statiscs (mean,min,max) for monthly LST images
+# plot(1:12,LST_stat_data$mean,type="b",ylim=c(-15,60),col="black",xlab="month",ylab="tmax (degree C)")
+# lines(1:12,LST_stat_data$min,type="b",col="blue")
+# lines(1:12,LST_stat_data$max,type="b",col="red")
+# text(1:12,LST_stat_data$mean,rownames(LST_stat_data),cex=1,pos=2)
+# 
+# legend("topleft",legend=c("min","mean","max"), cex=1.5, col=c("blue","black","red"),
+#        lty=1)
+# title(paste("LST statistics for Oregon", "2010",sep=" "))
+# savePlot("lst_statistics_OR.png",type="png")
+# 
+# #Plot number of valid observations for LST
+# plot(1:12,LSTnobs_stat_data$mean,type="b",ylim=c(0,280),col="black",xlab="month",ylab="tmax (degree C)")
+# lines(1:12,LSTnobs_stat_data$min,type="b",col="blue")
+# lines(1:12,LSTnobs_stat_data$max,type="b",col="red")
+# text(1:12,LSTnobs_stat_data$mean,rownames(LSTnobs_stat_data),cex=1,pos=2)
+# 
+# legend("topleft",legend=c("min","mean","max"), cex=1.5, col=c("blue","black","red"),
+#        lty=1)
+# title(paste("LST number of valid observations for Oregon", "2010",sep=" "))
+# savePlot("lst_nobs_OR.png",type="png")
+# 
+# plot(data_month$TMax,add=TRUE)
+# 
+# ### Map 6: station in the region
+# 
+# plot(tmax_predicted)
+# plot(data_s,col="black",cex=1.2,pch=4,add=TRUE)
+# plot(data_v,col="blue",cex=1.2,pch=2,add=TRUE)
+# 
+# plot(tmax_predicted)
+# plot(data_month,col="black",cex=1.2,pch=4,add=TRUE)
+# title("Monthly ghcn station in Venezuela for 2000-2010")
+# 
+
+#### End of script ####
