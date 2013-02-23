@@ -11,7 +11,7 @@
 #5)GAM fusion: possibilty of running GAM+FUSION and other options added
 #The interpolation is done first at the monthly time scale then delta surfaces are added.
 #AUTHOR: Benoit Parmentier                                                                        
-#DATE: 02/13/2013                                                                                 
+#DATE: 02/20/2013                                                                                 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363--                                   
 ###################################################################################################
 
@@ -29,6 +29,7 @@ library(parallel)                            # Urbanek S. and Ripley B., package
 library(reshape)
 library(plotrix)
 library(maptools)
+
 ### Parameters and argument
 
 infile2<-"list_365_dates_04212012.txt"
@@ -42,14 +43,9 @@ out_path<-"/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuel
 script_path<-"/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/"
 setwd(in_path)
 
-nmodels<-9   #number of models running
-y_var_name<-"dailyTmax"
-predval<-1
-seed_number<- 100  #if seed zero then no seed?                                                                 #Seed number for random sampling
-out_prefix<-"_365d_GAM_fus5_all_lstd_02132013"                #User defined output prefix
-
-bias_val<-0            #if value 1 then training data is used in the bias surface rather than the all monthly stations
-bias_prediction<-1     #if value 1 then use GAM for the BIAS prediction otherwise GAM direct repdiction for y_var (daily tmax)
+y_var_name<-"dailyTmax"                                       
+out_prefix<-"_365d_GAM_fus5_all_lstd_02202013"                #User defined output prefix
+seed_number<- 100  #if seed zero then no seed?     
 nb_sample<-1           #number of time random sampling must be repeated for every hold out proportion
 prop_min<-0.3          #if prop_min=prop_max and step=0 then predicitons are done for the number of dates...
 prop_max<-0.3
@@ -59,10 +55,42 @@ constant<-0             #if value 1 then use the same samples as date one for th
 #CRS_interp<-"+proj=lcc +lat_1=43 +lat_2=45.5 +lat_0=41.75 +lon_0=-120.5 +x_0=400000 +y_0=0 +ellps=GRS80 +units=m +no_defs";
 CRS_locs_WGS84<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0") #Station coords WGS84
 
-source(file.path(script_path,"GAM_fusion_function_multisampling_02132013.R"))
-source(file.path(script_path,"GAM_fusion_function_multisampling_validation_metrics_02132013.R"))
+#Models to run...this can be change for each run
+list_models<-c("y_var ~ s(elev_1)",
+               "y_var ~ s(LST)",
+               "y_var ~ s(elev_1,LST)",
+               "y_var ~ s(lat) + s(lon)+ s(elev_1)",
+               "y_var ~ s(lat,lon,elev_1)",
+               "y_var ~ s(lat,lon) + s(elev_1) + s(N_w,E_w) + s(LST)", 
+               "y_var ~ s(lat,lon) + s(elev_1) + s(N_w,E_w) + s(LST) + s(LC2)",
+               "y_var ~ s(lat,lon) + s(elev_1) + s(N_w,E_w) + s(LST) + s(LC6)", 
+               "y_var ~ s(lat,lon) + s(elev_1) + s(N_w,E_w) + s(LST) + s(DISTOC)")
+
+#Default name of LST avg to be matched               
+lst_avg<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_09","mm_10","mm_11","mm_12")  
+
+source(file.path(script_path,"GAM_fusion_function_multisampling_02202013.R"))
+source(file.path(script_path,"GAM_fusion_function_multisampling_validation_metrics_02202013.R"))
                               
 ###################### START OF THE SCRIPT ########################
+
+#Create log file to keep track of details such as processing times and parameters.
+
+log_fname<-paste("R_log_t",out_prefix, ".log",sep="")
+
+if (file.exists(log_fname)){  #Stop the script???
+  file.remove(log_fname)
+  log_file<-file(log_fname,"w")
+}
+if (!file.exists(log_fname)){
+  log_file<-file(log_fname,"w")
+}
+
+time1<-proc.time()    #Start stop watch
+writeLines(paste("Starting script at this local Date and Time: ",as.character(Sys.time()),sep=""),
+           con=log_file,sep="\n")
+writeLines("Starting script process time:",con=log_file,sep="\n")
+writeLines(as.character(time1),con=log_file,sep="\n")    
 
 ###Reading the daily station data and setting up for models' comparison
 ghcn<-readOGR(dsn=in_path,layer=sub(".shp","",infile_daily))
@@ -209,10 +237,13 @@ if (constant==1){
 ######## Prediction for the range of dates and sampling data
 
 #First predict at the monthly time scale: climatology
-
-gamclim_fus_mod<-mclapply(1:12, runClim_KGFusion,mc.preschedule=FALSE,mc.cores = 4) #This is the end bracket from mclapply(...) statement
-
+writeLines("Predictions at monthly scale:",con=log_file,sep="\n")
+t1<-proc.time()
+gamclim_fus_mod<-mclapply(1:12, runClim_KGFusion,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
+#gamclim_fus_mod<-mclapply(1:12, runClim_KGFusion,mc.preschedule=FALSE,mc.cores = 4) #This is the end bracket from mclapply(...) statement
 save(gamclim_fus_mod,file= paste("gamclim_fus_mod",out_prefix,".RData",sep=""))
+t2<-proc.time()-t1
+writeLines(as.character(t2),con=log_file,sep="\n")
 
 #now get list of raster clim layers
 
@@ -227,20 +258,23 @@ rast_clim_yearlist<-list_tmp
 #Second predict at the daily time scale: delta
 
 #gam_fus_mod<-mclapply(1:1, runGAMFusion,mc.preschedule=FALSE,mc.cores = 1) #This is the end bracket from mclapply(...) statement
+writeLines("Predictions at the daily scale:",con=log_file,sep="\n")
+t1<-proc.time()
 gam_fus_mod<-mclapply(1:length(ghcn.subsets), runGAMFusion,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
-
 save(gam_fus_mod,file= paste("gam_fus_mod",out_prefix,".RData",sep=""))
+t2<-proc.time()-t1
+writeLines(as.character(t2),con=log_file,sep="\n")
 
 #Add accuracy_metrics section/function
 #now get list of raster daily prediction layers
 #gam_fus_mod_tmp<-gam_fus_mod
 #this should be change later once correction has been made
-for (i in 1:length(gam_fus_mod)){
-  obj_names<-c(y_var_name,"clim","delta","data_s","sampling_dat","data_v",
-               "mod_kr_day")
-  names(gam_fus_mod[[i]])<-obj_names
-  names(gam_fus_mod[[i]][[y_var_name]])<-c("mod1","mod2","mod3","mod4","mod_kr")
-}
+#for (i in 1:length(gam_fus_mod)){
+#  obj_names<-c(y_var_name,"clim","delta","data_s","sampling_dat","data_v",
+#               "mod_kr_day")
+#  names(gam_fus_mod[[i]])<-obj_names
+#  names(gam_fus_mod[[i]][[y_var_name]])<-c("mod1","mod2","mod3","mod4","mod_kr")
+#}
 
 ##
 list_tmp<-vector("list",length(gam_fus_mod))
@@ -248,13 +282,16 @@ for (i in 1:length(gam_fus_mod)){
   tmp<-gam_fus_mod[[i]][[y_var_name]]  #y_var_name is the variable predicted (tmax or tmin)
   list_tmp[[i]]<-tmp
 }
-rast_day_yearlist<-list_tmp
+rast_day_yearlist<-list_tmp #list of predicted images
 
+writeLines("Validation step:",con=log_file,sep="\n")
+t1<-proc.time()
 #calculate_accuary_metrics<-function(i)
 gam_fus_validation_mod<-mclapply(1:length(gam_fus_mod), calculate_accuracy_metrics,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
 #gam_fus_validation_mod<-mclapply(1:1, calculate_accuracy_metrics,mc.preschedule=FALSE,mc.cores = 1) #This is the end bracket from mclapply(...) statement
-
 save(gam_fus_validation_mod,file= paste("gam_fus_validation_mod",out_prefix,".RData",sep=""))
+t2<-proc.time()-t1
+writeLines(as.character(t2),con=log_file,sep="\n")
 
 ####This part concerns validation assessment and must be moved later...
 ## make this a function??
@@ -291,6 +328,16 @@ mod_var<-grep(mod_pat,names(mod_metrics),value=TRUE) # using grep with "value" e
 boxplot(mod_metrics[[mod_var]])
 test<-mod_metrics[mod_var]
 boxplot(test,outline=FALSE,horizontal=FALSE,cex=0.5)
+
+#close log_file connection and add meta data
+writeLines("Finished script process time:",con=log_file,sep="\n")
+time2<-proc.time()-time1
+writeLines(as.character(time2),con=log_file,sep="\n")
+#later on add all the paramters used in the script...
+writeLines(paste("Finished script at this local Date and Time: ",as.character(Sys.time()),sep=""),
+           con=log_file,sep="\n")
+writeLines("End of script",con=log_file,sep="\n")
+close(log_file)
 
 ####End of part to be changed...
 
