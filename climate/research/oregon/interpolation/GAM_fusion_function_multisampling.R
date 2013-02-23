@@ -14,14 +14,11 @@ runClim_KGFusion<-function(j){
     #This functions performs predictions on a raster grid given input models.
     #Arguments: list of fitted models, raster stack of covariates
     #Output: spatial grid data frame of the subset of tiles
-    #s_sgdf<-as(r_stack,"SpatialGridDataFrame") #Conversion to spatial grid data frame
     list_rast_pred<-vector("list",length(in_models))
     for (i in 1:length(in_models)){
       mod <-in_models[[i]] #accessing GAM model ojbect "j"
       raster_name<-out_filename[[i]]
-      if (inherits(mod,"gam")) {           
-        #rpred<- predict(mod, newdata=s_sgdf, se.fit = TRUE) #Using the coeff to predict new values.
-        #rast_pred2<- predict(object=s_raster,model=mod,na.rm=TRUE) #Using the coeff to predict new values.
+      if (inherits(mod,"gam")) {           #change to c("gam","autoKrige")
         raster_pred<- predict(object=s_raster,model=mod,na.rm=FALSE) #Using the coeff to predict new values.
         names(raster_pred)<-"y_pred"  
         writeRaster(raster_pred, filename=raster_name,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
@@ -30,7 +27,7 @@ runClim_KGFusion<-function(j){
       }
     }
     if (inherits(mod,"try-error")) {
-      print(paste("no gam model fitted:",mod[1],sep=" "))
+      print(paste("no gam model fitted:",mod[1],sep=" ")) #change message for any model type...
     }
     return(list_rast_pred)
   }
@@ -43,7 +40,8 @@ runClim_KGFusion<-function(j){
     list_fitted_models<-vector("list",length(list_formulas))
     for (k in 1:length(list_formulas)){
       formula<-list_formulas[[k]]
-      mod<- try(gam(formula, data=data_training))
+      mod<- try(gam(formula, data=data_training)) #change to any model!!
+      #mod<- try(autoKrige(formula, input_data=data_s,new_data=s_sgdf,data_variogram=data_s))
       model_name<-paste("mod",k,sep="")
       assign(model_name,mod) 
       list_fitted_models[[k]]<-mod
@@ -53,19 +51,9 @@ runClim_KGFusion<-function(j){
   #Model and response variable can be changed without affecting the script
   prop_month<-0 #proportion retained for validation
   run_samp<-1
-  list_formulas<-vector("list",nmodels)
   
-  list_formulas[[1]] <- as.formula("y_var ~ s(elev_1)", env=.GlobalEnv)
-  list_formulas[[2]] <- as.formula("y_var ~ s(LST)", env=.GlobalEnv)
-  list_formulas[[3]] <- as.formula("y_var ~ s(elev_1,LST)", env=.GlobalEnv)
-  list_formulas[[4]] <- as.formula("y_var ~ s(lat) + s(lon)+ s(elev_1)", env=.GlobalEnv)
-  list_formulas[[5]] <- as.formula("y_var ~ s(lat,lon,elev_1)", env=.GlobalEnv)
-  list_formulas[[6]] <- as.formula("y_var ~ s(lat,lon) + s(elev_1) + s(N_w,E_w) + s(LST)", env=.GlobalEnv)
-  list_formulas[[7]] <- as.formula("y_var ~ s(lat,lon) + s(elev_1) + s(N_w,E_w) + s(LST) + s(LC2)", env=.GlobalEnv)
-  list_formulas[[8]] <- as.formula("y_var ~ s(lat,lon) + s(elev_1) + s(N_w,E_w) + s(LST) + s(LC6)", env=.GlobalEnv)
-  list_formulas[[9]] <- as.formula("y_var ~ s(lat,lon) + s(elev_1) + s(N_w,E_w) + s(LST) + s(DISTOC)", env=.GlobalEnv)
-  lst_avg<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_09","mm_10","mm_11","mm_12")  
-  
+  list_formulas<-lapply(list_models,as.formula,env=.GlobalEnv) #mulitple arguments passed to lapply!!
+
   data_month<-dst[dst$month==j,] #Subsetting dataset for the relevant month of the date being processed
   LST_name<-lst_avg[j] # name of LST month to be matched
   data_month$LST<-data_month[[LST_name]]
@@ -223,8 +211,8 @@ runGAMFusion <- function(i) {            # loop over dates
   names(x)[pos]<-c("id")
   names(modst)[1]<-c("id")       #modst contains the average tmax per month for every stations...
   
-  dmoday <-merge(modst,d,by="id",suffixes=c("",".y2"))  #LOOSING DATA HERE!!! from 113 t0 103
-  xmoday <-merge(modst,x,by="id",suffixes=c("",".y2"))  #LOOSING DATA HERE!!! from 48 t0 43
+  dmoday <-merge(modst,d,by="id",suffixes=c("",".y2"))  
+  xmoday <-merge(modst,x,by="id",suffixes=c("",".y2"))  
   mod_pat<-glob2rx("*.y2")   
   var_pat<-grep(mod_pat,names(dmoday),value=FALSE) # using grep with "value" extracts the matching names
   dmoday<-dmoday[,-var_pat]
@@ -280,7 +268,7 @@ runGAMFusion <- function(i) {            # loop over dates
   
   mod_krtmp2<-fitdelta
   model_name<-paste("mod_kr","day",sep="_")
-  names(tmp_list)<-names(rast_clim_list)
+  names(temp_list)<-names(rast_clim_list)
   coordinates(data_s)<-cbind(data_s$x,data_s$y)
   proj4string(data_s)<-proj_str
   coordinates(data_v)<-cbind(data_v$x,data_v$y)
