@@ -109,5 +109,58 @@ calculate_accuracy_metrics<-function(i){
 
 }
 
+#### Function to create a data.frame from validation obj
+extract_from_list_obj<-function(obj_list,list_name){
+  list_tmp<-vector("list",length(obj_list))
+  for (i in 1:length(obj_list)){
+    tmp<-obj_list[[i]][[list_name]] #double bracket to return data.frame
+    list_tmp[[i]]<-tmp
+  }
+  tb_list_tmp<-do.call(rbind,list_tmp) #long rownames
+  return(tb_list_tmp) #this is  a data.frame
+}
+
+#### Function to plot boxplot from data.frame table of accuracy metrics
+
+boxplot_from_tb <-function(tb_diagnostic,metric_names,out_prefix){
+  #now boxplots and mean per models
+  mod_names<-unique(tb_diagnostic$pred_mod) #models that have accuracy metrics
+  t<-melt(tb_diagnostic,
+          #measure=mod_var, 
+          id=c("date","pred_mod","prop"),
+          na.rm=F)
+  avg_tb<-cast(t,pred_mod~variable,mean)
+  
+  median_tb<-cast(t,pred_mod~variable,median)
+  tb<-tb_diagnostic
+  tb_mod_list<-vector("list",length(mod_names))
+  for(i in 1:length(mod_names)){            # Reorganizing information in terms of metrics 
+    mod_name_tb<-paste("tb_",mod_names[i],sep="")
+    tb_mod<-subset(tb, pred_mod==mod_names[i])
+    assign(mod_name_tb,tb_mod)
+    tb_mod_list[[i]]<-tb_mod
+  }
+  names(tb_mod_list)<-mod_names
+  mod_metrics<-do.call(cbind,tb_mod_list)
+  for (j in 1:length(metric_names)){
+    metric_ac<-metric_names[j]
+    mod_pat<-glob2rx(paste("*.",metric_ac,sep=""))   
+    mod_var<-grep(mod_pat,names(mod_metrics),value=TRUE) # using grep with "value" extracts the matching names     
+    #browser()
+    test<-mod_metrics[mod_var]
+    png(paste("boxplot_metric_",metric_ac, out_prefix,".png", sep=""))
+    boxplot(test,outline=FALSE,horizontal=FALSE,cex=0.5,
+            ylab=paste(metric_ac,"in degree C",sep=" "))
+    dev.off()
+  }
+  summary_obj<-list(avg_tb,median_tb)
+  return(summary_obj)  
+}
+
+## Function to display metrics by months/seasons
+boxplot_from_tb <-function(tb_diagnostic,metric_names,out_prefix){
+  #Add code here...
+}
+
 ####################################
 ############ END OF SCRIPT #########
