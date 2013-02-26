@@ -1,4 +1,4 @@
-##################    MULTI SAMPLING GAM FUSION METHOD ASSESSMENT ####################################
+##################    MULTI SAMPLING GAM FUSION METHOD ASSESSMENT   ####################################
 ############################ Merging LST and station data ##########################################
 #This script interpolates tmax values using MODIS LST and GHCND station data                      
 #interpolation area. It requires the text file of stations and a shape file of the study area.           
@@ -33,27 +33,36 @@ library(maptools)
 ### Parameters and argument
 
 infile2<-"list_365_dates_04212012.txt"
+
+## output param from previous script: Database_stations_covariates_processing_function
 infile_monthly<-"monthly_covariates_ghcn_data_TMAXy2010_2010_VE_02082013.shp"
 infile_daily<-"daily_covariates_ghcn_data_TMAXy2010_2010_VE_02082013.shp"
 infile_locs<-"stations_venezuela_region_y2010_2010_VE_02082013.shp"
 infile3<-"covariates__venezuela_region__VE_01292013.tif" #this is an output from covariate script
-
-in_path<-"/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/input_data"
-out_path<-"/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/output_data"
-script_path<-"/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/"
-setwd(in_path)
-
-y_var_name<-"dailyTmax"                                       
+var<-"TMAX"
 out_prefix<-"_365d_GAM_fus5_all_lstd_02202013"                #User defined output prefix
+CRS_locs_WGS84<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0") #Station coords WGS84: same as earlier
+#CRS_interp<-"+proj=lcc +lat_1=43 +lat_2=45.5 +lat_0=41.75 +lon_0=-120.5 +x_0=400000 +y_0=0 +ellps=GRS80 +units=m +no_defs";
+#infile_monthly<-"monthly_covariates_ghcn_data_TMAXy2010_2010_VE_02082013.shp" #outile4 from database_covar script
+#infile_daily<-"daily_covariates_ghcn_data_TMAXy2010_2010_VE_02082013.shp"  #outfile3 from database_covar script
+#infile_locs<-"stations_venezuela_region_y2010_2010_VE_02082013.shp" #outfile2? from database covar script
+
+###
+
+if (var=="TMAX"){
+  y_var_name<-"dailyTmax"                                       
+}
+if (var=="TMIN"){
+  y_var_name<-"dailyTmin"                                       
+}
+
+#Input for sampling function...
 seed_number<- 100  #if seed zero then no seed?     
 nb_sample<-1           #number of time random sampling must be repeated for every hold out proportion
 prop_min<-0.3          #if prop_min=prop_max and step=0 then predicitons are done for the number of dates...
 prop_max<-0.3
 step<-0         
 constant<-0             #if value 1 then use the same samples as date one for the all set of dates
-#projection used in the interpolation of the study area: should be read directly from the outline of the study area
-#CRS_interp<-"+proj=lcc +lat_1=43 +lat_2=45.5 +lat_0=41.75 +lon_0=-120.5 +x_0=400000 +y_0=0 +ellps=GRS80 +units=m +no_defs";
-CRS_locs_WGS84<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0") #Station coords WGS84
 
 #Models to run...this can be change for each run
 list_models<-c("y_var ~ s(elev_1)",
@@ -66,8 +75,17 @@ list_models<-c("y_var ~ s(elev_1)",
                "y_var ~ s(lat,lon) + s(elev_1) + s(N_w,E_w) + s(LST) + s(LC6)", 
                "y_var ~ s(lat,lon) + s(elev_1) + s(N_w,E_w) + s(LST) + s(DISTOC)")
 
+#Choose interpolation method...
+interpolation_method<-c("gam_fusion","gam_CAI") #other otpions to be added later
+
 #Default name of LST avg to be matched               
 lst_avg<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_09","mm_10","mm_11","mm_12")  
+
+in_path<-"/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/input_data"
+#Create on the fly output folder...
+out_path<-"/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/output_data"
+script_path<-"/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/"
+setwd(in_path)
 
 source(file.path(script_path,"GAM_fusion_function_multisampling_02262013.R"))
 source(file.path(script_path,"GAM_fusion_function_multisampling_validation_metrics_02262013.R"))
@@ -98,76 +116,29 @@ writeLines(as.character(time1),con=log_file,sep="\n")
 
 ghcn<-readOGR(dsn=in_path,layer=sub(".shp","",infile_daily))
 CRS_interp<-proj4string(ghcn)                       #Storing projection information (ellipsoid, datum,etc.)
-
 stat_loc<-readOGR(dsn=in_path,layer=sub(".shp","",infile_locs))
-
-data3<-readOGR(dsn=in_path,layer=sub(".shp","",infile_monthly))
-
-#Remove NA for LC and CANHEIGHT: Need to check this part after
-ghcn$LC1[is.na(ghcn$LC1)]<-0
-ghcn$LC3[is.na(ghcn$LC3)]<-0
-ghcn$CANHEIGHT[is.na(ghcn$CANHEIGHT)]<-0
-ghcn$LC4[is.na(ghcn$LC4)]<-0
-ghcn$LC6[is.na(ghcn$LC6)]<-0
-
 dates <-readLines(file.path(in_path,infile2)) #dates to be predicted
 
-##Extracting the variables values from the raster files                                             
-
-#The names of covariates can be changed...
+#Reading of covariate brick covariates can be changed...
 rnames <-c("x","y","lon","lat","N","E","N_w","E_w","elev","slope","aspect","CANHEIGHT","DISTOC")
 lc_names<-c("LC1","LC2","LC3","LC4","LC5","LC6","LC7","LC8","LC9","LC10","LC11","LC12")
 lst_names<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_09","mm_10","mm_11","mm_12",
                     "nobs_01","nobs_02","nobs_03","nobs_04","nobs_05","nobs_06","nobs_07","nobs_08",
-                    "nobs_09","nobs_10","nobs_11","nobs_12")
-                  
-covar_names<-c(rnames,lc_names,lst_names)
-                  
-s_raster<-stack(infile3)                   #read in the data stack
+                    "nobs_09","nobs_10","nobs_11","nobs_12")                  
+covar_names<-c(rnames,lc_names,lst_names)                
+s_raster<-brick(infile3)                   #read in the data brck
 names(s_raster)<-covar_names               #Assigning names to the raster layers: making sure it is included in the extraction
 
-#Deal with no data value and zero      
-#pos<-match("LC1",layerNames(s_raster)) #Find column with name "value"
-#LC1<-raster(s_raster,layer=pos)             #Select layer from stack
-#s_raster<-dropLayer(s_raster,pos)
-#LC1[is.na(LC1)]<-0
-
-#pos<-match("LC3",layerNames(s_raster)) #Find column with name "value"
-#LC3<-raster(s_raster,layer=pos)             #Select layer from stack
-#s_raster<-dropLayer(s_raster,pos)
-#LC3[is.na(LC3)]<-0
-
-#pos<-match("CANHEIGHT",layerNames(s_raster)) #Find column with name "value"
-#CANHEIGHT<-raster(s_raster,layer=pos)             #Select layer from stack
-#s_raster<-dropLayer(s_raster,pos)
-#CANHEIGHT[is.na(CANHEIGHT)]<-0
-#pos<-match("ELEV_SRTM",layerNames(s_raster)) #Find column with name "ELEV_SRTM"
-#ELEV_SRTM<-raster(s_raster,layer=pos)             #Select layer from stack on 10/30
-#s_raster<-dropLayer(s_raster,pos)
-#ELEV_SRTM[ELEV_SRTM <0]<-NA
-
-#s_sgdf<-as(s_raster,"SpatialGridDataFrame") #Conversion to spatial grid data frame
-
-######### Preparing daily and monthly values for training and testing
-                  
-#Screening for daily bad values: value is tmax in this case
-#ghcn$value<-as.numeric(ghcn$value)
-#ghcn_all<-ghcn
-#ghcn_test<-subset(ghcn,ghcn$value>-150 & ghcn$value<400)
-#ghcn_test<-ghcn
-#ghcn_test2<-subset(ghcn_test,ghcn_test$elev_1>0)
-#ghcn<-ghcn_test2
-#coords<- ghcn[,c('x_OR83M','y_OR83M')]
-
-#Now clean and screen monthly values
-#dst_all<-dst
+#Reading monthly data
+data3<-readOGR(dsn=in_path,layer=sub(".shp","",infile_monthly))
 dst_all<-data3
 dst<-data3
-#dst<-subset(dst,dst$TMax>-15 & dst$TMax<45) #may choose different threshold??
-#dst<-subset(dst,dst$ELEV_SRTM>0) #This will drop two stations...or 24 rows
+
+### TO DO -important ###
+#Cleaning/sceerniging functions for daily stations, monthly stations and covariates?? do this at the preparation stage!!!
+##
 
 ##### Create sampling: select training and testing sites ###
-
 #Make this a a function!!!!
                   
 if (seed_number>0) {
@@ -236,6 +207,7 @@ if (constant==1){
   sampling<-list_const_sampling 
   sampling_station_id<-list_const_sampling_station_id
 }
+#return()
 
 ########### PREDICT FOR MONTHLY SCALE  #############
 
