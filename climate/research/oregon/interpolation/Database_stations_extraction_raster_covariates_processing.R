@@ -9,11 +9,13 @@
 # 5)the location of raser covariate stack.                                                                                             
 #The outputs are text files and a shape file of a time subset of the database                    
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 02/08/2013                                                                                 
+#DATE: 03/01/2013                                                                                 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363--     
 #Comments and TODO
 #-Add buffer option...
 #-Add calculation of monthly mean...
+#Outputs are:
+#
 ##################################################################################################
 
 ###Loading R library and packages   
@@ -33,22 +35,24 @@ db.name <- "ghcn"                #name of the Postgres database
 var <- "TMAX"                    #name of the variables to keep: TMIN, TMAX or PRCP
 year_start<-"2010"               #starting year for the query (included)
 year_end<-"2011"                 #end year for the query (excluded)
-infile1<- "outline_venezuela_region__VE_01292013.shp"      #This is the shape file of outline of the study area.                                              #It is projected alreaday
-infile2<-"ghcnd-stations.txt"                             #This is the textfile of station locations from GHCND
+year_start_clim<-"2000"          #starting year for monthly query to calculate clime
+infile1<- "outline_venezuela_region__VE_01292013.shp"      #This is the shape file of outline of the study area 
+                                                           #It is an input/output of the covariate script
+infile2<-"/home/layers/data/climate/ghcn/v2.92-upd-2012052822/ghcnd-stations.txt"                              #This is the textfile of station locations from GHCND
 infile3<-"covariates__venezuela_region__VE_01292013.tif" #this is an output from covariate script
 
 new_proj<-"+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
-locs_coord<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0")
-CRS_locs_WGS84<-"+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0"
+#CRS_locs_WGS84<-"+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0"
+CRS_locs_WGS84<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0") #Station coords WGS84: same as earlier
+
 ##Paths to inputs and output
-in_path <- "/home/parmentier/Data/benoit_test"
 in_path <- "/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/input_data/"
-out_path<- "/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/output_data/"
-ghcnd_path<- "/home/layers/data/climate/ghcn/v2.92-upd-2012052822"
+
 setwd(in_path) 
-out_suffix<-"y2010_2010_VE_02082013"                                                 #User defined output prefix
-out_region_name<-"_venezuela_region"
-#out_suffix<-"_VE_01292013"
+
+out_prefix<-"_365d_GAM_fus5_all_lstd_02202013"                #User defined output prefix
+
+#PUT ALL THE INPUT ARGUMENTS IN ONE OBJECT??? read the object as input!!!
 
 ### Functions used in the script
 
@@ -74,11 +78,13 @@ filename<-sub(".shp","",infile1)             #Removing the extension from file.
 interp_area <- readOGR(".",filename)
 CRS_interp<-proj4string(interp_area)         #Storing the coordinate information: geographic coordinates longlat WGS84
 
-dat_stat <- read.fwf(file.path(ghcnd_path,"ghcnd-stations.txt"), widths = c(11,9,10,7,3,31,4,4,6),fill=TRUE)
+#infile2<-"ghcnd-stations.txt"                              #This is the textfile of station locations from GHCND
+dat_stat <- read.fwf(infile2, 
+                     widths = c(11,9,10,7,3,31,4,4,6),fill=TRUE)
 colnames(dat_stat)<-c("STAT_ID","lat","lon","elev","state","name","GSNF","HCNF","WMOID")
 coords<- dat_stat[,c('lon','lat')]
 coordinates(dat_stat)<-coords
-proj4string(dat_stat)<-locs_coord #this is the WGS84 projection
+proj4string(dat_stat)<-CRS_locs_WGS84 #this is the WGS84 projection
 #proj4string(dat_stat)<-CRS_interp
 dat_stat2<-spTransform(dat_stat,CRS(new_proj))         # Project from WGS84 to new coord. system
 
@@ -94,7 +100,7 @@ plot(stat_reg, pch=1, col="red", cex= 0.7, add=TRUE)
 #only 357 station for Venezuela??
 
 ####
-##Add buffer option? 
+##TODO: Add buffer option? 
 ####
 
 #### STEP 2: Connecting to the database and query for relevant data 
@@ -126,9 +132,10 @@ coords<- data_reg[c('lon','lat')]              #Define coordinates in a data fra
                                                    #Wrong label...it is in fact projected...
 coordinates(data_reg)<-coords                      #Assign coordinates to the data frame
 #proj4string(data3)<-locs_coord                  #Assign coordinates reference system in PROJ4 format
-proj4string(data_reg)<-locs_coord                #Assign coordinates reference system in PROJ4 format
+proj4string(data_reg)<-CRS_locs_WGS84                #Assign coordinates reference system in PROJ4 format
 data_reg<-spTransform(data_reg,CRS(new_proj))     #Project from WGS84 to new coord. system
 
+#png...output?
 plot(interp_area, axes =TRUE)
 plot(stat_reg, pch=1, col="red", cex= 0.7, add=TRUE)
 plot(data_reg,pch=2,col="blue",cex=2,add=TRUE)
@@ -136,22 +143,19 @@ plot(data_reg,pch=2,col="blue",cex=2,add=TRUE)
 ##################################################################
 ### STEP 3: Save results and outuput in textfile and a shape file
 
-#Save a textfile of the locations of meteorological stations in the study area
-write.table(as.data.frame(stat_reg), file=file.path(in_path,paste("stations",out_region_name,"_",
-                                                          out_suffix,".txt",sep="")),sep=",")
-outfile<-paste("stations",out_region_name,"_",
-               out_suffix,sep="")
-writeOGR(stat_reg,dsn= ".",layer= outfile, driver="ESRI Shapefile",overwrite_layer=TRUE)
+#Save shape files of the locations of meteorological stations in the study area
+outfile1<-file.path(in_path,paste("stations","_",out_prefix,".shp",sep=""))
+writeOGR(stat_reg,dsn= ".",layer= sub(".shp","",outfile1), driver="ESRI Shapefile",overwrite_layer=TRUE)
 
-outfile<-paste("ghcn_data_",var,out_suffix,sep="")         #Name of the file
+outfile2<-file.path(in_path,paste("ghcn_data_",var,"_",year_start_clim,"_",year_end,out_prefix,".shp",sep=""))         #Name of the file
 #writeOGR(data_proj, paste(outfile, "shp", sep="."), outfile, driver ="ESRI Shapefile") #Note that the layer name is the file name without extension
-writeOGR(data_reg,dsn= ".",layer= outfile, driver="ESRI Shapefile",overwrite_layer=TRUE)
+writeOGR(data_reg,dsn= ".",layer= sub(".shp","",outfile2), driver="ESRI Shapefile",overwrite_layer=TRUE)
 
 ###################################################################
 ### STEP 4: Extract values at stations from covariates stack of raster images
 #Eventually this step may be skipped if the covariates information is stored in the database...
 
-#The names of covariates can be changed...
+#The names of covariates can be changed...these names should be output/input from covar script!!!
 rnames<-c("x","y","lon","lat","N","E","N_w","E_w","elev","slope","aspect","CANHEIGHT","DISTOC")
 lc_names<-c("LC1","LC2","LC3","LC4","LC5","LC6","LC7","LC8","LC9","LC10","LC11","LC12")
 lst_names<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_09","mm_10","mm_11","mm_12",
@@ -185,8 +189,8 @@ if (var=="TMAX"){
 }
 
 #write out a new shapefile (including .prj component)
-outfile<-paste("daily_covariates_ghcn_data_",var,out_suffix,sep="")         #Name of the file
-writeOGR(data_RST_SDF,dsn= ".",layer= outfile, driver="ESRI Shapefile",overwrite_layer=TRUE)
+outfile3<-file.path(in_path,paste("daily_covariates_ghcn_data_",var,out_prefix,".shp",sep=""))         #Name of the file
+writeOGR(data_RST_SDF,dsn= ".",layer= sub(".shp","",outfile3), driver="ESRI Shapefile",overwrite_layer=TRUE)
 
 ###############################################################
 ######## STEP 5: Preparing monthly averages from the ProstGres database
@@ -194,14 +198,14 @@ writeOGR(data_RST_SDF,dsn= ".",layer= outfile, driver="ESRI Shapefile",overwrite
 drv <- dbDriver("PostgreSQL")
 db <- dbConnect(drv, dbname=db.name)
 
-year_start<-2000
+#year_start_clim: set at the start of the script
 year_end<-2011
 time1<-proc.time()    #Start stop watch
 list_s<-format_s(stat_reg$STAT_ID)
 data_m<-dbGetQuery(db, paste("SELECT *
                             FROM ghcn
                             WHERE element=",shQuote(var),
-                            "AND year>=",year_start,
+                            "AND year>=",year_start_clim,
                             "AND year<",year_end,
                             "AND station IN ",list_s,";",sep=""))  #Selecting station using a SQL query
 time_duration<-proc.time()-time1             #Time for the query may be long given the size of the database
@@ -246,8 +250,13 @@ proj4string(dst)<-projection(s_raster)        #Assign coordinates reference syst
 
 ####
 #write out a new shapefile (including .prj component)
-outfile<-paste("monthly_covariates_ghcn_data_",var,out_suffix,sep="")         #Name of the file
 dst$OID<-1:nrow(dst) #need a unique ID?
-writeOGR(dst,dsn= ".",layer= outfile, driver="ESRI Shapefile",overwrite_layer=TRUE)
+outfile4<-file.path(in_path,paste("monthly_covariates_ghcn_data_",var,"_",year_start_clim,"_",year_end,out_prefix,".shp",sep=""))  #Name of the file
+writeOGR(dst,dsn= ".",layer= sub(".shp","",outfile4), driver="ESRI Shapefile",overwrite_layer=TRUE)
 
+### list of output return
+
+outfiles_obj<-list(outfile1,outfile2,outfile3,outfile4,outfile5)
+outfiles_obj<cname("loc_stations","loc_stations_ghcn","daily_covar_ghcn_data","monthly_covar_ghcn_data")
+#return(outfiles_obj)
 ##### END OF SCRIPT ##########
