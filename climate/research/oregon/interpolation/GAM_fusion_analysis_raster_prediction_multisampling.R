@@ -8,11 +8,11 @@
 #2)Constant sampling: use the same sample over the runs
 #3)over dates: run over for example 365 dates without mulitsampling
 #4)use seed number: use seed if random samples must be repeatable
-#5)GAM fusion: possibilty of running GAM+FUSION and other options added
+#5)GAM fusion: possibilty of running GAM+FUSION or GAM+CAI and other options added
 #The interpolation is done first at the monthly time scale then delta surfaces are added.
 #AUTHOR: Benoit Parmentier                                                                        
-#DATE: 02/20/2013                                                                                 
-#PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363--                                   
+#DATE: 02/26/2013                                                                                 
+#PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#568--                                   
 ###################################################################################################
 
 ###Loading R library and packages                                                      
@@ -69,12 +69,14 @@ list_models<-c("y_var ~ s(elev_1)",
 #Default name of LST avg to be matched               
 lst_avg<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_09","mm_10","mm_11","mm_12")  
 
-source(file.path(script_path,"GAM_fusion_function_multisampling_02202013.R"))
-source(file.path(script_path,"GAM_fusion_function_multisampling_validation_metrics_02202013.R"))
-                              
+source(file.path(script_path,"GAM_fusion_function_multisampling_02262013.R"))
+source(file.path(script_path,"GAM_fusion_function_multisampling_validation_metrics_02262013.R"))
+
 ###################### START OF THE SCRIPT ########################
 
-#Create log file to keep track of details such as processing times and parameters.
+################# CREATE LOG FILE #####################
+
+#create log file to keep track of details such as processing times and parameters.
 
 log_fname<-paste("R_log_t",out_prefix, ".log",sep="")
 
@@ -92,7 +94,8 @@ writeLines(paste("Starting script at this local Date and Time: ",as.character(Sy
 writeLines("Starting script process time:",con=log_file,sep="\n")
 writeLines(as.character(time1),con=log_file,sep="\n")    
 
-###Reading the daily station data and setting up for models' comparison
+############### Reading the daily station data and other data #################
+
 ghcn<-readOGR(dsn=in_path,layer=sub(".shp","",infile_daily))
 CRS_interp<-proj4string(ghcn)                       #Storing projection information (ellipsoid, datum,etc.)
 
@@ -163,9 +166,9 @@ dst<-data3
 #dst<-subset(dst,dst$TMax>-15 & dst$TMax<45) #may choose different threshold??
 #dst<-subset(dst,dst$ELEV_SRTM>0) #This will drop two stations...or 24 rows
 
-##Sampling: training and testing sites.
+##### Create sampling: select training and testing sites ###
 
-#Make this a a function
+#Make this a a function!!!!
                   
 if (seed_number>0) {
   set.seed(seed_number)                        #Using a seed number allow results based on random number to be compared...
@@ -234,7 +237,7 @@ if (constant==1){
   sampling_station_id<-list_const_sampling_station_id
 }
 
-######## Prediction for the range of dates and sampling data
+########### PREDICT FOR MONTHLY SCALE  #############
 
 #First predict at the monthly time scale: climatology
 writeLines("Predictions at monthly scale:",con=log_file,sep="\n")
@@ -253,6 +256,8 @@ for (i in 1:length(gamclim_fus_mod)){
   list_tmp[[i]]<-tmp
 }
 
+################## PREDICT AT DAILY TIME SCALE #################
+
 #put together list of clim models per month...
 rast_clim_yearlist<-list_tmp
 #Second predict at the daily time scale: delta
@@ -265,18 +270,8 @@ save(gam_fus_mod,file= paste("gam_fus_mod",out_prefix,".RData",sep=""))
 t2<-proc.time()-t1
 writeLines(as.character(t2),con=log_file,sep="\n")
 
-#Add accuracy_metrics section/function
-#now get list of raster daily prediction layers
-#gam_fus_mod_tmp<-gam_fus_mod
-#this should be change later once correction has been made
-#for (i in 1:length(gam_fus_mod)){
-#  obj_names<-c(y_var_name,"clim","delta","data_s","sampling_dat","data_v",
-#               "mod_kr_day")
-#  names(gam_fus_mod[[i]])<-obj_names
-#  names(gam_fus_mod[[i]][[y_var_name]])<-c("mod1","mod2","mod3","mod4","mod_kr")
-#}
+############### NOW RUN VALIDATION #########################
 
-##
 list_tmp<-vector("list",length(gam_fus_mod))
 for (i in 1:length(gam_fus_mod)){
   tmp<-gam_fus_mod[[i]][[y_var_name]]  #y_var_name is the variable predicted (tmax or tmin)
@@ -293,41 +288,23 @@ save(gam_fus_validation_mod,file= paste("gam_fus_validation_mod",out_prefix,".RD
 t2<-proc.time()-t1
 writeLines(as.character(t2),con=log_file,sep="\n")
 
-####This part concerns validation assessment and must be moved later...
-## make this a function??
-list_tmp<-vector("list",length(gam_fus_validation_mod))
-for (i in 1:length(gam_fus_validation_mod)){
-  tmp<-gam_fus_validation_mod[[i]]$metrics_v
-  list_tmp[[i]]<-tmp
-}
-tb_diagnostic<-do.call(rbind,list_tmp) #long rownames
-rownames(tb_diagnostic)<-NULL #remove row names
+#################### ASSESSMENT OF PREDICTIONS: PLOTS OF ACCURACY METRICS ###########
 
-mod_names<-unique(tb_diagnostic$pred_mod) #models that have accuracy metrics
+##Create data.frame with valiation metrics for a full year
+tb_diagnostic_v<-extract_from_list_obj(gam_fus_validation_mod,"metrics_v")
+rownames(tb_diagnostic_v)<-NULL #remove row names
 
-#now boxplots and mean per models
-t<-melt(tb_diagnostic,
-        #measure=mod_var, 
-        id=c("date","pred_mod","prop"),
-        na.rm=F)
-avg_tb<-cast(t,pred_mod~variable,mean)
-tb<-tb_diagnostic
-tb_mod_list<-vector("list",length(mod_names))
-for(i in 1:length(mod_names)){            # Reorganizing information in terms of metrics 
-  mod_name_tb<-paste("tb_",mod_names[i],sep="")
-  tb_mod<-subset(tb, pred_mod==mod_names[i])
-  assign(mod_name_tb,tb_mod)
-  tb_mod_list[[i]]<-tb_mod
-}
-names(tb_mod_list)<-mod_names
+#Call function to create plots of metrics for validation dataset
+metric_names<-c("rmse","mae","me","r","m50")
+summary_metrics<-boxplot_from_tb(tb_diagnostic_v,metric_names,out_prefix)
+names(summary_metrics)<-c("avg","median")
+##Write out information concerning accuracy and predictions
+outfile<-file.path(in_path,paste("assessment_measures_",out_prefix,".txt",sep=""))
+write.table(tb_diagnostic_v,file= outfile,row.names=FALSE,sep=",")
+write.table(summary_metrics[[1]], file= outfile, append=TRUE,sep=",") #write out avg
+write.table(summary_metrics[[2]], file= outfile, append=TRUE,sep=",") #write out median
 
-mod_metrics<-do.call(cbind,tb_mod_list)
-mod_pat<-glob2rx("*.rmse")   
-mod_var<-grep(mod_pat,names(mod_metrics),value=TRUE) # using grep with "value" extracts the matching names         
-
-boxplot(mod_metrics[[mod_var]])
-test<-mod_metrics[mod_var]
-boxplot(test,outline=FALSE,horizontal=FALSE,cex=0.5)
+#################### CLOSE LOG FILE  #############
 
 #close log_file connection and add meta data
 writeLines("Finished script process time:",con=log_file,sep="\n")
@@ -339,6 +316,5 @@ writeLines(paste("Finished script at this local Date and Time: ",as.character(Sy
 writeLines("End of script",con=log_file,sep="\n")
 close(log_file)
 
-####End of part to be changed...
-
-#### END OF SCRIPT #######
+############################################################
+######################## END OF SCRIPT #####################
