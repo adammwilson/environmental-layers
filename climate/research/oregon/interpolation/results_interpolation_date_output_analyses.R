@@ -53,6 +53,34 @@ gam_fus_mod<-load_obj("gam_fus_mod_365d_GAM_fus5_all_lstd_02202013.RData")
 validation_obj<-load_obj("gam_fus_validation_mod_365d_GAM_fus5_all_lstd_02202013.RData")
 clim_obj<-load_obj("gamclim_fus_mod_365d_GAM_fus5_all_lstd_02202013.RData")
 
+## Read covariate stack...
+rnames <-c("x","y","lon","lat","N","E","N_w","E_w","elev","slope","aspect","CANHEIGHT","DISTOC")
+lc_names<-c("LC1","LC2","LC3","LC4","LC5","LC6","LC7","LC8","LC9","LC10","LC11","LC12")
+lst_names<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_09","mm_10","mm_11","mm_12",
+             "nobs_01","nobs_02","nobs_03","nobs_04","nobs_05","nobs_06","nobs_07","nobs_08",
+             "nobs_09","nobs_10","nobs_11","nobs_12")
+
+covar_names<-c(rnames,lc_names,lst_names)
+
+s_raster<-stack(infile3)                   #read in the data stack
+names(s_raster)<-covar_names               #Assigning names to the raster layers: making sure it is included in the extraction
+
+## Figure 0: study area based on LC12 (water) mask
+
+LC_mask<-subset(s_raster,"LC12")
+LC_mask[LC_mask==100]<-NA
+LC_mask <- LC_mask < 100
+LC_mask_rec<-LC_mask
+LC_mask_rec[is.na(LC_mask_rec)]<-0
+
+png(paste("Study_area_",
+          out_prefix,".png", sep=""))
+plot(LC_mask_rec,legend=FALSE,col=c("black","red"))
+legend("topright",legend=c("Outside","Inside"),title="Study area",
+       pt.cex=0.9,fill=c("black","red"),bty="n")
+title("Study area")
+dev.off()
+
 #determine index position matching date selected
 
 i_dates<-vector("list",length(date_selected))
@@ -82,19 +110,10 @@ metrics_s<-validation_obj[[index]]$metrics_s
 data_v<-validation_obj[[index]]$data_v
 data_s<-validation_obj[[index]]$data_s
 data_month<-clim_obj[[index]]$data_month
+formulas<-clim_obj[[index]]$formulas
 
 #Adding layer LST to the raster stack of covariates
 #The names of covariates can be changed...
-rnames <-c("x","y","lon","lat","N","E","N_w","E_w","elev","slope","aspect","CANHEIGHT","DISTOC")
-lc_names<-c("LC1","LC2","LC3","LC4","LC5","LC6","LC7","LC8","LC9","LC10","LC11","LC12")
-lst_names<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_09","mm_10","mm_11","mm_12",
-             "nobs_01","nobs_02","nobs_03","nobs_04","nobs_05","nobs_06","nobs_07","nobs_08",
-             "nobs_09","nobs_10","nobs_11","nobs_12")
-
-covar_names<-c(rnames,lc_names,lst_names)
-
-s_raster<-stack(infile3)                   #read in the data stack
-names(s_raster)<-covar_names               #Assigning names to the raster layers: making sure it is included in the extraction
 
 LST_month<-paste("mm_",month,sep="") # name of LST month to be matched
 pos<-match("LST",layerNames(s_raster)) #Find the position of the layer with name "LST", if not present pos=NA
@@ -143,53 +162,83 @@ dev.off()
 #This is for mod_kr!! add other models later...
 png(paste("Predicted_tmax_versus_observed_scatterplot_",sampling_dat$date,"_",sampling_dat$prop,"_",sampling_dat$run_samp,
           out_prefix,".png", sep=""))
-plot(data_s$mod_kr~data_s[[y_var_name]],xlab=paste("Actual daily for",datelabel),ylab="Pred daily")
+#plot(data_s$mod_kr~data_s[[y_var_name]],xlab=paste("Actual daily for",datelabel),ylab="Pred daily")
+
+y_range<-range(c(data_s$mod_kr,data_v$mod_kr),na.rm=T)
+x_range<-range(c(data_s[[y_var_name]],data_v[[y_var_name]]),na.rm=T)
+col_t<- c("black","red")
+pch_t<- c(1,2)
+plot(data_s$mod_kr,data_s[[y_var_name]], 
+     xlab=paste("Actual daily for",datelabel),ylab="Pred daily", 
+     ylim=y_range,xlim=x_range,col=col_t[1],pch=pch_t[1])
+points(data_v$mod_kr,data_v[[y_var_name]],col=col_t[2],pch=pch_t[2])
+grid(lwd=0.5, col="black")
 #plot(data_v$mod_kr~data_v[[y_var_name]],xlab=paste("Actual daily for",datelabel),ylab="Pred daily")
 abline(0,1)
+legend("topleft",legend=c("training","testing"),pch=pch_t,col=col_t,bty="n",cex=0.8)
 title(paste("Predicted_tmax_versus_observed_scatterplot for",datelabel,sep=" "))
 nb_point1<-paste("ns_obs=",length(data_s$TMax)-sum(is.na(data_s[[y_var_name]])),sep="")
 rmse_str1<-paste("RMSE= ",format(rmse,digits=3),sep="")
 rmse_str2<-paste("RMSE_f= ",format(rmse_f,digits=3),sep="")
 
 #Add the number of data points on the plot
-legend("topleft",legend=c(nb_point1,rmse_str1,rmse_str2),bty="n",cex=0.8)
+legend("bottomright",legend=c(nb_point1,rmse_str1,rmse_str2),bty="n",cex=0.8)
 dev.off()
-
-## Figure 4: delta surface and bias
-
-#Plot bias,delta and prediction?
-
-#To do
-#Delta surface
-#png(paste("Delta_surface_LST_TMax_",sampling_dat$date[i],"_",sampling_dat$prop[i],
-#          "_",sampling_dat$run_samp[i],out_prefix,".png", sep=""))
-#surface(fitdelta,col=rev(terrain.colors(100)),asp=1,main=paste("Interpolated delta for",datelabel,sep=" "))
-#dev.off()
-#
-#bias_d_rast<-raster("fusion_bias_LST_20100103_30_1_10d_GAM_fus5_all_lstd_02082013.rst")
-#plot(bias_d_rast)
 
 ## Figure 5: prediction raster images
 png(paste("Raster_prediction_",sampling_dat$date,"_",sampling_dat$prop,"_",sampling_dat$run_samp,
           out_prefix,".png", sep=""))
 #paste(metrics_v$pred_mod,format(metrics_v$rmse,digits=3),sep=":")
 names(rast_pred_temp)<-paste(metrics_v$pred_mod,format(metrics_v$rmse,digits=3),sep=":")
-plot(rast_pred_temp)
+#plot(rast_pred_temp)
+levelplot(rast_pred_temp)
 dev.off()
 
 ## Figure 6: training and testing stations used
-
+png(paste("Training_testing_stations_map_",sampling_dat$date,"_",sampling_dat$prop,"_",sampling_dat$run_samp,
+          out_prefix,".png", sep=""))
 plot(raster(rast_pred_temp,layer=5))
-plot(data_s,col="black",cex=1.2,pch=4,add=TRUE)
-plot(data_v,col="red",cex=1.2,pch=2,add=TRUE)
+plot(data_s,col="black",cex=1.2,pch=2,add=TRUE)
+plot(data_v,col="red",cex=1.2,pch=1,add=TRUE)
+legend("topleft",legend=c("training stations", "testing stations"), 
+       cex=1, col=c("black","red"),
+       pch=c(2,1),bty="n")
+dev.off()
 
-## Figure 7: monthly stations used 
+## Figure 7: monthly stations used
 
+png(paste("Monthly_data_study_area",
+          out_prefix,".png", sep=""))
 plot(raster(rast_pred_temp,layer=5))
 plot(data_month,col="black",cex=1.2,pch=4,add=TRUE)
 title("Monthly ghcn station in Venezuela for January")
+dev.off()
 
-## Summarize information for the day: 
+## Figure 8: delta surface and bias
+
+png(paste("Bias_delta_surface_",sampling_dat$date[i],"_",sampling_dat$prop[i],
+          "_",sampling_dat$run_samp[i],out_prefix,".png", sep=""))
+
+bias_rast<-stack(clim_obj[[index]]$bias)
+delta_rast<-raster(gam_fus_mod[[index]]$delta) #only one delta image!!!
+names(delta_rast)<-"delta"
+rast_temp_date<-stack(bias_rast,delta_rast)
+rast_temp_date<-mask(rast_temp_date,LC_mask,file="test.tif",overwrite=TRUE)
+#bias_d_rast<-raster("fusion_bias_LST_20100103_30_1_10d_GAM_fus5_all_lstd_02082013.rst")
+plot(rast_temp_date)
+
+dev.off()
+
+#Figure 9: histogram for all images...
+
+histogram(rast_pred_temp)
+
+## Summarize information for the day: write out textfile...
+
+#Number of station per month
+#Number of station per day (training, testing,NA)
+#metrics_v,metrics_s
+#
 
 # ################
 # #PART 2: Region Covariate analyses ###
@@ -300,5 +349,9 @@ title("Monthly ghcn station in Venezuela for January")
 # plot(data_month,col="black",cex=1.2,pch=4,add=TRUE)
 # title("Monthly ghcn station in Venezuela for 2000-2010")
 # 
+#png...output?
+# plot(interp_area, axes =TRUE)
+# plot(stat_reg, pch=1, col="red", cex= 0.7, add=TRUE)
+# plot(data_reg,pch=2,col="blue",cex=2,add=TRUE)
 
 #### End of script ####
