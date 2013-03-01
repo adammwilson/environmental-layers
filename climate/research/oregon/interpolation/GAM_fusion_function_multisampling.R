@@ -1,53 +1,141 @@
 #Function to be used with GAM_fusion_analysis_raster_prediction_mutlisampling.R
 #runClimFusion<-function(r_stack,data_training,data_testing,data_training){
 
+#Functions used in the script
+
+predict_raster_model<-function(in_models,r_stack,out_filename){
+  #This functions performs predictions on a raster grid given input models.
+  #Arguments: list of fitted models, raster stack of covariates
+  #Output: spatial grid data frame of the subset of tiles
+  list_rast_pred<-vector("list",length(in_models))
+  for (i in 1:length(in_models)){
+    mod <-in_models[[i]] #accessing GAM model ojbect "j"
+    raster_name<-out_filename[[i]]
+    if (inherits(mod,"gam")) {           #change to c("gam","autoKrige")
+      raster_pred<- predict(object=s_raster,model=mod,na.rm=FALSE) #Using the coeff to predict new values.
+      names(raster_pred)<-"y_pred"  
+      writeRaster(raster_pred, filename=raster_name,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
+      print(paste("Interpolation:","mod", j ,sep=" "))
+      list_rast_pred[[i]]<-raster_name
+    }
+  }
+  if (inherits(mod,"try-error")) {
+    print(paste("no gam model fitted:",mod[1],sep=" ")) #change message for any model type...
+  }
+  return(list_rast_pred)
+}
+
+fit_models<-function(list_formulas,data_training){
+  #This functions several models and returns model objects.
+  #Arguments: - list of formulas for GAM models
+  #           - fitting data in a data.frame or SpatialPointDataFrame
+  #Output: list of model objects 
+  list_fitted_models<-vector("list",length(list_formulas))
+  for (k in 1:length(list_formulas)){
+    formula<-list_formulas[[k]]
+    mod<- try(gam(formula, data=data_training)) #change to any model!!
+    #mod<- try(autoKrige(formula, input_data=data_s,new_data=s_sgdf,data_variogram=data_s))
+    model_name<-paste("mod",k,sep="")
+    assign(model_name,mod) 
+    list_fitted_models[[k]]<-mod
+  }
+  return(list_fitted_models) 
+}
+
 ####
 #TODO:
 #Add log file and calculate time and sizes for processes-outputs
+runClimCAI<-function(j){
+  #Make this a function with multiple argument that can be used by mcmapply??
+  #This creates clim fusion layers...still needs more code testing
+  
+  #Model and response variable can be changed without affecting the script
+  prop_month<-0 #proportion retained for validation
+  run_samp<-1
+  
+  list_formulas<-lapply(list_models,as.formula,env=.GlobalEnv) #mulitple arguments passed to lapply!!
+  
+  data_month<-dst[dst$month==j,] #Subsetting dataset for the relevant month of the date being processed
+  LST_name<-lst_avg[j] # name of LST month to be matched
+  data_month$LST<-data_month[[LST_name]]
+  
+  #TMax to model...
+  data_month$y_var<-data_month$TMax #Adding TMax as the variable modeled
+  mod_list<-fit_models(list_formulas,data_month) #only gam at this stage
+  cname<-paste("mod",1:length(mod_list),sep="") #change to more meaningful name?
+  names(mod_list)<-cname
+  #Adding layer LST to the raster stack  
+  pos<-match("elev",names(s_raster))
+  layerNames(s_raster)[pos]<-"elev_1"
+  
+  pos<-match("LST",names(s_raster)) #Find the position of the layer with name "LST", if not present pos=NA
+  s_raster<-dropLayer(s_raster,pos)      # If it exists drop layer
+  LST<-subset(s_raster,LST_name)
+  names(LST)<-"LST"
+  #Screen for extreme values": this needs more thought, min and max val vary with regions
+  #min_val<-(-15+273.16) #if values less than -15C then screen out (note the Kelvin units that will need to be changed later in all datasets)
+  #r1[r1 < (min_val)]<-NA
+  s_raster<-addLayer(s_raster,LST)            #Adding current month
+  
+  #Now generate file names for the predictions...
+  list_out_filename<-vector("list",length(mod_list))
+  names(list_out_filename)<-cname  
+  
+  for (k in 1:length(list_out_filename)){
+    #j indicate which month is predicted
+    data_name<-paste("clim_month_",j,"_",cname[k],"_",prop_month,
+                     "_",run_samp,sep="")
+    raster_name<-paste("fusion_",data_name,out_prefix,".tif", sep="")
+    list_out_filename[[k]]<-raster_name
+  }
+  
+  #now predict values for raster image...
+  rast_clim_list<-predict_raster_model(mod_list,s_raster,list_out_filename)
+  names(rast_clim_list)<-cname
+  #Some modles will not be predicted...remove them
+  rast_clim_list<-rast_clim_list[!sapply(rast_clim_list,is.null)] #remove NULL elements in list
+  
+  #Adding Kriging for Climatology options
+  
+  clim_xy<-coordinates(data_month)
+  fitclim<-Krig(clim_xy,data_month$TMax,theta=1e5) #use TPS or krige 
+  mod_krtmp1<-fitclim
+  model_name<-"mod_kr"
+  
+  clim_rast<-interpolate(LST,fitclim) #interpolation using function from raster package
+  #Saving kriged surface in raster images
+  #data_name<-paste("clim_month_",j,"_",model_name,"_",prop_month,
+  #                 "_",run_samp,sep="")
+  #raster_name_clim<-paste("fusion_",data_name,out_prefix,".tif", sep="")
+  #writeRaster(clim_rast, filename=raster_name_clim,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
+  
+  #now climatology layer
+  #clim_rast<-LST-bias_rast
+  data_name<-paste("clim_month_",j,"_",model_name,"_",prop_month,
+                   "_",run_samp,sep="")
+  raster_name_clim<-paste("fusion_",data_name,out_prefix,".tif", sep="")
+  writeRaster(clim_rast, filename=raster_name_clim,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
+  
+  #Adding to current objects
+  mod_list[[model_name]]<-mod_krtmp1
+  #rast_bias_list[[model_name]]<-raster_name_bias
+  rast_clim_list[[model_name]]<-raster_name_clim
+  
+  #Prepare object to return
+  clim_obj<-list(rast_clim_list,data_month,mod_list,list_formulas)
+  names(clim_obj)<-c("clim","data_month","mod","formulas")
+  
+  save(clim_obj,file= paste("clim_obj_month_",j,"_",out_prefix,".RData",sep=""))
+  
+  return(clim_obj) 
+}
+#
 
 runClim_KGFusion<-function(j){
   #Make this a function with multiple argument that can be used by mcmapply??
   #This creates clim fusion layers...
   
-  #Functions used in the script
-  predict_raster_model<-function(in_models,r_stack,out_filename){
-    #This functions performs predictions on a raster grid given input models.
-    #Arguments: list of fitted models, raster stack of covariates
-    #Output: spatial grid data frame of the subset of tiles
-    list_rast_pred<-vector("list",length(in_models))
-    for (i in 1:length(in_models)){
-      mod <-in_models[[i]] #accessing GAM model ojbect "j"
-      raster_name<-out_filename[[i]]
-      if (inherits(mod,"gam")) {           #change to c("gam","autoKrige")
-        raster_pred<- predict(object=s_raster,model=mod,na.rm=FALSE) #Using the coeff to predict new values.
-        names(raster_pred)<-"y_pred"  
-        writeRaster(raster_pred, filename=raster_name,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
-        print(paste("Interpolation:","mod", j ,sep=" "))
-        list_rast_pred[[i]]<-raster_name
-      }
-    }
-    if (inherits(mod,"try-error")) {
-      print(paste("no gam model fitted:",mod[1],sep=" ")) #change message for any model type...
-    }
-    return(list_rast_pred)
-  }
   
-  fit_models<-function(list_formulas,data_training){
-    #This functions several models and returns model objects.
-    #Arguments: - list of formulas for GAM models
-    #           - fitting data in a data.frame or SpatialPointDataFrame
-    #Output: list of model objects 
-    list_fitted_models<-vector("list",length(list_formulas))
-    for (k in 1:length(list_formulas)){
-      formula<-list_formulas[[k]]
-      mod<- try(gam(formula, data=data_training)) #change to any model!!
-      #mod<- try(autoKrige(formula, input_data=data_s,new_data=s_sgdf,data_variogram=data_s))
-      model_name<-paste("mod",k,sep="")
-      assign(model_name,mod) 
-      list_fitted_models[[k]]<-mod
-    }
-    return(list_fitted_models) 
-  }
   #Model and response variable can be changed without affecting the script
   prop_month<-0 #proportion retained for validation
   run_samp<-1
