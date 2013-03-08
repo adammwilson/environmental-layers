@@ -6,7 +6,7 @@ setwd("~/acrobates/projects/interp/data/NDP026D")
 
 
 ## Get station locations
-system("wget -nd http://cdiac.ornl.gov/ftp/ndp026d/cat01/01_STID -P data/")
+system("wget -N -nd http://cdiac.ornl.gov/ftp/ndp026d/cat01/01_STID -P data/")
 st=read.table("data/01_STID",skip=1)
 colnames(st)=c("StaID","LAT","LON","ELEV","ny1","fy1","ly1","ny7","fy7","ly7","SDC","b5c")
 st$lat=st$LAT/100
@@ -35,18 +35,30 @@ cld=do.call(rbind.data.frame,lapply(sprintf("%02d",1:12),function(m) {
 
 cld[,c("lat","lon")]=st[match(st$StaID,cld$StaID),c("lat","lon")]
 
-## calculate means
-cldm=by(cld,list(as.factor(cld$month),as.factor(cld$StaID)),function(x){
-  data.frame(Amt=mean(x$Amt[x$Nobs>20],na.rm=T))})
-
-
-## add color val
+## drop missing values
 cld$Amt[cld$Amt<0]=NA
 cld$Fq[cld$Fq<0]=NA
 cld$AWP[cld$AWP<0]=NA
 cld$NC[cld$NC<0]=NA
 
-cld$col=cut(cld$Amt/100,quantile(cld$Amt/100,seq(0,1,len=5),na.rm=T))
+## calculate means
+cldm=do.call(rbind.data.frame,by(cld,list(month=as.factor(cld$month),StaID=as.factor(cld$StaID)),function(x){
+  data.frame(month=x$month[1],StaID=x$StaID[1],Amt=mean(x$Amt[x$Nobs>20],na.rm=T))}))
+cldm[,c("lat","lon")]=st[match(st$StaID,cldm$StaID),c("lat","lon")]
+
+
+
+## write out the table
+write.csv(cldm,file="cldm.csv")
+
+
+##################
+###
+cldm=read.csv("cldm.csv")
+
+## add a color key
+cldm$col=cut(cldm$Amt/100,quantile(cldm$Amt/100,seq(0,1,len=5),na.rm=T))
 
 library(lattice)
-xyplot(lat~lon|as.factor(YR)+as.factor(month),groups=col,data=cld,pch=16,cex=.2,auto.key=T)
+xyplot(lat~lon|+month,groups=col,data=cldm,pch=16,cex=.2,auto.key=T)
+
