@@ -1,5 +1,5 @@
 #### Script to facilitate processing of MOD06 data
- 
+  
   setwd("/nobackupp1/awilso10/mod06")
 
 library(rgdal)
@@ -10,7 +10,7 @@ library(RSQLite)
 verbose=T
 
 ## get MODLAND tile information
-txbb=read.table("http://landweb.nascom.nasa.gov/developers/sn_tiles/sn_bound_10deg.txt",skip=6,nrows=648,header=T)
+tb=read.table("http://landweb.nascom.nasa.gov/developers/sn_tiles/sn_bound_10deg.txt",skip=6,nrows=648,header=T)
 tb$tile=paste("h",sprintf("%02d",tb$ih),"v",sprintf("%02d",tb$iv),sep="")
 save(tb,file="modlandTiles.Rdata")
 load("modlandTiles.Rdata")
@@ -27,7 +27,7 @@ tile="h21v09"  #Kenya
 
 ### list of tiles to process
 tiles=c("h11v08","h21v09","h08v04","h09v04","h08v05","h09v05","h20v11","h31v11")
-tiles=tiles[c(5,7,8)]
+tiles=tiles[1]
 tile_bb=tb[tb$tile%in%tiles,]
 
 ### get list of files to process
@@ -75,27 +75,16 @@ proclist$year=substr(proclist$date,1,4)
 ## identify which have been completed
 fdone=data.frame(path=list.files(outdir,pattern="nc$",recursive=T))
 fdone$date=substr(basename(as.character(fdone$path)),14,21)
-fdone$tile=substr(basename(as.character(fdone$path)),14,21)
+fdone$tile=substr(basename(as.character(fdone$path)),7,12)
 
 ## identify which date-tiles have already been run
 proclist$done=paste(proclist$tile,proclist$date,sep="_")%in%substr(basename(as.character(fdone$path)),7,21)
 
 ### report on what has already been processed
-print(paste("Overview of completed tile-days (",round(sum(proclist$done)/nrow(proclist),2),"%)"))
+print(paste(sum(!proclist$done)," out of ",nrow(proclist)," (",round(sum(!proclist$done)/nrow(proclist),2),"%) remain"))
 table(tile=proclist$tile[proclist$done],year=proclist$year[proclist$done])
 
-
-#updatedone=F #update the "done" list using the 
-#if(updatedone&exists("fdly")){  #update using table from below
-#  done[alldates%in%fdly$dateid[fdly$drop]]=F
-#}
-
-## Identify which dates still need to be processed
-## This vector will be used to tell mpiexec which days to include
-#notdone=alldates[!done]  
-
 script="/u/awilso10/environmental-layers/climate/procedures/MOD06_L2_process.r"
-climatescript="/u/awilso10/environmental-layers/climate/procedures/MOD06_Climatology.r"
 
 ## write the table processed by mpiexec
 write.table(paste("--verbose ",script," --date ",proclist$date[!proclist$done]," --verbose T --tile ",proclist$tile[!proclist$done],sep=""),
@@ -116,7 +105,8 @@ cat(paste("
 
 CORES=400
 HDIR=/u/armichae/pr/
-  source $HDIR/etc/environ.sh
+#  source $HDIR/etc/environ.sh
+  source /u/awilso10/environ.sh
   source /u/awilso10/.bashrc
 IDIR=/nobackupp1/awilso10/mod06/
 ##WORKLIST=$HDIR/var/run/pxrRgrs/work.txt
@@ -141,17 +131,24 @@ system(paste("qsub mod06_qsub",sep=""))
 ### Now submit the script to generate the climatologies
 
 tiles
-ctiles=tiles[c(1,3)]  #subset to only some tiles (for example if some aren't finished yet)?
+ctiles=tiles#[c(1,3)]  #subset to only some tiles (for example if some aren't finished yet)?
 climatescript="/u/awilso10/environmental-layers/climate/procedures/MOD06_Climatology.r"
 
 ## write the table processed by mpiexec
 write.table(paste("--verbose ",climatescript," --verbose T --tile ",ctiles,sep=""),
 file=paste("notdone_climate.txt",sep=""),row.names=F,col.names=F,quote=F)
 
+## delay start until previous jobs have finished?
+delay=F
+## check running jobs to get JobID of job you want to wait for
+system("qstat -u awilso10")
+## enter JobID here:
+job="881394.pbspl1.nas.nasa.gov"
+
 ### qsub script
 cat(paste("
 #PBS -S /bin/bash
-#PBS -l select=1:ncpus=8:mpiprocs=8
+#PBS -l select=50:ncpus=8:mpiprocs=8
 ##PBS -l select=2:ncpus=4:mpiprocs=4
 #PBS -l walltime=5:00:00
 #PBS -j n
@@ -159,10 +156,12 @@ cat(paste("
 #PBS -N mod06_climate
 #PBS -q normal
 #PBS -V
+",if(delay) paste("#PBS -W depend=afterany:",job,sep="")," 
 
-CORES=8
+CORES=400
 HDIR=/u/armichae/pr/
-  source $HDIR/etc/environ.sh
+#  source $HDIR/etc/environ.sh
+  source /u/awilso10/environ.sh
   source /u/awilso10/.bashrc
 IDIR=/nobackupp1/awilso10/mod06/
 ##WORKLIST=$HDIR/var/run/pxrRgrs/work.txt

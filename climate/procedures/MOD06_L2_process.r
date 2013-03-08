@@ -34,7 +34,7 @@ if ( !is.null(opta$help) )
      }
 
 
-## default date and tile to play with
+## default date and tile to play with  (will be overwritten below when running in batch)
 date="20030102"
 tile="h11v08"
 platform="pleiades" 
@@ -47,9 +47,13 @@ verbose=opta$verbose  #print out extensive information for debugging?
 outdir=paste("daily/",tile,"/",sep="")  #directory for separate daily files
 
 
-if(platform="pleiades"){
+## get year and doy from date
+year=format(as.Date(date,"%Y%m%d"),"%Y")
+doy=format(as.Date(date,"%Y%m%d"),"%j")
+
+if(platform=="pleiades"){
   ## location of MOD06 files
-  datadir="/nobackupp4/datapool/modis/MOD06_L2.005/"
+  datadir=paste("/nobackupp4/datapool/modis/MOD06_L2.005/",year,"/",doy,"/",sep="")
   ## path to some executables
   ncopath="/nasa/sles11/nco/4.0.8/gcc/mpt/bin/"
   swtifpath="/nobackupp1/awilso10/software/heg/bin/swtif"
@@ -64,7 +68,7 @@ if(platform="pleiades"){
   projection(td)="+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs +datum=WGS84 +ellps=WGS84 "
 }
 
-if(platform="litoria"){  #if running on local server, use different paths
+if(platform=="litoria"){  #if running on local server, use different paths
   ## specify working directory
   setwd("~/acrobates/projects/interp")
   gisBase="/usr/lib/grass64"
@@ -97,13 +101,13 @@ vars=as.data.frame(matrix(c(
   "Cloud_Effective_Radius_Uncertainty",  "CERU",
   "Cloud_Optical_Thickness",             "COT",
   "Cloud_Optical_Thickness_Uncertainty", "COTU",
-  "Cloud_Water_Path",                    "CWP",
-  "Cloud_Water_Path_Uncertainty",        "CWPU",
-  "Cloud_Phase_Optical_Properties",      "CPOP",
-  "Cloud_Multi_Layer_Flag",              "CMLF",
+#  "Cloud_Water_Path",                    "CWP",
+#  "Cloud_Water_Path_Uncertainty",        "CWPU",
+#  "Cloud_Phase_Optical_Properties",      "CPOP",
+#  "Cloud_Multi_Layer_Flag",              "CMLF",
   "Cloud_Mask_1km",                      "CM1",
   "Quality_Assurance_1km",               "QA"),
-  byrow=T,ncol=2,dimnames=list(1:10,c("variable","varid"))),stringsAsFactors=F)
+  byrow=T,ncol=2,dimnames=list(1:6,c("variable","varid"))),stringsAsFactors=F)
 
 ## vector of variables expected to be in final netcdf file.  If these are not present, the file will be deleted at the end.
 finalvars=c("CER","COT","CLD")
@@ -241,8 +245,9 @@ if(verbose) print(paste(nfs,"swaths available for processing"))
                 CM_clear_",i," =  ((CM1_",i," / 2^0) % 2) == 1  &&  ((CM1_",i," / 2^1) % 2^2) >  2 
                 CM_path_",i," =   ((CM1_",i," / 2^6) % 2^2) 
                 CM_cloud2_",i," = ((CM1_",i," / 2^1) % 2^2) 
-
 EOF",sep=""))
+     ## Set CM_cloud2 to null if it is "01" (uncertain)
+#     execGRASS("r.null",map=paste("CM_cloud2_",i,sep=""),setnull="-9999,1")
 
     ## QA
      execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",file,"\":mod06:Quality_Assurance_1km_0",sep=""),
@@ -309,13 +314,16 @@ EOF",sep=""))
          CER2_denom=",paste("!isnull(CER2_",1:nfs,")",sep="",collapse="+"),"
          CER2_daily=int(CER2_numer/CER2_denom)
          CLD_daily=int((max(",paste("if(isnull(CM_cloud_",1:nfs,"),-9999,CM_cloud_",1:nfs,")",sep="",collapse=","),"))) 
+         CLD2_daily=int((min(",paste("if(isnull(CM_cloud2_",1:nfs,"),-9999,CM_cloud2_",1:nfs,")",sep="",collapse=","),"))) 
 EOF",sep=""))
-   execGRASS("r.null",map="CLD_daily",setnull="-9999")
+
+execGRASS("r.null",map="CLD_daily",setnull="-9999")
+execGRASS("r.null",map="CLD2_daily",setnull="-9999")
 
 
   ### Write the files to a netcdf file
   ## create image group to facilitate export as multiband netcdf
-    execGRASS("i.group",group="mod06",input=c("CER_daily","CER2_daily","COT_daily","COT2_daily","CLD_daily")) ; print("")
+    execGRASS("i.group",group="mod06",input=c("CER_daily","CER2_daily","COT_daily","COT2_daily","CLD_daily","CLD2_daily")) ; print("")
    
   if(file.exists(ncfile)) file.remove(ncfile)  #if it exists already, delete it
   execGRASS("r.out.gdal",input="mod06",output=ncfile,type="Int16",nodata=-32768,flags=c("quiet"),
@@ -339,14 +347,16 @@ EOF",sep=""))
 system(paste("ncgen -o ",tempdir(),"/time.nc ",tempdir(),"/time.cdl",sep=""))
 system(paste(ncopath,"ncks -A ",tempdir(),"/time.nc ",ncfile,sep=""))
 ## add other attributes
-  system(paste(ncopath,"ncrename -v Band1,CER -v Band2,CER2 -v Band3,COT -v Band4,COT2 -v Band5,CLD ",ncfile,sep=""))
+  system(paste(ncopath,"ncrename -v Band1,CER -v Band2,CER2 -v Band3,COT -v Band4,COT2 -v Band5,CLD -v Band6,CLD2 ",ncfile,sep=""))
   system(paste(ncopath,"ncatted -a scale_factor,CER,o,d,0.01 -a units,CER,o,c,\"micron\" -a missing_value,CER,o,d,-32768 -a long_name,CER,o,c,\"Cloud Particle Effective Radius\" ",ncfile,sep=""))
   system(paste(ncopath,"ncatted -a scale_factor,CER2,o,d,0.01 -a units,CER2,o,c,\"micron\" -a missing_value,CER2,o,d,-32768 -a long_name,CER2,o,c,\"Cloud Particle Effective Radius with clear sky set to zero\" ",ncfile,sep=""))
 
 system(paste(ncopath,"ncatted -a scale_factor,COT,o,d,0.01 -a units,COT,o,c,\"none\" -a missing_value,COT,o,d,-32768 -a long_name,COT,o,c,\"Cloud Optical Thickness\" ",ncfile,sep=""))
 system(paste(ncopath,"ncatted -a scale_factor,COT2,o,d,0.01 -a units,COT2,o,c,\"none\" -a missing_value,COT2,o,d,-32768 -a long_name,COT2,o,c,\"Cloud Optical Thickness with clear sky set to zero\" ",ncfile,sep=""))
-  system(paste(ncopath,"ncatted -a scale_factor,CLD,o,d,0.01 -a units,CLD,o,c,\"none\" -a missing_value,CLD,o,d,-32768 -a long_name,CLD,o,c,\"Cloud Mask\" ",ncfile,sep=""))
-#  system(paste(ncopath,"ncatted -a sourcecode,global,o,c,",script," ",ncfile,sep=""))
+  system(paste(ncopath,"ncatted -a scale_factor,CLD,o,d,1 -a units,CLD,o,c,\"none\" -a missing_value,CLD,o,d,-32768 -a long_name,CLD,o,c,\"Cloud Mask\" ",ncfile,sep=""))
+system(paste(ncopath,"ncatted -a scale_factor,CLD2,o,d,1 -a units,CLD2,o,c,\"none\" -a missing_value,CLD2,o,d,-32768 -a long_name,CLD2,o,c,\"Cloud Mask Flag\" ",ncfile,sep=""))
+
+                                        #  system(paste(ncopath,"ncatted -a sourcecode,global,o,c,",script," ",ncfile,sep=""))
    
   
 ### delete the temporary files 
