@@ -12,10 +12,10 @@ predict_raster_model<-function(in_models,r_stack,out_filename){
     mod <-in_models[[i]] #accessing GAM model ojbect "j"
     raster_name<-out_filename[[i]]
     if (inherits(mod,"gam")) {           #change to c("gam","autoKrige")
-      raster_pred<- predict(object=s_raster,model=mod,na.rm=FALSE) #Using the coeff to predict new values.
+      raster_pred<- predict(object=r_stack,model=mod,na.rm=FALSE) #Using the coeff to predict new values.
       names(raster_pred)<-"y_pred"  
       writeRaster(raster_pred, filename=raster_name,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
-      print(paste("Interpolation:","mod", j ,sep=" "))
+      #print(paste("Interpolation:","mod", j ,sep=" "))
       list_rast_pred[[i]]<-raster_name
     }
   }
@@ -132,38 +132,50 @@ runClimCAI<-function(j){
 #
 
 runClim_KGFusion<-function(j){
+  
   #Make this a function with multiple argument that can be used by mcmapply??
   #This creates clim fusion layers...
+  #Parameters:
   
+  #1)s_raster: brick of covariates   : could pass as argument only specific variables??
+  #2)dst: monthly data (infile_monthly): could pass only the subset from the month??
+  #3)list_models
+  #4)brick names covarnames
+  #5)out_prefix
+  
+  
+  ## STEP 1: PARSE PARAMETERS AND ARGUMENTS
   
   #Model and response variable can be changed without affecting the script
   prop_month<-0 #proportion retained for validation
   run_samp<-1
   
-  list_formulas<-lapply(list_models,as.formula,env=.GlobalEnv) #mulitple arguments passed to lapply!!
-
+  ## STEP 2: PREPARE DATA
+  
   data_month<-dst[dst$month==j,] #Subsetting dataset for the relevant month of the date being processed
   LST_name<-lst_avg[j] # name of LST month to be matched
   data_month$LST<-data_month[[LST_name]]
   
-  #LST bias to model...
-  data_month$LSTD_bias<-data_month$LST-data_month$TMax
-  data_month$y_var<-data_month$LSTD_bias #Adding bias as the variable modeled
-  mod_list<-fit_models(list_formulas,data_month) #only gam at this stage
-  cname<-paste("mod",1:length(mod_list),sep="") #change to more meaningful name?
-  names(mod_list)<-cname
   #Adding layer LST to the raster stack  
-  pos<-match("elev",names(s_raster))
-  layerNames(s_raster)[pos]<-"elev_1"
-  
+  covar_rast<-s_raster
   pos<-match("LST",names(s_raster)) #Find the position of the layer with name "LST", if not present pos=NA
   s_raster<-dropLayer(s_raster,pos)      # If it exists drop layer
   LST<-subset(s_raster,LST_name)
   names(LST)<-"LST"
-  #Screen for extreme values": this needs more thought, min and max val vary with regions
-  #min_val<-(-15+273.16) #if values less than -15C then screen out (note the Kelvin units that will need to be changed later in all datasets)
-  #r1[r1 < (min_val)]<-NA
   s_raster<-addLayer(s_raster,LST)            #Adding current month
+  
+  #LST bias to model...
+  #if (var==TMAX): will need to modify to take into account TMAX, TMIN and LST_day,LST_night
+  data_month$LSTD_bias<-data_month$LST-data_month$TMax
+  data_month$y_var<-data_month$LSTD_bias #Adding bias as the variable modeled
+  
+  #### STEP3:  NOW FIT AND PREDICT  MODEL
+  
+  list_formulas<-lapply(list_models,as.formula,env=.GlobalEnv) #mulitple arguments passed to lapply!!
+  
+  mod_list<-fit_models(list_formulas,data_month) #only gam at this stage
+  cname<-paste("mod",1:length(mod_list),sep="") #change to more meaningful name?
+  names(mod_list)<-cname
   
   #Now generate file names for the predictions...
   list_out_filename<-vector("list",length(mod_list))
@@ -195,12 +207,13 @@ runClim_KGFusion<-function(j){
     writeRaster(clim_fus_rast, filename=raster_name,overwrite=TRUE)  #Wri
   }
   
-  #Adding Kriging for Climatology options
+  #### STEP 4:Adding Kriging for Climatology options
   
   bias_xy<-coordinates(data_month)
   fitbias<-Krig(bias_xy,data_month$LSTD_bias,theta=1e5) #use TPS or krige 
   mod_krtmp1<-fitbias
   model_name<-"mod_kr"
+  
    
   bias_rast<-interpolate(LST,fitbias) #interpolation using function from raster package
   #Saving kriged surface in raster images
@@ -221,7 +234,8 @@ runClim_KGFusion<-function(j){
   rast_bias_list[[model_name]]<-raster_name_bias
   rast_clim_list[[model_name]]<-raster_name_clim
   
-  #Prepare object to return
+  #### STEP 5: Prepare object and return
+  
   clim_obj<-list(rast_bias_list,rast_clim_list,data_month,mod_list,list_formulas)
   names(clim_obj)<-c("bias","clim","data_month","mod","formulas")
   
@@ -232,22 +246,40 @@ runClim_KGFusion<-function(j){
 
 ## Run function for kriging...?
 
-runGAMFusion <- function(i) {            # loop over dates
-  #Change this to allow explicitly arguments...
+#runGAMFusion <- function(i) {            # loop over dates
+runGAMFusion <- function(i,list_param) {            # loop over dates
+    #### Change this to allow explicitly arguments...
   #Arguments: 
   #1)list of climatology files for all models...(12*nb of models)
-  #2)data_s:training
-  #3)data_v:testing
-  #4)list of dates??
-  #5)stack of covariates: not needed at this this stage
+  #2)sampling_obj$data_day_gcn: ghcn.subsets (data per date )
+  #4)sampling_dat: list of sampling information for every run (proporation, month,sample)
+  #5)ampling_index : list of training
   #6)dst: data at the monthly time scale
+  #7)var:
+  #8)y_var_name:
+  #9)out_prefix
   
-  #Function used in the script
+  ### PARSING INPUT ARGUMENTS
+  
+  #list_param_runGAMFusion<-list(i,clim_yearlist,sampling_obj,var,y_var_name, out_prefix)
+  rast_clim_yearlist<-list_param$clim_yearlist
+  sampling_obj<-list_param$sampling_obj
+  ghcn.subsets<-sampling_obj$ghcn_data_day
+  sampling_dat <- sampling_obj$sampling_dat
+  sampling <- sampling_obj$sampling_index
+  var<-list_param$var
+  y_var_name<-list_param$y_var_name
+  out_prefix<-list_param$out_prefix
+  dst<-list_param$dst #monthly station dataset
+  
+  ##########
+  # STEP 1 - interpolate delta across space
+  ############# Read in information and get traiing and testing stations
   
   date<-strptime(sampling_dat$date[i], "%Y%m%d")   # interpolation date being processed
   month<-strftime(date, "%m")          # current month of the date being processed
   LST_month<-paste("mm_",month,sep="") # name of LST month to be matched
-  proj_str<-proj4string(dst)
+  proj_str<-proj4string(dst) #get the local projection information from monthly data
 
   ###Regression part 1: Creating a validation dataset by creating training and testing datasets
   data_day<-ghcn.subsets[[i]]
@@ -269,11 +301,16 @@ runGAMFusion <- function(i) {            # loop over dates
   day<-as.integer(strftime(date_proc, "%d"))
   year<-as.integer(strftime(date_proc, "%Y"))
   
+  ##########
+  # STEP 2 - JOIN DAILY AND MONTHLY STATION INFORMATION
+  ##########
+  
   modst<-dst[dst$month==mo,] #Subsetting dataset for the relevant month of the date being processed
   #Change to y_var...could be TMin
   #modst$LSTD_bias <- modst$LST-modst$y_var
   modst$LSTD_bias <- modst$LST-modst$TMax; #That is the difference between the monthly LST mean and monthly station mean
-
+  
+  #Clearn out this part: make this a function call
   x<-as.data.frame(data_v)
   d<-as.data.frame(data_s)
   #x[x$value==-999.9]<-NA
@@ -314,9 +351,10 @@ runGAMFusion <- function(i) {            # loop over dates
   #xmoday contains the daily tmax values for validation with TMax being the monthly station tmax mean
   
   ##########
-  # STEP 7 - interpolate delta across space
+  # STEP 3 - interpolate daily delta across space
   ##########
   
+  #Change to take into account TMin and TMax
   daily_delta<-dmoday$dailyTmax-dmoday$TMax
   daily_delta_xy<-as.matrix(cbind(dmoday$x,dmoday$y))
   fitdelta<-Krig(daily_delta_xy,daily_delta,theta=1e5) #use TPS or krige
@@ -326,7 +364,7 @@ runGAMFusion <- function(i) {            # loop over dates
   data_s$daily_delta<-daily_delta
   
   #########
-  # STEP 8 - assemble final answer - T=LST+Bias(interpolated)+delta(interpolated)
+  # STEP 4 - Calculate daily predictions - T(day) = clim(month) + delta(day)
   #########
   
   rast_clim_list<-rast_clim_yearlist[[mo]]  #select relevant month
@@ -353,6 +391,10 @@ runGAMFusion <- function(i) {            # loop over dates
     writeRaster(temp_predicted, filename=raster_name,overwrite=TRUE) 
     temp_list[[j]]<-raster_name
   }
+  
+  ##########
+  # STEP 5 - Prepare output object to return
+  ##########
   
   mod_krtmp2<-fitdelta
   model_name<-paste("mod_kr","day",sep="_")
