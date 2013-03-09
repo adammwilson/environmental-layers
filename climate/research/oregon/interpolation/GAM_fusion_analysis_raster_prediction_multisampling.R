@@ -11,7 +11,7 @@
 #5)GAM fusion: possibilty of running GAM+FUSION or GAM+CAI and other options added
 #The interpolation is done first at the monthly time scale then delta surfaces are added.
 #AUTHOR: Benoit Parmentier                                                                        
-#DATE: 02/26/2013                                                                                 
+#DATE: 03/05/2013                                                                                 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#568--                                   
 ###################################################################################################
 
@@ -30,39 +30,34 @@ library(reshape)
 library(plotrix)
 library(maptools)
 
-### Parameters and argument
-
-infile2<-"list_365_dates_04212012.txt"
+### Parameters and arguments
 
 ## output param from previous script: Database_stations_covariates_processing_function
-infile_monthly<-"monthly_covariates_ghcn_data_TMAXy2010_2010_VE_02082013.shp"
-infile_daily<-"daily_covariates_ghcn_data_TMAXy2010_2010_VE_02082013.shp"
-infile_locs<-"stations_venezuela_region_y2010_2010_VE_02082013.shp"
-infile3<-"covariates__venezuela_region__VE_01292013.tif" #this is an output from covariate script
+#infile_monthly<-"monthly_covariates_ghcn_data_TMAXy2010_2010_VE_02082013.shp"
+#infile_daily<-"daily_covariates_ghcn_data_TMAXy2010_2010_VE_02082013.shp"
+#infile_locs<-"stations_venezuela_region_y2010_2010_VE_02082013.shp"
+infile_covariates<-"covariates__venezuela_region__VE_01292013.tif" #this is an output from covariate script
 var<-"TMAX"
 out_prefix<-"_365d_GAM_fus5_all_lstd_02202013"                #User defined output prefix
 CRS_locs_WGS84<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0") #Station coords WGS84: same as earlier
-#CRS_interp<-"+proj=lcc +lat_1=43 +lat_2=45.5 +lat_0=41.75 +lon_0=-120.5 +x_0=400000 +y_0=0 +ellps=GRS80 +units=m +no_defs";
-#infile_monthly<-"monthly_covariates_ghcn_data_TMAXy2010_2010_VE_02082013.shp" #outile4 from database_covar script
-#infile_daily<-"daily_covariates_ghcn_data_TMAXy2010_2010_VE_02082013.shp"  #outfile3 from database_covar script
-#infile_locs<-"stations_venezuela_region_y2010_2010_VE_02082013.shp" #outfile2? from database covar script
 
+infile_monthly<-list_outfiles$monthly_covar_ghcn_data #outile4 from database_covar script
+infile_daily<-list_outfiles$daily_covar_ghcn_data  #outfile3 from database_covar script
+infile_locs<- list_outfiles$loc_stations_ghcn #outfile2? from database covar script
+rnames <-c("x","y","lon","lat","N","E","N_w","E_w","elev","slope","aspect","CANHEIGHT","DISTOC")
+lc_names<-c("LC1","LC2","LC3","LC4","LC5","LC6","LC7","LC8","LC9","LC10","LC11","LC12")
+lst_names<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_09","mm_10","mm_11","mm_12",
+             "nobs_01","nobs_02","nobs_03","nobs_04","nobs_05","nobs_06","nobs_07","nobs_08",
+             "nobs_09","nobs_10","nobs_11","nobs_12")                  
+covar_names<-c(rnames,lc_names,lst_names)  
 ###
-
-if (var=="TMAX"){
-  y_var_name<-"dailyTmax"                                       
-}
-if (var=="TMIN"){
-  y_var_name<-"dailyTmin"                                       
-}
-
 #Input for sampling function...
 seed_number<- 100  #if seed zero then no seed?     
 nb_sample<-1           #number of time random sampling must be repeated for every hold out proportion
-prop_min<-0.3          #if prop_min=prop_max and step=0 then predicitons are done for the number of dates...
-prop_max<-0.3
 step<-0         
 constant<-0             #if value 1 then use the same samples as date one for the all set of dates
+prop_minmax<-c(0.3,0.3)  #if prop_min=prop_max and step=0 then predicitons are done for the number of dates...
+infile_dates<-"list_365_dates_04212012.txt"
 
 #Models to run...this can be change for each run
 list_models<-c("y_var ~ s(elev_1)",
@@ -87,16 +82,34 @@ out_path<-"/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuel
 script_path<-"/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/"
 setwd(in_path)
 
-source(file.path(script_path,"GAM_fusion_function_multisampling_02262013.R"))
+
+list_param_data_prep<-c(infile_monthly,infile_daily,infile_locs,infile_covariates,var,out_prefix,CRS_locs_WGS84)
+list_param_raster_prediction<-c(list_param_data_prep,
+                                seed_number,nb_sample,step,constant,prop_minmax,infile_dates,
+                                list_models,lst_avg,in_path,out_path,script_path,
+                                interpolation_method)
+
+
+source(file.path(script_path,"sampling_script_functions_03052013.R"))
+source(file.path(script_path,"GAM_fusion_function_multisampling_03052013.R"))
 source(file.path(script_path,"GAM_fusion_function_multisampling_validation_metrics_02262013.R"))
 
+
 ###################### START OF THE SCRIPT ########################
+
+
+if (var=="TMAX"){
+  y_var_name<-"dailyTmax"                                       
+}
+if (var=="TMIN"){
+  y_var_name<-"dailyTmin"                                       
+}
 
 ################# CREATE LOG FILE #####################
 
 #create log file to keep track of details such as processing times and parameters.
 
-log_fname<-paste("R_log_t",out_prefix, ".log",sep="")
+log_fname<-paste("R_log_raster_prediction",out_prefix, ".log",sep="")
 
 if (file.exists(log_fname)){  #Stop the script???
   file.remove(log_fname)
@@ -112,110 +125,55 @@ writeLines(paste("Starting script at this local Date and Time: ",as.character(Sy
 writeLines("Starting script process time:",con=log_file,sep="\n")
 writeLines(as.character(time1),con=log_file,sep="\n")    
 
-############### Reading the daily station data and other data #################
+############### READING INPUTS: DAILY STATION DATA AND OTEHR DATASETS  #################
 
-ghcn<-readOGR(dsn=in_path,layer=sub(".shp","",infile_daily))
+ghcn<-readOGR(dsn=in_path,layer=sub(".shp","",basename(infile_daily)))
 CRS_interp<-proj4string(ghcn)                       #Storing projection information (ellipsoid, datum,etc.)
-stat_loc<-readOGR(dsn=in_path,layer=sub(".shp","",infile_locs))
-dates <-readLines(file.path(in_path,infile2)) #dates to be predicted
+stat_loc<-readOGR(dsn=in_path,layer=sub(".shp","",basename(infile_locs)))
+dates <-readLines(file.path(in_path,infile_dates)) #dates to be predicted
 
 #Reading of covariate brick covariates can be changed...
-rnames <-c("x","y","lon","lat","N","E","N_w","E_w","elev","slope","aspect","CANHEIGHT","DISTOC")
-lc_names<-c("LC1","LC2","LC3","LC4","LC5","LC6","LC7","LC8","LC9","LC10","LC11","LC12")
-lst_names<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_09","mm_10","mm_11","mm_12",
-                    "nobs_01","nobs_02","nobs_03","nobs_04","nobs_05","nobs_06","nobs_07","nobs_08",
-                    "nobs_09","nobs_10","nobs_11","nobs_12")                  
-covar_names<-c(rnames,lc_names,lst_names)                
-s_raster<-brick(infile3)                   #read in the data brck
+              
+s_raster<-brick(infile_covariates)                   #read in the data brck
 names(s_raster)<-covar_names               #Assigning names to the raster layers: making sure it is included in the extraction
+pos<-match("elev",names(s_raster))
+names(s_raster)[pos]<-"elev_1"
+
+#Screen for extreme values": this needs more thought, min and max val vary with regions
+#min_val<-(-15+273.16) #if values less than -15C then screen out (note the Kelvin units that will need to be changed later in all datasets)
+#r1[r1 < (min_val)]<-NA
 
 #Reading monthly data
-data3<-readOGR(dsn=in_path,layer=sub(".shp","",infile_monthly))
+data3<-readOGR(dsn=in_path,layer=sub(".shp","",basename(infile_monthly)))
 dst_all<-data3
 dst<-data3
 
 ### TO DO -important ###
-#Cleaning/sceerniging functions for daily stations, monthly stations and covariates?? do this at the preparation stage!!!
-##
+#Cleaning/sceerniging functions for daily stations, monthly stations and covariates?? do this during the preparation stage!!!??
+###
 
-##### Create sampling: select training and testing sites ###
-#Make this a a function!!!!
-                  
-if (seed_number>0) {
-  set.seed(seed_number)                        #Using a seed number allow results based on random number to be compared...
-}
-nel<-length(dates)
-dates_list<-vector("list",nel) #list of one row data.frame
+########### CREATE SAMPLING -TRAINING AND TESTING STATIONS ###########
 
-prop_range<-(seq(from=prop_min,to=prop_max,by=step))*100     #range of proportion to run
-sn<-length(dates)*nb_sample*length(prop_range)               #Number of samples to run
+#Input for sampling function...
 
-for(i in 1:length(dates)){
-  d_tmp<-rep(dates[i],nb_sample*length(prop_range)) #repeating same date
-  s_nb<-rep(1:nb_sample,length(prop_range))         #number of random sample per proportion
-  prop_tmp<-sort(rep(prop_range, nb_sample))
-  tab_run_tmp<-cbind(d_tmp,s_nb,prop_tmp)
-  dates_list[[i]]<-tab_run_tmp
-}
+#dates #list of dates for prediction
+#ghcn_name<-"ghcn" #infile daily data 
 
-sampling_dat<-as.data.frame(do.call(rbind,dates_list))
-names(sampling_dat)<-c("date","run_samp","prop")
+list_param_sampling<-list(seed_number,nb_sample,step,constant,prop_minmax,dates,ghcn)
+#list_param_sampling<-list(seed_number,nb_sample,step,constant,prop_minmax,dates,ghcn_name)
+names(list_param_sampling)<-c("seed_number","nb_sample","step","constant","prop_minmax","dates","ghcn")
 
-for(i in 2:3){            # start of the for loop #1
-  sampling_dat[,i]<-as.numeric(as.character(sampling_dat[,i]))  
-}
+#run function
+sampling_obj<-sampling_training_testing(list_param_sampling)
 
-sampling_dat$date<- as.character(sampling_dat[,1])
-#ghcn.subsets <-lapply(dates, function(d) subset(ghcn, date==d)) #this creates a list of 10 or 365 subsets dataset based on dates
-ghcn.subsets <-lapply(as.character(sampling_dat$date), function(d) subset(ghcn, date==d)) #this creates a list of 10 or 365 subsets dataset based on dates
 
-#Make this a function??
-## adding choice of constant sample 
-if (seed_number>0) {
-  set.seed(seed_number)                        #Using a seed number allow results based on random number to be compared...
-}
-
-sampling<-vector("list",length(ghcn.subsets))
-sampling_station_id<-vector("list",length(ghcn.subsets))
-for(i in 1:length(ghcn.subsets)){
-  n<-nrow(ghcn.subsets[[i]])
-  prop<-(sampling_dat$prop[i])/100
-  ns<-n-round(n*prop)   #Create a sample from the data frame with 70% of the rows
-  nv<-n-ns              #create a sample for validation with prop of the rows
-  ind.training <- sample(nrow(ghcn.subsets[[i]]), size=ns, replace=FALSE) #This selects the index position for 70% of the rows taken randomly
-  ind.testing <- setdiff(1:nrow(ghcn.subsets[[i]]), ind.training)
-  #Find the corresponding 
-  data_sampled<-ghcn.subsets[[i]][ind.training,] #selected the randomly sampled stations
-  station_id.training<-data_sampled$station     #selected id for the randomly sampled stations (115)
-  #Save the information
-  sampling[[i]]<-ind.training
-  sampling_station_id[[i]]<- station_id.training
-}
-## Use same samples across the year...
-if (constant==1){
-  sampled<-sampling[[1]]
-  data_sampled<-ghcn.subsets[[1]][sampled,] #selected the randomly sampled stations
-  station_sampled<-data_sampled$station     #selected id for the randomly sampled stations (115)
-  list_const_sampling<-vector("list",sn)
-  list_const_sampling_station_id<-vector("list",sn)
-  for(i in 1:sn){
-    station_id.training<-intersect(station_sampled,ghcn.subsets[[i]]$station)
-    ind.training<-match(station_id.training,ghcn.subsets[[i]]$station)
-    list_const_sampling[[i]]<-ind.training
-    list_const_sampling_station_id[[i]]<-station_id.training
-  }
-  sampling<-list_const_sampling 
-  sampling_station_id<-list_const_sampling_station_id
-}
-#return()
-
-########### PREDICT FOR MONTHLY SCALE  #############
+########### PREDICT FOR MONTHLY SCALE  ##################
 
 #First predict at the monthly time scale: climatology
 writeLines("Predictions at monthly scale:",con=log_file,sep="\n")
 t1<-proc.time()
 gamclim_fus_mod<-mclapply(1:12, runClim_KGFusion,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
-#gamclim_fus_mod<-mclapply(1:12, runClim_KGFusion,mc.preschedule=FALSE,mc.cores = 4) #This is the end bracket from mclapply(...) statement
+#gamclim_fus_mod<-mclapply(1:6, runClim_KGFusion,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
 save(gamclim_fus_mod,file= paste("gamclim_fus_mod",out_prefix,".RData",sep=""))
 t2<-proc.time()-t1
 writeLines(as.character(t2),con=log_file,sep="\n")
@@ -231,13 +189,23 @@ for (i in 1:length(gamclim_fus_mod)){
 ################## PREDICT AT DAILY TIME SCALE #################
 
 #put together list of clim models per month...
-rast_clim_yearlist<-list_tmp
+#rast_clim_yearlist<-list_tmp
+clim_yearlist<-list_tmp
 #Second predict at the daily time scale: delta
 
 #gam_fus_mod<-mclapply(1:1, runGAMFusion,mc.preschedule=FALSE,mc.cores = 1) #This is the end bracket from mclapply(...) statement
 writeLines("Predictions at the daily scale:",con=log_file,sep="\n")
 t1<-proc.time()
-gam_fus_mod<-mclapply(1:length(ghcn.subsets), runGAMFusion,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
+
+#input a list:note that ghcn.subsets is not sampling_obj$data_day_ghcn
+list_param_runGAMFusion<-list(i,clim_yearlist,sampling_obj,dst,var,y_var_name, out_prefix)
+names(list_param_runGAMFusion)<-c("list_index","clim_yearlist","sampling_obj","dst","var","y_var_name","out_prefix")
+#test<-mclapply(1:18, runGAMFusion,list_param=list_param_runGAMFusion,mc.preschedule=FALSE,mc.cores = 9)
+
+gam_fus_mod<-mclapply(1:length(sampling_obj$ghcn_data_day),list_param=list_param_runGAMFusion,runGAMFusion,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
+
+#gam_fus_mod<-mclapply(1:length(sampling_obj$ghcn_data_day),runGAMFusion,list_param_runGAMFusion,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
+#gam_fus_mod<-mclapply(1:length(ghcn.subsets), runGAMFusion,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
 save(gam_fus_mod,file= paste("gam_fus_mod",out_prefix,".RData",sep=""))
 t2<-proc.time()-t1
 writeLines(as.character(t2),con=log_file,sep="\n")
