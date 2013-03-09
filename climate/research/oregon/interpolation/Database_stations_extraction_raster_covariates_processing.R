@@ -1,33 +1,6 @@
 ##################    Data preparation for interpolation   #######################################
 ############################ Extraction of station data ##########################################
 
-### Parameters and arguments for the function
-
-db.name <- "ghcn"                #name of the Postgres database
-var <- "TMAX"                    #name of the variables to keep: TMIN, TMAX or PRCP
-range_years<-c("2010","2011") #right bound not included in the range!!
-range_years_clim<-c("2000","2011") #right bound not included in the range!!
-infile1<- "outline_venezuela_region__VE_01292013.shp"      #This is the shape file of outline of the study area                                                      #It is an input/output of the covariate script
-infile2<-"/home/layers/data/climate/ghcn/v2.92-upd-2012052822/ghcnd-stations.txt"                              #This is the textfile of station locations from GHCND
-infile3<-"covariates__venezuela_region__VE_01292013.tif" #this is an output from covariate script
-CRS_locs_WGS84<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0") #Station coords WGS84: same as earlier
-in_path <- "/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/input_data/"
-out_prefix<-"_365d_GAM_fus5_all_lstd_03012013"                #User defined output prefix
-#qc_flags<-    flags allowe for the query from the GHCND??
-
-#The names of covariates can be changed...these names should be output/input from covar script!!!
-rnames<-c("x","y","lon","lat","N","E","N_w","E_w","elev","slope","aspect","CANHEIGHT","DISTOC")
-lc_names<-c("LC1","LC2","LC3","LC4","LC5","LC6","LC7","LC8","LC9","LC10","LC11","LC12")
-lst_names<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_09","mm_10","mm_11","mm_12",
-             "nobs_01","nobs_02","nobs_03","nobs_04","nobs_05","nobs_06","nobs_07","nobs_08",
-             "nobs_09","nobs_10","nobs_11","nobs_12")
-covar_names<-c(rnames,lc_names,lst_names)
-
-#list of 11 parameters for input in the function...
-
-list_param_prep<-list(db.name,var,range_years,range_years_clim,infile1,infile2,infile3,CRS_locs_WGS84,in_path,covar_names,out_prefix)
-cnames<-c("db.name","var","range_years","range_years_clim","infile1","infile2","infile3","CRS_locs_WGS84","in_path","covar_names","out_prefix")
-names(list_param_prep)<-cnames
 
 database_covaratiates_preparation<-function(list_param_prep){
   #This function performs queries on the Postgres ghcnd database for stations matching the             
@@ -38,7 +11,7 @@ database_covaratiates_preparation<-function(list_param_prep){
   # 4) range_years_clim: range of records used in the monthly climatology interpolation, note that upper bound is not included
   # 5) infile1: region outline as a shape file - used in the interpolation  stage too                              
   # 6) infile2: ghcnd stations locations as a textfile name with lat-long fields                                                                                   
-  # 7) infile3: tif file of raser covariates for the interpolation area: it should have a local projection                                                                                           
+  # 7) infile_covarariates: tif file of raser covariates for the interpolation area: it should have a local projection                                                                                           
   # 8) CRS_locs_WGS84: longlat EPSG 4326 used as coordinates reference system (proj4)for stations locations
   # 9) in_path: input path for covariates data and other files, this is also the output?
   # 10) covar_names: names of covariates used for the interpolation --may be removed later? (should be stored in the brick)
@@ -95,7 +68,7 @@ database_covaratiates_preparation<-function(list_param_prep){
   year_start_clim <-list_param_prep$range_years_clim[1] #right bound not included in the range!! starting year for monthly query to calculate clime
   infile1<- list_param_prep$infile1  #This is the shape file of outline of the study area                                                      #It is an input/output of the covariate script
   infile2<-list_param_prep$infile2      #"/home/layers/data/climate/ghcn/v2.92-upd-2012052822/ghcnd-stations.txt"                              #This is the textfile of station locations from GHCND
-  infile3<-list_param_prep$infile3 #"covariates__venezuela_region__VE_01292013.tif" #this is an output from covariate script
+  infile3<-list_param_prep$infile_covariates #"covariates__venezuela_region__VE_01292013.tif" #this is an output from covariate script
   CRS_locs_WGS84<-list_param_prep$CRS_locs_WGS84 #Station coords WGS84: same as earlier
   in_path <- list_param_prep$in_path #CRS_locs_WGS84"/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/input_data/"
   out_prefix<-list_param_prep$out_prefix #"_365d_GAM_fus5_all_lstd_03012013"                #User defined output prefix
