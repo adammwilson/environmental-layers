@@ -1,7 +1,23 @@
-#Function to be used with GAM_fusion_analysis_raster_prediction_mutlisampling.R
-#runClimFusion<-function(r_stack,data_training,data_testing,data_training){
+##################  Functions for use in the raster prediction stage   #######################################
+############################ Interpolation in a given tile/region ##########################################
+#This script contains 5 functions used in the interpolation of temperature in the specfied study/processing area:                             
+# 1)predict_raster_model<-function(in_models,r_stack,out_filename)                                                             
+# 2)fit_models<-function(list_formulas,data_training)           
+# 3)runClimCAI<-function(j) : not working yet
+# 4)runClim_KGFusion<-function(j,list_param)
+# 5)runGAMFusion <- function(i,list_param) 
+#
+#AUTHOR: Benoit Parmentier                                                                       
+#DATE: 03/12/2013                                                                                 
+#PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363--   
 
-#Functions used in the script
+##Comments and TODO:
+#This script is meant to be for general processing tile by tile or region by region.
+# Note that the functions are called from GAM_fusion_analysis_raster_prediction_mutlisampling.R.
+# This will be expanded to other methods.
+
+##################################################################################################
+
 
 predict_raster_model<-function(in_models,r_stack,out_filename){
   #This functions performs predictions on a raster grid given input models.
@@ -131,26 +147,44 @@ runClimCAI<-function(j){
 }
 #
 
-runClim_KGFusion<-function(j){
+runClim_KGFusion<-function(j,list_param){
   
   #Make this a function with multiple argument that can be used by mcmapply??
-  #This creates clim fusion layers...
-  #Parameters:
+  #Arguments: 
+  #1)list_index: j 
+  #2)covar_rast: covariates raster images used in the modeling
+  #3)covar_names: names of input variables 
+  #4)lst_avg: list of LST climatogy names, may be removed later on
+  #5)list_models: list input models for bias calculation
+  #6)dst: data at the monthly time scale
+  #7)var: TMAX or TMIN, variable being interpolated
+  #8)y_var_name: output name, not used at this stage
+  #9)out_prefix
+  #
+  #The output is a list of four shapefile names produced by the function:
+  #1) clim: list of output names for raster climatogies 
+  #2) data_month: monthly training data for bias surface modeling
+  #3) mod: list of model objects fitted 
+  #4) formulas: list of formulas used in bias modeling
   
-  #1)s_raster: brick of covariates   : could pass as argument only specific variables??
-  #2)dst: monthly data (infile_monthly): could pass only the subset from the month??
-  #3)list_models
-  #4)brick names covarnames
-  #5)out_prefix
+  ### PARSING INPUT ARGUMENTS
+  #list_param_runGAMFusion<-list(i,clim_yearlist,sampling_obj,var,y_var_name, out_prefix)
   
-  
-  ## STEP 1: PARSE PARAMETERS AND ARGUMENTS
-  
+  index<-list_param$j
+  s_raster<-list_param$covar_rast
+  covar_names<-list_param$covar_names
+  lst_avg<-list_param$lst_avg
+  list_models<-list_param$list_models
+  dst<-list_param$dst #monthly station dataset
+  var<-list_param$var
+  y_var_name<-list_param$y_var_name
+  out_prefix<-list_param$out_prefix
+
   #Model and response variable can be changed without affecting the script
   prop_month<-0 #proportion retained for validation
-  run_samp<-1
+  run_samp<-1 #This option can be added later on if/when neeeded
   
-  ## STEP 2: PREPARE DATA
+  #### STEP 2: PREPARE DATA
   
   data_month<-dst[dst$month==j,] #Subsetting dataset for the relevant month of the date being processed
   LST_name<-lst_avg[j] # name of LST month to be matched
@@ -158,6 +192,7 @@ runClim_KGFusion<-function(j){
   
   #Adding layer LST to the raster stack  
   covar_rast<-s_raster
+  #names(s_raster)<-covar_names
   pos<-match("LST",names(s_raster)) #Find the position of the layer with name "LST", if not present pos=NA
   s_raster<-dropLayer(s_raster,pos)      # If it exists drop layer
   LST<-subset(s_raster,LST_name)
@@ -250,14 +285,22 @@ runClim_KGFusion<-function(j){
 runGAMFusion <- function(i,list_param) {            # loop over dates
     #### Change this to allow explicitly arguments...
   #Arguments: 
-  #1)list of climatology files for all models...(12*nb of models)
-  #2)sampling_obj$data_day_gcn: ghcn.subsets (data per date )
-  #4)sampling_dat: list of sampling information for every run (proporation, month,sample)
-  #5)ampling_index : list of training
-  #6)dst: data at the monthly time scale
-  #7)var:
-  #8)y_var_name:
-  #9)out_prefix
+  #1)index: loop list index for individual run/fit
+  #2)clim_year_list: list of climatology files for all models...(12*nb of models)
+  #3)sampling_obj: contains, data per date/fit, sampling information
+  #4)dst: data at the monthly time scale
+  #5)var: variable predicted -TMAX or TMIN
+  #6)y_var_name: name of the variable predicted - dailyTMax, dailyTMin
+  #7)out_prefix
+  #
+  #The output is a list of four shapefile names produced by the function:
+  #1) list_temp: y_var_name
+  #2) rast_clim_list: list of files for temperature climatology predictions
+  #3) delta: list of files for temperature delta predictions
+  #4) data_s: training data
+  #5) data_v: testing data
+  #6) sampling_dat: sampling information for the current prediction (date,proportion of holdout and sample number)
+  #7) mod_kr: kriging delta fit, field package model object
   
   ### PARSING INPUT ARGUMENTS
   
