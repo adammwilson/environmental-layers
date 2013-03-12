@@ -1,7 +1,7 @@
-##################    MULTI SAMPLING GAM FUSION METHOD ASSESSMENT   ####################################
-############################ Merging LST and station data ##########################################
-#This script interpolates tmax values using MODIS LST and GHCND station data                      
-#interpolation area. It requires the text file of stations and a shape file of the study area.           
+#########################    Raster prediction GAM FUSION    ####################################
+############################ Interpolation of temperature for given processing region ##########################################
+#This script interpolates temperature values using MODIS LST, covariates and GHCND station data.                      
+#It requires the text file of stations and a shape file of the study area.           
 #Note that the projection for both GHCND and study area is lonlat WGS84.       
 #Options to run this program are:
 #1) Multisampling: vary the porportions of hold out and use random samples for each run
@@ -11,7 +11,7 @@
 #5)GAM fusion: possibilty of running GAM+FUSION or GAM+CAI and other options added
 #The interpolation is done first at the monthly time scale then delta surfaces are added.
 #AUTHOR: Benoit Parmentier                                                                        
-#DATE: 03/05/2013                                                                                 
+#DATE: 03/12/2013                                                                                 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#568--                                   
 ###################################################################################################
 
@@ -38,7 +38,7 @@ library(maptools)
 #infile_locs<-"stations_venezuela_region_y2010_2010_VE_02082013.shp"
 infile_covariates<-"covariates__venezuela_region__VE_01292013.tif" #this is an output from covariate script
 var<-"TMAX"
-out_prefix<-"_365d_GAM_fus5_all_lstd_02202013"                #User defined output prefix
+#out_prefix<-"_365d_GAM_fus5_all_lstd_02202013"                #User defined output prefix should be defined in master script
 CRS_locs_WGS84<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0") #Station coords WGS84: same as earlier
 
 infile_monthly<-list_outfiles$monthly_covar_ghcn_data #outile4 from database_covar script
@@ -83,15 +83,42 @@ script_path<-"/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venez
 setwd(in_path)
 
 
-list_param_data_prep<-c(infile_monthly,infile_daily,infile_locs,infile_covariates,var,out_prefix,CRS_locs_WGS84)
+#PARSING INPUTS/ARGUMENTS
+list_param_data_prep<-c(infile_monthly,infile_daily,infile_locs,infile_covariates,covar_names,var,out_prefix,CRS_locs_WGS84)
 list_param_raster_prediction<-c(list_param_data_prep,
                                 seed_number,nb_sample,step,constant,prop_minmax,infile_dates,
                                 list_models,lst_avg,in_path,out_path,script_path,
                                 interpolation_method)
 
+#9 parameters used in the data preparation stage and input in the current script
+list_param_data_prep<-list_param_raster_prediction$list_param_data_prep
+infile_monthly<-list_param_data_prep$infile_monthly
+infile_daily<-list_param_data_prep$infile_daily
+infile_locs<-list_param_data_prep$infile_locs
+infile_covariates<-list_param_data_prep$infile_covariates
+covar_names<- list_param_data_prep$covar_names
+var<-list_param_data_prep$var
+out_prefix<-list_param_data_prep$out_prefix
+CRS_locs_WGS84<-list_param_data_prep$CRS_locs_WGS84
+
+#6 parameters for sampling function
+seed_number<-list_param_raster_prediction$seed_number
+nb_sample<-list_param_raster_prediction$nb_sample
+step<-list_param_raster_prediction$step
+constant<-list_param_raster_prediction$constant
+prop_minmax<-list_param_raster_prediction$prop_minmax
+infile_dates<-list_param_raster_prediction$infile_dates
+
+#6 additional parameters for monthly climatology and more
+list_models<-list_param_raster_prediction$list_models
+lst_avg<-list_param_raster_prediction$lst_avg
+in_path<-list_param_raster_prediction$in_path
+out_path<-list_param_raster_prediction$out_path
+script_path<-list_param_raster_prediction$script_path
+interpolation_method<-list_param_raster_prediction$interpolation_method
 
 source(file.path(script_path,"sampling_script_functions_03052013.R"))
-source(file.path(script_path,"GAM_fusion_function_multisampling_03052013.R"))
+source(file.path(script_path,"GAM_fusion_function_multisampling_03122013.R"))
 source(file.path(script_path,"GAM_fusion_function_multisampling_validation_metrics_02262013.R"))
 
 
@@ -172,7 +199,12 @@ sampling_obj<-sampling_training_testing(list_param_sampling)
 #First predict at the monthly time scale: climatology
 writeLines("Predictions at monthly scale:",con=log_file,sep="\n")
 t1<-proc.time()
-gamclim_fus_mod<-mclapply(1:12, runClim_KGFusion,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
+j=12
+list_param_runClim_KGFusion<-list(j,s_raster,covar_names,list_models,dst,var,y_var_name, out_prefix)
+names(list_param_runClim_KGFusion)<-c("list_index","covar_rast","covar_names","list_models","dst","var","y_var_name","out_prefix")
+source(file.path(script_path,"GAM_fusion_function_multisampling_03122013.R"))
+
+gamclim_fus_mod<-mclapply(1:6, list_param=list_param_runClim_KGFusion, runClim_KGFusion,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
 #gamclim_fus_mod<-mclapply(1:6, runClim_KGFusion,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
 save(gamclim_fus_mod,file= paste("gamclim_fus_mod",out_prefix,".RData",sep=""))
 t2<-proc.time()-t1
