@@ -2,20 +2,20 @@
 
 #The interpolation is done first at the monthly add delta.
 #AUTHOR: Benoit Parmentier                                                                        
-#DATE: 02/13/2013                                                                                 
+#DATE: 03/12/2013                                                                                 
 
 #Change this to allow explicitly arguments...
 #Arguments: 
 #1)list of climatology files for all models...(365*nb of models)
 #2)data_s:training
 #3)data_v:testing
-#4)list of dates??
+#4)list of dates??: index
 #5)stack of covariates: not needed at this this stage
 #6)dst: data at the monthly time scale
 
 #Function used in the script
 
-calculate_accuracy_metrics<-function(i){
+calculate_accuracy_metrics<-function(i,list_param){
   
   ### Caculate accuracy metrics
   calc_val_metrics<-function(x,y){
@@ -62,16 +62,16 @@ calculate_accuracy_metrics<-function(i){
   
   ## BEGIN ##
   
-  day_list <-rast_day_yearlist[[i]] #list of prediction for the current date...
+  #PARSING INPUT PARAMETERS
+  day_list<- list_param$rast_day_year_list[[i]]
+  #day_list <-rast_day_yearlist[[i]] #list of prediction for the current date...
   names_mod<-names(day_list)
-  #this needs to be changed...this must be assigned earlier
-#  names(day_list)<-c("mod1","mod2","mod3","mod4","mod_kr")
-#  obj_names<-c(y_var_name,"clim","delta","data_s","sampling_dat","data_v",
-#               ,model_name)
-#  names(gam_fus_mod[[i]])
-  #
-  data_v <- gam_fus_mod[[i]]$data_v
-  data_s <- gam_fus_mod[[i]]$data_s
+  method_mod_obj<-list_param$method_mod_obj
+  #Change to results_mod_obj[[i]]$data_s to make it less specific
+  data_v <- method_mod_obj[[i]]$data_v
+  data_s <- method_mod_obj[[i]]$data_s
+  
+  ## Now create the stack
   
   rast_day_mod <- stack(day_list)
   names(rast_day_mod) <- names(day_list)
@@ -84,7 +84,7 @@ calculate_accuracy_metrics<-function(i){
   ns<-nrow(data_s) # some loss of data might have happened because of the averaging...
   nv<-nrow(data_v)
   
-  sampling_dat_day<-(gam_fus_mod[[i]])$sampling_dat
+  sampling_dat_day<-(method_mod_obj[[i]])$sampling_dat
    
   metrics_v_obj<-calc_val_metrics_rast(data_v,y_var_name,names_mod)
   metrics_s_obj<-calc_val_metrics_rast(data_s,y_var_name,names_mod)
@@ -158,7 +158,7 @@ boxplot_from_tb <-function(tb_diagnostic,metric_names,out_prefix){
 }
 
 ## Function to display metrics by months/seasons
-boxplot_from_tb <-function(tb_diagnostic,metric_names,out_prefix){
+boxplot_month_from_tb <-function(tb_diagnostic,metric_names,out_prefix){
   #Add code here...
 }
 
