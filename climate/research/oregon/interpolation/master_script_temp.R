@@ -10,7 +10,7 @@
 #STAGE 5: Output analyses-visualization of results for specific dates...
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 03/12/2013                                                                                 
+#DATE: 03/14/2013                                                                                 
 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363, TASK$568--   
 
@@ -81,20 +81,20 @@ if (stages_to_run[2]==2){
 
 ############# STAGE 3: Data preparation ###############
 
-source(file.path(script_path,"Database_stations_covariates_processing_function_03052013.R"))
+source(file.path(script_path,"Database_stations_covariates_processing_function_03132013.R"))
 
 #Setting up input argurments for script function...
 
 db.name <- "ghcn"       # name of the Postgres database
 var <- "TMAX"           # name of the variables to keep: TMIN, TMAX or PRCP
-range_years<-c("2010","2011") #right bound not included in the range!!
+range_years<-c("2000","2001") #right bound not included in the range!!
 range_years_clim<-c("2000","2011") #right bound not included in the range!!
 infile1<- "outline_venezuela_region__VE_01292013.shp"      #This is the shape file of outline of the study area                                                      #It is an input/output of the covariate script
 infile2<-"/home/layers/data/climate/ghcn/v2.92-upd-2012052822/ghcnd-stations.txt"                              #This is the textfile of station locations from GHCND
 infile_covariates<-"covariates__venezuela_region__VE_01292013.tif" #this is an output from covariate script and used in stage 3 and stage 4
 CRS_locs_WGS84<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0") #Station coords WGS84: same as earlier
 in_path <- "/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/input_data/"
-out_prefix<-"_365d_GAM_fus5_all_lstd_03052013"                #User defined output prefix
+out_prefix<-"_365d_GAM_fus5_all_lstd_03142013"                #User defined output prefix
 #qc_flags<-    flags allowe for the query from the GHCND??
 
 #The names of covariates can be changed...these names should be output/input from covar script!!!
@@ -112,7 +112,8 @@ cnames<-c("db.name","var","range_years","range_years_clim","infile1","infile2","
 names(list_param_prep)<-cnames
 
 ##### RUN SCRIPT TO GET STATION DATA WITH COVARIATES #####
-list_outfiles<-database_covaratiates_preparation(list_param_prep)
+
+list_outfiles<-database_covariates_preparation(list_param_prep)
 
 ############### STAGE 4: RASTER PREDICTION #################
 
@@ -125,8 +126,9 @@ infile_monthly<-list_outfiles$monthly_covar_ghcn_data #outile4 from database_cov
 infile_daily<-list_outfiles$daily_covar_ghcn_data  #outfile3 from database_covar script
 infile_locs<- list_outfiles$loc_stations_ghcn #outfile2? from database covar script
 
-list_param_data_prep<-list(infile_monthly,infile_daily,infile_locs,infile_covariates,covar_names,var,out_prefix,CRS_locs_WGS84)
+#names(outfiles_obj)<- c("loc_stations","loc_stations_ghcn","daily_covar_ghcn_data","monthly_covar_ghcn_data")
 
+list_param_data_prep<-list(infile_monthly,infile_daily,infile_locs,infile_covariates,covar_names,var,out_prefix,CRS_locs_WGS84)
 names(list_param_data_prep)<-c("infile_monthly","infile_daily","infile_locs","infile_covariates","covar_names","var","out_prefix","CRS_locs_WGS84")
 
 #Set additional parameters
@@ -136,7 +138,8 @@ nb_sample<-1           #number of time random sampling must be repeated for ever
 step<-0         
 constant<-0             #if value 1 then use the same samples as date one for the all set of dates
 prop_minmax<-c(0.3,0.3)  #if prop_min=prop_max and step=0 then predicitons are done for the number of dates...
-infile_dates<-"list_365_dates_04212012.txt"
+#dates_selected<-c("20100101","20100102","20100103","20100901") # Note that the dates set must have a specific format: yyymmdd
+dates_selected<-"" # if empty string then predict for the full year specified earlier
 
 #Models to run...this can be change for each run
 list_models<-c("y_var ~ s(elev_1)",
@@ -161,17 +164,17 @@ script_path<-"/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venez
 
 #Collect all parameters in a list
 list_param_raster_prediction<-list(list_param_data_prep,
-                                seed_number,nb_sample,step,constant,prop_minmax,infile_dates,
+                                seed_number,nb_sample,step,constant,prop_minmax,dates_selected,
                                 list_models,lst_avg,in_path,out_path,script_path,
                                 interpolation_method)
 
 names(list_param_raster_prediction)<-c("list_param_data_prep",
-                                "seed_number","nb_sample","step","constant","prop_minmax","infile_dates",
+                                "seed_number","nb_sample","step","constant","prop_minmax","dates_selected",
                                 "list_models","lst_avg","in_path","out_path","script_path",
                                 "interpolation_method")
 
 #Source file
-source(file.path(script_path,"GAM_fusion_analysis_raster_prediction_multisampling_03122013b.R"))
+source(file.path(script_path,"GAM_fusion_analysis_raster_prediction_multisampling_03132013.R"))
 
 #Make the function call
 raster_prediction_gam_fus_obj <-raster_prediction_gam_fusion(list_param_raster_prediction)
