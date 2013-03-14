@@ -18,7 +18,7 @@ sampling_training_testing<-function(list_param_sampling){
   # 4) ghcn_data_day: ghcn subsets by date
   
   #AUTHOR: Benoit Parmentier                                                                       
-  #DATE: 03/05/2013                                                                                 
+  #DATE: 03/13/2013                                                                                 
   #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363, TASK#558--     
   #Comments and TODO
   #
@@ -64,7 +64,7 @@ sampling_training_testing<-function(list_param_sampling){
   for(i in 2:3){            # start of the for loop #1
     sampling_dat[,i]<-as.numeric(as.character(sampling_dat[,i]))  
   }
-  browser()
+  
   sampling_dat$date<- as.character(sampling_dat[,1])
   #ghcn.subsets <-lapply(dates, function(d) subset(ghcn, date==d)) #this creates a list of 10 or 365 subsets dataset based on dates
   ghcn.subsets <-lapply(as.character(sampling_dat$date), function(d) subset(ghcn, date==d)) #this creates a list of 10 or 365 subsets dataset based on dates
