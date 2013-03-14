@@ -39,11 +39,11 @@ raster_prediction_gam_fusion<-function(list_param_raster_prediction){
   
   ### Parameters and arguments
   #PARSING INPUTS/ARGUMENTS
-  #list_param_data_prep<-c(infile_monthly,infile_daily,infile_locs,infile_covariates,covar_names,var,out_prefix,CRS_locs_WGS84)
-  #list_param_raster_prediction<-c(list_param_data_prep,
-  #                                seed_number,nb_sample,step,constant,prop_minmax,infile_dates,
-  #                                list_models,lst_avg,in_path,out_path,script_path,
-  #                                interpolation_method)
+#   
+#   names(list_param_raster_prediction)<-c("list_param_data_prep",
+#                                          "seed_number","nb_sample","step","constant","prop_minmax","dates_selected",
+#                                          "list_models","lst_avg","in_path","out_path","script_path",
+#                                          "interpolation_method")
   
   #9 parameters used in the data preparation stage and input in the current script
   list_param_data_prep<-list_param_raster_prediction$list_param_data_prep
@@ -62,7 +62,7 @@ raster_prediction_gam_fusion<-function(list_param_raster_prediction){
   step<-list_param_raster_prediction$step
   constant<-list_param_raster_prediction$constant
   prop_minmax<-list_param_raster_prediction$prop_minmax
-  infile_dates<-list_param_raster_prediction$infile_dates
+  dates_selected<-list_param_raster_prediction$dates_selected
   
   #6 additional parameters for monthly climatology and more
   list_models<-list_param_raster_prediction$list_models
@@ -114,7 +114,13 @@ raster_prediction_gam_fusion<-function(list_param_raster_prediction){
   ghcn<-readOGR(dsn=in_path,layer=sub(".shp","",basename(infile_daily)))
   CRS_interp<-proj4string(ghcn)                       #Storing projection information (ellipsoid, datum,etc.)
   stat_loc<-readOGR(dsn=in_path,layer=sub(".shp","",basename(infile_locs)))
-  dates <-readLines(file.path(in_path,infile_dates)) #dates to be predicted
+  #dates2 <-readLines(file.path(in_path,dates_selected)) #dates to be predicted, now read directly from the file
+  if (dates_selected==""){
+    dates<-as.character(sort(unique(ghcn$date))) #dates to be predicted 
+  }
+  if (dates_selected!=""){
+    dates<-dates_selected #dates to be predicted 
+  }
   
   #Reading of covariate brick covariates can be changed...
   
@@ -147,7 +153,7 @@ raster_prediction_gam_fusion<-function(list_param_raster_prediction){
   #list_param_sampling<-list(seed_number,nb_sample,step,constant,prop_minmax,dates,ghcn_name)
   names(list_param_sampling)<-c("seed_number","nb_sample","step","constant","prop_minmax","dates","ghcn")
   
-  #run function
+  #run function, note that dates must be a character vector!!
   sampling_obj<-sampling_training_testing(list_param_sampling)
   
   ########### PREDICT FOR MONTHLY SCALE  ##################
@@ -197,7 +203,7 @@ raster_prediction_gam_fusion<-function(list_param_raster_prediction){
   save(gam_fus_mod,file= paste("gam_fus_mod",out_prefix,".RData",sep=""))
   t2<-proc.time()-t1
   writeLines(as.character(t2),con=log_file,sep="\n")
-  browser()
+  #browser()
   ############### NOW RUN VALIDATION #########################
   
   list_tmp<-vector("list",length(gam_fus_mod))
@@ -211,7 +217,7 @@ raster_prediction_gam_fusion<-function(list_param_raster_prediction){
   t1<-proc.time()
   #calculate_accuary_metrics<-function(i)
   list_param_validation<-list(i,rast_day_yearlist,gam_fus_mod,y_var_name, out_prefix)
-  names(list_param_validation)<-c("list_index","rast_day_year_list","gam_fus_mod","y_var_name","out_prefix")
+  names(list_param_validation)<-c("list_index","rast_day_year_list","method_mod_obj","y_var_name","out_prefix") #same names for any method
   
   #gam_fus_validation_mod<-mclapply(1:length(gam_fus_mod), calculate_accuracy_metrics,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
   gam_fus_validation_mod<-mclapply(1:length(gam_fus_mod), list_param=list_param_validation, calculate_accuracy_metrics,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
