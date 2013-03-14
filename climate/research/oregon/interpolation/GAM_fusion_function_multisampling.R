@@ -61,22 +61,59 @@ fit_models<-function(list_formulas,data_training){
 ####
 #TODO:
 #Add log file and calculate time and sizes for processes-outputs
-runClimCAI<-function(j){
+runClimCAI<-function(j,list_param){
+
   #Make this a function with multiple argument that can be used by mcmapply??
-  #This creates clim fusion layers...still needs more code testing
-  
+  #Arguments: 
+  #1)list_index: j 
+  #2)covar_rast: covariates raster images used in the modeling
+  #3)covar_names: names of input variables 
+  #4)lst_avg: list of LST climatogy names, may be removed later on
+  #5)list_models: list input models for bias calculation
+  #6)dst: data at the monthly time scale
+  #7)var: TMAX or TMIN, variable being interpolated
+  #8)y_var_name: output name, not used at this stage
+  #9)out_prefix
+  #
+  #The output is a list of four shapefile names produced by the function:
+  #1) clim: list of output names for raster climatogies 
+  #2) data_month: monthly training data for bias surface modeling
+  #3) mod: list of model objects fitted 
+  #4) formulas: list of formulas used in bias modeling
+    
+  ### PARSING INPUT ARGUMENTS
+  #list_param_runGAMFusion<-list(i,clim_yearlist,sampling_obj,var,y_var_name, out_prefix)
+    
+  index<-list_param$j
+  s_raster<-list_param$covar_rast
+  covar_names<-list_param$covar_names
+  lst_avg<-list_param$lst_avg
+  list_models<-list_param$list_models
+  dst<-list_param$dst #monthly station dataset
+  var<-list_param$var
+  y_var_name<-list_param$y_var_name
+  out_prefix<-list_param$out_prefix
+    
   #Model and response variable can be changed without affecting the script
   prop_month<-0 #proportion retained for validation
   run_samp<-1
   
-  list_formulas<-lapply(list_models,as.formula,env=.GlobalEnv) #mulitple arguments passed to lapply!!
-  
+  #### STEP 2: PREPARE DATA
+    
   data_month<-dst[dst$month==j,] #Subsetting dataset for the relevant month of the date being processed
   LST_name<-lst_avg[j] # name of LST month to be matched
   data_month$LST<-data_month[[LST_name]]
   
+  list_formulas<-lapply(list_models,as.formula,env=.GlobalEnv) #mulitple arguments passed to lapply!!  
+
   #TMax to model...
-  data_month$y_var<-data_month$TMax #Adding TMax as the variable modeled
+  if (var=="TMAX"){   
+    data_month$y_var<-data_month$TMax #Adding TMax as the variable modeled
+  }
+  if (var=="TMIN"){   
+    data_month$y_var<-data_month$TMin #Adding TMi as the variable modeled
+  }
+
   mod_list<-fit_models(list_formulas,data_month) #only gam at this stage
   cname<-paste("mod",1:length(mod_list),sep="") #change to more meaningful name?
   names(mod_list)<-cname
@@ -99,7 +136,7 @@ runClimCAI<-function(j){
   
   for (k in 1:length(list_out_filename)){
     #j indicate which month is predicted
-    data_name<-paste("clim_month_",j,"_",cname[k],"_",prop_month,
+    data_name<-paste(var,"_clim_month_",j,"_",cname[k],"_",prop_month,
                      "_",run_samp,sep="")
     raster_name<-paste("fusion_",data_name,out_prefix,".tif", sep="")
     list_out_filename[[k]]<-raster_name
@@ -200,9 +237,14 @@ runClim_KGFusion<-function(j,list_param){
   s_raster<-addLayer(s_raster,LST)            #Adding current month
   
   #LST bias to model...
-  #if (var==TMAX): will need to modify to take into account TMAX, TMIN and LST_day,LST_night
-  data_month$LSTD_bias<-data_month$LST-data_month$TMax
-  data_month$y_var<-data_month$LSTD_bias #Adding bias as the variable modeled
+  if (var==TMAX){
+    data_month$LSTD_bias<-data_month$LST-data_month$TMax
+    data_month$y_var<-data_month$LSTD_bias #Adding bias as the variable modeled
+  }
+  if (var==TMIN){
+    data_month$LSTD_bias<-data_month$LST-data_month$TMin
+    data_month$y_var<-data_month$LSTD_bias #Adding bias as the variable modeled
+  }
   
   #### STEP3:  NOW FIT AND PREDICT  MODEL
   
@@ -217,8 +259,8 @@ runClim_KGFusion<-function(j,list_param){
   names(list_out_filename)<-cname  
   
   for (k in 1:length(list_out_filename)){
-    #j indicate which month is predicted
-    data_name<-paste("bias_LST_month_",j,"_",cname[k],"_",prop_month,
+    #j indicate which month is predicted, var indicates TMIN or TMAX
+    data_name<-paste(var,"_bias_LST_month_",j,"_",cname[k],"_",prop_month,
                      "_",run_samp,sep="")
     raster_name<-paste("fusion_",data_name,out_prefix,".tif", sep="")
     list_out_filename[[k]]<-raster_name
@@ -349,9 +391,14 @@ runGAMFusion <- function(i,list_param) {            # loop over dates
   ##########
   
   modst<-dst[dst$month==mo,] #Subsetting dataset for the relevant month of the date being processed
-  #Change to y_var...could be TMin
-  #modst$LSTD_bias <- modst$LST-modst$y_var
-  modst$LSTD_bias <- modst$LST-modst$TMax; #That is the difference between the monthly LST mean and monthly station mean
+
+  if (var=="TMIN"){
+    modst$LSTD_bias <- modst$LST-modst$TMin; #That is the difference between the monthly LST mean and monthly station mean
+  }
+  if (var=="TMAX"){
+    modst$LSTD_bias <- modst$LST-modst$TMax; #That is the difference between the monthly LST mean and monthly station mean    
+  }
+  #This may be unnecessary since LSTD_bias is already in dst?? check the info
   
   #Clearn out this part: make this a function call
   x<-as.data.frame(data_v)
