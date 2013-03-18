@@ -16,7 +16,7 @@
 #Function used in the script
 
 calculate_accuracy_metrics<-function(i,list_param){
-  
+  library(plyr)
   ### Caculate accuracy metrics
   calc_val_metrics<-function(x,y){
     #This functions calculates accurayc metrics on given two vectors.
@@ -124,7 +124,7 @@ extract_from_list_obj<-function(obj_list,list_name){
 
 boxplot_from_tb <-function(tb_diagnostic,metric_names,out_prefix){
   #now boxplots and mean per models
-  mod_names<-unique(tb_diagnostic$pred_mod) #models that have accuracy metrics
+  mod_names<-sort(unique(tb_diagnostic$pred_mod)) #models that have accuracy metrics
   t<-melt(tb_diagnostic,
           #measure=mod_var, 
           id=c("date","pred_mod","prop"),
@@ -133,26 +133,30 @@ boxplot_from_tb <-function(tb_diagnostic,metric_names,out_prefix){
   
   median_tb<-cast(t,pred_mod~variable,median)
   tb<-tb_diagnostic
-  tb_mod_list<-vector("list",length(mod_names))
-  for(i in 1:length(mod_names)){            # Reorganizing information in terms of metrics 
-    mod_name_tb<-paste("tb_",mod_names[i],sep="")
-    tb_mod<-subset(tb, pred_mod==mod_names[i])
-    assign(mod_name_tb,tb_mod)
-    tb_mod_list[[i]]<-tb_mod
-  }
+ 
+  #mod_names<-sort(unique(tb$pred_mod)) #kept for clarity
+  tb_mod_list<-lapply(mod_names, function(k) subset(tb, pred_mod==k)) #this creates a list of 5 based on models names
   names(tb_mod_list)<-mod_names
-  mod_metrics<-do.call(cbind,tb_mod_list)
+  #mod_metrics<-do.call(cbind,tb_mod_list)
+  mod_metrics<-do.call(cbindX,tb_mod_list)
+  test_names<-lapply(1:length(mod_names),function(k) paste(names(tb_mod_list[[1]]),mod_names[k],sep="_"))
+  names(mod_metrics)<-unlist(test_names)
+  rows_total<-lapply(tb_mod_list,nrow)
   for (j in 1:length(metric_names)){
     metric_ac<-metric_names[j]
-    mod_pat<-glob2rx(paste("*.",metric_ac,sep=""))   
+    mod_pat<-glob2rx(paste(metric_ac,"_*",sep=""))   
     mod_var<-grep(mod_pat,names(mod_metrics),value=TRUE) # using grep with "value" extracts the matching names     
     #browser()
     test<-mod_metrics[mod_var]
     png(paste("boxplot_metric_",metric_ac, out_prefix,".png", sep=""))
     boxplot(test,outline=FALSE,horizontal=FALSE,cex=0.5,
             ylab=paste(metric_ac,"in degree C",sep=" "))
+    #legend("bottomleft",legend=paste(names(rows_total),":",rows_total,sep=""),cex=0.7,bty="n")
+    title(as.character(t(paste(t(names(rows_total)),":",rows_total,sep=""))),cex=0.8)
     dev.off()
   }
+  avg_tb$n<-rows_total #total number of predictions on which the mean is based
+  median_tb$n<-rows_total
   summary_obj<-list(avg_tb,median_tb)
   return(summary_obj)  
 }
@@ -161,6 +165,9 @@ boxplot_from_tb <-function(tb_diagnostic,metric_names,out_prefix){
 boxplot_month_from_tb <-function(tb_diagnostic,metric_names,out_prefix){
   #Add code here...
 }
+
+
+
 
 ####################################
 ############ END OF SCRIPT #########
