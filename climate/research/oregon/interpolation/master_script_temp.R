@@ -10,7 +10,7 @@
 #STAGE 5: Output analyses-visualization of results for specific dates...
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 03/14/2013                                                                                 
+#DATE: 03/18/2013                                                                                 
 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363, TASK$568--   
 
@@ -88,13 +88,13 @@ source(file.path(script_path,"Database_stations_covariates_processing_function_0
 db.name <- "ghcn"       # name of the Postgres database
 var <- "TMAX"           # name of the variables to keep: TMIN, TMAX or PRCP
 range_years<-c("2000","2001") #right bound not included in the range!!
-range_years_clim<-c("2000","2011") #right bound not included in the range!!
+range_years_clim<-c("1980","2011") #right bound not included in the range!!
 infile1<- "outline_venezuela_region__VE_01292013.shp"      #This is the shape file of outline of the study area                                                      #It is an input/output of the covariate script
 infile2<-"/home/layers/data/climate/ghcn/v2.92-upd-2012052822/ghcnd-stations.txt"                              #This is the textfile of station locations from GHCND
 infile_covariates<-"covariates__venezuela_region__VE_01292013.tif" #this is an output from covariate script and used in stage 3 and stage 4
 CRS_locs_WGS84<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0") #Station coords WGS84: same as earlier
 in_path <- "/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/input_data/"
-out_prefix<-"_365d_GAM_fus5_all_lstd_03142013"                #User defined output prefix
+out_prefix<-"_365d_GAM_fus5_all_lstd_03182013"                #User defined output prefix
 #qc_flags<-    flags allowe for the query from the GHCND??
 
 #The names of covariates can be changed...these names should be output/input from covar script!!!
@@ -174,7 +174,7 @@ names(list_param_raster_prediction)<-c("list_param_data_prep",
                                 "interpolation_method")
 
 #Source file
-source(file.path(script_path,"GAM_fusion_analysis_raster_prediction_multisampling_03132013.R"))
+source(file.path(script_path,"GAM_fusion_analysis_raster_prediction_multisampling_03182013.R"))
 
 #Make the function call
 raster_prediction_gam_fus_obj <-raster_prediction_gam_fusion(list_param_raster_prediction)
