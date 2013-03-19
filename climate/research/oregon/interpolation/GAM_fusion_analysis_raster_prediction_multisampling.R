@@ -11,7 +11,7 @@
 #5)GAM fusion: possibilty of running GAM+FUSION or GAM+CAI and other options added
 #The interpolation is done first at the monthly time scale then delta surfaces are added.
 #AUTHOR: Benoit Parmentier                                                                        
-#DATE: 03/12/2013                                                                                 
+#DATE: 03/18/2013                                                                                 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#568--                                   
 ###################################################################################################
 
@@ -76,7 +76,7 @@ raster_prediction_gam_fusion<-function(list_param_raster_prediction){
   
   source(file.path(script_path,"sampling_script_functions_03122013.R"))
   source(file.path(script_path,"GAM_fusion_function_multisampling_03122013.R"))
-  source(file.path(script_path,"GAM_fusion_function_multisampling_validation_metrics_03122013.R"))
+  source(file.path(script_path,"GAM_fusion_function_multisampling_validation_metrics_03182013.R"))
   
   
   ###################### START OF THE SCRIPT ########################
@@ -240,8 +240,8 @@ raster_prediction_gam_fusion<-function(list_param_raster_prediction){
   ##Write out information concerning accuracy and predictions
   outfile<-file.path(in_path,paste("assessment_measures_",out_prefix,".txt",sep=""))
   write.table(tb_diagnostic_v,file= outfile,row.names=FALSE,sep=",")
-  write.table(summary_metrics[[1]], file= outfile, append=TRUE,sep=",") #write out avg
-  write.table(summary_metrics[[2]], file= outfile, append=TRUE,sep=",") #write out median
+  write.table(x=as.data.frame(summary_metrics[[1]]), file= outfile, append=TRUE,sep=",") #write out avg
+  write.table(x=as.data.frame(summary_metrics[[2]]), file= outfile, append=TRUE,sep=",") #write out median
   
   #################### CLOSE LOG FILE  ####################
   
@@ -258,8 +258,9 @@ raster_prediction_gam_fusion<-function(list_param_raster_prediction){
   ################### PREPARE RETURN OBJECT ###############
   #Will add more information to be returned
   
-  raster_prediction_obj<-list(gamclim_fus_mod,gam_fus_mod,gam_fus_validation_mod,tb_diagnostic_v)
-  names(raster_prediction_obj)<-c("gamclim_fus_mod","gam_fus_mod","gam_fus_validation_mod","tb_diagnostic_v")  
+  raster_prediction_obj<-list(gamclim_fus_mod,gam_fus_mod,gam_fus_validation_mod,tb_diagnostic_v,summary_metrics)
+  names(raster_prediction_obj)<-c("gamclim_fus_mod","gam_fus_mod","gam_fus_validation_mod","tb_diagnostic_v",
+                                  "summary_metrics_v")  
   save(raster_prediction_obj,file= paste("raster_prediction_obj_",out_prefix,".RData",sep=""))
   
   return(raster_prediction_obj)
