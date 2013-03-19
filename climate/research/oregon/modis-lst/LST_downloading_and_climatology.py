@@ -37,6 +37,7 @@ import os, glob
 import datetime, calendar
 import ftplib
 import grass.script as gs
+
 #from datetime import date
 #from datetime import datetime
 
@@ -285,17 +286,18 @@ def main():
     ##    proj4='+proj=sinu +R=6371007.181 +nadgrids=@null +wktext')
 
  
-    #### MOdified by Benoit in October 2012 and January 2013
+    #### MOdified by Benoit in March 2013 
     
     #Parameters
+    #Inputs from R??
     tiles = ['h11v08','h11v07','h12v07','h12v08','h10v07','h10v08'] #These tiles correspond to Venezuela.
     start_year = 2001
     end_year = 2010
     end_month=12
     start_month=1
     hdfdir =  '/home/parmentier/Data/benoit_test' #destination file where hdf files are stored locally after download.
-    night=0    # if 1 then produce night climatology
-    out_suffix="_01252013"
+    night=1    # if 1 then produce night climatology
+    out_suffix="_03192013"
     download=1  # if 1 then download files
     
     ################## First step: download data ###################
@@ -340,13 +342,13 @@ def main():
         os.getcwd()            #get current working directory
         listfiles_wd2 = glob.glob('*'+tile+'*'+'.hdf') #list the all the LST files of interest
         name_of_file = listfiles_wd2[0]    
-       #Create the name of the layer to extract from the hdf file used for definition of the database
+        #Create the name of the layer to extract from the hdf file used for definition of the database
         lst1day = 'HDF4_EOS:EOS_GRID:%s/%s:%s' % (
         path_file,
         name_of_file,
-         'MODIS_Grid_Daily_1km_LST:'+ lst_var)
-         #'LST_Night_1km'
-         #change the above line later to allow night LST for tmin
+        'MODIS_Grid_Daily_1km_LST:'+ lst_var)
+        #'LST_Night_1km'
+        #change the above line later to allow night LST for tmin
          
         #now import one image and set the location, mapset and database !!create name per tile
         gs.run_command('r.in.gdal', input=lst1day, output='LST_1day_'+tile,
@@ -358,7 +360,7 @@ def main():
     
         # set GRASS the projection system and GRASS region to match the extent of the file
         gs.run_command('g.proj', flags='c',
-        proj4='+proj=sinu +a=6371007.181 +b=6371007.181 +ellps=sphere')
+        proj4='+proj=sinu +a=6371007.181 +b=6371007.181 +ellps=sphere') #This should be set in the parameters
         gs.run_command('g.region', rast='LST_1day_'+tile)
     
         #generate monthly pixelwise mean & count of high-quality daytime LST
@@ -378,7 +380,7 @@ def main():
         ##Now calculate clim per month, do a test for year1
         nb_month = 12
         for i in range(1,nb_month+1):
-            clims = calc_clim(list_maps_month[i-1],tile+'_'+list_maps_name[i-1]+'_'+str(i-1))
+            clims = calc_clim(list_maps_month[i-1],lst_var+'_'+tile+'_'+list_maps_name[i-1]+'_'+str(i-1))
             for j in range(1, len(clims)+1):
                 if j-1 ==0:
                     gs.run_command('r.out.gdal', input= clims[j-1], output=clims[j-1]+ out_suffix +'.tif', type='Float32')
