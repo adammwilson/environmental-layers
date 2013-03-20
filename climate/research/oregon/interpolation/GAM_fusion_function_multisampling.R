@@ -151,7 +151,8 @@ runClimCAI<-function(j,list_param){
   #Adding Kriging for Climatology options
   
   clim_xy<-coordinates(data_month)
-  fitclim<-Krig(clim_xy,data_month$TMax,theta=1e5) #use TPS or krige 
+  fitclim<-Krig(clim_xy,data_month$y_var,theta=1e5) #use TPS or krige 
+  #fitclim<-Krig(clim_xy,data_month$TMax,theta=1e5) #use TPS or krige 
   mod_krtmp1<-fitclim
   model_name<-"mod_kr"
   
@@ -164,7 +165,7 @@ runClimCAI<-function(j,list_param){
   
   #now climatology layer
   #clim_rast<-LST-bias_rast
-  data_name<-paste("clim_month_",j,"_",model_name,"_",prop_month,
+  data_name<-paste(var,"_clim_month_",j,"_",model_name,"_",prop_month,
                    "_",run_samp,sep="")
   raster_name_clim<-paste("fusion_",data_name,out_prefix,".tif", sep="")
   writeRaster(clim_rast, filename=raster_name_clim,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
@@ -237,11 +238,11 @@ runClim_KGFusion<-function(j,list_param){
   s_raster<-addLayer(s_raster,LST)            #Adding current month
   
   #LST bias to model...
-  if (var==TMAX){
+  if (var=="TMAX"){
     data_month$LSTD_bias<-data_month$LST-data_month$TMax
     data_month$y_var<-data_month$LSTD_bias #Adding bias as the variable modeled
   }
-  if (var==TMIN){
+  if (var=="TMIN"){
     data_month$LSTD_bias<-data_month$LST-data_month$TMin
     data_month$y_var<-data_month$LSTD_bias #Adding bias as the variable modeled
   }
@@ -445,7 +446,13 @@ runGAMFusion <- function(i,list_param) {            # loop over dates
   ##########
   
   #Change to take into account TMin and TMax
-  daily_delta<-dmoday$dailyTmax-dmoday$TMax
+  if (var=="TMIN"){
+    daily_delta<-dmoday$dailyTmin-dmoday$TMin
+  }
+  if (var=="TMAX"){
+    daily_delta<-dmoday$dailyTmax-dmoday$TMax
+  }
+
   daily_delta_xy<-as.matrix(cbind(dmoday$x,dmoday$y))
   fitdelta<-Krig(daily_delta_xy,daily_delta,theta=1e5) #use TPS or krige
   mod_krtmp2<-fitdelta
