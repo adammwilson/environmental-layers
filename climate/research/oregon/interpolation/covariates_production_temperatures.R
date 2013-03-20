@@ -10,7 +10,7 @@
 # -MODIS LST: mean and obs
 #3) The output is a multiband file in tif format with projected covariates for the processing region/tile.             
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 01/28/2013                                                                                 
+#DATE: 03/19/2013                                                                                 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363--   
 
 ##Comments and TODO:
@@ -37,26 +37,42 @@ library(lattice)
 ### Parameters and arguments
 
 ##Paths to inputs and output
-in_path <- "/home/parmentier/Data/benoit_test"
+var<-"TMAX"
 in_path <- "/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/input_data/"
 out_path<- "/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/output_data/"
 lc_path<-"/home/layers/data/land-cover/lc-consensus-global"
-elev_path<-"/home/layers/data/terrain/dem-cgiar-srtm-1km-tif"
-
-infile1<-"worldborder_sinusoidal.shp"
-infile2<-"modis_sinusoidal_grid_world.shp"
-infile3<-"countries_sinusoidal_world.shp"
-infile4<-"srtm_1km.tif"  #this is the global file: replace later with the input produced by the DEM team
-infile5<-"Simard_Pinto_3DGlobalVeg_JGR.tif"              #Canopy height
+#elev_path<-"/home/layers/data/terrain/dem-cgiar-srtm-1km-tif"
+#infile3<-"countries_sinusoidal_world.shp"
+#infile1<-"worldborder_sinusoidal.shp"
+infile_modis_grid<-"modis_sinusoidal_grid_world.shp"
+infile_elev<-"/home/layers/data/terrain/dem-cgiar-srtm-1km-tif/srtm_1km.tif"  #this is the global file: replace later with the input produced by the DEM team
+infile_canheight<-"Simard_Pinto_3DGlobalVeg_JGR.tif"              #Canopy height
 list_tiles_modis = c('h11v08','h11v07','h12v07','h12v08','h10v07','h10v08') #tile for Venezuel and surrounding area
 infile_reg_outline=""  #input region outline defined by polygon
 CRS_interp<-"+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs";
 CRS_locs_WGS84<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0") #Station coords WGS84
-out_region_name<-"_venezuela_region"
-out_suffix<-"_VE_02082013"
+out_region_name<-"_venezuela_region" #generated on the fly
+out_suffix<-"_VE_03182013"
 ref_rast_name<-""  #local raster name defining resolution, exent, local projection--. set on the fly??
                    #for the processing tile/region? This is a group fo six tiles for now.
 
+#The names of covariates can be changed...these names should be output/input from covar script!!!
+rnames<-c("x","y","lon","lat","N","E","N_w","E_w","elev","slope","aspect","CANHEIGHT","DISTOC")
+lc_names<-c("LC1","LC2","LC3","LC4","LC5","LC6","LC7","LC8","LC9","LC10","LC11","LC12")
+lst_names<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_09","mm_10","mm_11","mm_12",
+             "nobs_01","nobs_02","nobs_03","nobs_04","nobs_05","nobs_06","nobs_07","nobs_08",
+             "nobs_09","nobs_10","nobs_11","nobs_12")
+covar_names<-c(rnames,lc_names,lst_names)
+
+list_param_covar_production<-list(var,in_path,out_path,lc_path,infile_modis_grid,infile_elev,infile_canheight,
+                                  list_tiles_modis,infile_reg_outline,CRS_interp,CRS_locs_WGS84,out_region_name,
+                                  out_suffix,ref_rast_name,covar_names) 
+
+names(list_param_covar_production)<-c("var","in_path","out_path","lc_path","infile_modis_grid","infile_elev","infile_canheight",
+                                  "list_tiles_modis","infile_reg_outline","CRS_interp","CRS_locs_WGS84","out_region_name",
+                                  "out_suffix","ref_rast_name","covar_names") 
+
+#LST_night_rast<-raster("mean_LST_Night_1km_h11v08_dec_11_03192013.tif")
 #### Functions used in the script  ###
 
 create_modis_tiles_region<-function(modis_grid,tiles){
@@ -123,238 +139,263 @@ mosaic_raster_list<-function(mosaic_list,out_names,out_path){
   return(rast_list)
 }
 
-###########################################################
-############ Main body: BEGIN--START OF THE SCRIPT ###################
-
-##### STEP 1: Reading region or tile information to set the study or processing region
-
-setwd(in_path)
-
-filename<-sub(".shp","",infile2)       #Removing the extension from file.
-modis_grid<-readOGR(".", filename)     #Reading shape file using rgdal library
-filename<-sub(".shp","",infile1)       #Removing the extension from file.
-world_countries<-readOGR(".", filename)     #Reading shape file using rgdal library
-
-if (infile_reg_outline!=""){
-  filename<-sub(".shp","",infile_reg_outline)   #Removing the extension from file.
-  reg_outline<-readOGR(".", filename)
-}
-
-if (infile_reg_outline==""){
-  reg_outline<-create_modis_tiles_region(modis_grid,list_tiles_modis) #problem...this does not 
-                                                                      #align with extent of modis LST!!!
-  writeOGR(reg_outline,dsn= ".",layer= paste("outline",out_region_name,"_",out_suffix,sep=""), driver="ESRI Shapefile")
-}
-
-tmp<-extent(ref_rast)
-
-#modis_tiles<-create_modis_tiles_region(modis_grid,list_tiles_modis)
-##Create covariates for the stuy area: pull everything from the same folder?
-
-#### STEP 2: process and/or produce covariates for the tile/region
-
-################################
-#1) LST climatology: project, mosaic
-
-tile<-list_tiles_modis[i]
-pat_str2 <- glob2rx(paste("nobs","*.tif",sep=""))
-tmp_str2<- mixedsort(list.files(pattern=pat_str2))
-pat_str1 <- glob2rx(paste("mean","*.tif",sep=""))
-tmp_str1<- mixedsort(list.files(pattern=pat_str1))
-#add lines using grep to select tiles...
-
-#list_date_names<-as.character(0:11)
-#lsit_date_names<-month.abb
-out_rastnames<-paste("_lst_","nobs",out_suffix,sep="")
-list_date_names<-c("jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec")
-mosaic_list<-split(tmp_str2,list_date_names)
-new_list<-vector("list",length(mosaic_list))
-for (i in 1:length(list_date_names)){
-  j<-grep(list_date_names[i],mosaic_list,value=FALSE)
-  names(mosaic_list)[j]<-list_date_names[i]
-  new_list[i]<-mosaic_list[j]
-}
-mosaic_list<-new_list
-out_rastnames<-paste(list_date_names,out_rastnames,sep="")
-#reproject and crop if necessary
-nobs_m_list<-mosaic_raster_list(mosaic_list,out_rastnames,out_path)
-plot(stack(nobs_m_list))
-
-##Now mosaic for mean: should reorder files!!
-pat_str1 <- glob2rx(paste("mean","*.tif",sep=""))
-tmp_str1<- mixedsort(list.files(pattern=pat_str1))
-out_rastnames<-paste("_lst_","mean",out_suffix,sep="")
-list_date_names<-c("jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec")
-mosaic_list<-split(tmp_str1,list_date_names)
-new_list<-vector("list",length(mosaic_list))
-for (i in 1:length(list_date_names)){
-  j<-grep(list_date_names[i],mosaic_list,value=FALSE)
-  names(mosaic_list)[j]<-list_date_names[i]
-  new_list[i]<-mosaic_list[j]
-}
-mosaic_list<-new_list
-out_rastnames<-paste(list_date_names,out_rastnames,sep="")
-
-mean_m_list<-mosaic_raster_list(mosaic_list,out_rastnames,out_path)
-plot(stack(mean_m_list))
-#Use this as ref file for now?? Ok for the time being: this will need to change to be a processing tile.
-ref_rast<-raster(mean_m_list[[1]]) 
-#Modis shapefile tile is slighly shifted:
-# +proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs for ref_rast
-#"+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs" ??
-#reassign proj from modis tile to raster? there is a 10m diff in semi-axes...(a and b)
-
-#Screen LST for extreme values?
-#min_val<-(-15+273.16) #if values less than -15C then screen out (note the Kelvin units that will need to be changed later in all datasets)
-#LST[LST < (min_val)]<-NA
-
-
-#########################################
-##2) Crop and reproject Canopy height data
-
-#Make it a function?
-#canopy_rast<-raster("Simard_Pinto_3DGlobalVeg_JGR.tif")
-canopy_name<-file.path(in_path,infile5)
-#new_proj<-proj4string(canopy)                  #Assign coordinates reference system in PROJ4 format
-#region_temp_projected<-spTransform(modis_tiles,CRS(new_proj))     #Project from WGS84 to new coord. system
-#canopy_crop_rast<-crop(canopy, region_temp_projected) #crop using the extent from teh region tile
-#canopy_projected_rast<-projectRaster(from=canopy_crop_rast,crs=proj4string(modis_tiles),method="ngb")
-#Use GDAL instead?? system( 'gdalwarp...')
-
-#CANHEIGHT<-raster(s_raster,layer=pos)             #Select layer from stack
-#s_raster<-dropLayer(s_raster,pos)
-#CANHEIGHT[is.na(CANHEIGHT)]<-0
-
-CANHEIGHT<-create_raster_region(canopy_name,ref_rast)
-
-##########################################
-#3) Creating elev, aspect, slope from STRM
-
-SRTM_name<-file.path(elev_path,infile4)
-SRTM_reg<-create_raster_region(SRTM_name,ref_rast)
-
-#new_proj<-proj4string(SRTM_rast)                  #Assign coordinates reference system in PROJ4 format
-#region_temp_projected<-spTransform(modis_tiles,CRS(new_proj))     #Project from WGS84 to new coord. system
-#SRTM_crop_rast<-crop(SRTM, region_temp_projected) #crop using the extent from teh region tile
-#SRTM_projected_rast<-projectRaster(from=SRTM,crs=proj4string(modis_tiles),method="ngb")
-
-#pos<-match("ELEV_SRTM",layerNames(s_raster)) #Find column with name "ELEV_SRTM"
-#ELEV_SRTM<-raster(s_raster,layer=pos)             #Select layer from stack on 10/30
-#s_raster<-dropLayer(s_raster,pos)
-#ELEV_SRTM[ELEV_SRTM <0]<-NA
-
-#Call a function to reproject the data in a local projection defined on the fly using the processing tile
-#extent...For the time being just use sinusoidal projection.
-###calculate slope and aspect
-
-terrain_rast<-terrain(SRTM_reg, opt=c("slope","aspect"),unit="degrees", neighbors=8) #, filename=\u2019\u2019, ...)
-pos<-match("aspect",names(terrain_rast)) #Find column with name "value"
-r1<-raster(terrain_rast,layer=pos)             #Select layer from stack
-pos<-match("slope",names(terrain_rast)) #Find column with name "value"
-r2<-raster(terrain_rast,layer=pos)             #Select layer from stack
-N<-cos(r1)
-E<-sin(r1)
-Nw<-sin(r2)*cos(r1)   #Adding a variable to the dataframe
-Ew<-sin(r2)*sin(r1)   #Adding variable to the dataframe.
-
-#topo_rast<-stack(STRM_reg,N,E,Nw,Ew)
-
-######################################
-#4) LCC land cover
-
-oldpath<-getwd()
-setwd(lc_path)
-#lc_name<-"con_1km_class_1.tif"
-lc_list<-list.files(pattern="con_1km_class_.*.tif")
-#lc<-raster(file.path(lc_path,lc_names))
-
-lc_reg_list<-vector("list",length(lc_list))
-for (i in 1:length(lc_list)){
+covariates_production_temperature<-function(list_param){
+  #This functions produce covariates used in the interpolation of temperature.
+  #It requires 15 arguments:
+  #
+  #
+  #
+  ###########################################################
+  ############ Main body: BEGIN--START OF THE SCRIPT ###################
   
-  lc_name<-lc_list[[i]]
-  lc_reg<-create_raster_region(lc_name,ref_rast)
-  data_name<-paste("reg_",sub(".tif","",lc_name),"_",sep="") #can add more later...
-  raster_name<-paste(data_name,out_suffix,".tif", sep="")
-  writeRaster(lc_reg, filename=file.path(out_path,raster_name),overwrite=TRUE)  
-  lc_reg_list[[i]]<-file.path(out_path,raster_name)
+  ##### STEP 1: Reading region or tile information to set the study or processing region
+  
+  var<-list_param$var
+  in_path <-list_param$in_path
+  out_path<- list_param$out_path
+  lc_path<-list_param$lc_path 
+  #elev_path<-"/home/layers/data/terrain/dem-cgiar-srtm-1km-tif"
+  #infile3<-"countries_sinusoidal_world.shp"
+  #infile1<-"worldborder_sinusoidal.shp"
+  infile_modis_grid<-list_param$infile_modis_grid
+  infile_elev<-list_param$infile_elev #this is the global file: replace later with the input produced by the DEM team
+  infile_canheight<-list_param$infile_canheight #Canopy height
+  list_tiles_modis<-list_param$list_tiles_modis #tile for Venezuel and surrounding area
+  infile_reg_outline<-list_param$infile_reg_outline   #input region outline defined by polygon
+  CRS_interp<-list_param$CRS_interp #local projection system
+  CRS_locs_WGS84<-list_param$CRS_locs_WGS84 #
+  out_region_name<-list_param$out_region_name  #generated on the fly
+  out_suffix<-list_param$out_suffix 
+  ref_rast_name<-list_param$ref_rast_name #local raster name defining resolution, exent, local projection--. set on the fly??
+  #for the processing tile/region? This is a group fo six tiles for now.
+  
+  covar_names<-list_param$covar_names 
+  
+  setwd(in_path)
+  
+  filename<-sub(".shp","",infile_modis_grid)       #Removing the extension from file.
+  modis_grid<-readOGR(".", filename)     #Reading shape file using rgdal library
+  #filename<-sub(".shp","",infile1)       #Removing the extension from file.
+  #world_countries<-readOGR(".", filename)     #Reading shape file using rgdal library
+  
+  if (infile_reg_outline!=""){
+    filename<-sub(".shp","",infile_reg_outline)   #Removing the extension from file.
+    reg_outline<-readOGR(".", filename)
+  }
+  
+  if (infile_reg_outline==""){
+    reg_outline<-create_modis_tiles_region(modis_grid,list_tiles_modis) #problem...this does not 
+    #align with extent of modis LST!!!
+    writeOGR(reg_outline,dsn= ".",layer= paste("outline",out_region_name,"_",out_suffix,sep=""), 
+             driver="ESRI Shapefile",overwrite_layer="TRUE")
+  }
+  
+  #Should add option for a reference file here...
+  #tmp<-extent(ref_rast)
+  
+  #modis_tiles<-create_modis_tiles_region(modis_grid,list_tiles_modis)
+  ##Create covariates for the stuy area: pull everything from the same folder?
+  
+  #### STEP 2: process and/or produce covariates for the tile/region
+  
+  ################################
+  #1) LST climatology: project, mosaic
+  i<-1
+  tile<-list_tiles_modis[i]
+  if (var=="TMIN"){
+    lst_pat<-"LST_Night_1km"
+  }
+  if (var=="TMAX"){
+    lst_pat<-"" #for the time being change at later stage...
+    #day_pat<-"LST_Day_1km"
+  }
+  
+  #Get list of files containing the LST averages
+  pat_str2 <- glob2rx(paste("nobs","*",lst_pat,"*.tif",sep=""))
+  tmp_str2<- mixedsort(list.files(pattern=pat_str2))
+  pat_str1 <- glob2rx(paste("mean","*",lst_pat,"*.tif",sep=""))
+  tmp_str1<- mixedsort(list.files(pattern=pat_str1))
+  #add lines using grep to select tiles...
+ 
+  #Format list for mosaicing: mosaic for every month the relevant number of files
+  #out_rastnames<-paste("_lst_","nobs",out_suffix,sep="")
+  out_rastnames<-paste("_",lst_pat,"_","nobs",out_suffix,sep="")
+  list_date_names<-c("jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec")
+  mosaic_list<-split(tmp_str2,list_date_names)
+  new_list<-vector("list",length(mosaic_list))
+  for (i in 1:length(list_date_names)){
+    j<-grep(list_date_names[i],mosaic_list,value=FALSE)
+    names(mosaic_list)[j]<-list_date_names[i]
+    new_list[i]<-mosaic_list[j]
+  }
+  mosaic_list<-new_list
+  out_rastnames<-paste(list_date_names,out_rastnames,sep="")
+  #reproject and crop if necessary
+  #nobs_m_list<-list.files(pattern='mosaiced_.*._lst_nobs_VE_03182013.tif')
+  nobs_m_list<-mosaic_raster_list(mosaic_list,out_rastnames,out_path)
+  
+  ##Now mosaic for mean: should reorder files!!
+  pat_str1 <- glob2rx(paste("mean","*.tif",sep=""))
+  tmp_str1<- mixedsort(list.files(pattern=pat_str1))
+  out_rastnames<-paste("_",lst_pat,"_","mean",out_suffix,sep="")
+  list_date_names<-c("jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec")
+  mosaic_list<-split(tmp_str1,list_date_names)
+  new_list<-vector("list",length(mosaic_list))
+  for (i in 1:length(list_date_names)){
+    j<-grep(list_date_names[i],mosaic_list,value=FALSE)
+    names(mosaic_list)[j]<-list_date_names[i]
+    new_list[i]<-mosaic_list[j]
+  }
+  mosaic_list<-new_list
+  out_rastnames<-paste(list_date_names,out_rastnames,sep="")
+  #mean_m_list<-list.files(pattern='mosaiced_.*._lst_mean_VE_03182013.tif')
+  mean_m_list<-mosaic_raster_list(mosaic_list,out_rastnames,out_path)
+
+  #Use this as ref file for now?? Ok for the time being: this will need to change to be a processing tile.
+  ref_rast<-raster(mean_m_list[[1]])
+  #ref_rast <-raster("mosaiced_dec_lst_mean_VE_03182013.tif")
+  #Modis shapefile tile is slighly shifted:
+  # +proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs for ref_rast
+  #"+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs" ??
+  #reassign proj from modis tile to raster? there is a 10m diff in semi-axes...(a and b)
+  
+  ##Write function to screen data values...
+  
+  #Screen LST for extreme values?
+  #min_val<-(-15+273.16) #if values less than -15C then screen out (note the Kelvin units that will need to be changed later in all datasets)
+  #LST[LST < (min_val)]<-NA
+  
+  #########################################
+  ##2) Crop and reproject Canopy height data
+  
+  #Make it a function?
+  #canopy_rast<-raster("Simard_Pinto_3DGlobalVeg_JGR.tif")
+  canopy_name<-file.path(in_path,infile_canheight)
+  
+  CANHEIGHT<-create_raster_region(canopy_name,ref_rast)
+  
+  ##########################################
+  #3) Creating elev, aspect, slope from STRM
+  
+  SRTM_reg<-create_raster_region(infile_elev,ref_rast)
+  
+  #Call a function to reproject the data in a local projection defined on the fly using the processing tile
+  #extent...For the time being just use sinusoidal projection.
+  ###calculate slope and aspect
+  
+  terrain_rast<-terrain(SRTM_reg, opt=c("slope","aspect"),unit="degrees", neighbors=8) #, filename=\u2019\u2019, ...)
+  pos<-match("aspect",names(terrain_rast)) #Find column with name "value"
+  r1<-raster(terrain_rast,layer=pos)             #Select layer from stack
+  pos<-match("slope",names(terrain_rast)) #Find column with name "value"
+  r2<-raster(terrain_rast,layer=pos)             #Select layer from stack
+  N<-cos(r1)
+  E<-sin(r1)
+  Nw<-sin(r2)*cos(r1)   #Adding a variable to the dataframe
+  Ew<-sin(r2)*sin(r1)   #Adding variable to the dataframe.
+  
+  #topo_rast<-stack(STRM_reg,N,E,Nw,Ew)
+  
+  ######################################
+  #4) LCC land cover
+  
+  oldpath<-getwd()
+  setwd(lc_path)
+  #lc_name<-"con_1km_class_1.tif"
+  lc_list<-list.files(pattern="con_1km_class_.*.tif")
+  #lc<-raster(file.path(lc_path,lc_names))
+  
+  lc_reg_list<-vector("list",length(lc_list))
+  for (i in 1:length(lc_list)){
+    
+    lc_name<-lc_list[[i]]
+    lc_reg<-create_raster_region(lc_name,ref_rast)
+    data_name<-paste("reg_",sub(".tif","",lc_name),"_",sep="") #can add more later...
+    raster_name<-paste(data_name,out_suffix,".tif", sep="")
+    writeRaster(lc_reg, filename=file.path(out_path,raster_name),overwrite=TRUE)  
+    lc_reg_list[[i]]<-file.path(out_path,raster_name)
+  }
+  setwd(out_path)
+  lc_reg_list<-mixedsort(list.files(pattern=paste("^reg_con_1km_class_.*.",out_suffix,".tif",sep="")))
+  lc_reg_s<-stack(lc_reg_list)
+  
+  #Now combine forest classes...in LC1 forest, LC2, LC3, LC4 and LC6-urban...??
+  
+  #create a local mask for the tile/processing region
+  
+  #LC12<-raster(paste("reg_con_1km_class_12_",out_suffix,".tif",sep="")) #this is open water
+  LC12<-raster(lc_reg_s,layer=nlayers(lc_reg_s)) #this is open water
+  
+  LC_mask<-LC12
+  LC_mask[LC_mask==100]<-NA
+  LC_mask <- LC_mask > 100
+  #lc_reg_s<-mask(x=lc_reg_s,mask=LC_mask,filename=paste("reg_con_1km_all_classes_",out_suffix,".tif",sep=""),
+  #               bandorder="BSQ",overwrite=TRUE)
+  
+  ###############################
+  #5) DISTOC, distance to coast: Would be useful to have a distance to coast layer ready...
+  
+  #This does not work...clump needs igraph. I'll look into this later...for now I used IDRISI to clump pixels.
+  #rc<-clump(LC12)
+  #tab_freq<-freq(rc)
+  #Modify at a later stage:
+  #raster<-"DISTOC_VE_01292013.rst"  
+  #ocean_rast<-raster(file.path(in_path,"lc12_tmp_grouped_rec.rst"))
+  #ocean_rast[ocean_rast==0]<-NA
+  #Distance calculated in a global layer??
+  #distoc_reg<-distance(ocean_rast,doEdge=TRUE) #this is very slow: more than 35 min use GRASS instead??
+  
+  #load DISTOC produced from IDRISI: automate the process later
+  distoc_reg<-raster(file.path(in_path,"DISTOC_VE_01292013.rst"))
+  
+  ################################
+  #6) X-Y coordinates and LAT-LONG: do not keep in memory?
+  #ref_rast <-raster("mosaiced_dec_lst_mean_VE_03182013.tif")
+  r1 <-ref_rast
+  xy <-coordinates(r1)  #get x and y projected coordinates...
+  CRS_interp<-proj4string(r1)
+  xy_latlon<-project(xy, CRS_interp, inv=TRUE) # find lat long for projected coordinats (or pixels...)
+  x <-init(r1,v="x")
+  y <-init(r1,v="y")
+  lon <-x
+  lat <-lon
+  lon <-setValues(lon,xy_latlon[,1]) #longitude for every pixel in the processing tile/region
+  lat <-setValues(lat,xy_latlon[,2]) #latitude for every pixel in the processing tile/region
+  rm(r1)
+  #coord_s<-stack(x,y,lat,lon)
+  
+  ################################
+  ##Step 3: combine covariates in one stack for the next work flow stage
+  #Create a stack in tif format...
+  
+  #? output name??
+  r<-stack(x,y,lon,lat,N,E,Nw,Ew,SRTM_reg,terrain_rast,CANHEIGHT,distoc_reg)
+  #rnames<-c("x","y","lon","lat","N","E","N_w","E_w","elev","slope","aspect","CANHEIGHT","DISTOC")
+  #names(r)<-rnames
+  s_raster<-r
+  #Add landcover layers
+  #lc_names<-c("LC1","LC2","LC3","LC4","LC5","LC6","LC7","LC8","LC9","LC10","LC11","LC12")
+  #names(lc_reg_s)<-lc_names #assign land cover names
+  s_raster<-addLayer(s_raster, lc_reg_s)
+  
+  lst_s<-stack(c(as.character(mean_m_list),as.character(nobs_m_list)))
+  #lst_names<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_09","mm_10","mm_11","mm_12",
+  #             "nobs_01","nobs_02","nobs_03","nobs_04","nobs_05","nobs_06","nobs_07","nobs_08",
+  #             "nobs_09","nobs_10","nobs_11","nobs_12")
+  #names(lst_s)<-lst_names
+  s_raster<-addLayer(s_raster, lst_s)
+  
+  #covar_names<-c(rnames,lc_names,lst_names)
+  names(s_raster)<-covar_names
+  #Write out stack of number of change 
+  data_name<-paste("covariates_",out_region_name,"_",sep="")
+  raster_name<-paste(data_name,var,"_",out_suffix,".tif", sep="")
+  #writeRaster(s_raster, filename=raster_name,NAflag=-999,bylayer=FALSE,bandorder="BSQ",overwrite=TRUE)  #Writing the data in a raster file format...
+  s_raster_m<-mask(s_raster,LC_mask,filename=raster_name,
+                 overwrite=TRUE,NAflag=-999,bylayer=FALSE,bandorder="BSQ")
+  #using bil format more efficient??
+  return(raster_name)
 }
-setwd(out_path)
-lc_reg_list<-mixedsort(list.files(pattern="^reg_con.*.tif"))
-lc_reg_s<-stack(lc_reg_list)
-#lc_reg_s<-as.character(lc_reg_list)
-#Now combine forest classes...in LC1 forest, LC2, LC3, LC4 and LC6-urban...??
 
-#create a local mask for the tile/processing region
-
-#LC12<-raster(paste("reg_con_1km_class_12_",out_suffix,".tif",sep="")) #this is open water
-LC12<-raster(lc_reg_s,layer=nlayers(lc_reg_s)) #this is open water
-
-LC_mask<-LC12
-LC_mask[LC_mask==100]<-NA
-LC_mask <- LC_mask > 100
-lc_reg_s<-mask(lc_reg_s,LC_mask,filename=paste("reg_con_1km_classes_",out_suffix,".tif",sep=""))
-
-###############################
-#5) DISTOC, distance to coast: Would be useful to have a distance to coast layer ready...
-
-#This does not work...clump needs igraph. I'll look into this later...for now I used IDRISI to clump pixels.
-#rc<-clump(LC12)
-#tab_freq<-freq(rc)
-#Modify at a later stage:
-#raster<-"DISTOC_VE_01292013.rst"  
-#ocean_rast<-raster(file.path(in_path,"lc12_tmp_grouped_rec.rst"))
-#ocean_rast[ocean_rast==0]<-NA
-#Distance calculated in a global layer??
-#distoc_reg<-distance(ocean_rast,doEdge=TRUE) #this is very slow: more than 35 min use GRASS instead??
-
-#load DISTOC produced from IDRISI: automate the process later
-distoc_reg<-raster(file.path(in_path,"DISTOC_VE_01292013.rst"))
-
-################################
-#6) X-Y coordinates and LAT-LONG: do not keep in memory?
-r1 <-ref_rast
-xy <-coordinates(r1)  #get x and y projected coordinates...
-CRS_interp<-proj4string(r1)
-xy_latlon<-project(xy, CRS_interp, inv=TRUE) # find lat long for projected coordinats (or pixels...)
-x <-init(r1,v="x")
-y <-init(r1,v="y")
-lon <-x
-lat <-lon
-lon <-setValues(lon,xy_latlon[,1]) #longitude for every pixel in the processing tile/region
-lat <-setValues(lat,xy_latlon[,2]) #latitude for every pixel in the processing tile/region
-rm(r1)
-#coord_s<-stack(x,y,lat,lon)
-
-################################
-##Step 3: combine covariates in one stack for the next work flow stage
-#Create a stack in tif format...
-
-#? output name??
-r<-stack(x,y,lon,lat,N,E,Nw,Ew,SRTM_reg,terrain_rast,CANHEIGHT,distoc_reg)
-rnames<-c("x","y","lon","lat","N","E","N_w","E_w","elev","slope","aspect","CANHEIGHT","DISTOC")
-names(r)<-rnames
-s_raster<-r
-#Add landcover layers
-lc_names<-c("LC1","LC2","LC3","LC4","LC5","LC6","LC7","LC8","LC9","LC10","LC11","LC12")
-names(lc_reg_s)<-lc_names #assign land cover names
-s_raster<-addLayer(s_raster, lc_reg_s)
-
-lst_s<-stack(c(as.character(mean_m_list),as.character(nobs_m_list)))
-lst_names<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_09","mm_10","mm_11","mm_12",
-             "nobs_01","nobs_02","nobs_03","nobs_04","nobs_05","nobs_06","nobs_07","nobs_08",
-             "nobs_09","nobs_10","nobs_11","nobs_12")
-names(lst_s)<-lst_names
-s_raster<-addLayer(s_raster, lst_s)
-
-covar_names<-c(rnames,lc_names,lst_names)
-names(s_raster)<-covar_names
-#Write out stack of number of change 
-data_name<-paste("covariates_",out_region_name,"_",sep="")
-raster_name<-paste(data_name,out_suffix,".tif", sep="")
-#writeRaster(s_raster, filename=raster_name,NAflag=-999,bylayer=FALSE,bandorder="BSQ",overwrite=TRUE)  #Writing the data in a raster file format...
-s_raster<-mask(s_raster,LC_mask,filename=raster_name,
-               overwrite=TRUE,NAflag=-999,bylayer=FALSE,bandorder="BSQ")
-#using bil format more efficient??
 
 #######################################################
-################### END OF SCRIPT #####################
+################### END OF SCRIPT/FUNCTION #####################
