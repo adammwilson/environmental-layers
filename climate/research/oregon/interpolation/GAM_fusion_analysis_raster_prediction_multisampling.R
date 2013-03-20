@@ -168,7 +168,7 @@ raster_prediction_gam_fusion<-function(list_param_raster_prediction){
   #source(file.path(script_path,"GAM_fusion_function_multisampling_03122013.R"))
   gamclim_fus_mod<-mclapply(1:12, list_param=list_param_runClim_KGFusion, runClim_KGFusion,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
   #gamclim_fus_mod<-mclapply(1:6, runClim_KGFusion,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
-  save(gamclim_fus_mod,file= paste("gamclim_fus_mod",out_prefix,".RData",sep=""))
+  save(gamclim_fus_mod,file= paste("gamclim_fus_mod_",y_var_name,out_prefix,".RData",sep=""))
   t2<-proc.time()-t1
   writeLines(as.character(t2),con=log_file,sep="\n")
   
@@ -200,7 +200,8 @@ raster_prediction_gam_fusion<-function(list_param_raster_prediction){
   
   #gam_fus_mod<-mclapply(1:length(sampling_obj$ghcn_data_day),runGAMFusion,list_param_runGAMFusion,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
   #gam_fus_mod<-mclapply(1:length(ghcn.subsets), runGAMFusion,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
-  save(gam_fus_mod,file= paste("gam_fus_mod",out_prefix,".RData",sep=""))
+  
+  save(gam_fus_mod,file= paste("gam_fus_mod_",y_var_name,out_prefix,".RData",sep=""))
   t2<-proc.time()-t1
   writeLines(as.character(t2),con=log_file,sep="\n")
   #browser()
@@ -223,7 +224,7 @@ raster_prediction_gam_fusion<-function(list_param_raster_prediction){
   gam_fus_validation_mod<-mclapply(1:length(gam_fus_mod), list_param=list_param_validation, calculate_accuracy_metrics,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
   
   #gam_fus_validation_mod<-mclapply(1:1, calculate_accuracy_metrics,mc.preschedule=FALSE,mc.cores = 1) #This is the end bracket from mclapply(...) statement
-  save(gam_fus_validation_mod,file= paste("gam_fus_validation_mod",out_prefix,".RData",sep=""))
+  save(gam_fus_validation_mod,file= paste("gam_fus_validation_mod_",y_var_name,out_prefix,".RData",sep=""))
   t2<-proc.time()-t1
   writeLines(as.character(t2),con=log_file,sep="\n")
   
@@ -235,13 +236,8 @@ raster_prediction_gam_fusion<-function(list_param_raster_prediction){
   
   #Call function to create plots of metrics for validation dataset
   metric_names<-c("rmse","mae","me","r","m50")
-  summary_metrics<-boxplot_from_tb(tb_diagnostic_v,metric_names,out_prefix)
-  names(summary_metrics)<-c("avg","median")
-  ##Write out information concerning accuracy and predictions
-  outfile<-file.path(in_path,paste("assessment_measures_",out_prefix,".txt",sep=""))
-  write.table(tb_diagnostic_v,file= outfile,row.names=FALSE,sep=",")
-  write.table(x=as.data.frame(summary_metrics[[1]]), file= outfile, append=TRUE,sep=",") #write out avg
-  write.table(x=as.data.frame(summary_metrics[[2]]), file= outfile, append=TRUE,sep=",") #write out median
+  summary_metrics_v<-boxplot_from_tb(tb_diagnostic_v,metric_names,out_prefix)
+  names(summary_metrics_v)<-c("avg","median")
   
   #################### CLOSE LOG FILE  ####################
   
@@ -258,10 +254,10 @@ raster_prediction_gam_fusion<-function(list_param_raster_prediction){
   ################### PREPARE RETURN OBJECT ###############
   #Will add more information to be returned
   
-  raster_prediction_obj<-list(gamclim_fus_mod,gam_fus_mod,gam_fus_validation_mod,tb_diagnostic_v,summary_metrics)
+  raster_prediction_obj<-list(gamclim_fus_mod,gam_fus_mod,gam_fus_validation_mod,tb_diagnostic_v,summary_metrics_v)
   names(raster_prediction_obj)<-c("gamclim_fus_mod","gam_fus_mod","gam_fus_validation_mod","tb_diagnostic_v",
                                   "summary_metrics_v")  
-  save(raster_prediction_obj,file= paste("raster_prediction_obj_",out_prefix,".RData",sep=""))
+  save(raster_prediction_obj,file= paste("raster_prediction_obj_",y_var_name,out_prefix,".RData",sep=""))
   
   return(raster_prediction_obj)
 }
