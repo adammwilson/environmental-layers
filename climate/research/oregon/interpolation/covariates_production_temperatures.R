@@ -10,7 +10,7 @@
 # -MODIS LST: mean and obs
 #3) The output is a multiband file in tif format with projected covariates for the processing region/tile.             
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 03/19/2013                                                                                 
+#DATE: 03/21/2013                                                                                 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363--   
 
 ##Comments and TODO:
@@ -22,58 +22,6 @@
 
 ##################################################################################################
 
-###Loading R library and packages   
-library(RPostgreSQL)
-library(sp)                                             # Spatial pacakge with class definition by Bivand et al.
-library(spdep)                                          # Spatial pacakge with methods and spatial stat. by Bivand et al.
-library(rgdal)                                          # GDAL wrapper for R, spatial utilities
-library(raster)
-library(gtools)
-library(rasterVis)
-library(graphics)
-library(grid)
-library(lattice)
-
-### Parameters and arguments
-
-##Paths to inputs and output
-var<-"TMAX"
-in_path <- "/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/input_data/"
-out_path<- "/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/output_data/"
-lc_path<-"/home/layers/data/land-cover/lc-consensus-global"
-#elev_path<-"/home/layers/data/terrain/dem-cgiar-srtm-1km-tif"
-#infile3<-"countries_sinusoidal_world.shp"
-#infile1<-"worldborder_sinusoidal.shp"
-infile_modis_grid<-"modis_sinusoidal_grid_world.shp"
-infile_elev<-"/home/layers/data/terrain/dem-cgiar-srtm-1km-tif/srtm_1km.tif"  #this is the global file: replace later with the input produced by the DEM team
-infile_canheight<-"Simard_Pinto_3DGlobalVeg_JGR.tif"              #Canopy height
-list_tiles_modis = c('h11v08','h11v07','h12v07','h12v08','h10v07','h10v08') #tile for Venezuel and surrounding area
-infile_reg_outline=""  #input region outline defined by polygon
-CRS_interp<-"+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs";
-CRS_locs_WGS84<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0") #Station coords WGS84
-out_region_name<-"_venezuela_region" #generated on the fly
-out_suffix<-"_VE_03182013"
-ref_rast_name<-""  #local raster name defining resolution, exent, local projection--. set on the fly??
-                   #for the processing tile/region? This is a group fo six tiles for now.
-
-#The names of covariates can be changed...these names should be output/input from covar script!!!
-rnames<-c("x","y","lon","lat","N","E","N_w","E_w","elev","slope","aspect","CANHEIGHT","DISTOC")
-lc_names<-c("LC1","LC2","LC3","LC4","LC5","LC6","LC7","LC8","LC9","LC10","LC11","LC12")
-lst_names<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_09","mm_10","mm_11","mm_12",
-             "nobs_01","nobs_02","nobs_03","nobs_04","nobs_05","nobs_06","nobs_07","nobs_08",
-             "nobs_09","nobs_10","nobs_11","nobs_12")
-covar_names<-c(rnames,lc_names,lst_names)
-
-list_param_covar_production<-list(var,in_path,out_path,lc_path,infile_modis_grid,infile_elev,infile_canheight,
-                                  list_tiles_modis,infile_reg_outline,CRS_interp,CRS_locs_WGS84,out_region_name,
-                                  out_suffix,ref_rast_name,covar_names) 
-
-names(list_param_covar_production)<-c("var","in_path","out_path","lc_path","infile_modis_grid","infile_elev","infile_canheight",
-                                  "list_tiles_modis","infile_reg_outline","CRS_interp","CRS_locs_WGS84","out_region_name",
-                                  "out_suffix","ref_rast_name","covar_names") 
-
-#LST_night_rast<-raster("mean_LST_Night_1km_h11v08_dec_11_03192013.tif")
-#### Functions used in the script  ###
 
 create_modis_tiles_region<-function(modis_grid,tiles){
   #This functions returns a subset of tiles from the modis grdi.
@@ -145,31 +93,43 @@ covariates_production_temperature<-function(list_param){
   #
   #
   #
+  
+  ###Loading R library and packages   
+  library(RPostgreSQL)
+  library(sp)                                             # Spatial pacakge with class definition by Bivand et al.
+  library(spdep)                                          # Spatial pacakge with methods and spatial stat. by Bivand et al.
+  library(rgdal)                                          # GDAL wrapper for R, spatial utilities
+  library(raster)
+  library(gtools)
+  library(rasterVis)
+  library(graphics)
+  library(grid)
+  library(lattice)
+  
+  ### Parameters and arguments
+  
   ###########################################################
   ############ Main body: BEGIN--START OF THE SCRIPT ###################
   
-  ##### STEP 1: Reading region or tile information to set the study or processing region
+  ##### STEP 1: PARSING ARGUMENTS
   
   var<-list_param$var
   in_path <-list_param$in_path
   out_path<- list_param$out_path
   lc_path<-list_param$lc_path 
-  #elev_path<-"/home/layers/data/terrain/dem-cgiar-srtm-1km-tif"
-  #infile3<-"countries_sinusoidal_world.shp"
-  #infile1<-"worldborder_sinusoidal.shp"
   infile_modis_grid<-list_param$infile_modis_grid
   infile_elev<-list_param$infile_elev #this is the global file: replace later with the input produced by the DEM team
   infile_canheight<-list_param$infile_canheight #Canopy height
-  list_tiles_modis<-list_param$list_tiles_modis #tile for Venezuel and surrounding area
+  list_tiles_modis<-list_param$list_tiles_modis #tile for Venezuela and surrounding area
   infile_reg_outline<-list_param$infile_reg_outline   #input region outline defined by polygon
   CRS_interp<-list_param$CRS_interp #local projection system
   CRS_locs_WGS84<-list_param$CRS_locs_WGS84 #
   out_region_name<-list_param$out_region_name  #generated on the fly
   out_suffix<-list_param$out_suffix 
   ref_rast_name<-list_param$ref_rast_name #local raster name defining resolution, exent, local projection--. set on the fly??
-  #for the processing tile/region? This is a group fo six tiles for now.
-  
   covar_names<-list_param$covar_names 
+  
+  ##### SET UP STUDY AREA ####
   
   setwd(in_path)
   
@@ -293,8 +253,6 @@ covariates_production_temperature<-function(list_param){
   Nw<-sin(r2)*cos(r1)   #Adding a variable to the dataframe
   Ew<-sin(r2)*sin(r1)   #Adding variable to the dataframe.
   
-  #topo_rast<-stack(STRM_reg,N,E,Nw,Ew)
-  
   ######################################
   #4) LCC land cover
   
@@ -324,12 +282,9 @@ covariates_production_temperature<-function(list_param){
   
   #LC12<-raster(paste("reg_con_1km_class_12_",out_suffix,".tif",sep="")) #this is open water
   LC12<-raster(lc_reg_s,layer=nlayers(lc_reg_s)) #this is open water
-  
   LC_mask<-LC12
   LC_mask[LC_mask==100]<-NA
   LC_mask <- LC_mask > 100
-  #lc_reg_s<-mask(x=lc_reg_s,mask=LC_mask,filename=paste("reg_con_1km_all_classes_",out_suffix,".tif",sep=""),
-  #               bandorder="BSQ",overwrite=TRUE)
   
   ###############################
   #5) DISTOC, distance to coast: Would be useful to have a distance to coast layer ready...
@@ -365,23 +320,16 @@ covariates_production_temperature<-function(list_param){
   
   ################################
   ##Step 3: combine covariates in one stack for the next work flow stage
-  #Create a stack in tif format...
-  
-  #? output name??
+
   r<-stack(x,y,lon,lat,N,E,Nw,Ew,SRTM_reg,terrain_rast,CANHEIGHT,distoc_reg)
   #rnames<-c("x","y","lon","lat","N","E","N_w","E_w","elev","slope","aspect","CANHEIGHT","DISTOC")
-  #names(r)<-rnames
   s_raster<-r
   #Add landcover layers
   #lc_names<-c("LC1","LC2","LC3","LC4","LC5","LC6","LC7","LC8","LC9","LC10","LC11","LC12")
-  #names(lc_reg_s)<-lc_names #assign land cover names
   s_raster<-addLayer(s_raster, lc_reg_s)
   
   lst_s<-stack(c(as.character(mean_m_list),as.character(nobs_m_list)))
-  #lst_names<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_09","mm_10","mm_11","mm_12",
-  #             "nobs_01","nobs_02","nobs_03","nobs_04","nobs_05","nobs_06","nobs_07","nobs_08",
-  #             "nobs_09","nobs_10","nobs_11","nobs_12")
-  #names(lst_s)<-lst_names
+
   s_raster<-addLayer(s_raster, lst_s)
   
   #covar_names<-c(rnames,lc_names,lst_names)
@@ -395,7 +343,6 @@ covariates_production_temperature<-function(list_param){
   #using bil format more efficient??
   return(raster_name)
 }
-
 
 #######################################################
 ################### END OF SCRIPT/FUNCTION #####################
