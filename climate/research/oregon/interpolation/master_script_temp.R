@@ -10,7 +10,7 @@
 #STAGE 5: Output analyses-visualization of results for specific dates...
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 03/18/2013                                                                                 
+#DATE: 03/21/2013                                                                                 
 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363, TASK$568--   
 
@@ -47,56 +47,48 @@ stages_to_run<-c(1,2,3,4,5) #May decide on antoher strategy later on...
 
 #####SCRIPT USED FOR THE PREDICTIONS
 
-#master_script_temp_03052013.R
+#master_script_temp_03192013.R
 
-#IN MASTER SCRIPT:
+#CALLED FROM MASTER SCRIPT:
 
-#/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/climatology_01252013b.py
-#/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/covariates_production_temperatures_02062013.R
-
-#source(file.path(script_path,"Database_stations_covariates_processing_function_03052013.R"))
-#source(file.path(script_path,"GAM_fusion_analysis_raster_prediction_multisampling_03052013.R"))
-#source(file.path(script_path,"results_interpolation_date_output_analyses_03052013.R"))
+#/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/climatology_03192013.py
+source(file.path(script_path,"covariates_production_temperatures_03212013.R"))
+source(file.path(script_path,"Database_stations_covariates_processing_function_03132013.R"))
+source(file.path(script_path,"GAM_fusion_analysis_raster_prediction_multisampling_03182013.R"))
+source(file.path(script_path,"results_interpolation_date_output_analyses_03182013.R"))
 
 #CALLED FROM GAM FUSION ANALYSIS RASTER PREDICTION
 
-#source(file.path(script_path,"sampling_script_functions_03052013.R"))
-#source(file.path(script_path,"GAM_fusion_function_multisampling_03052013.R")) #Include GAM_CAI
-#source(file.path(script_path,"GAM_fusion_function_multisampling_validation_metrics_02262013.R"))
+source(file.path(script_path,"sampling_script_functions_03122013.R"))
+source(file.path(script_path,"GAM_fusion_function_multisampling_03142013.R")) #Include GAM_CAI
+source(file.path(script_path,"GAM_fusion_function_multisampling_validation_metrics_03182013.R"))
 
 
 ############ STAGE 1: LST Climatology ###############
 
 if (stages_to_run[1]==1){
   #Call run through python
-  #/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/climatology_01252013b.py
+  #/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/climatology_03182013.py
 }
 
 ############ STAGE 2: Covariate production ################
 
-if (stages_to_run[2]==2){
-  #Transform into function...
-  #/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/covariates_production_temperatures_02062013.R
-}
-
-############# STAGE 3: Data preparation ###############
-
-source(file.path(script_path,"Database_stations_covariates_processing_function_03132013.R"))
-
-#Setting up input argurments for script function...
-
-db.name <- "ghcn"       # name of the Postgres database
-var <- "TMAX"           # name of the variables to keep: TMIN, TMAX or PRCP
-range_years<-c("2000","2001") #right bound not included in the range!!
-range_years_clim<-c("1980","2011") #right bound not included in the range!!
-infile1<- "outline_venezuela_region__VE_01292013.shp"      #This is the shape file of outline of the study area                                                      #It is an input/output of the covariate script
-infile2<-"/home/layers/data/climate/ghcn/v2.92-upd-2012052822/ghcnd-stations.txt"                              #This is the textfile of station locations from GHCND
-infile_covariates<-"covariates__venezuela_region__VE_01292013.tif" #this is an output from covariate script and used in stage 3 and stage 4
-CRS_locs_WGS84<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0") #Station coords WGS84: same as earlier
+##Paths to inputs and output
+var<-"TMIN"
 in_path <- "/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/input_data/"
-out_prefix<-"_365d_GAM_fus5_all_lstd_03182013"                #User defined output prefix
-#qc_flags<-    flags allowe for the query from the GHCND??
+out_path<- "/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/output_data/"
 
+lc_path<-"/home/layers/data/land-cover/lc-consensus-global"
+infile_modis_grid<-"modis_sinusoidal_grid_world.shp"
+infile_elev<-"/home/layers/data/terrain/dem-cgiar-srtm-1km-tif/srtm_1km.tif"  #this is the global file: replace later with the input produced by the DEM team
+infile_canheight<-"Simard_Pinto_3DGlobalVeg_JGR.tif"              #Canopy height
+list_tiles_modis = c('h11v08','h11v07','h12v07','h12v08','h10v07','h10v08') #tile for Venezuel and surrounding area
+infile_reg_outline=""  #input region outline defined by polygon
+CRS_interp<-"+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs";
+CRS_locs_WGS84<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0") #Station coords WGS84
+out_region_name<-"_venezuela_region" #generated on the fly
+out_suffix<-"_VE_03192013"
+ref_rast_name<-""  #local raster name defining resolution, exent, local projection--. set on the fly??
 #The names of covariates can be changed...these names should be output/input from covar script!!!
 rnames<-c("x","y","lon","lat","N","E","N_w","E_w","elev","slope","aspect","CANHEIGHT","DISTOC")
 lc_names<-c("LC1","LC2","LC3","LC4","LC5","LC6","LC7","LC8","LC9","LC10","LC11","LC12")
@@ -104,6 +96,41 @@ lst_names<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm
              "nobs_01","nobs_02","nobs_03","nobs_04","nobs_05","nobs_06","nobs_07","nobs_08",
              "nobs_09","nobs_10","nobs_11","nobs_12")
 covar_names<-c(rnames,lc_names,lst_names)
+
+list_param_covar_production<-list(var,in_path,out_path,lc_path,infile_modis_grid,infile_elev,infile_canheight,
+                                  list_tiles_modis,infile_reg_outline,CRS_interp,CRS_locs_WGS84,out_region_name,
+                                  out_suffix,ref_rast_name,covar_names) 
+
+names(list_param_covar_production)<-c("var","in_path","out_path","lc_path","infile_modis_grid","infile_elev","infile_canheight",
+                                      "list_tiles_modis","infile_reg_outline","CRS_interp","CRS_locs_WGS84","out_region_name",
+                                      "out_suffix","ref_rast_name","covar_names") 
+
+if (stages_to_run[2]==2){
+  #Transform into function...
+  #/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/covariates_production_temperatures_03212013.R
+  infile_covar_brick<-covariates_production_temperature(list_param_covar_production)
+}
+
+############# STAGE 3: Data preparation ###############
+
+
+#Setting up input argurments for script function...
+#set up earlier
+infile_covariates<-"covariates__venezuela_region__VE_01292013.tif" #this is an output from covariate script and used in stage 3 and stage 4
+CRS_locs_WGS84<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0") #Station coords WGS84: same as earlier
+infile1<- "outline_venezuela_region__VE_01292013.shp"      #This is the shape file of outline of the study area                                                      #It is an input/output of the covariate script
+#covar_names see stage 2
+var <- "TMAX"           # name of the variables to keep: TMIN, TMAX or PRCP
+
+#specific to this stage
+db.name <- "ghcn"       # name of the Postgres database
+range_years<-c("2000","2001") #right bound not included in the range!!
+range_years_clim<-c("1980","2011") #right bound not included in the range!!
+infile2<-"/home/layers/data/climate/ghcn/v2.92-upd-2012052822/ghcnd-stations.txt"                              #This is the textfile of station locations from GHCND
+in_path <- "/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/input_data/"
+out_prefix<-"_365d_GAM_fus5_all_lstd_03182013"                #User defined output prefix
+#qc_flags<-    flags allowe for the query from the GHCND??
+
 
 #list of 11 parameters for input in the function...
 
@@ -174,7 +201,6 @@ names(list_param_raster_prediction)<-c("list_param_data_prep",
                                 "interpolation_method")
 
 #Source file
-source(file.path(script_path,"GAM_fusion_analysis_raster_prediction_multisampling_03182013.R"))
 
 #Make the function call
 raster_prediction_gam_fus_obj <-raster_prediction_gam_fusion(list_param_raster_prediction)
@@ -182,8 +208,8 @@ raster_prediction_gam_fus_obj <-raster_prediction_gam_fusion(list_param_raster_p
 
 ############## STAGE 5: OUTPUT ANALYSES ##################
 
-source(file.path(script_path,"results_interpolation_date_output_analyses_03052013.R"))
-
+#source(file.path(script_path,"results_interpolation_date_output_analyses_03052013.R"))
+#Call as function...
 
 ###############   END OF SCRIPT   ###################
 #####################################################
