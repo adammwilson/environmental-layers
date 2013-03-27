@@ -4,9 +4,18 @@ setwd("~/acrobates/projects/interp/data/modis/mod35")
 library(raster)
 library(rgdal)
 
-f=list.files(pattern="Cloud_Mask_1_1")
+f=list.files(pattern="*.hdf")
+
+Sys.setenv(GEOL_AS_GCPS = "PARTIAL")
 
 GDALinfo(f[1])
+system(paste("gdalinfo",f[1]))
+GDALinfo("HDF4_EOS:EOS_SWATH:\"MOD35_L2.A2000100.1445.006.2012252024758.hdf\":mod35:Cloud_Mask")
+system("gdalinfo HDF4_EOS:EOS_SWATH:\"MOD35_L2.A2000100.1445.006.2012252024758.hdf\":mod35:Cloud_Mask | tail -n 200")
+
+system("gdalwarp -overwrite -geoloc -order 2 -r near -s_srs \"EPSG:4326\" HDF4_EOS:EOS_SWATH:\"MOD35_L2.A2000100.1445.006.2012252024758.hdf\":mod35:Cloud_Mask cloudmask.tif")
+system("gdalwarp -overwrite -r near -s_srs \"EPSG:4326\" HDF4_EOS:EOS_SWATH:\"MOD35_L2.A2000100.1445.006.2012252024758.hdf\":mod35:Cloud_Mask:1 cloudmask2.tif")
+
 
 ## get tile
 tile=raster("~/acrobates/projects/interp/data/modis/mod06/summary/MOD06_h09v04.nc",varname="CER")
