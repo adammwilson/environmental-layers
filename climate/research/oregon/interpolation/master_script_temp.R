@@ -10,7 +10,7 @@
 #STAGE 5: Output analyses-visualization of results for specific dates...
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 03/21/2013                                                                                 
+#DATE: 03/28/2013                                                                                 
 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363, TASK$568--   
 
@@ -43,26 +43,27 @@ library(plotrix)
 
 script_path<-"/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/"
 #list_script_files<-
-stages_to_run<-c(1,2,3,4,5) #May decide on antoher strategy later on...
+#stages_to_run<-c(1,2,3,4,5) #May decide on antoher strategy later on...
+stages_to_run<-c(0,0,3,4,5) #May decide on antoher strategy later on...
 
-#####SCRIPT USED FOR THE PREDICTIONS
+#####SCRIPT USED FOR THE PREDICTIONS: Source all scripts here to avoid confusion on versions being run!!!!
 
-#master_script_temp_03192013.R
+#source(file.path(script_path,"master_script_temp_03282013.R")) #Master script can be run directly...
 
 #CALLED FROM MASTER SCRIPT:
 
 #/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/climatology_03192013.py
 source(file.path(script_path,"covariates_production_temperatures_03212013.R"))
-source(file.path(script_path,"Database_stations_covariates_processing_function_03132013.R"))
-source(file.path(script_path,"GAM_fusion_analysis_raster_prediction_multisampling_03182013.R"))
-source(file.path(script_path,"results_interpolation_date_output_analyses_03182013.R"))
+source(file.path(script_path,"Database_stations_covariates_processing_function_03242013.R"))
+source(file.path(script_path,"GAM_fusion_analysis_raster_prediction_multisampling_03272013.R"))
+source(file.path(script_path,"results_interpolation_date_output_analyses_03272013.R"))
+#source(file.path(script_path,"results_covariates_database_stations_output_analyses_03272013.R"))
 
-#CALLED FROM GAM FUSION ANALYSIS RASTER PREDICTION
+#FUNCTIONS CALLED FROM GAM FUSION ANALYSIS RASTER PREDICTION ARE FOUND IN...
 
 source(file.path(script_path,"sampling_script_functions_03122013.R"))
-source(file.path(script_path,"GAM_fusion_function_multisampling_03142013.R")) #Include GAM_CAI
-source(file.path(script_path,"GAM_fusion_function_multisampling_validation_metrics_03182013.R"))
-
+source(file.path(script_path,"GAM_fusion_function_multisampling_03192013.R")) #Include GAM_CAI
+source(file.path(script_path,"GAM_fusion_function_multisampling_validation_metrics_03272013.R"))
 
 ############ STAGE 1: LST Climatology ###############
 
@@ -74,7 +75,8 @@ if (stages_to_run[1]==1){
 ############ STAGE 2: Covariate production ################
 
 ##Paths to inputs and output
-var<-"TMIN"
+#var<-"TMIN"
+var<-"TMAX"
 in_path <- "/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/input_data/"
 out_path<- "/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/output_data/"
 
@@ -113,29 +115,30 @@ if (stages_to_run[2]==2){
 
 ############# STAGE 3: Data preparation ###############
 
-
 #Setting up input argurments for script function...
 #set up earlier
+var <- "TMAX"           # name of the variables to keep: TMIN, TMAX or PRCP --already set up earlier
+
 infile_covariates<-"covariates__venezuela_region__VE_01292013.tif" #this is an output from covariate script and used in stage 3 and stage 4
+#infile_covariates<-"covariates__venezuela_region_TMIN__VE_03192013.tif" #covariates stack for TMIN
+
 CRS_locs_WGS84<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0") #Station coords WGS84: same as earlier
 infile1<- "outline_venezuela_region__VE_01292013.shp"      #This is the shape file of outline of the study area                                                      #It is an input/output of the covariate script
 #covar_names see stage 2
-var <- "TMAX"           # name of the variables to keep: TMIN, TMAX or PRCP
 
 #specific to this stage
 db.name <- "ghcn"       # name of the Postgres database
 range_years<-c("2000","2001") #right bound not included in the range!!
-range_years_clim<-c("1980","2011") #right bound not included in the range!!
+range_years_clim<-c("1981","2011") #right bound not included in the range!!
 infile2<-"/home/layers/data/climate/ghcn/v2.92-upd-2012052822/ghcnd-stations.txt"                              #This is the textfile of station locations from GHCND
 in_path <- "/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/input_data/"
-out_prefix<-"_365d_GAM_fus5_all_lstd_03182013"                #User defined output prefix
-#qc_flags<-    flags allowe for the query from the GHCND??
+out_prefix<-"_365d_GAM_fus5_all_lstd_03282013"                #User defined output prefix
+qc_flags_stations<-c("0","S")    #flags allowed for screening after the query from the GHCND??
 
+#list of 12 parameters for input in the function...
 
-#list of 11 parameters for input in the function...
-
-list_param_prep<-list(db.name,var,range_years,range_years_clim,infile1,infile2,infile_covariates,CRS_locs_WGS84,in_path,covar_names,out_prefix)
-cnames<-c("db.name","var","range_years","range_years_clim","infile1","infile2","infile_covariates","CRS_locs_WGS84","in_path","covar_names","out_prefix")
+list_param_prep<-list(db.name,var,range_years,range_years_clim,infile1,infile2,infile_covariates,CRS_locs_WGS84,in_path,covar_names,qc_flags_stations,out_prefix)
+cnames<-c("db.name","var","range_years","range_years_clim","infile1","infile2","infile_covariates","CRS_locs_WGS84","in_path","covar_names","qc_flags_stations","out_prefix")
 names(list_param_prep)<-cnames
 
 ##### RUN SCRIPT TO GET STATION DATA WITH COVARIATES #####
@@ -200,9 +203,9 @@ names(list_param_raster_prediction)<-c("list_param_data_prep",
                                 "list_models","lst_avg","in_path","out_path","script_path",
                                 "interpolation_method")
 
-#Source file
 
-#Make the function call
+#Make the function call--names to be change to raster_prediction_obj and raster_prediction_fun
+
 raster_prediction_gam_fus_obj <-raster_prediction_gam_fusion(list_param_raster_prediction)
 
 
