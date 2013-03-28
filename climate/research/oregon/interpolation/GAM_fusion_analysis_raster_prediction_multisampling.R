@@ -11,15 +11,46 @@
 #5)GAM fusion: possibilty of running GAM+FUSION or GAM+CAI and other options added
 #The interpolation is done first at the monthly time scale then delta surfaces are added.
 #AUTHOR: Benoit Parmentier                                                                        
-#DATE: 03/18/2013                                                                                 
-#PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#568--                                   
+#DATE: 03/27/2013                                                                                 
+#PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#568--     
+#
+# TO DO:
+# 1) modidy to make it general for any method i.e. make call to method e.g. gam_fus, gam_cai etc.
+# 2) simplify and bundle validation steps, make it general--method_mod_validation
+# 3) solve issues with log file recordings
+# 4) output location folder on the fly???
+
 ###################################################################################################
 
 raster_prediction_gam_fusion<-function(list_param_raster_prediction){
 
   ##Function to predict temperature interpolation with 21 input parameters
-  
-  
+  #9 parameters used in the data preparation stage and input in the current script
+  #1)list_param_data_prep: used in earlier code for the query from the database and extraction for raster brick
+  #2)infile_monthly:
+  #3)infile_daily
+  #4)infile_locs:
+  #5)infile_covariates: raster covariate brick, tif file
+  #6)covar_names: covar_names #remove at a later stage...
+  #7)var: variable being interpolated-TMIN or TMAX
+  #8)out_prefix
+  #9)CRS_locs_WGS84
+  #
+  #6 parameters for sampling function
+  #10)seed_number
+  #11)nb_sample
+  #12)step
+  #13)constant
+  #14)prop_minmax
+  #15)dates_selected
+  #
+  #6 additional parameters for monthly climatology and more
+  #16)list_models: model formulas in character vector
+  #17)lst_avg: LST climatology name in the brick of covariate--change later
+  #18)n_path
+  #19)out_path
+  #20)script_path: path to script
+  #21)interpolation_method: c("gam_fusion","gam_CAI") #other otpions to be added later
   
   ###Loading R library and packages     
   
@@ -36,6 +67,7 @@ raster_prediction_gam_fusion<-function(list_param_raster_prediction){
   library(reshape)
   library(plotrix)
   library(maptools)
+  library(gdata) #Nesssary to use cbindX
   
   ### Parameters and arguments
   #PARSING INPUTS/ARGUMENTS
@@ -74,9 +106,11 @@ raster_prediction_gam_fusion<-function(list_param_raster_prediction){
   
   setwd(in_path)
   
-  source(file.path(script_path,"sampling_script_functions_03122013.R"))
-  source(file.path(script_path,"GAM_fusion_function_multisampling_03122013.R"))
-  source(file.path(script_path,"GAM_fusion_function_multisampling_validation_metrics_03182013.R"))
+  #Sourcing in the master script to avoid confusion on the latest versions of scripts and functions!!!
+  
+  #source(file.path(script_path,"sampling_script_functions_03122013.R"))
+  #source(file.path(script_path,"GAM_fusion_function_multisampling_03122013.R"))
+  #source(file.path(script_path,"GAM_fusion_function_multisampling_validation_metrics_03182013.R"))
   
   
   ###################### START OF THE SCRIPT ########################
@@ -196,6 +230,8 @@ raster_prediction_gam_fusion<-function(list_param_raster_prediction){
   names(list_param_runGAMFusion)<-c("list_index","clim_yearlist","sampling_obj","dst","var","y_var_name","out_prefix")
   #test<-mclapply(1:18, runGAMFusion,list_param=list_param_runGAMFusion,mc.preschedule=FALSE,mc.cores = 9)
   
+  #MAKE IT GENERAL: for any method
+  
   gam_fus_mod<-mclapply(1:length(sampling_obj$ghcn_data_day),list_param=list_param_runGAMFusion,runGAMFusion,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
   
   #gam_fus_mod<-mclapply(1:length(sampling_obj$ghcn_data_day),runGAMFusion,list_param_runGAMFusion,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
@@ -205,7 +241,9 @@ raster_prediction_gam_fusion<-function(list_param_raster_prediction){
   t2<-proc.time()-t1
   writeLines(as.character(t2),con=log_file,sep="\n")
   #browser()
+  
   ############### NOW RUN VALIDATION #########################
+  #SIMPLIFY THIS PART: one call
   
   list_tmp<-vector("list",length(gam_fus_mod))
   for (i in 1:length(gam_fus_mod)){
