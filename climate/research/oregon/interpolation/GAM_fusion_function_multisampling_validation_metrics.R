@@ -2,7 +2,7 @@
 
 #The interpolation is done first at the monthly add delta.
 #AUTHOR: Benoit Parmentier                                                                        
-#DATE: 03/12/2013                                                                                 
+#DATE: 03/27/2013                                                                                 
 
 #Change this to allow explicitly arguments...
 #Arguments: 
@@ -38,7 +38,15 @@ calculate_accuracy_metrics<-function(i,list_param){
   }
   
   calc_val_metrics_rast <-function(df,y_ref,pred_names){
-    #
+    #Input parameters:
+    #1) df: data frame containing the observed and predicted variables (data_s or data_v)
+    #2) y_ref: observed variable correspond to y_var_name??
+    #3) pred_names: models run containig predicted values
+    
+    # library
+    library(maptools)
+    
+    ## START SCRIPT
     
     list_metrics<-vector("list",length(pred_names))
     list_residuals<-vector("list",length(pred_names))
@@ -60,7 +68,7 @@ calculate_accuracy_metrics<-function(i,list_param){
     return(accuracy_obj)
   }  
   
-  ## BEGIN ##
+  ############### BEGIN SCRIPT ###########
   
   #PARSING INPUT PARAMETERS
   day_list<- list_param$rast_day_year_list[[i]]
@@ -70,6 +78,7 @@ calculate_accuracy_metrics<-function(i,list_param){
   #Change to results_mod_obj[[i]]$data_s to make it less specific
   data_v <- method_mod_obj[[i]]$data_v
   data_s <- method_mod_obj[[i]]$data_s
+  y_var_name <- list_param$y_var_name #missing--debugging
   
   ## Now create the stack
   
@@ -124,6 +133,10 @@ extract_from_list_obj<-function(obj_list,list_name){
 
 boxplot_from_tb <-function(tb_diagnostic,metric_names,out_prefix){
   #now boxplots and mean per models
+  library(gdata) #Nesssary to use cbindX
+  
+  ### Start script
+  
   mod_names<-sort(unique(tb_diagnostic$pred_mod)) #models that have accuracy metrics
   t<-melt(tb_diagnostic,
           #measure=mod_var, 
@@ -138,6 +151,7 @@ boxplot_from_tb <-function(tb_diagnostic,metric_names,out_prefix){
   tb_mod_list<-lapply(mod_names, function(k) subset(tb, pred_mod==k)) #this creates a list of 5 based on models names
   names(tb_mod_list)<-mod_names
   #mod_metrics<-do.call(cbind,tb_mod_list)
+  #debug here
   mod_metrics<-do.call(cbindX,tb_mod_list)
   test_names<-lapply(1:length(mod_names),function(k) paste(names(tb_mod_list[[1]]),mod_names[k],sep="_"))
   names(mod_metrics)<-unlist(test_names)
@@ -164,6 +178,10 @@ boxplot_from_tb <-function(tb_diagnostic,metric_names,out_prefix){
 ## Function to display metrics by months/seasons
 boxplot_month_from_tb <-function(tb_diagnostic,metric_names,out_prefix){
   #Add code here...
+  #d_month<-aggregate(TMax~month, data=tb_diagnostic, mean)  #Calculate monthly mean for every station in OR
+  #d_month<-aggregate(TMax~month, data=tb_diagnostic, legnth)  #Calculate monthly mean for every station in OR
+  
+
 }
 
 
