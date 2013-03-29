@@ -4,18 +4,18 @@
 # 1)predict_raster_model<-function(in_models,r_stack,out_filename)                                                             
 # 2)fit_models<-function(list_formulas,data_training)           
 # 3)runClimCAI<-function(j) : not working yet
-# 4)runClim_KGFusion<-function(j,list_param)
-# 5)runGAMFusion <- function(i,list_param) 
+# 4)runClim_KGFusion<-function(j,list_param) function for monthly step (climatology) in the fusion method
+# 5)runGAMFusion <- function(i,list_param) : daily step for fusion method, perform daily prediction
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 03/12/2013                                                                                 
+#DATE: 03/29/2013                                                                                 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363--   
 
 ##Comments and TODO:
 #This script is meant to be for general processing tile by tile or region by region.
 # Note that the functions are called from GAM_fusion_analysis_raster_prediction_mutlisampling.R.
 # This will be expanded to other methods.
-
+# Change name of output tif to include the variable!!! (TMIN or TMAX)
 ##################################################################################################
 
 
@@ -111,7 +111,7 @@ runClimCAI<-function(j,list_param){
     data_month$y_var<-data_month$TMax #Adding TMax as the variable modeled
   }
   if (var=="TMIN"){   
-    data_month$y_var<-data_month$TMin #Adding TMi as the variable modeled
+    data_month$y_var<-data_month$TMin #Adding TMin as the variable modeled
   }
 
   mod_list<-fit_models(list_formulas,data_month) #only gam at this stage
@@ -359,8 +359,8 @@ runGAMFusion <- function(i,list_param) {            # loop over dates
   dst<-list_param$dst #monthly station dataset
   
   ##########
-  # STEP 1 - interpolate delta across space
-  ############# Read in information and get traiing and testing stations
+  # STEP 1 - Read in information and get traing and testing stations
+  ############# 
   
   date<-strptime(sampling_dat$date[i], "%Y%m%d")   # interpolation date being processed
   month<-strftime(date, "%m")          # current month of the date being processed
@@ -400,11 +400,12 @@ runGAMFusion <- function(i,list_param) {            # loop over dates
     modst$LSTD_bias <- modst$LST-modst$TMax; #That is the difference between the monthly LST mean and monthly station mean    
   }
   #This may be unnecessary since LSTD_bias is already in dst?? check the info
+  #Some loss of observations: LSTD_bias for January has only 56 out of 66 possible TMIN!!! We may need to look into this issue
+  #to avoid some losses of station data...
   
   #Clearn out this part: make this a function call
   x<-as.data.frame(data_v)
   d<-as.data.frame(data_s)
-  #x[x$value==-999.9]<-NA
   for (j in 1:nrow(x)){
     if (x$value[j]== -999.9){
       x$value[j]<-NA
@@ -415,31 +416,31 @@ runGAMFusion <- function(i,list_param) {            # loop over dates
       d$value[j]<-NA
     }
   }
-  #x[x$value==-999.9]<-NA
-  #d[d$value==-999.9]<-NA
   pos<-match("value",names(d)) #Find column with name "value"
   #names(d)[pos]<-c("dailyTmax")
   names(d)[pos]<-y_var_name
+  pos<-match("value",names(x)) #Find column with name "value"
   names(x)[pos]<-y_var_name
-  #names(x)[pos]<-c("dailyTmax")
-  pos<-match("station",names(d)) #Find column with name "value"
+  pos<-match("station",names(d)) #Find column with station ID
   names(d)[pos]<-c("id")
+  pos<-match("station",names(x)) #Find column with name station ID
   names(x)[pos]<-c("id")
-  names(modst)[1]<-c("id")       #modst contains the average tmax per month for every stations...
+  pos<-match("station",names(modst)) #Find column with name station ID
+  names(modst)[pos]<-c("id")       #modst contains the average tmax per month for every stations...
   
   dmoday <-merge(modst,d,by="id",suffixes=c("",".y2"))  
   xmoday <-merge(modst,x,by="id",suffixes=c("",".y2"))  
-  mod_pat<-glob2rx("*.y2")   
+  mod_pat<-glob2rx("*.y2")   #remove duplicate columns that have ".y2" in their names
   var_pat<-grep(mod_pat,names(dmoday),value=FALSE) # using grep with "value" extracts the matching names
-  dmoday<-dmoday[,-var_pat]
+  dmoday<-dmoday[,-var_pat] #dropping relevant columns
   mod_pat<-glob2rx("*.y2")   
   var_pat<-grep(mod_pat,names(xmoday),value=FALSE) # using grep with "value" extracts the matching names
   xmoday<-xmoday[,-var_pat] #Removing duplicate columns
   
   data_v<-xmoday
   
-  #dmoday contains the daily tmax values for training with TMax being the monthly station tmax mean
-  #xmoday contains the daily tmax values for validation with TMax being the monthly station tmax mean
+  #dmoday contains the daily tmax values for training with TMax/TMin being the monthly station tmax/tmin mean
+  #xmoday contains the daily tmax values for validation with TMax/TMin being the monthly station tmax/tmin mean
   
   ##########
   # STEP 3 - interpolate daily delta across space
@@ -447,7 +448,7 @@ runGAMFusion <- function(i,list_param) {            # loop over dates
   
   #Change to take into account TMin and TMax
   if (var=="TMIN"){
-    daily_delta<-dmoday$dailyTmin-dmoday$TMin
+    daily_delta<-dmoday$dailyTmin-dmoday$TMin #daily detl is the difference between monthly and daily temperatures
   }
   if (var=="TMAX"){
     daily_delta<-dmoday$dailyTmax-dmoday$TMax
@@ -472,7 +473,7 @@ runGAMFusion <- function(i,list_param) {            # loop over dates
   #Saving kriged surface in raster images
   data_name<-paste("daily_delta_",sampling_dat$date[i],"_",sampling_dat$prop[i],
                    "_",sampling_dat$run_samp[i],sep="")
-  raster_name_delta<-paste("fusion_",data_name,out_prefix,".tif", sep="")
+  raster_name_delta<-paste("fusion_",var,"_",data_name,out_prefix,".tif", sep="")
   writeRaster(daily_delta_rast, filename=raster_name_delta,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
   
   #Now predict daily after having selected the relevant month
@@ -506,8 +507,8 @@ runGAMFusion <- function(i,list_param) {            # loop over dates
   
   obj_names<-c(y_var_name,"clim","delta","data_s","data_v",
                "sampling_dat",model_name)
-  names(delta_obj)<-obj_names
-  save(delta_obj,file= paste("delta_obj_",sampling_dat$date[i],"_",sampling_dat$prop[i],
+  names(delta_obj)<-obj_names #add TMIN or TMAX name in saving obj
+  save(delta_obj,file= paste("delta_obj_",var,"_",sampling_dat$date[i],"_",sampling_dat$prop[i],
                                 "_",sampling_dat$run_samp[i],out_prefix,".RData",sep=""))
   return(delta_obj)
   

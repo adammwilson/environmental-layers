@@ -197,11 +197,13 @@ raster_prediction_gam_fusion<-function(list_param_raster_prediction){
   t1<-proc.time()
   j=12
   #browser()
-  list_param_runClim_KGFusion<-list(j,s_raster,covar_names,lst_avg,list_models,dst,var,y_var_name, out_prefix)
+  #list_param_runClim_KGFusion<-list(j,s_raster,covar_names,lst_avg,list_models,dst,var,y_var_name, out_prefix)
   names(list_param_runClim_KGFusion)<-c("list_index","covar_rast","covar_names","lst_avg","list_models","dst","var","y_var_name","out_prefix")
   #source(file.path(script_path,"GAM_fusion_function_multisampling_03122013.R"))
   gamclim_fus_mod<-mclapply(1:12, list_param=list_param_runClim_KGFusion, runClim_KGFusion,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
-  #gamclim_fus_mod<-mclapply(1:6, runClim_KGFusion,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
+  #gamclim_fus_mod<-mclapply(1:6, list_param=list_param_runClim_KGFusion, runClim_KGFusion,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
+  
+  #gamclim_fus_mod<-runClim_KGFusion(1,list_param=list_param_runClim_KGFusion) #This is the end bracket from mclapply(...) statement
   save(gamclim_fus_mod,file= paste("gamclim_fus_mod_",y_var_name,out_prefix,".RData",sep=""))
   t2<-proc.time()-t1
   writeLines(as.character(t2),con=log_file,sep="\n")
@@ -229,8 +231,9 @@ raster_prediction_gam_fusion<-function(list_param_raster_prediction){
   list_param_runGAMFusion<-list(i,clim_yearlist,sampling_obj,dst,var,y_var_name, out_prefix)
   names(list_param_runGAMFusion)<-c("list_index","clim_yearlist","sampling_obj","dst","var","y_var_name","out_prefix")
   #test<-mclapply(1:18, runGAMFusion,list_param=list_param_runGAMFusion,mc.preschedule=FALSE,mc.cores = 9)
+  #test<-runGAMFusion(1,list_param=list_param_runGAMFusion)
   
-  #MAKE IT GENERAL: for any method
+  #MAKE IT GENERAL: for any method: replace "gam_fus_mod" by "method_mod_obj"?
   
   gam_fus_mod<-mclapply(1:length(sampling_obj$ghcn_data_day),list_param=list_param_runGAMFusion,runGAMFusion,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
   
