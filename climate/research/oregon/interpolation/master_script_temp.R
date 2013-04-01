@@ -10,7 +10,7 @@
 #STAGE 5: Output analyses-visualization of results for specific dates...
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 03/29/2013                                                                                 
+#DATE: 04/01/2013                                                                                 
 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363, TASK$568--   
 
@@ -129,10 +129,10 @@ infile1<- "outline_venezuela_region__VE_01292013.shp"      #This is the shape fi
 #specific to this stage
 db.name <- "ghcn"       # name of the Postgres database
 range_years<-c("2010","2011") #right bound not included in the range!!
-range_years_clim<-c("1981","2011") #right bound not included in the range!!
+range_years_clim<-c("2000","2011") #right bound not included in the range!!
 infile2<-"/home/layers/data/climate/ghcn/v2.92-upd-2012052822/ghcnd-stations.txt"                              #This is the textfile of station locations from GHCND
 in_path <- "/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/input_data/"
-out_prefix<-"_365d_GAM_fus5_all_lstd_03282013c"                #User defined output prefix
+out_prefix<-"_365d_GAM_fus5_all_lstd_03282013d"                #User defined output prefix
 qc_flags_stations<-c("0","S")    #flags allowed for screening after the query from the GHCND??
 
 #list of 12 parameters for input in the function...
