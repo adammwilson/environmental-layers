@@ -8,14 +8,13 @@
 # 5)runGAMFusion <- function(i,list_param) : daily step for fusion method, perform daily prediction
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 03/29/2013                                                                                 
+#DATE: 04/02/2013                                                                                 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363--   
 
 ##Comments and TODO:
 #This script is meant to be for general processing tile by tile or region by region.
 # Note that the functions are called from GAM_fusion_analysis_raster_prediction_mutlisampling.R.
 # This will be expanded to other methods.
-# Change name of output tif to include the variable!!! (TMIN or TMAX)
 ##################################################################################################
 
 
@@ -179,7 +178,7 @@ runClimCAI<-function(j,list_param){
   clim_obj<-list(rast_clim_list,data_month,mod_list,list_formulas)
   names(clim_obj)<-c("clim","data_month","mod","formulas")
   
-  save(clim_obj,file= paste("clim_obj_month_",j,"_",out_prefix,".RData",sep=""))
+  save(clim_obj,file= paste("clim_obj_month_",j,"_",var,"_",out_prefix,".RData",sep=""))
   
   return(clim_obj) 
 }
@@ -278,7 +277,7 @@ runClim_KGFusion<-function(j,list_param){
   names(rast_clim_list)<-names(rast_bias_list)
   for (k in 1:nlayers(mod_rast)){
     clim_fus_rast<-LST-subset(mod_rast,k)
-    data_name<-paste("clim_LST_month_",j,"_",names(rast_clim_list)[k],"_",prop_month,
+    data_name<-paste(var,"_clim_LST_month_",j,"_",names(rast_clim_list)[k],"_",prop_month,
                      "_",run_samp,sep="")
     raster_name<-paste("fusion_",data_name,out_prefix,".tif", sep="")
     rast_clim_list[[k]]<-raster_name
@@ -295,14 +294,14 @@ runClim_KGFusion<-function(j,list_param){
    
   bias_rast<-interpolate(LST,fitbias) #interpolation using function from raster package
   #Saving kriged surface in raster images
-  data_name<-paste("bias_LST_month_",j,"_",model_name,"_",prop_month,
+  data_name<-paste(var,"_bias_LST_month_",j,"_",model_name,"_",prop_month,
                    "_",run_samp,sep="")
   raster_name_bias<-paste("fusion_",data_name,out_prefix,".tif", sep="")
   writeRaster(bias_rast, filename=raster_name_bias,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
   
   #now climatology layer
   clim_rast<-LST-bias_rast
-  data_name<-paste("clim_LST_month_",j,"_",model_name,"_",prop_month,
+  data_name<-paste(var,"_clim_LST_month_",j,"_",model_name,"_",prop_month,
                    "_",run_samp,sep="")
   raster_name_clim<-paste("fusion_",data_name,out_prefix,".tif", sep="")
   writeRaster(clim_rast, filename=raster_name_clim,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
@@ -317,7 +316,7 @@ runClim_KGFusion<-function(j,list_param){
   clim_obj<-list(rast_bias_list,rast_clim_list,data_month,mod_list,list_formulas)
   names(clim_obj)<-c("bias","clim","data_month","mod","formulas")
   
-  save(clim_obj,file= paste("clim_obj_month_",j,"_",out_prefix,".RData",sep=""))
+  save(clim_obj,file= paste("clim_obj_month_",j,"_",var,"_",out_prefix,".RData",sep=""))
   
   return(clim_obj)
 }
@@ -471,7 +470,7 @@ runGAMFusion <- function(i,list_param) {            # loop over dates
   daily_delta_rast<-interpolate(rast_clim_month,fitdelta) #Interpolation of the bias surface...
   
   #Saving kriged surface in raster images
-  data_name<-paste("daily_delta_",sampling_dat$date[i],"_",sampling_dat$prop[i],
+  data_name<-paste("daily_delta_",y_var_name,"_",sampling_dat$date[i],"_",sampling_dat$prop[i],
                    "_",sampling_dat$run_samp[i],sep="")
   raster_name_delta<-paste("fusion_",var,"_",data_name,out_prefix,".tif", sep="")
   writeRaster(daily_delta_rast, filename=raster_name_delta,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
@@ -507,7 +506,7 @@ runGAMFusion <- function(i,list_param) {            # loop over dates
   
   obj_names<-c(y_var_name,"clim","delta","data_s","data_v",
                "sampling_dat",model_name)
-  names(delta_obj)<-obj_names #add TMIN or TMAX name in saving obj
+  names(delta_obj)<-obj_names 
   save(delta_obj,file= paste("delta_obj_",var,"_",sampling_dat$date[i],"_",sampling_dat$prop[i],
                                 "_",sampling_dat$run_samp[i],out_prefix,".RData",sep=""))
   return(delta_obj)
