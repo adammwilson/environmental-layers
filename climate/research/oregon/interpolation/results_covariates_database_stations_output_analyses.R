@@ -4,7 +4,7 @@
 #Part 1: Script produces summary information about stations used in the interpolation
 #Part 2: Script produces plots of input covariates for study region
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 03/27/2013                                                                                 
+#DATE: 04/01/2013                                                                                 
 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#???--   
 
@@ -20,18 +20,14 @@
 #5) monthly_query_ghcn_data: ghcn daily data from monthly query before application of quality flag
 #6) monthly_covar_ghcn_data: ghcn monthly averaged data with covariates for the year range of interpolation (locally projected)
 #7) var
+#8) range_years
+#9) range_years_clim
 #8) infile_covariate: s_raster brick file
 #9)  covar_names: variable mames
 #10) raster_prediction
 #11) world_countries
 #12) region_outline
 #13) out_prefix
-
-#list_param <-list_outfiles$loc_stations
-#list_param <-list_outfiles$loc_stations_ghcn
-#list_param <-list_outfiles$loc_stations_ghcn_data
-#list_param <-list_outfiles$loc_stations
-#list_param <-list_outfiles$loc_stations
 
 ## Functions used in the script
 
@@ -43,73 +39,173 @@ load_obj <- function(f)
 }
 
 extract_number_obs<-function(list_param){
+  #Function to extract the number of observations used in modeling
   
   method_mod_obj<-list_param$method_mod_obj
-  #Change to results_mod_obj[[i]]$data_s to make it less specific
-  lapply(1:length(method_obj),function(k) nrow(method_mod_obj[[k]]$data_s))
-  lapply(1:length(method_obj),function(k) nrow(method_mod_obj[[k]]$data_v))
-  lapply(1:length(clim_obj),function(k) nrow(method_mod_obj[[k]]$data_month))
-  #number of observations 
   
-  return()
+  #Change to results_mod_obj[[i]]$data_s to make it less specific!!!!
+  
+  #number of observations 
+  list_nrow_data_s<-lapply(1:length(method_obj),function(k) nrow(method_mod_obj[[k]]$data_s))
+  list_nrow_data_v<-lapply(1:length(method_obj),function(k) nrow(method_mod_obj[[k]]$data_v))
+  #lapply(1:length(clim_obj),function(k) nrow(method_mod_obj[[k]]$data_month))
+  list_nrow_data_month<-lapply(1:length(gamclim_fus_mod),function(k) nrow(gamclim_fus_mod[[k]]$data_month))
+  
+  #number of valid observations 
+  list_nrow_valid_data_s<-lapply(1:length(method_obj),function(k) length(method_mod_obj[[k]]$data_s$[[y_var_name]])
+  list_nrow_data_v<-lapply(1:length(method_obj),function(k) length(method_mod_obj[[k]]$data_v$[[y_var_name]])
+  list_nrow_valid_data_month<-lapply(1:length(gamclim_fus_mod),function(k) length(gamclim_fus_mod[[k]]$data_month$y_var))
+  
+  c1<-do.call(rbind,list_nrow_data_s)
+  c2<-do.call(rbind,list_nrow_data_v)
+  c3<-do.call(rbind,list_nrow_data_month)
+  
+  c1v<-do.call(rbind,list_valid_nrow_data_s)
+  c2v<-do.call(rbind,list_valid_nrow_data_v)
+  c3v<-do.call(rbind,list_valid_nrow_data_month)
+  
+  n_data_s<-cbdind(c1,c1v)
+  n_data_v<-cbdind(c2,c2v)
+  n_data_month<-cbdind(c3,c3vv)
+  list_observations<-list(n_data_s,n_data_v,n_data_month)                         
+  return(list_observations)
 }
 
+###########################################################################
+########################## BEGIN SCRIPT/FUNCTION ##########################
+
+
+########################################
 #### STEP 1: read in data
 
+#Stations in the processing region/study area
 stat_reg <- readOGR(dsn=dirname(list_outfiles$loc_stations),sub(".shp","",basename(list_outfiles$loc_stations)))
-data_reg <- readOGR(dsn=dirname(list_outfiles$loc_stations_ghcn),sub(".shp","",basename(list_outfiles$loc_stations_ghcn)))
+#Stations available before screening the data query: ghcn daily data for the year range of interpolation
+data_d <- readOGR(dsn=dirname(list_outfiles$loc_stations_ghcn),sub(".shp","",basename(list_outfiles$loc_stations_ghcn)))
+#Stations available after screening the data query: ghcn daily data for the year range of interpolation
+data_reg <- readOGR(dsn=dirname(list_outfiles$daily_query_ghcn_data),sub(".shp","",basename(list_outfiles$daily_query_ghcn_data)))
+#Covariates data available after screening:ghcn daily data with covariates for the year range of interpolation
 data_RST_SDF <-readOGR(dsn=dirname(list_outfiles$daily_covar_ghcn_data),sub(".shp","",basename(list_outfiles$daily_covar_ghcn_data)))
+#Stations before screening monthly_query_ghcn_data: ghcn daily data from monthly query before application of quality flag
 data_m <- readOGR(dsn=dirname(list_outfiles$monthly_query_ghcn_data),sub(".shp","",basename(list_outfiles$monthly_query_ghcn_data)))
+#Stations after screening monthly_query_ghcn_data, extraction of covariates and monthly averages
 dst<-readOGR(dsn=dirname(list_outfiles$monthly_covar_ghcn_data),sub(".shp","",basename(list_outfiles$monthly_covar_ghcn_data)))
 
+### Load data used in fitting the model at monthly scale...
+data_month<-gamclim_fus_mod[[1]]$data_month
+list_data_month<-lapply(1:length(gamclim_fus_mod),function(k) gamclim_fus_mod[[k]]$data_month)
+
+#Loading covariates raster images
 s_raster<-brick(infile_covariates)
 names(s_raster)<-covar_names
 rast_ref<-subset(s_raster,"mm_01") # mean month for January
 
-######## PART I 
+names(raster_prediction_obj)
+var<-list_param$var
+
+raster_prediction_obj<-load_obj(list_param$raster_prediction_obj)
+#method_mod_obj<-raster_prediction_obj$method_mod_obj
+method_mod_obj<-raster_prediction_obj$gam_fus_mod #change later for any model type
+#validation_obj<-raster_prediction_obj$validation_obj
+validation_obj<-raster_prediction_obj$gam_fus_validation_mod #change later for any model type
+#clim_obj<-raster_prediction_obj$clim_obj
+clim_obj<-raster_prediction_obj$gamclim_fus_mod #change later for any model type
+
+names(raster_prediction_obj$method_obj[[1]])
+data_s<-validation_obj[[1]]$data_s
+summary_data_v<-validation_obj[[1]]$summary_data_v
+names(validation_obj[[1]])
+###################################################################
+######## PART I: Script produces summary information about stations used in the interpolation ########
+
 ### Figue 1: stations in the study area/processing tile  
 png(paste("Total_number_of_stations_in_study_area_",out_prefix,".png", sep=""))
 plot(rast_ref)
 plot(stat_reg,add=TRUE)
 nb_point1<-paste("n_station=",length(stat_reg$STAT_ID))
 #Add the number of data points on the plot
+title("Stations located in the study area")
 legend("topleft",legend=c(nb_point1),bty="n",cex=1.2)
 dev.off()
 
-#add number of stations+ name of region
-#title()
-
 ### Figue 2: stations in the study area/processing tile: from query without flag screening             
-png(paste("Studay_area_",out_prefix,".png", sep=""))
+png(paste("Stations_for_range_",range_years[1],"_",range_years[2],"_no_screening",out_prefix,".png", sep=""))
 plot(rast_ref)
 plot(data_d, add=TRUE)
-nb_point<-paste("ns=",length(data_d$TMax),sep="")
-nb_point2<-paste("ns_obs=",length(data_s$TMax)-sum(is.na(data_s[[y_var_name]])),sep="")
-nb_point3<-paste("n_month=",length(data_month$TMax),sep="")
+nb_point<-paste("nrow=",nrow(data_d),sep="")
+nb_point2<-paste("ns_stations=",length(unique(data_d$station)),sep="")
 #Add the number of data points on the plot
-legend("topleft",legend=c(nb_point,nb_point2,nb_point3),bty="n",cex=0.8)
+legend("topleft",legend=c(nb_point,nb_point2),bty="n",cex=1)
+title(paste("Stations available for year ",range_years[1],sep=""))
 dev.off()
 
-### Figue 3: stations in the study area/processing tile: after screening             
+### Figue 3: stations in the study area/processing tile: after screening     
+png(paste("Stations_for_range_",range_years[1],"_",range_years[2],"_after_screening",out_prefix,".png", sep=""))
 plot(rast_ref)
 plot(data_reg,add=TRUE)
+nb_point<-paste("nrow=",nrow(data_reg),sep="")
+nb_point2<-paste("ns_stations=",length(unique(data_reg$station)),sep="")
+#Add the number of data points on the plot
+legend("topleft",legend=c(nb_point,nb_point2),bty="n",cex=1)
+title(paste("Stations available for year ",range_years[1]," after screening",sep=""))
+#Add the number of data points on the plot
+dev.off()
 
-### Figue 4: stations in the study area/processing tile: from monthly climatology query without flag screening             
+### Figue 4: stations in the study area/processing tile: after screening and covar extraction
+png(paste("Stations_for_range_",range_years[1],"_",range_years[2],"_after_screening",out_prefix,".png", sep=""))
 plot(rast_ref)
 plot(data_RST_SDF,add=TRUE)
-             
-### Figue 5: stations in the study area/processing tile: after screening             
+nb_point<-paste("nrow=",nrow(data_RST_SDF),sep="")
+nb_point2<-paste("ns_stations=",length(unique(data_RST_SDF$station)),sep="")
+#Add the number of data points on the plot
+legend("topleft",legend=c(nb_point,nb_point2),bty="n",cex=1)
+title(paste("Stations year ",range_years[1]," after screening and covar extraction",sep=""))
+#Add the number of data points on the plot
+dev.off()
+
+### Figue 5: stations in the study area/processing tile: monthly query for specified range of years before screening    
+png(paste("Stations_monthly_for_range_",range_years[1],"_",range_years[2],"_before_screening",out_prefix,".png", sep=""))
 plot(rast_ref)
 plot(data_m,add=TRUE)
+nb_point<-paste("nrow=",nrow(data_m),sep="")
+nb_point2<-paste("ns_stations=",length(unique(data_m$station)),sep="")
+#Add the number of data points on the plot
+legend("topleft",legend=c(nb_point,nb_point2),bty="n",cex=1)
+title(paste("Stations ",range_years[1],"-",range_years[2]," after screening and covar extraction",sep=""))
+#Add the number of data points on the plot
+dev.off()
              
 ### Figue 6: histogram            
-#plot(dst) 
     
 #dst$nobs_station
+png(paste("Stations_data_month_modeled_for_range_",range_years_clim[1],"_",range_years_clim[2],out_prefix,".png", sep=""))
 dst$nobs_station<-dst$nbs_stt
 hist(dst$nobs_station)
+dev.off()
 
-### Figue 7: LST and TMax
+### Figure 7: data month
+
+png(paste("Stations_data_month_modeled_for_range_",range_years_clim[1],"_",range_years_clim[2],out_prefix,".png", sep=""))
+par(mfrow=c(3,4))
+for (j in 1:12){
+
+  data_month<-list_data_month[[j]]
+  plot(rast_ref)
+  plot(data_month,add=TRUE)
+  nb_point<-paste("nrow=",nrow(data_month),sep="")
+  nb_point2<-paste("ns_stations=",length(unique(data_month$station)),sep="")
+  nb_point3<-paste("ns_non_na_stations=",length(unique(data_month$y_var)),sep="")
+  #Add the number of data points on the plot
+  legend("topleft",legend=c(nb_point,nb_point2,nb_point3),bty="n",cex=0.9)
+  title(paste("Stations ",range_years_clim[1],"-",range_years_clim[2]," used for modeling on ",sep=""))
+  #data_NA<-subset(data=data_month,is.na(data_month$y_var))
+  data_NA<-data_month[is.na(data_month$y_var),]
+  plot(data_NA,add=TRUE,pch=2,col=c("red"))
+  legend("topright",legend=c("NA value"),pch=2,col=c("red"),bty="n",cex=0.9)
+}
+dev.off()
+
+### Figue 8: LST and TMax
 
 names_tmp<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_09","mm_10","mm_11","mm_12")
 LST_s<-subset(s_raster,names_tmp)
@@ -117,9 +213,7 @@ names(LST_s)<-names_tmp
 names_tmp<-c("nobs_01","nobs_02","nobs_03","nobs_04","nobs_05","nobs_06","nobs_07","nobs_08",
              "nobs_09","nobs_10","nobs_11","nobs_12")
 LST_nobs<-subset(s_raster,names_tmp)
- 
-## Function...note differnces in patternin agricultural areas
-
+    
 list_statistic_values_LST_s<-mclapply(c("min","max","mean","sd"),FUN=cellStats,x=LST_s,mc.preschedule=FALSE,mc.cores = 4)
 list_statistic_values_LST_nobs<-mclapply(c("min","max","mean","sd"),FUN=cellStats,x=LST_nobs,mc.preschedule=FALSE,mc.cores = 4)
 
@@ -131,8 +225,7 @@ statistics_LSTnobs_s<-cbind(min_values,max_values,mean_values,sd_values) #This s
 LSTnobs_stat_data<-as.data.frame(statistics_LSTnobs_s)
 names(LSTnobs_stat_data)<-c("min","max","mean","sd")
 
-# X11(width=12,height=12)
-# #Plot statiscs (mean,min,max) for monthly LST images
+png(paste("Stations_data_month_modeled_for_range_",range_years_clim[1],"_",range_years_clim[2],out_prefix,".png", sep=""))    
 plot(1:12,LST_stat_data$mean,type="b",ylim=c(-15,70),col="black",xlab="month",ylab="tmax (degree C)")
 lines(1:12,LST_stat_data$min,type="b",col="blue")
 lines(1:12,LST_stat_data$max,type="b",col="red")
@@ -141,22 +234,25 @@ legend("topleft",legend=c("min","mean","max"), cex=0.8, col=c("blue","black","re
        lty=1,lwd=1.4,bty="n")
 title(paste("LST statistics for Study area",sep=" "))
 # savePlot("lst_statistics_OR.png",type="png")
-
-#### Fig8...#####
+dev.off()
+    
+#### Fig9...#####
 
 # #Plot number of valid observations for LST
+png(paste("Stations_data_month_modeled_for_range_",range_years_clim[1],"_",range_years_clim[2],out_prefix,".png", sep=""))    
 plot(1:12,LSTnobs_stat_data$mean,type="b",ylim=c(0,280),col="black",xlab="month",ylab="tmax (degree C)")
 lines(1:12,LSTnobs_stat_data$min,type="b",col="blue")
 lines(1:12,LSTnobs_stat_data$max,type="b",col="red")
 text(1:12,LSTnobs_stat_data$mean,rownames(LSTnobs_stat_data),cex=1,pos=2)
-# 
 legend("topleft",legend=c("min","mean","max"), cex=1.5, col=c("blue","black","red"),lty=1)
 title(paste("LST number of valid observations for Oregon", "2010",sep=" "))
 # savePlot("lst_nobs_OR.png",type="png")
-# 
-#### Fig 9...#####
+dev.off()
+    
+#### Fig 10...#####
 
 #Use data_month!!!
+
 d_month<-aggregate(TMax~month, data=dst, mean)  #Calculate monthly mean for every station in OR
 d_month<-aggregate(TMax~month, data=dst, length)  #Calculate monthly mean for every station in OR
 
@@ -229,7 +325,7 @@ plot(d_month,type="l")
 #
 ### MAP3: Majority land cover for every pixels in the study region
 
-
+#Add barplot of majority map...
 
 ###Map 4: Elevation and LST in January
 # tmp_s<-stack(LST,elev_1)
