@@ -11,11 +11,11 @@
 #5)GAM fusion: possibilty of running GAM+FUSION or GAM+CAI and other options added
 #The interpolation is done first at the monthly time scale then delta surfaces are added.
 #AUTHOR: Benoit Parmentier                                                                        
-#DATE: 03/27/2013                                                                                 
+#DATE: 04/05/2013                                                                                 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#568--     
 #
 # TO DO:
-# 1) modidy to make it general for any method i.e. make call to method e.g. gam_fus, gam_cai etc.
+# 1) modify to make it general for any method i.e. make call to method e.g. gam_fus, gam_cai etc.
 # 2) simplify and bundle validation steps, make it general--method_mod_validation
 # 3) solve issues with log file recordings
 # 4) output location folder on the fly???
@@ -160,21 +160,15 @@ raster_prediction_gam_fusion<-function(list_param_raster_prediction){
   
   s_raster<-brick(infile_covariates)                   #read in the data brck
   names(s_raster)<-covar_names               #Assigning names to the raster layers: making sure it is included in the extraction
-  pos<-match("elev",names(s_raster))
-  names(s_raster)[pos]<-"elev_1"
+    
+  #Reading monthly data
+  dst<-readOGR(dsn=in_path,layer=sub(".shp","",basename(infile_monthly)))
   
+  ### TO DO -important ###
+  #SCREENING IN COVARIATE SCRIPT AND DATA PREP SCRIPT !!! Only perform predictions here
   #Screen for extreme values": this needs more thought, min and max val vary with regions
   #min_val<-(-15+273.16) #if values less than -15C then screen out (note the Kelvin units that will need to be changed later in all datasets)
   #r1[r1 < (min_val)]<-NA
-  
-  #Reading monthly data
-  data3<-readOGR(dsn=in_path,layer=sub(".shp","",basename(infile_monthly)))
-  dst_all<-data3
-  dst<-data3
-  
-  ### TO DO -important ###
-  #Cleaning/sceerniging functions for daily stations, monthly stations and covariates?? do this during the preparation stage!!!??
-  ###
   
   ########### CREATE SAMPLING -TRAINING AND TESTING STATIONS ###########
   
@@ -197,10 +191,11 @@ raster_prediction_gam_fusion<-function(list_param_raster_prediction){
   t1<-proc.time()
   j=12
   #browser()
-  #list_param_runClim_KGFusion<-list(j,s_raster,covar_names,lst_avg,list_models,dst,var,y_var_name, out_prefix)
+  list_param_runClim_KGFusion<-list(j,s_raster,covar_names,lst_avg,list_models,dst,var,y_var_name, out_prefix)
   names(list_param_runClim_KGFusion)<-c("list_index","covar_rast","covar_names","lst_avg","list_models","dst","var","y_var_name","out_prefix")
   #source(file.path(script_path,"GAM_fusion_function_multisampling_03122013.R"))
   gamclim_fus_mod<-mclapply(1:12, list_param=list_param_runClim_KGFusion, runClim_KGFusion,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
+  #test<-runClim_KGFusion(1,list_param=list_param_runClim_KGFusion)
   #gamclim_fus_mod<-mclapply(1:6, list_param=list_param_runClim_KGFusion, runClim_KGFusion,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
   
   #gamclim_fus_mod<-runClim_KGFusion(1,list_param=list_param_runClim_KGFusion) #This is the end bracket from mclapply(...) statement
