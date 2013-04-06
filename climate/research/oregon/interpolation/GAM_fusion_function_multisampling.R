@@ -117,8 +117,6 @@ runClimCAI<-function(j,list_param){
   cname<-paste("mod",1:length(mod_list),sep="") #change to more meaningful name?
   names(mod_list)<-cname
   #Adding layer LST to the raster stack  
-  pos<-match("elev",names(s_raster))
-  layerNames(s_raster)[pos]<-"elev_1"
   
   pos<-match("LST",names(s_raster)) #Find the position of the layer with name "LST", if not present pos=NA
   s_raster<-dropLayer(s_raster,pos)      # If it exists drop layer
