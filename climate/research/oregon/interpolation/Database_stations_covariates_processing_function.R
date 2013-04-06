@@ -27,12 +27,12 @@ database_covariates_preparation<-function(list_param_prep){
   #6) monthly_covar_ghcn_data: ghcn monthly averaged data with covariates for the year range of interpolation (locally projected)
   
   #AUTHOR: Benoit Parmentier                                                                       
-  #DATE: 03/28/2013                                                                                 
+  #DATE: 04/05/2013                                                                                 
   #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363--     
   #Comments and TODO
   #-Add buffer option...
   #-Add output path argument option
-  #-Add qc flag options
+  #-Add screening for value predicted: var
   ##################################################################################################
   
   ###Loading R library and packages: should it be read in before???   
@@ -98,11 +98,12 @@ database_covariates_preparation<-function(list_param_prep){
   coordinates(dat_stat)<-coords
   proj4string(dat_stat)<-CRS_locs_WGS84 #this is the WGS84 projection
   #proj4string(dat_stat)<-CRS_interp
-  dat_stat2<-spTransform(dat_stat,CRS(CRS_interp))         # Project from WGS84 to new coord. system
+  interp_area_WGS84 <-spTransform(interp_area,CRS_locs_WGS84)         # Project from WGS84 to new coord. system
   
   # Spatial query to find relevant stations
-  inside <- !is.na(over(dat_stat2, as(interp_area, "SpatialPolygons")))  #Finding stations contained in the current interpolation area
-  stat_reg<-dat_stat2[inside,]              #Selecting stations contained in the current interpolation area
+  
+  inside <- !is.na(over(dat_stat, as(interp_area_WGS84, "SpatialPolygons")))  #Finding stations contained in the current interpolation area
+  stat_reg<-dat_stat[inside,]              #Selecting stations contained in the current interpolation area
   
   ####
   ##TODO: Add buffer option? 
@@ -136,7 +137,10 @@ database_covariates_preparation<-function(list_param_prep){
   
   data_d <-data_reg  #data_d: daily data containing the query without screening
   #data_reg <-subset(data_d,mflag=="0" | mflag=="S") #should be input arguments!!
-  data_reg <-subset(data_d,mflag==qc_flags_stations[1] | mflag==qc_flags_stations[2]) #screening using flags
+  #Transform the query to be depending on the number of flags
+  
+  data_reg <-subset(data_d, mflag %in% qc_flags_stations) #screening using flags
+  #data_reg2 <-subset(data_d,mflag==qc_flags_stations[1] | mflag==qc_flags_stations[2]) #screening using flags
   
   ##################################################################
   ### STEP 3: Save results and outuput in textfile and a shape file
@@ -225,9 +229,11 @@ database_covariates_preparation<-function(list_param_prep){
   
   #In Venezuela and other regions where there are not many stations...mflag==S should be added..see Durenne etal.2010.
 
-  #d<-subset(data_m,mflag=="0" | mflag=="S") #should be input arguments!!
-  d<-subset(data_m,mflag==qc_flags_stations[1] | mflag==qc_flags_stations[2])
-  #May need some screeing??? i.e. range of temp and elevation...
+  #d<-subset(data_m,mflag==qc_flags_stations[1] | mflag==qc_flags_stations[2])
+  d<-subset(data_m,mflag %in% qc_flags_stations)
+  
+  #Add screening here ...May need some screeing??? i.e. range of temp and elevation...
+  
   d1<-aggregate(value~station+month, data=d, mean)  #Calculate monthly mean for every station in OR
   #d2<-aggregate(value~station+month, data=d, length)  #Calculate monthly mean for every station in OR
   is_not_na_fun<-function(x) sum(!is.na(x)) #count the number of available observation
@@ -257,7 +263,7 @@ database_covariates_preparation<-function(list_param_prep){
   stations_val<-extract(s_raster,dst_month,df=TRUE)  #extraction of the information at station location in a data frame
   #dst_extract<-spCbind(dst_month,stations_val) #this is in sinusoidal from the raster stack
   dst_extract<-cbind(dst_month,stations_val) #this is in sinusoidal from the raster stack
-  dst<-dst_extract
+  dst<-dst_extract #problem!!! two column named elev!!! use elev_s??
   
   #browser()
   coords<- dst[c('x','y')]              #Define coordinates in a data frame, this is the local x,y
@@ -265,7 +271,13 @@ database_covariates_preparation<-function(list_param_prep){
   dst<-dst[index,]
   coords<- dst[c('x','y')]              #Define coordinates in a data frame, this is the local x,y
   coordinates(dst)<-coords                    #Assign coordinates to the data frame
-  proj4string(dst)<-projection(s_raster)        #Assign coordinates reference system in PROJ4 format
+  proj4string(dst)<-CRS_interp        #Assign coordinates reference system in PROJ4 format
+  
+  ### ADD SCREENING HERE BEFORE WRITING OUT DATA
+  #Covariates ok since screening done in covariate script
+  #screening on var i.e. value, TMIN, TMAX...
+  
+  ####
   
   ####
   #write out a new shapefile (including .prj component)
