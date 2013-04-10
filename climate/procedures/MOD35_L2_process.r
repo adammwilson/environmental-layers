@@ -35,7 +35,7 @@ if ( !is.null(opta$help) )
 
 
 ## default date and tile to play with  (will be overwritten below when running in batch)
-date="20010410"
+date="20000410"
 tile="h11v08"
 platform="pleiades" 
 verbose=T
@@ -68,17 +68,17 @@ if(platform=="pleiades"){
 
 if(platform=="litoria"){  #if running on local server, use different paths
   ## specify working directory
-  setwd("~/acrobates/projects/interp")
+  setwd("~/acrobates/adamw/projects/interp")
   gisBase="/usr/lib/grass64"
    ## location of MOD06 files
-  datadir="~/acrobates/projects/interp/data/modis/mod35"
+  datadir="~/acrobates/adamw/projects/interp/data/modis/mod35"
   ## path to some executables
   ncopath=""
   swtifpath="sudo MRTDATADIR=\"/usr/local/heg/data\" PGSHOME=/usr/local/heg/TOOLKIT_MTD PWD=/home/adamw /usr/local/heg/bin/swtif"
   ## path to swath database
-  db="/home/adamw/acrobates/projects/interp/data/modis/mod06/swath_geo.sql.sqlite3.db"
+  db="~/acrobates/adamw/projects/interp/data/modis/mod06/swath_geo.sql.sqlite3.db"
   ## get grid file
-  td=raster(paste("~/acrobates/projects/interp/data/modis/mod06/summary/MOD06_",tile,".nc",sep=""),varname="CER")
+  td=raster(paste("~/acrobates/adamw/projects/interp/data/modis/mod06/summary/MOD06_",tile,".nc",sep=""),varname="CER")
   projection(td)="+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs +datum=WGS84 +ellps=WGS84 "
 }
 
@@ -100,14 +100,14 @@ vars=as.data.frame(matrix(c(
   byrow=T,ncol=2,dimnames=list(1:2,c("variable","varid"))),stringsAsFactors=F)
 
 ## vector of variables expected to be in final netcdf file.  If these are not present, the file will be deleted at the end.
-finalvars=c("CLD","CLD2")
+finalvars=c("PClear")
 
 
 #####################################################
 ##find swaths in region from sqlite database for the specified date/tile
 if(verbose) print("Accessing swath ID's from database")
 con=dbConnect("SQLite", dbname = db)
-fs=dbGetQuery(con,paste("SELECT * from swath_geo
+fs=dbGetQuery(con,paste("SELECT * from swath_geo6
             WHERE east>=",tile_bb$lon_min," AND
                   west<=",tile_bb$lon_max," AND
                   north>=",tile_bb$lat_min," AND
@@ -209,14 +209,17 @@ if(!any(file.exists(outfiles))) {
 
   ## Define region by importing one MOD11A1 raster.
   print("Import one MOD11A1 raster to define grid")
-  if(platform=="pleiades") execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",gridfile,"\":MODIS_Grid_Daily_1km_LST:Night_view_angl",sep=""),
-            output="modisgrid",flags=c("quiet","overwrite","o"))
-   if(platform=="litoria")
-  execGRASS("r.in.gdal",input=paste("NETCDF:\"/home/adamw/acrobates/projects/interp/data/modis/mod06/summary/MOD06_",tile,".nc\":CER",sep=""),output="modisgrid",flags=c("overwrite","o"))
-  
-system("g.region rast=modisgrid save=roi --overwrite",ignore.stdout=F,ignore.stderr=F)
-system("g.region rast=modisgrid.1 save=roi --overwrite",ignore.stdout=F,ignore.stderr=F)
+  if(platform=="pleiades") {
+    execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",gridfile,"\":MODIS_Grid_Daily_1km_LST:Night_view_angl",sep=""),
+              output="modisgrid",flags=c("quiet","overwrite","o"))
+    system("g.region rast=modisgrid save=roi --overwrite",ignore.stdout=F,ignore.stderr=F)
+  }
 
+if(platform=="litoria"){
+  execGRASS("r.in.gdal",input=paste("NETCDF:\"/home/adamw/acrobates/adamw/projects/interp/data/modis/mod06/summary/MOD06_",tile,".nc\":CER",sep=""),
+            output="modisgrid",flags=c("overwrite","o"))
+  system("g.region rast=modisgrid.1 save=roi --overwrite",ignore.stdout=F,ignore.stderr=F)
+}
 ## Identify which files to process
 tfs=basename(swaths)
 ## drop swaths that did not produce an output file (typically due to not overlapping the ROI)
@@ -231,48 +234,43 @@ if(verbose) print(paste(nfs,"swaths available for processing"))
      ## Cloud Mask
      execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",file,"\":mod35:Cloud_Mask_0",sep=""),
               output=paste("CM1_",i,sep=""),flags=c("overwrite","o")) ; print("")
-    ## extract cloudy and 'probably/confidently clear' pixels
-    system(paste("r.mapcalc <<EOF
-                CM_cloud_",i," =  ((CM1_",i," / 2^0) % 2) == 1  &&  ((CM1_",i," / 2^1) % 2^2) == 0 
-                CM_clear_",i," =  ((CM1_",i," / 2^0) % 2) == 1  &&  ((CM1_",i," / 2^1) % 2^2) >=  2 
-                CM_path_",i," =   ((CM1_",i," / 2^6) % 2^2) 
-                CM_cloud2_",i," = ((CM1_",i," / 2^1) % 2^2) 
-EOF",sep=""))
-
-    ## QA
+    ## QA      ## extract first bit to keep only "useful" values of cloud mask
      execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",file,"\":mod35:Quality_Assurance_0",sep=""),
              output=paste("QA_",i,sep=""),flags=c("overwrite","o")) ; print("")
-   ## QA_CER
-#   system(paste("r.mapcalc <<EOF
-#                 QA_COT_",i,"=   ((QA_",i," / 2^0) % 2^1 )==1
-#                 QA_COT2_",i,"=  ((QA_",i," / 2^1) % 2^2 )>=2
-#                 QA_COT3_",i,"=  ((QA_",i," / 2^3) % 2^2 )==0
-#                 QA_CER_",i,"=   ((QA_",i," / 2^5) % 2^1 )==1
-#                 QA_CER2_",i,"=  ((QA_",i," / 2^6) % 2^2 )>=2
-#EOF",sep="")) 
-#                 QA_CWP_",i,"=   ((QA_",i," / 2^8) % 2^1 )==1
-#                 QA_CWP2_",i,"=  ((QA_",i," / 2^9) % 2^2 )==3
+     ## extract first two bits of cloud mask
+    system(paste("r.mapcalc <<EOF
+                QA_useful_",i," =  if((QA_",i," / 2^0) % 2==1,1,0)
+                CM_cloud_",i," =  if((CM1_",i," / 2^0) % 2==1,(CM1_",i," / 2^1) % 2^2,-9999)
+                Pclear1_",i," = if(CM_cloud_",i,"==0,0,if(CM_cloud_",i,"==1,66,if(CM_cloud_",i,"==2,95,if(CM_cloud_",i,"==3,99,-9999))))
+                Pclear_",i," = if(QA_useful_",i,"==1,Pclear1_",i,",-9999)
+                CM_path_",i," =   ((CM1_",i," / 2^6) % 2^2) 
+EOF",sep=""))
 
-     
+     execGRASS("r.null",map=paste("Pclear_",i,sep=""),setnull="-9999")
+     execGRASS("r.null",map=paste("CM_cloud_",i,sep=""),setnull="-9999")
+   
+    
  } #end loop through sub daily files
 
 #### Now generate daily averages (or maximum in case of cloud flag)
   
   system(paste("r.mapcalc <<EOF
-         CLD_daily=int((max(",paste("if(isnull(CM_cloud_",1:nfs,"),-9999,CM_cloud_",1:nfs,")",sep="",collapse=","),"))) 
-         CLD2_daily=int((min(",paste("if(isnull(CM_cloud2_",1:nfs,"),-9999,CM_cloud2_",1:nfs,")",sep="",collapse=","),"))) 
+         Pclear_daily=int((min(",paste("if(isnull(Pclear_",1:nfs,"),9999,Pclear_",1:nfs,")",sep="",collapse=","),"))) 
 EOF",sep=""))
 
-execGRASS("r.null",map="CLD_daily",setnull="-9999")
-execGRASS("r.null",map="CLD2_daily",setnull="-9999")
+#         CLD_daily=int((min(",paste("if(isnull(CM_cloud_",1:nfs,"),9999,CM_cloud_",1:nfs,")",sep="",collapse=","),"))) 
+
+## reset null values
+#execGRASS("r.null",map="CLD_daily",setnull="9999")
+execGRASS("r.null",map="Pclear_daily",setnull="9999")
 
 
   ### Write the files to a netcdf file
   ## create image group to facilitate export as multiband netcdf
-    execGRASS("i.group",group="mod06",input=c("CLD_daily","CLD2_daily")) ; print("")
+    execGRASS("i.group",group="mod35",input=c("Pclear_daily")) ; print("")
    
   if(file.exists(ncfile)) file.remove(ncfile)  #if it exists already, delete it
-  execGRASS("r.out.gdal",input="mod06",output=ncfile,type="Int16",nodata=-32768,flags=c("quiet"),
+  execGRASS("r.out.gdal",input="mod35",output=ncfile,type="Byte",nodata=255,flags=c("quiet"),
 #      createopt=c("FORMAT=NC4","ZLEVEL=5","COMPRESS=DEFLATE","WRITE_GDAL_TAGS=YES","WRITE_LONLAT=NO"),format="netCDF")  #for compressed netcdf
       createopt=c("FORMAT=NC","WRITE_GDAL_TAGS=YES","WRITE_LONLAT=NO"),format="netCDF")
 
@@ -293,9 +291,8 @@ execGRASS("r.null",map="CLD2_daily",setnull="-9999")
 system(paste("ncgen -o ",tempdir(),"/time.nc ",tempdir(),"/time.cdl",sep=""))
 system(paste(ncopath,"ncks -A ",tempdir(),"/time.nc ",ncfile,sep=""))
 ## add other attributes
-  system(paste(ncopath,"ncrename -v Band1,CLD -v Band2,CLD2 ",ncfile,sep=""))
-  system(paste(ncopath,"ncatted -a scale_factor,CLD,o,d,1 -a units,CLD,o,c,\"none\" -a missing_value,CLD,o,d,-32768 -a long_name,CLD,o,c,\"Cloud Mask\" ",ncfile,sep=""))
-system(paste(ncopath,"ncatted -a scale_factor,CLD2,o,d,1 -a units,CLD2,o,c,\"none\" -a missing_value,CLD2,o,d,-32768 -a long_name,CLD2,o,c,\"Cloud Mask Flag\" ",ncfile,sep=""))
+  system(paste(ncopath,"ncrename -v Band1,PClear ",ncfile,sep=""))
+  system(paste(ncopath,"ncatted -a scale_factor,PClear,o,d,1 -a units,PClear,o,c,\"Probability (%)\" -a missing_value,PClear,o,d,255 -a long_name,PClear,o,c,\"Probability of Clear Sky\" ",ncfile,sep=""))
 
                                         #  system(paste(ncopath,"ncatted -a sourcecode,global,o,c,",script," ",ncfile,sep=""))
    
@@ -320,7 +317,7 @@ print(paste(" ##################################################################
 "################################################################"))
 
 ## delete old files
-system("cleartemp")
+#system("cleartemp")
 
 ## quit
 q("no",status=0)
