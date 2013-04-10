@@ -51,14 +51,14 @@ doy=format(as.Date(date,"%Y%m%d"),"%j")
 
 if(platform=="pleiades"){
   ## location of MOD06 files
-  datadir=paste("/nobackupp4/datapool/modis/MOD06_L2.005/",year,"/",doy,"/",sep="")
+  datadir=paste("/nobackupp4/datapool/modis/MOD35_L2.006/",year,"/",doy,"/",sep="")
   ## path to some executables
   ncopath="/nasa/sles11/nco/4.0.8/gcc/mpt/bin/"
   swtifpath="/nobackupp1/awilso10/software/heg/bin/swtif"
   ## path to swath database
   db="/nobackupp4/pvotava/DB/export/swath_geo.sql.sqlite3.db"
   ## specify working directory
-  setwd("/nobackupp1/awilso10/mod06")
+  setwd("/nobackupp1/awilso10/mod35")
   gisBase="/u/armichae/pr/grass-6.4.2/"
   ## path to MOD11A1 file for this tile to align grid/extent
   gridfile=list.files("/nobackupp4/datapool/modis/MOD11A1.005/2006.01.27",pattern=paste(tile,".*[.]hdf$",sep=""),recursive=T,full=T)[1]
@@ -182,7 +182,7 @@ if(!any(file.exists(outfiles))) {
 ## Process the gridded files to align exactly with MODLAND tile and produce a daily summary of multiple swaths
   
 ## Identify output file
-  ncfile=paste(outdir,"/MOD06_",tile,"_",date,".nc",sep="")  #this is the 'final' daily output file
+  ncfile=paste(outdir,"/MOD35_",tile,"_",date,".nc",sep="")  #this is the 'final' daily output file
 
 ## function to convert binary to decimal to assist in identifying correct values
 ## this is helpful when defining QA handling below, but isn't used in processing
@@ -314,7 +314,7 @@ fvar=all(finalvars%in%strsplit(system(paste("cdo -s showvar ",ncfile),intern=T),
       print(paste("FILE ERROR:  tile ",tile," and date ",date," was not outputted correctly, deleting... "))
       file.remove(ncfile)
     }
-    
+   
   ## print out some info
 print(paste(" ###################################################################               Finished ",date,
 "################################################################"))
