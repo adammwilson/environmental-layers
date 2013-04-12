@@ -182,7 +182,7 @@ if(!any(file.exists(outfiles))) {
 ## Process the gridded files to align exactly with MODLAND tile and produce a daily summary of multiple swaths
   
 ## Identify output file
-  ncfile=paste(outdir,"/MOD35_",tile,"_",date,".nc",sep="")  #this is the 'final' daily output file
+ncfile=paste(outdir,"/MOD35_",tile,"_",date,".nc",sep="")  #this is the 'final' daily output file
 
 ## function to convert binary to decimal to assist in identifying correct values
 ## this is helpful when defining QA handling below, but isn't used in processing
@@ -243,8 +243,9 @@ if(verbose) print(paste(nfs,"swaths available for processing"))
                 CM_cloud_",i," =  if((CM1_",i," / 2^0) % 2==1,(CM1_",i," / 2^1) % 2^2,-9999)
                 Pclear1_",i," = if(CM_cloud_",i,"==0,0,if(CM_cloud_",i,"==1,66,if(CM_cloud_",i,"==2,95,if(CM_cloud_",i,"==3,99,-9999))))
                 Pclear_",i," = if(QA_useful_",i,"==1,Pclear1_",i,",-9999)
-                CM_path_",i," =   ((CM1_",i," / 2^6) % 2^2) 
 EOF",sep=""))
+
+     #                CM_path_",i," =   ((CM1_",i," / 2^6) % 2^2) 
 
      execGRASS("r.null",map=paste("Pclear_",i,sep=""),setnull="-9999")
      execGRASS("r.null",map=paste("CM_cloud_",i,sep=""),setnull="-9999")
@@ -252,16 +253,13 @@ EOF",sep=""))
     
  } #end loop through sub daily files
 
-#### Now generate daily averages (or maximum in case of cloud flag)
-  
+#### Now generate daily minimum p(clear)
   system(paste("r.mapcalc <<EOF
          Pclear_daily=int((min(",paste("if(isnull(Pclear_",1:nfs,"),9999,Pclear_",1:nfs,")",sep="",collapse=","),"))) 
 EOF",sep=""))
 
-#         CLD_daily=int((min(",paste("if(isnull(CM_cloud_",1:nfs,"),9999,CM_cloud_",1:nfs,")",sep="",collapse=","),"))) 
 
 ## reset null values
-#execGRASS("r.null",map="CLD_daily",setnull="9999")
 execGRASS("r.null",map="Pclear_daily",setnull="9999")
 
 
@@ -292,7 +290,7 @@ system(paste("ncgen -o ",tempdir(),"/time.nc ",tempdir(),"/time.cdl",sep=""))
 system(paste(ncopath,"ncks -A ",tempdir(),"/time.nc ",ncfile,sep=""))
 ## add other attributes
   system(paste(ncopath,"ncrename -v Band1,PClear ",ncfile,sep=""))
-  system(paste(ncopath,"ncatted -a scale_factor,PClear,o,d,1 -a units,PClear,o,c,\"Probability (%)\" -a missing_value,PClear,o,d,255 -a long_name,PClear,o,c,\"Probability of Clear Sky\" ",ncfile,sep=""))
+  system(paste(ncopath,"ncatted -a scale_factor,PClear,o,d,1 -a units,PClear,o,c,\"Probability (%)\" -a missing_value,PClear,o,d,255 -a _FillValue,PClear,o,d,255 -a long_name,PClear,o,c,\"Probability of Clear Sky\" ",ncfile,sep=""))
 
                                         #  system(paste(ncopath,"ncatted -a sourcecode,global,o,c,",script," ",ncfile,sep=""))
    

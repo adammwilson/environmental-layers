@@ -1,6 +1,6 @@
 #### Script to facilitate processing of MOD06 data
   
-  setwd("/nobackupp1/awilso10/mod35")
+setwd("/nobackupp1/awilso10/mod35")
 
 library(rgdal)
 library(raster)
