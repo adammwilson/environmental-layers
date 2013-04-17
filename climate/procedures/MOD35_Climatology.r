@@ -97,7 +97,7 @@ myear=as.integer(max(fdly$year))  #this year will be used in all dates of monthl
 
 ## Monthly means
 if(verbose) print("Calculating the monthly means")
-system(paste("cdo -O sorttimestamp -setyear,",myear," -setday,15 -ymonmean -mulc,-1 -subc,100 ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ymonmean.nc",sep=""),wait=T)
+system(paste("cdo -O sorttimestamp -setyear,",myear," -setday,15 -mulc,-1 -subc,100 -ymonmean ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ymonmean.nc",sep=""),wait=T)
 system(paste(ncopath,"ncrename -v PClear,PCloud ",tsdir,"/MOD35_",tile,"_ymonmean.nc",sep=""))
 system(paste(ncopath,"ncatted ",
 " -a long_name,PCloud,o,c,\"Mean Probability of Cloud\" ",
@@ -105,7 +105,7 @@ tsdir,"/MOD35_",tile,"_ymonmean.nc",sep=""))
 
 ## Monthly standard deviation
 if(verbose) print("Calculating the monthly SD")
-system(paste("cdo -O sorttimestamp -setyear,",myear," -setday,15 -ymonstd -mulc,-1 -subc,100 ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ymonstd.nc",sep=""))
+system(paste("cdo -O sorttimestamp -setyear,",myear," -setday,15 -ymonstd  ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ymonstd.nc",sep=""))
 system(paste(ncopath,"ncrename -v PClear,PCloud_sd ",tsdir,"/MOD35_",tile,"_ymonstd.nc",sep=""))
 system(paste(ncopath,"ncatted ",
 " -a long_name,PCloud_sd,o,c,\"Standard Deviation of p(cloud)\" ",
@@ -113,12 +113,40 @@ tsdir,"/MOD35_",tile,"_ymonstd.nc",sep=""))
 
 ## frequency of cloud days p(clear<90%)  
 if(verbose) print("Calculating the proportion of cloudy and probably cloudy days")
-system(paste("cdo -O  sorttimestamp -setyear,",myear," -setday,15 -nint -ymonmean  -mulc,100  -lec,90 -selvar,PClear ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ymoncld01.nc",sep=""))
+system(paste("cdo -O  sorttimestamp -setyear,",myear," -setday,15 -ymonmean  -mulc,100 -lec,90 -selvar,PClear ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ymoncld01.nc",sep=""))
 system(paste(ncopath,"ncrename -v PClear,CF ",tsdir,"/MOD35_",tile,"_ymoncld01.nc",sep=""))
 system(paste(ncopath,"ncatted ",
 " -a long_name,CF,o,c,\"Cloud Frequency: Proportion of Days with probability of clear < 90%\" ",
 " -a units,CF,o,c,\"Proportion (%)\" ",
 tsdir,"/MOD35_",tile,"_ymoncld01.nc",sep=""))
+
+## cld == 1
+if(verbose) print("Calculating the proportion of uncertain days")
+system(paste("cdo -O  sorttimestamp -setyear,",myear," -setday,15 -nint -mulc,100 -ymonmean  -mulc,1.0 -eqc,1 -selvar,CLD2 ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ymoncld1.nc",sep=""))
+system(paste(ncopath,"ncrename -v CLD2,CLD1 ",tsdir,"/MOD35_",tile,"_ymoncld1.nc",sep=""))
+system(paste(ncopath,"ncatted ",
+" -a long_name,CLD1,o,c,\"Proportion of Days with Cloud Mask == 1 (uncertain)\" ",
+" -a units,CLD1,o,c,\"Proportion\" ",
+tsdir,"/MOD35_",tile,"_ymoncld1.nc",sep=""))
+
+
+## cld >= 2 (setting cld==01 to missing because 'uncertain')
+if(verbose) print("Calculating the proportion of clear days")
+system(paste("cdo -O  sorttimestamp -setyear,",myear," -setday,15 -nint -mulc,100 -ymonmean  -mulc,1.0 -gtc,1 -setctomiss,1 -selvar,CLD2 ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ymoncld2.nc",sep=""))
+system(paste(ncopath,"ncrename -v CLD2,CLD23 ",tsdir,"/MOD35_",tile,"_ymoncld2.nc",sep=""))
+system(paste(ncopath,"ncatted ",
+" -a long_name,CLD23,o,c,\"Proportion of Days with Cloud Mask >= 2 (Probably Clear or Certainly Clear)\" ",
+" -a units,CLD23,o,c,\"Proportion\" ",
+tsdir,"/MOD35_",tile,"_ymoncld2.nc",sep=""))
+
+## cld >= 1
+if(verbose) print("Calculating the proportion of clear days")
+system(paste("cdo -O  sorttimestamp -setyear,",myear," -setday,15 -nint -mulc,100 -ymonmean  -mulc,1.0 -gec,1 -selvar,CLD2 ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ymoncld13.nc",sep=""))
+system(paste(ncopath,"ncrename -v CLD2,CLD13 ",tsdir,"/MOD35_",tile,"_ymoncld13.nc",sep=""))
+system(paste(ncopath,"ncatted ",
+" -a long_name,CLD13,o,c,\"Proportion of Days with Cloud Mask >= 1\" ",
+" -a units,CLD13,o,c,\"Proportion\" ",
+tsdir,"/MOD35_",tile,"_ymoncld13.nc",sep=""))
 
 ## number of observations
 if(verbose) print("Calculating the number of missing variables")
@@ -126,7 +154,6 @@ system(paste("cdo -O sorttimestamp  -setyear,",myear," -setday,15 -nint -ymonmea
 system(paste(ncopath,"ncrename -v PClear,CF_pmiss ",tsdir,"/MOD35_",tile,"_ymonmiss.nc",sep=""))
 system(paste(ncopath,"ncatted ",
 " -a long_name,CF_pmiss,o,c,\"Proportion of Days with missing data for CF\" ",
-" -a scale_factor,CF_pmiss,o,d,0.01 ",
 " -a units,CF_pmiss,o,c,\"Proportion (%)\" ",
 tsdir,"/MOD35_",tile,"_ymonmiss.nc",sep=""))
 
@@ -137,7 +164,10 @@ tsdir,"/MOD35_",tile,"_ymonmiss.nc",sep=""))
 if(verbose) print("Append all monthly climatologies into a single file")
 system(paste(ncopath,"ncks -O ",tsdir,"/MOD35_",tile,"_ymonmean.nc  ",tsdir,"/MOD35_",tile,"_ymon.nc",sep=""))
 system(paste(ncopath,"ncks -A ",tsdir,"/MOD35_",tile,"_ymonstd.nc  ",tsdir,"/MOD35_",tile,"_ymon.nc",sep=""))
+system(paste(ncopath,"ncks -A ",tsdir,"/MOD35_",tile,"_ymoncld0.nc  ",tsdir,"/MOD35_",tile,"_ymon.nc",sep=""))
 system(paste(ncopath,"ncks -A ",tsdir,"/MOD35_",tile,"_ymoncld01.nc  ",tsdir,"/MOD35_",tile,"_ymon.nc",sep=""))
+system(paste(ncopath,"ncks -A ",tsdir,"/MOD35_",tile,"_ymoncld1.nc  ",tsdir,"/MOD35_",tile,"_ymon.nc",sep=""))
+system(paste(ncopath,"ncks -A ",tsdir,"/MOD35_",tile,"_ymoncld2.nc  ",tsdir,"/MOD35_",tile,"_ymon.nc",sep=""))
 system(paste(ncopath,"ncks -A ",tsdir,"/MOD35_",tile,"_ymonmiss.nc  ",tsdir,"/MOD35_",tile,"_ymon.nc",sep=""))
 
 ## append sinusoidal grid from one of input files as CDO doesn't transfer all attributes
@@ -149,13 +179,22 @@ if(verbose) print("Clean up file (update attributes, flip latitudes, add grid de
 ## invert latitude so it plays nicely with gdal
 system(paste(ncopath,"ncpdq -O -a -y ",tsdir,"/MOD35_",tile,"_ymon.nc ",outdir2,"/MOD35_",tile,".nc",sep=""))
 
+## proj string taken from GDAL-written MODIS tile 
+projstring="PROJCS[\"Sinusoidal (Sanson-Flamsteed)\",GEOGCS[\"wgs84\",DATUM[\"WGS_1984\",SPHEROID[\"WGS_1984\",6378137,298.257223563],TOWGS84[0,0,0,0,0,0,0]],PRIMEM[\"Greenwich\",0],UNIT[\"degree\",0.0174532925199433]],PROJECTION[\"Sinusoidal\"],PARAMETER[\"longitude_of_center\",0],PARAMETER[\"false_easting\",0],PARAMETER[\"false_northing\",0],UNIT[\"Meter\",1]]"
+
 ## update attributes
 system(paste(ncopath,"ncatted ",
-#" -a standard_parallel,sinusoidal,o,c,\"0\" ",
-#" -a longitude_of_central_meridian,sinusoidal,o,c,\"0\" ",
-#" -a latitude_of_central_meridian,sinusoidal,o,c,\"0\" ",
+" -a false_easting,sinusoidal,o,d,0. ",
+" -a false_northing,sinusoidal,o,d,0. ",
+" -a longitude_of_central_meridian,sinusoidal,o,d,0. ",
+" -a longitude_of_prime_meridian,sinusoidal,o,d,0. ",
+" -a semi_major_axis,sinusoidal,o,d,6378137. ",
+" -a inverse_flattening,sinusoidal,o,d,298.257223563 ",
+" -a spatial_ref,sinusoidal,o,c,",projstring,
+" -a GeoTransform,sinusoidal,o,c,\"-7783653.638366 926.6254331391661 0 1111950.519767 0 -926.6254331391667\" ",
 " -a units,time,o,c,\"days since 2000-1-1 0:0:0\" ",
 " -a title,global,o,c,\"MODIS Cloud Product (MOD35) Climatology\" ",
+" -a tile,global,o,c,\"",tile,"\" ",
 " -a institution,global,o,c,\"Yale University\" ",
 " -a source,global,o,c,\"MODIS Cloud Product (MOD35) Collection 6\" ",
 " -a comment,global,o,c,\"Compiled by Adam M. Wilson (adam.wilson@yale.edu)\" ",
