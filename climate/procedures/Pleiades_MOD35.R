@@ -131,7 +131,7 @@ system(paste("qsub mod35_qsub",sep=""))
 ### Now submit the script to generate the climatologies
 
 tiles
-ctiles=tiles[c(2)]  #subset to only some tiles (for example if some aren't finished yet)?
+ctiles=tiles#[c(2)]  #subset to only some tiles (for example if some aren't finished yet)?
 climatescript="/u/awilso10/environmental-layers/climate/procedures/MOD35_Climatology.r"
 
 ## write the table processed by mpiexec
