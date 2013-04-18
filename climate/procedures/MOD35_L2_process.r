@@ -290,7 +290,7 @@ system(paste("ncgen -o ",tempdir(),"/time.nc ",tempdir(),"/time.cdl",sep=""))
 system(paste(ncopath,"ncks -A ",tempdir(),"/time.nc ",ncfile,sep=""))
 ## add other attributes
   system(paste(ncopath,"ncrename -v Band1,PClear ",ncfile,sep=""))
-  system(paste(ncopath,"ncatted -a scale_factor,PClear,o,d,1 -a units,PClear,o,c,\"Probability (%)\" -a missing_value,PClear,o,d,255 -a _FillValue,PClear,o,d,255 -a long_name,PClear,o,c,\"Probability of Clear Sky\" ",ncfile,sep=""))
+  system(paste(ncopath,"ncatted -a scale_factor,PClear,o,s,1 -a units,PClear,o,c,\"Probability (%)\" -a missing_value,PClear,o,s,255 -a _FillValue,PClear,o,s,255 -a long_name,PClear,o,c,\"Probability of Clear Sky\" ",ncfile,sep=""))
 
                                         #  system(paste(ncopath,"ncatted -a sourcecode,global,o,c,",script," ",ncfile,sep=""))
    

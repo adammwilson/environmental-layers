@@ -86,6 +86,14 @@ system(paste(ncopath,"ncatted ",
 " -a comment,global,o,c,\"Compiled by Adam M. Wilson (adam.wilson@yale.edu)\" ",
 outdir2,"/MOD35_",tile,"_daily.nc",sep=""))
 
+## report on daily file:
+#ncfile=paste(outdir2,"/MOD35_",tile,"_daily.nc",sep="")
+system(paste("ncdump -h ",outdir2,"/MOD35_",tile,"_daily.nc | head -20 ",sep=""))
+system(paste("cdo showyear ",outdir2,"/MOD35_",tile,"_daily.nc",sep=""))
+system(paste("cdo showmon ",outdir2,"/MOD35_",tile,"_daily.nc",sep=""))
+#system(paste("cdo showdate ",outdir2,"/MOD35_",tile,"_daily.nc",sep=""))
+
+
 ### produce a monthly timeseries?
 #system(paste("cdo -O monmean ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_monmean.nc",sep=""))
 
@@ -101,14 +109,14 @@ datesubset="-seldate,2002-01-01,2012-01-01"
 
 ## Monthly means
 if(verbose) print("Calculating the monthly means")
-system(paste("cdo -O sorttimestamp -setyear,",myear," -setday,15 -mulc,-1 -subc,100 -ymonmean  ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ymonmean.nc",sep=""),wait=T)
+system(paste("cdo -O sorttimestamp -setyear,",myear," -setday,15 -mulc,-1 -subc,100 -ymonmean ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ymonmean.nc",sep=""),wait=T)
 
 #system(paste("cdo -v -O selindexbox,1,100,1100,1200 ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_dailysmall.nc",sep=""),wait=T)
 #system(paste("cdo -v -O sorttimestamp -setyear,",myear," -setday,15 -mulc,-1 -subc,100 -ymonmean  ",outdir2,"/MOD35_",tile,"_dailysmall.nc ",tsdir,"/MOD35_",tile,"_ymonmean.nc",sep=""),wait=T)
 
 system(paste("cdo -O sorttimestamp -setyear,",myear," -setday,15 -mulc,-1 -subc,100 -ymonmean  ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ymonmean.nc",sep=""),wait=T)
 
-system(paste("cdo -O sorttimestamp -setyear,",myear," -setday,15 -mulc,-1 -subc,100 -monmean ",datesubset," ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_monmean.nc",sep=""),wait=T)
+system(paste("cdo -O sorttimestamp -setyear,",myear," -setday,15 -mulc,-1 -subc,100 -monmean   ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_monmean.nc",sep=""),wait=T)
 
 
 system(paste("cdo -O sorttimestamp -setyear,",myear," -mulc,-1 -subc,100 -ydrunmean,30 ",datesubset," ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ydrunmean30.nc",sep=""),wait=T)
@@ -135,42 +143,14 @@ system(paste(ncopath,"ncatted ",
 " -a units,CF,o,c,\"Proportion (%)\" ",
 tsdir,"/MOD35_",tile,"_ymoncld01.nc",sep=""))
 
-## cld == 1
-if(verbose) print("Calculating the proportion of uncertain days")
-system(paste("cdo -O  sorttimestamp -setyear,",myear," -setday,15 -nint -mulc,100 -ymonmean  -mulc,1.0 -eqc,1 -selvar,CLD2 ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ymoncld1.nc",sep=""))
-system(paste(ncopath,"ncrename -v CLD2,CLD1 ",tsdir,"/MOD35_",tile,"_ymoncld1.nc",sep=""))
-system(paste(ncopath,"ncatted ",
-" -a long_name,CLD1,o,c,\"Proportion of Days with Cloud Mask == 1 (uncertain)\" ",
-" -a units,CLD1,o,c,\"Proportion\" ",
-tsdir,"/MOD35_",tile,"_ymoncld1.nc",sep=""))
-
-
-## cld >= 2 (setting cld==01 to missing because 'uncertain')
-if(verbose) print("Calculating the proportion of clear days")
-system(paste("cdo -O  sorttimestamp -setyear,",myear," -setday,15 -nint -mulc,100 -ymonmean  -mulc,1.0 -gtc,1 -setctomiss,1 -selvar,CLD2 ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ymoncld2.nc",sep=""))
-system(paste(ncopath,"ncrename -v CLD2,CLD23 ",tsdir,"/MOD35_",tile,"_ymoncld2.nc",sep=""))
-system(paste(ncopath,"ncatted ",
-" -a long_name,CLD23,o,c,\"Proportion of Days with Cloud Mask >= 2 (Probably Clear or Certainly Clear)\" ",
-" -a units,CLD23,o,c,\"Proportion\" ",
-tsdir,"/MOD35_",tile,"_ymoncld2.nc",sep=""))
-
-## cld >= 1
-if(verbose) print("Calculating the proportion of clear days")
-system(paste("cdo -O  sorttimestamp -setyear,",myear," -setday,15 -nint -mulc,100 -ymonmean  -mulc,1.0 -gec,1 -selvar,CLD2 ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ymoncld13.nc",sep=""))
-system(paste(ncopath,"ncrename -v CLD2,CLD13 ",tsdir,"/MOD35_",tile,"_ymoncld13.nc",sep=""))
-system(paste(ncopath,"ncatted ",
-" -a long_name,CLD13,o,c,\"Proportion of Days with Cloud Mask >= 1\" ",
-" -a units,CLD13,o,c,\"Proportion\" ",
-tsdir,"/MOD35_",tile,"_ymoncld13.nc",sep=""))
-
 ## number of observations
 if(verbose) print("Calculating the number of missing variables")
-system(paste("cdo -O sorttimestamp  -setyear,",myear," -setday,15 -nint -ymonmean -mulc,100  -eqc,9999 -setmisstoc,9999   -selvar,CLD ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ymonmiss.nc",sep=""))
-system(paste(ncopath,"ncrename -v PClear,CF_pmiss ",tsdir,"/MOD35_",tile,"_ymonmiss.nc",sep=""))
+system(paste("cdo -O sorttimestamp  -setyear,",myear," -setday,15 -ymonmean -mulc,100  -eqc,9999 -setmisstoc,9999   -selvar,PClear ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ymonmiss.nc",sep=""))
+system(paste(ncopath,"ncrename -v PClear,Pmiss ",tsdir,"/MOD35_",tile,"_ymonmiss.nc",sep=""))
 system(paste(ncopath,"ncatted ",
-" -a long_name,CF_pmiss,o,c,\"Proportion of Days with missing data for CF\" ",
-" -a units,CF_pmiss,o,c,\"Proportion (%)\" ",
-tsdir,"/MOD35_",tile,"_ymonmiss.nc",sep=""))
+             " -a long_name,Pmiss,o,c,\"Proportion of Days with missing data\" ",
+             " -a units,Pmiss,o,c,\"Proportion (%)\" ",
+             tsdir,"/MOD35_",tile,"_ymonmiss.nc",sep=""))
 
 ## TODO: fix projection information so GDAL can read it correctly.
 ## clean up variables?
@@ -179,10 +159,7 @@ tsdir,"/MOD35_",tile,"_ymonmiss.nc",sep=""))
 if(verbose) print("Append all monthly climatologies into a single file")
 system(paste(ncopath,"ncks -O ",tsdir,"/MOD35_",tile,"_ymonmean.nc  ",tsdir,"/MOD35_",tile,"_ymon.nc",sep=""))
 system(paste(ncopath,"ncks -A ",tsdir,"/MOD35_",tile,"_ymonstd.nc  ",tsdir,"/MOD35_",tile,"_ymon.nc",sep=""))
-system(paste(ncopath,"ncks -A ",tsdir,"/MOD35_",tile,"_ymoncld0.nc  ",tsdir,"/MOD35_",tile,"_ymon.nc",sep=""))
 system(paste(ncopath,"ncks -A ",tsdir,"/MOD35_",tile,"_ymoncld01.nc  ",tsdir,"/MOD35_",tile,"_ymon.nc",sep=""))
-system(paste(ncopath,"ncks -A ",tsdir,"/MOD35_",tile,"_ymoncld1.nc  ",tsdir,"/MOD35_",tile,"_ymon.nc",sep=""))
-system(paste(ncopath,"ncks -A ",tsdir,"/MOD35_",tile,"_ymoncld2.nc  ",tsdir,"/MOD35_",tile,"_ymon.nc",sep=""))
 system(paste(ncopath,"ncks -A ",tsdir,"/MOD35_",tile,"_ymonmiss.nc  ",tsdir,"/MOD35_",tile,"_ymon.nc",sep=""))
 
 ## append sinusoidal grid from one of input files as CDO doesn't transfer all attributes
