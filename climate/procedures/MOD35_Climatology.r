@@ -95,9 +95,24 @@ if(verbose) print("Generate monthly climatologies")
 
 myear=as.integer(max(fdly$year))  #this year will be used in all dates of monthly climatologies (and day will = 15)
 
+## subset dates
+## due to bug (?) in CDO tools, only 10 years of data can be processed at a time or strange areas of NAs appear.
+datesubset="-seldate,2002-01-01,2012-01-01"
+
 ## Monthly means
 if(verbose) print("Calculating the monthly means")
-system(paste("cdo -O sorttimestamp -setyear,",myear," -setday,15 -mulc,-1 -subc,100 -ymonmean ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ymonmean.nc",sep=""),wait=T)
+system(paste("cdo -O sorttimestamp -setyear,",myear," -setday,15 -mulc,-1 -subc,100 -ymonmean  ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ymonmean.nc",sep=""),wait=T)
+
+#system(paste("cdo -v -O selindexbox,1,100,1100,1200 ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_dailysmall.nc",sep=""),wait=T)
+#system(paste("cdo -v -O sorttimestamp -setyear,",myear," -setday,15 -mulc,-1 -subc,100 -ymonmean  ",outdir2,"/MOD35_",tile,"_dailysmall.nc ",tsdir,"/MOD35_",tile,"_ymonmean.nc",sep=""),wait=T)
+
+system(paste("cdo -O sorttimestamp -setyear,",myear," -setday,15 -mulc,-1 -subc,100 -ymonmean  ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ymonmean.nc",sep=""),wait=T)
+
+system(paste("cdo -O sorttimestamp -setyear,",myear," -setday,15 -mulc,-1 -subc,100 -monmean ",datesubset," ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_monmean.nc",sep=""),wait=T)
+
+
+system(paste("cdo -O sorttimestamp -setyear,",myear," -mulc,-1 -subc,100 -ydrunmean,30 ",datesubset," ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ydrunmean30.nc",sep=""),wait=T)
+
 system(paste(ncopath,"ncrename -v PClear,PCloud ",tsdir,"/MOD35_",tile,"_ymonmean.nc",sep=""))
 system(paste(ncopath,"ncatted ",
 " -a long_name,PCloud,o,c,\"Mean Probability of Cloud\" ",
