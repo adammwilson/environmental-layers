@@ -4,7 +4,7 @@
 # interpolation code.
 #Figures and data for the AAG conference are also produced.
 #AUTHOR: Benoit Parmentier                                                                      #
-#DATE: 04/05/2013            
+#DATE: 04/08/2013            
 #Version: 1
 #PROJECT: Environmental Layers project                                       #
 #################################################################################################
@@ -59,6 +59,7 @@ CRS_locs_WGS84<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0") #S
 out_region_name<-"Oregon_region" #generated on the fly
 out_prefix<-"_OR_04052013"
 ref_rast_name<- "mean_day244_rescaled.rst"                     #This is the shape file of outline of the study area. #local raster name defining resolution, exent, local projection--. set on the fly??
+infile_covariates<-"covariates__venezuela_region__VE_01292013.tif" #this is an output from covariate script and used in stage 3 and stage 4
 
 #The names of covariates can be changed...these names should be output/input from covar script!!!
 rnames<-c("x","y","lon","lat","N","E","N_w","E_w","elev","slope","aspect","CANHEIGHT","DISTOC")
@@ -70,7 +71,49 @@ covar_names<-c(rnames,lc_names,lst_names)
 infile2<-"/home/layers/data/climate/ghcn/v2.92-upd-2012052822/ghcnd-stations.txt"                              #This is the textfile of station 
 
 in_path<- "/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_covariates"
+
+#c("Oregon", c("h08v04","h09v04","h08v05","h09v05"))
+study_area_list_tiles <- vector("list",6)
+study_area_list_tiles[[1]] <-list("Oregon", c("h08v04","h09v04"))
+study_area_list_tiles[[2]] <-list("Venezuela",c("h10v07", "h10v08", "h11v7", "h11v08", "h12v07", "h12v08"))
+study_area_list_tiles[[3]] <-list("Norway",c("h18v02","h18v03", "h19v02", "h19v03"))
+study_area_list_tiles[[4]] <-list("East_Africa",c("h20v08", "h21v08", "h22v08", "h20v09", "h21v09", "h22v09", "h21v10"))
+study_area_list_tiles[[5]] <-list("South_Africa",c("h19v11", "h20v11", "h19v12", "h20v12"))
+study_area_list_tiles[[6]] <-list("Queensland",c("h31v10", "h31v10", "h32v10", "h30v11", "h31v11"))
+
+#######################################################################################
+###########################      BEGIN SCRIPT    ######################################
+
+
 setwd(in_path)
+
+
+####### PART I: Prepare data for figures and for Oregon interpolation ##########
+
+### Read in Venezuela covariate stack
+
+s_raster_Ven<-brick(infile_covariates) #read brick 
+names(s_raster_Ven)<-covar_names #assign names
+mm_01_Ven<-subset(s_raster_ven,"mm_01") #select LST January month average
+
+### Read in world map to show stuy areas. 
+
+world_sp <- getData("countries")  # different resolutions available
+outfile2<-file.path(in_path,paste("word_countries.shp",sep=""))  #Name of the file
+writeOGR(world_sp,dsn= dirname(outfile2),layer= sub(".shp","",basename(outfile2)), driver="ESRI Shapefile",overwrite_layer=TRUE)
+
+### Read in sinusoidal grid and world countries
+filename<-sub(".shp","",infile_modis_grid)       #Removing the extension from file.
+modis_grid<-readOGR(".", filename)     #Reading shape file using rgdal library
+
+### Create list ofALL STUDY AREAS/TEST SITES
+
+## Create list of study area regions:
+list_tiles<-lapply(1:length(study_area_list_tiles),function(k) study_area_list_tiles[[k]][[2]])
+modis_reg_outlines<-lapply(list_tiles,FUN=create_modis_tiles_region,modis_sp=modis_grid) #problem...this does not 
+
+#writeOGR(modis_reg_outline,dsn= ".",layer= paste("outline",out_region_name,"_",out_suffix,sep=""), 
+#         driver="ESRI Shapefile",overwrite_layer="TRUE")
 
 ####################################################
 #Read in GHCND database station locations
@@ -82,55 +125,27 @@ coords<- dat_stat[,c('lon','lat')]
 coordinates(dat_stat)<-coords
 proj4string(dat_stat)<-CRS_locs_WGS84 #this is the WGS84 projection
 #Save shapefile for later
+outfile1<-file.path(in_path,paste("ghcnd_stations.shp",sep=""))  #Name of the file
+writeOGR(dat_stat,dsn= dirname(outfile1),layer= sub(".shp","",basename(outfile1)), driver="ESRI Shapefile",overwrite_layer=TRUE)
+
 interp_area <- readOGR(dsn=in_path,sub(".shp","",infile_reg_outline))
 interp_area_WGS84 <-spTransform(interp_area,CRS_locs_WGS84)         # Project from WGS84 to new coord. system
 
 # Spatial query to find relevant stations
 
 inside <- !is.na(over(dat_stat, as(interp_area_WGS84, "SpatialPolygons")))  #Finding stations contained in the current interpolation area
-stat_reg<-dat_stat[inside,]              #Selecting stations contained in the current interpolation area
+stat_reg_OR<-dat_stat[inside,]              #Selecting stations contained in the current interpolation area
 
-#Read in world map 
-world_sp <- getData("countries")  # different resolutions available
+stat_reg_OR <-spTransform(stat_reg_OR,CRS(proj4string(interp_area)))         # Project from WGS84 to new coord. system
 
-#Read in sinusoidal grid and world countries
-filename<-sub(".shp","",infile_modis_grid)       #Removing the extension from file.
-modis_grid<-readOGR(".", filename)     #Reading shape file using rgdal library
+#Now Venezuela
+interp_area_Ven_WGS84 <-spTransform(modis_reg_outlines[[2]],CRS_locs_WGS84)         # Project from WGS84 to new coord. system
+inside <- !is.na(over(dat_stat, as(interp_area_Ven_WGS84, "SpatialPolygons")))  #Finding stations contained in the current interpolation area
+stat_reg_Ven <-dat_stat[inside,]              #Selecting stations contained in the current interpolation area
 
-#### ALL STUDY AREAS/TEST SITES
+## Get the data in the local projection
+stat_reg_Ven <-spTransform(stat_reg_Ven,CRS(proj4string(modis_reg_outlines[[2]])))         # Project from WGS84 to new coord. system
 
-#c("Oregon", c("h08v04","h09v04","h08v05","h09v05"))
-study_area_list_tiles <- vector("list",6)
-study_area_list_tiles[[1]] <-list("Oregon", c("h08v04","h09v04"))
-study_area_list_tiles[[2]] <-list("Venezuela",c("h10v07", "h10v08", "h11v7", "h11v08", "h12v07", "h12v08"))
-study_area_list_tiles[[3]] <-list("Norway",c("h18v02","h18v03", "h19v02", "h19v03"))
-study_area_list_tiles[[4]] <-list("East_Africa",c("h20v08", "h21v08", "h22v08", "h20v09", "h21v09", "h22v09", "h21v10"))
-study_area_list_tiles[[5]] <-list("South_Africa",c("h19v11", "h20v11", "h19v12", "h20v12"))
-study_area_list_tiles[[6]] <-list("Queensland",c("h31v10", "h31v10", "h32v10", "h30v11", "h31v11"))
- 
-## Create list of study area regions:
-list_tiles<-lapply(1:length(study_area_list_tiles),function(k) study_area_list_tiles[[k]][[2]])
-modis_reg_outlines<-lapply(list_tiles,FUN=create_modis_tiles_region,modis_sp=modis_grid) #problem...this does not 
-
-#writeOGR(modis_reg_outline,dsn= ".",layer= paste("outline",out_region_name,"_",out_suffix,sep=""), 
-#         driver="ESRI Shapefile",overwrite_layer="TRUE")
-
-########## CREATE FIGURE TEST SITES ##############
-
-dat_stat_sinusoidal <- spTransform(dat_stat,CRS(proj4string(modis_grid)))
-world_sinusoidal <- readOGR(dsn=".",sub(".shp","",infile_countries_sinusoidal))
-
-png(paste("Study_area_modis_grid",out_prefix,".png",sep=""))
-plot(world_sinusoidal)
-plot(dat_stat_sinusoidal,cex=0.2,pch=16,col=c("blue"),add=TRUE)
-plot(modis_grid,add=TRUE)
-for (k in 1:length(modis_reg_outlines)){
-  plot(modis_reg_outlines[[k]],border=c("red"),lwd=2.5,add=TRUE)
-}
-title("Study area for temperature and precipitation predictions")
-#legend
-dev.off()
-    
 ### READ IN COVARIATES FILES FOR OREGON AND MAKE IT A MULTI-BAND FILE
 
 inlistf<-"list_files_covariates_04032013.txt"
@@ -228,7 +243,25 @@ s_raster_m<-mask(s_raster,mask_land_NA,filename=raster_name,
 #if no mask
 #writeRaster(s_raster, filename=raster_name,NAflag=-999,bylayer=FALSE,bandorder="BSQ",overwrite=TRUE)  #Writing the data in a raster file format...
 
-#### CREATE FIGURE MEAN DAILY AND MEAN MONTHLY: AAG 2013  ####
+############# PART II: PRODUCE FIGURES #######
+
+### CREATE FIGURE TEST SITES
+
+dat_stat_sinusoidal <- spTransform(dat_stat,CRS(proj4string(modis_grid)))
+world_sinusoidal <- readOGR(dsn=".",sub(".shp","",infile_countries_sinusoidal))
+
+png(paste("Study_area_modis_grid",out_prefix,".png",sep=""))
+plot(world_sinusoidal)
+plot(dat_stat_sinusoidal,cex=0.2,pch=16,col=c("blue"),add=TRUE)
+plot(modis_grid,add=TRUE)
+for (k in 1:length(modis_reg_outlines)){
+  plot(modis_reg_outlines[[k]],border=c("red"),lwd=2.5,add=TRUE)
+}
+title("Study area for temperature and precipitation predictions")
+#legend
+dev.off()
+
+### CREATE FIGURE MEAN DAILY AND MEAN MONTHLY: AAG 2013  ####
 
 lst_md<-raster(ref_rast_name)
 lst_mm_09<-subset(s_raster,"mm_09")
@@ -242,12 +275,38 @@ png(filename=paste("Comparison_daily_monthly_mean_lst",out_prefix,".png",sep="")
 par(mfrow=c(1,2))
 plot(lst_md)
 plot(interp_area,add=TRUE)
-title("Mean for September 1")
+title("Mean January 1")
 plot(lst_mm_01)
 plot(interp_area,add=TRUE)
-title("Mean for January")
+title("Mean for monht of January")
 dev.off()
 
+### CREATE FIGURE NUMBER OF STATIONS PER SITE 
+
+png(paste("stations_for_Venezuela_Oregon_areas",out_prefix,".png",sep=""),,width=960,height=480)
+par(mfrow=c(1,2))
+#Oregon data
+plot(lst_mm_01)
+plot(interp_area,add=TRUE)
+plot(stat_reg_OR,add=TRUE)
+title("Stations located in Oregon from GHNCD")
+plot(mm_01_Ven)
+plot(modis_reg_outlines[[2]],add=TRUE)
+plot(stat_reg_Ven,add=TRUE)
+title("Stations located in Venezuela from GHNCD")
+dev.off()
+
+### CREATE FIGURE NUMBER OF STATIONS PER SITE AND SPECIFIC MONTH... 
+
+#png(paste("stations_for_Venezuela_Oregon_areas_per_month",out_prefix,".png",sep=""))
+#par(mfrow=c(1,2))
+#plot(interp_area_WGS84)
+#plot(stat_reg_OR,add=TRUE)
+#plot(modis_reg_outlines[[2]])
+#plot(stat_reg_Ven,add=TRUE)
+#dev.off()
+
+############ PART III: SCREENING OF COVARIATES #############
 
 ### SCREENING FUNCTION for covariate stack and GHNCD data base to add later in the functions
 
