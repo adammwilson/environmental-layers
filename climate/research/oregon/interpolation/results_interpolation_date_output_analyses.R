@@ -4,7 +4,7 @@
 #Part 1: Script produces plots for every selected date
 #Part 2: Examine 
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 04/02/2013                                                                                 
+#DATE: 04/16/2013                                                                                 
 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#???--   
 
@@ -31,12 +31,12 @@ library(lattice)
 #Select relevant dates and load R objects created during the interpolation step
 
 ##Paths to inputs and output
-script_path<-"/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/"
+#script_path<-"/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/"
 in_path <- "/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/input_data/"
 out_path<- "/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/output_data/"
 infile_covar<-"covariates__venezuela_region__VE_01292013.tif" #this is an output from covariate script
 date_selected<-c("20000101") ##This is for year 2000!!!
-raster_prediction_obj<-load_obj("raster_prediction_obj_dailyTmin_365d_GAM_fus5_all_lstd_03292013.RData")
+#raster_prediction_obj<-load_obj("raster_prediction_obj_dailyTmin_365d_GAM_fus5_all_lstd_03292013.RData")
 #out_prefix<-"_365d_GAM_fus5_all_lstd_03132013"
 #out_prefix<-"_365d_GAM_fus5_all_lstd_03142013"                #User defined output prefix
 out_prefix<-"_365d_GAM_fus5_all_lstd_03292013"                #User defined output prefix
@@ -52,8 +52,8 @@ lst_names<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm
              "nobs_09","nobs_10","nobs_11","nobs_12")
 covar_names<-c(rnames,lc_names,lst_names)
 
-list_param_results_analyses<-list(in_path,out_path,script_path,raster_prediction_obj,infile_covar,covar_names,date_selected,var,out_prefix)
-names(list_param_results_analyses)<-c("in_path","out_path","script_path","raster_prediction_obj",
+list_param_results_analyses<-list(in_path,out_path,script_path,raster_prediction_obj,interpolation_method,infile_covar,covar_names,date_selected,var,out_prefix)
+names(list_param_results_analyses)<-c("in_path","out_path","script_path","raster_prediction_obj", "interpolation_method",
                      "infile_covar","covar_names","date_selected","var","out_prefix")
 
 setwd(in_path)
@@ -83,6 +83,7 @@ plots_assessment_by_date<-function(j,list_param){
   
   date_selected<-list_param$date_selected
   var<-list_param$var
+  interpolation
   #gam_fus_mod<-load_obj("gam_fus_mod_365d_GAM_fus5_all_lstd_02202013.RData")
   #validation_obj<-load_obj("gam_fus_validation_mod_365d_GAM_fus5_all_lstd_02202013.RData")
   #clim_obj<-load_obj("gamclim_fus_mod_365d_GAM_fus5_all_lstd_02202013.RData")
