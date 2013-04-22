@@ -10,7 +10,7 @@
 #STAGE 5: Output analyses-visualization of results for specific dates...
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 04/05/2013                                                                                 
+#DATE: 04/21/2013                                                                                 
 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363, TASK$568--   
 
@@ -55,15 +55,15 @@ stages_to_run<-c(0,0,3,4,5) #May decide on antoher strategy later on...
 #/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/climatology_03192013.py
 source(file.path(script_path,"covariates_production_temperatures_03212013.R"))
 source(file.path(script_path,"Database_stations_covariates_processing_function_04042013.R"))
-source(file.path(script_path,"GAM_fusion_analysis_raster_prediction_multisampling_04052013.R"))
-source(file.path(script_path,"results_interpolation_date_output_analyses_03272013.R"))
+source(file.path(script_path,"GAM_fusion_analysis_raster_prediction_multisampling_04162013.R"))
+#source(file.path(script_path,"results_interpolation_date_output_analyses_04162013.R"))
 #source(file.path(script_path,"results_covariates_database_stations_output_analyses_04012013.R"))
 
-#FUNCTIONS CALLED FROM GAM FUSION ANALYSIS RASTER PREDICTION ARE FOUND IN...
+#FUNCTIONS CALLED FROM GAM ANALYSIS RASTER PREDICTION ARE FOUND IN...
 
 source(file.path(script_path,"sampling_script_functions_03122013.R"))
-source(file.path(script_path,"GAM_fusion_function_multisampling_04022013.R")) #Include GAM_CAI
-source(file.path(script_path,"GAM_fusion_function_multisampling_validation_metrics_03272013.R"))
+source(file.path(script_path,"GAM_fusion_function_multisampling_04162013.R")) #Include GAM_CAI
+source(file.path(script_path,"GAM_fusion_function_multisampling_validation_metrics_04162013.R"))
 
 ############ STAGE 1: LST Climatology ###############
 
@@ -76,10 +76,10 @@ if (stages_to_run[1]==1){
 
 ##Paths to inputs and output
 var<-"TMAX"
-#in_path <- "/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/input_data/"
-#out_path<- "/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/output_data/"
-in_path <-"/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/input"
-out_path<-"/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/output"
+in_path  <- "/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/input_data/"
+out_path <- "/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/output_data/"
+#in_path <-"/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/input"
+#out_path <-"/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/output"
 
 
 lc_path<-"/home/layers/data/land-cover/lc-consensus-global"
@@ -87,25 +87,25 @@ infile_modis_grid<-"modis_sinusoidal_grid_world.shp" #Give path!!! NEED TO CHANG
 
 infile_elev<-"/home/layers/data/terrain/dem-cgiar-srtm-1km-tif/srtm_1km.tif"  #this is the global file: replace later with the input produced by the DEM team
 infile_canheight<-"/home/layers/data/land-cover/treeheight-simard2011/Simard_Pinto_3DGlobalVeg_JGR.tif"              #Canopy height
-#list_tiles_modis <- c('h11v08','h11v07','h12v07','h12v08','h10v07','h10v08') #tile for Venezuel and surrounding area
-list_tiles_modis <- c("h08v04","h09v04") #tiles for Oregon
+list_tiles_modis <- c('h11v08','h11v07','h12v07','h12v08','h10v07','h10v08') #tile for Venezuel and surrounding area
+#list_tiles_modis <- c("h08v04","h09v04") #tiles for Oregon
 
-#infile_reg_outline=""  #input region outline defined by polygon: none for Venezuel
-infile_reg_outline <- "OR83M_state_outline.shp"  #input region outline defined by polygon: Oregon
+infile_reg_outline=""  #input region outline defined by polygon: none for Venezuel
+#infile_reg_outline <- "OR83M_state_outline.shp"  #input region outline defined by polygon: Oregon
 
-#CRS_interp<-"+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs";
-CRS_interp <-"+proj=lcc +lat_1=43 +lat_2=45.5 +lat_0=41.75 +lon_0=-120.5 +x_0=400000 +y_0=0 +ellps=GRS80 +units=m +no_defs";
+CRS_interp<-"+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs";
+#CRS_interp <-"+proj=lcc +lat_1=43 +lat_2=45.5 +lat_0=41.75 +lon_0=-120.5 +x_0=400000 +y_0=0 +ellps=GRS80 +units=m +no_defs";
 
 CRS_locs_WGS84<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0") #Station coords WGS84
-out_region_name<-"_oregon_region" #generated on the fly
-out_suffix<-"_OR_04042013"
-#ref_rast_name<-""  #local raster name defining resolution, exent, local projection--. set on the fly??
-ref_rast_name<-"mean_day244_rescaled.rst"  #local raster name defining resolution, exent: oregon
+out_region_name<-"_venezuela_region" #generated on the fly
+out_suffix<-"_VE_04162013"
+ref_rast_name<-""  #local raster name defining resolution, exent, local projection--. set on the fly??
+#ref_rast_name<-"mean_day244_rescaled.rst"  #local raster name defining resolution, exent: oregon
 
 #The names of covariates can be changed...these names should be output/input from covar script!!!
 rnames<-c("x","y","lon","lat","N","E","N_w","E_w","elev_s","slope","aspect","CANHEIGHT","DISTOC")
-#lc_names<-c("LC1","LC2","LC3","LC4","LC5","LC6","LC7","LC8","LC9","LC10","LC11","LC12")
-lc_names<-c("LC1","LC2","LC3","LC4","LC5","LC6","LC7","LC8","LC9","LC10") #use older version for continuity check to be changed
+lc_names<-c("LC1","LC2","LC3","LC4","LC5","LC6","LC7","LC8","LC9","LC10","LC11","LC12")
+#lc_names<-c("LC1","LC2","LC3","LC4","LC5","LC6","LC7","LC8","LC9","LC10") #use older version for continuity check to be changed
 lst_names<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_09","mm_10","mm_11","mm_12",
              "nobs_01","nobs_02","nobs_03","nobs_04","nobs_05","nobs_06","nobs_07","nobs_08",
              "nobs_09","nobs_10","nobs_11","nobs_12")
@@ -131,14 +131,14 @@ if (stages_to_run[2]==2){
 #set up earlier
 #var <- "TMIN"           # name of the variables to keep: TMIN, TMAX or PRCP --already set up earlier
 
-#infile_covariates<-"covariates__venezuela_region__VE_01292013.tif" #this is an output from covariate script and used in stage 3 and stage 4
+infile_covariates<-"covariates__venezuela_region__VE_01292013.tif" #this is an output from covariate script and used in stage 3 and stage 4
 #infile_covariates<-"covariates__venezuela_region_TMIN__VE_03192013.tif" #covariates stack for TMIN
-infile_covariates<- "covariates_Oregon_region_TMAX__OR_04052013.tif" #Oregon covar TMAX from earlier codes...for continuity
+#infile_covariates<- "covariates_Oregon_region_TMAX__OR_04052013.tif" #Oregon covar TMAX from earlier codes...for continuity
 
-CRS_locs_WGS84<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0") #Station coords WGS84: same as earlier
-#infile1<- "outline_venezuela_region__VE_01292013.shp"      #This is the shape file of outline of the study area                                                      #It is an input/output of the covariate script
+#CRS_locs_WGS84<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0") #Station coords WGS84: same as earlier
+infile1<- "outline_venezuela_region__VE_01292013.shp"      #This is the shape file of outline of the study area                                                      #It is an input/output of the covariate script
 #infile_reg_outline <- "OR83M_state_outline.shp"  #input region outline defined by polygon: Oregon
-infile1 <-"OR83M_state_outline.shp" #remove this parameter!!!
+#infile1 <-"OR83M_state_outline.shp" #remove this parameter!!!
 
 #covar_names see stage 2
 
@@ -148,9 +148,9 @@ range_years<-c("2010","2011") #right bound not included in the range!!
 range_years_clim<-c("2000","2011") #right bound not included in the range!!
 infile2<-"/home/layers/data/climate/ghcn/v2.92-upd-2012052822/ghcnd-stations.txt"                              #This is the textfile of station locations from GHCND
 #in_path <- "/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/input_data/"
-out_prefix<-"_365d_GAM_fus5_all_lstd_04042013"                #User defined output prefix
-#qc_flags_stations<-c("0","S")    #flags allowed for screening after the query from the GHCND??
-qc_flags_stations<-c("0")   #flags allowed for screening after the query from the GHCND??
+out_prefix<-"_365d_GAM_CAI_all_lst_04162013"                #User defined output prefix
+qc_flags_stations<-c("0","S")    #flags allowed for screening after the query from the GHCND??
+#qc_flags_stations<-c("0")   #flags allowed for screening after the query from the GHCND??
 
 #list of 12 parameters for input in the function...
 
@@ -195,12 +195,14 @@ list_models<-c("y_var ~ s(elev_s)",
                "y_var ~ s(lat) + s(lon)+ s(elev_s)",
                "y_var ~ s(lat,lon,elev_s)",
                "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST)", 
-               "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST) + s(LC1)",
-               "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST) + s(LC2)", 
+               "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST) + s(LC2)",
+               "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST) + s(LC6)", 
                "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST) + s(DISTOC)")
 
 #Choose interpolation method...
-interpolation_method<-c("gam_fusion","gam_CAI") #other otpions to be added later
+#interpolation_method<-c("gam_fusion","gam_CAI") #other otpions to be added later
+interpolation_method<-c("gam_CAI") #other otpions to be added later
+
 
 #Default name of LST avg to be matched               
 lst_avg<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_09","mm_10","mm_11","mm_12")  
@@ -222,9 +224,7 @@ names(list_param_raster_prediction)<-c("list_param_data_prep",
                                 "interpolation_method")
 
 
-#Make the function call--names to be change to raster_prediction_obj and raster_prediction_fun
-
-raster_prediction_gam_fus_obj <-raster_prediction_gam_fusion(list_param_raster_prediction)
+raster_prediction_obj <-raster_prediction_fun(list_param_raster_prediction)
 
 
 ############## STAGE 5: OUTPUT ANALYSES ##################
