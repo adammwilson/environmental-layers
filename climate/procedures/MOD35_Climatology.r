@@ -79,6 +79,11 @@ system(paste(ncopath,"ncrcat -O ",outdir,"/*nc ",outdir2,"/MOD35_",tile,"_daily.
  
 ## Update attributes
 system(paste(ncopath,"ncatted ",
+" -a valid_min,PClear,o,b,0 ",
+" -a valid_max,PClear,o,b,100 ",
+#" -a valid_range,PClear,o,b,\"0,255\" ",
+#" -a missing_value,PClear,o,b,255 ",
+#" -a _FillValue,PClear,d,b,255 ",
 " -a units,time,o,c,\"days since 2000-1-1 0:0:0\" ",
 " -a title,global,o,c,\"MODIS Cloud Product (MOD35) Daily Timeseries\" ",
 " -a institution,global,o,c,\"Yale University\" ",
@@ -105,30 +110,53 @@ myear=as.integer(max(fdly$year))  #this year will be used in all dates of monthl
 
 ## subset dates
 ## due to bug (?) in CDO tools, only 10 years of data can be processed at a time or strange areas of NAs appear.
-datesubset="-seldate,2002-01-01,2012-01-01"
+datesubset="-seldate,2000-01-01,2011-12-31"
 
 ## Monthly means
 if(verbose) print("Calculating the monthly means")
-system(paste("cdo -O sorttimestamp -setyear,",myear," -setday,15 -mulc,-1 -subc,100 -ymonmean ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ymonmean.nc",sep=""),wait=T)
-
-#system(paste("cdo -v -O selindexbox,1,100,1100,1200 ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_dailysmall.nc",sep=""),wait=T)
-#system(paste("cdo -v -O sorttimestamp -setyear,",myear," -setday,15 -mulc,-1 -subc,100 -ymonmean  ",outdir2,"/MOD35_",tile,"_dailysmall.nc ",tsdir,"/MOD35_",tile,"_ymonmean.nc",sep=""),wait=T)
-
-system(paste("cdo -O sorttimestamp -setyear,",myear," -setday,15 -mulc,-1 -subc,100 -ymonmean  ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ymonmean.nc",sep=""),wait=T)
-
-system(paste("cdo -O sorttimestamp -setyear,",myear," -setday,15 -mulc,-1 -subc,100 -monmean   ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_monmean.nc",sep=""),wait=T)
-
-
-system(paste("cdo -O sorttimestamp -setyear,",myear," -mulc,-1 -subc,100 -ydrunmean,30 ",datesubset," ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ydrunmean30.nc",sep=""),wait=T)
-
+system(paste("cdo -O -b I8 -v sorttimestamp -setyear,",myear," -setday,15 -mulc,-1 -subc,100 -ymonmean ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ymonmean.nc",sep=""),wait=T)
 system(paste(ncopath,"ncrename -v PClear,PCloud ",tsdir,"/MOD35_",tile,"_ymonmean.nc",sep=""))
 system(paste(ncopath,"ncatted ",
 " -a long_name,PCloud,o,c,\"Mean Probability of Cloud\" ",
+" -a missing_value,PCloud,o,b,255 ",
+" -a _FillValue,PCloud,d,b,255 ",
 tsdir,"/MOD35_",tile,"_ymonmean.nc",sep=""))
+
+
+## Monthly Mean
+#months=c("01","02","03","04","05","06","07","08","09","10","11","12")
+#  month="02"
+
+#ymonmean=function(month){
+#  tfile=paste(tempdir(),"/",tile,"_",month,"_",Sys.getpid(),".txt",sep="")
+#  write.table(paste(fdly$path[fdly$month==month],collapse=" "),tfile,col.names=F,row.names=F,quote=F)
+#  system(paste("cat ",tfile," | ",ncopath,"ncra -O -o ",tsdir,"/MOD35_",tile,"_",month,".nc",sep=""))
+#  system(paste("cdo -O -setyear,",myear," -setmon,",month," -setday,15 -mulc,-1 -subc,100  ",tsdir,"/MOD35_",tile,"_",month,".nc ",tsdir,"/MOD35_",tile,"_",month,"b.nc",sep=""))
+#  system(paste(ncopath,"ncrename -v PClear,PCloud ",tsdir,"/MOD35_",tile,"_",month,"b.nc",sep=""))
+#  system(paste(ncopath,"ncatted ",
+#" -a long_name,PCloud,o,c,\"Mean Probability of Cloud\" ",
+#" -a missing_value,PCloud,o,b,255 ",
+#" -a _FillValue,PCloud,d,b,255 ",
+#tsdir,"/MOD35_",tile,"_",month,"b.nc",sep=""))
+#}
+#mclapply(months,ymonmean)
+
+## merge to a single file
+#  system(paste("cdo -O -b I8 -v -mergetime ",paste(tsdir,"/MOD35_",tile,"_",months,"b.nc ",sep="",collapse=" ")," ",tsdir,"/MOD35_",tile,"_ymonmean.nc",sep=""))
+
+#system(paste("cdo -v -O selindexbox,1,100,1100,1200 ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_dailysmall.nc",sep=""),wait=T)
+#system(paste("cdo -v -O sorttimestamp -setyear,",myear," -setday,15 -mulc,-1 -subc,100 -ymonmean  ",outdir2,"/MOD35_",tile,"_dailysmall.nc ",tsdir,"/MOD35_",tile,"_ymonmean.nc",sep=""),wait=T)
+#system(paste("cdo -O sorttimestamp -setyear,",myear," -setday,15 -mulc,-1 -subc,100 -timmean -selmon,2 ",datesubset," ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ymonmean.nc",sep=""),wait=T)
+#system(paste("cdo -O sorttimestamp -setyear,",myear," -setday,15 -mulc,-1 -subc,100 -monmean   ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_monmean.nc",sep=""),wait=T)
+#system(paste("cdo -O sorttimestamp -setyear,",myear," -mulc,-1 -subc,100 -ydrunmean,30 ",datesubset," ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ydrunmean30.nc",sep=""),wait=T)
+#system(paste("scp ",tsdir,"/MOD35_",tile,"_ymonmean.nc adamw@acrobates.eeb.yale.edu:/data/personal/adamw/projects/interp/data/modis/mod35/",sep=""))
+#system(paste("scp summary/MOD35_",tile,".nc adamw@acrobates.eeb.yale.edu:/data/personal/adamw/projects/interp/data/modis/mod35/",sep=""))
+#system(paste("ncdump -h ",tsdir,"/MOD35_",tile,"_ymonmean.nc ",sep=""))
+
 
 ## Monthly standard deviation
 if(verbose) print("Calculating the monthly SD")
-system(paste("cdo -O sorttimestamp -setyear,",myear," -setday,15 -ymonstd  ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ymonstd.nc",sep=""))
+system(paste("cdo -O -b I8 sorttimestamp -setyear,",myear," -setday,15 -ymonstd  ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ymonstd.nc",sep=""))
 system(paste(ncopath,"ncrename -v PClear,PCloud_sd ",tsdir,"/MOD35_",tile,"_ymonstd.nc",sep=""))
 system(paste(ncopath,"ncatted ",
 " -a long_name,PCloud_sd,o,c,\"Standard Deviation of p(cloud)\" ",
@@ -136,7 +164,7 @@ tsdir,"/MOD35_",tile,"_ymonstd.nc",sep=""))
 
 ## frequency of cloud days p(clear<90%)  
 if(verbose) print("Calculating the proportion of cloudy and probably cloudy days")
-system(paste("cdo -O  sorttimestamp -setyear,",myear," -setday,15 -ymonmean  -mulc,100 -lec,90 -selvar,PClear ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ymoncld01.nc",sep=""))
+system(paste("cdo -O -b I8 sorttimestamp -setyear,",myear," -setday,15 -ymonmean  -mulc,100 -lec,90 -selvar,PClear ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ymoncld01.nc",sep=""))
 system(paste(ncopath,"ncrename -v PClear,CF ",tsdir,"/MOD35_",tile,"_ymoncld01.nc",sep=""))
 system(paste(ncopath,"ncatted ",
 " -a long_name,CF,o,c,\"Cloud Frequency: Proportion of Days with probability of clear < 90%\" ",
@@ -145,7 +173,7 @@ tsdir,"/MOD35_",tile,"_ymoncld01.nc",sep=""))
 
 ## number of observations
 if(verbose) print("Calculating the number of missing variables")
-system(paste("cdo -O sorttimestamp  -setyear,",myear," -setday,15 -ymonmean -mulc,100  -eqc,9999 -setmisstoc,9999   -selvar,PClear ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ymonmiss.nc",sep=""))
+system(paste("cdo -O -b I8 sorttimestamp  -setyear,",myear," -setday,15 -ymonmean -mulc,100  -eqc,9999 -setmisstoc,9999   -selvar,PClear ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ymonmiss.nc",sep=""))
 system(paste(ncopath,"ncrename -v PClear,Pmiss ",tsdir,"/MOD35_",tile,"_ymonmiss.nc",sep=""))
 system(paste(ncopath,"ncatted ",
              " -a long_name,Pmiss,o,c,\"Proportion of Days with missing data\" ",

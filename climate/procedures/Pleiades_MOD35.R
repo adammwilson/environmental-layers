@@ -126,6 +126,7 @@ system(paste("cat notdone.txt | wc -l ",sep=""))
 
 ## Submit it
 system(paste("qsub mod35_qsub",sep=""))
+system("qstat -u awilso10")
 
 #######################################################
 ### Now submit the script to generate the climatologies
