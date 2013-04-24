@@ -1,4 +1,4 @@
-#########################    Raster prediction GAM FUSION    ####################################
+#########################    Raster prediction    ####################################
 ############################ Interpolation of temperature for given processing region ##########################################
 #This script interpolates temperature values using MODIS LST, covariates and GHCND station data.                      
 #It requires the text file of stations and a shape file of the study area.           
@@ -8,10 +8,10 @@
 #2)Constant sampling: use the same sample over the runs
 #3)over dates: run over for example 365 dates without mulitsampling
 #4)use seed number: use seed if random samples must be repeatable
-#5)GAM fusion: possibilty of running GAM+FUSION or GAM+CAI and other options added
+#5)possibilty of running GAM+FUSION or GAM+CAI and other options added
 #The interpolation is done first at the monthly time scale then delta surfaces are added.
 #AUTHOR: Benoit Parmentier                                                                        
-#DATE: 04/05/2013                                                                                 
+#DATE: 04/22/2013                                                                                 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#568--     
 #
 # TO DO:
@@ -22,7 +22,7 @@
 
 ###################################################################################################
 
-raster_prediction_gam_fusion<-function(list_param_raster_prediction){
+raster_prediction_fun <-function(list_param_raster_prediction){
 
   ##Function to predict temperature interpolation with 21 input parameters
   #9 parameters used in the data preparation stage and input in the current script
@@ -191,51 +191,65 @@ raster_prediction_gam_fusion<-function(list_param_raster_prediction){
   t1<-proc.time()
   j=12
   #browser()
-  list_param_runClim_KGFusion<-list(j,s_raster,covar_names,lst_avg,list_models,dst,var,y_var_name, out_prefix)
-  names(list_param_runClim_KGFusion)<-c("list_index","covar_rast","covar_names","lst_avg","list_models","dst","var","y_var_name","out_prefix")
-  #source(file.path(script_path,"GAM_fusion_function_multisampling_03122013.R"))
-  gamclim_fus_mod<-mclapply(1:12, list_param=list_param_runClim_KGFusion, runClim_KGFusion,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
-  #test<-runClim_KGFusion(1,list_param=list_param_runClim_KGFusion)
-  #gamclim_fus_mod<-mclapply(1:6, list_param=list_param_runClim_KGFusion, runClim_KGFusion,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
+  if (interpolation_method=="gam_fusion"){
+    list_param_runClim_KGFusion<-list(j,s_raster,covar_names,lst_avg,list_models,dst,var,y_var_name, out_prefix)
+    names(list_param_runClim_KGFusion)<-c("list_index","covar_rast","covar_names","lst_avg","list_models","dst","var","y_var_name","out_prefix")
+    #source(file.path(script_path,"GAM_fusion_function_multisampling_03122013.R"))
+    clim_method_mod_obj<-mclapply(1:12, list_param=list_param_runClim_KGFusion, runClim_KGFusion,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
+    #test<-runClim_KGFusion(1,list_param=list_param_runClim_KGFusion)
+    #gamclim_fus_mod<-mclapply(1:6, list_param=list_param_runClim_KGFusion, runClim_KGFusion,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
+    
+  }
   
+  if (interpolation_method=="gam_CAI"){
+    list_param_runClim_KGCAI<-list(j,s_raster,covar_names,lst_avg,list_models,dst,var,y_var_name, out_prefix)
+    names(list_param_runClim_KGCAI)<-c("list_index","covar_rast","covar_names","lst_avg","list_models","dst","var","y_var_name","out_prefix")
+    clim_method_mod_obj<-mclapply(1:12, list_param=list_param_runClim_KGCAI, runClim_KGCAI,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
+    #test<-runClim_KGCAI(1,list_param=list_param_runClim_KGCAI)
+    #gamclim_fus_mod<-mclapply(1:6, list_param=list_param_runClim_KGFusion, runClim_KGFusion,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
+  }
+    
   #gamclim_fus_mod<-runClim_KGFusion(1,list_param=list_param_runClim_KGFusion) #This is the end bracket from mclapply(...) statement
-  save(gamclim_fus_mod,file= paste("gamclim_fus_mod_",y_var_name,out_prefix,".RData",sep=""))
+  save(clim_method_mod_obj,file= paste(interpolation_method,"_mod_",y_var_name,out_prefix,".RData",sep=""))
   t2<-proc.time()-t1
   writeLines(as.character(t2),con=log_file,sep="\n")
   
   #now get list of raster clim layers
   
-  list_tmp<-vector("list",length(gamclim_fus_mod))
-  for (i in 1:length(gamclim_fus_mod)){
-    tmp<-gamclim_fus_mod[[i]]$clim
+  list_tmp<-vector("list",length(clim_method_mod_obj))
+  for (i in 1:length(clim_method_mod_obj)){
+    tmp<-clim_method_mod_obj[[i]]$clim
     list_tmp[[i]]<-tmp
   }
   
   ################## PREDICT AT DAILY TIME SCALE #################
+  #Predict at daily time scale from single time scale or multiple time scale methods: 2 methods availabe now
   
   #put together list of clim models per month...
   #rast_clim_yearlist<-list_tmp
   clim_yearlist<-list_tmp
   #Second predict at the daily time scale: delta
   
-  #gam_fus_mod<-mclapply(1:1, runGAMFusion,mc.preschedule=FALSE,mc.cores = 1) #This is the end bracket from mclapply(...) statement
+  #method_mod_obj<-mclapply(1:1, runGAMFusion,mc.preschedule=FALSE,mc.cores = 1) #This is the end bracket from mclapply(...) statement
   writeLines("Predictions at the daily scale:",con=log_file,sep="\n")
   t1<-proc.time()
   
-  #input a list:note that ghcn.subsets is not sampling_obj$data_day_ghcn
-  list_param_runGAMFusion<-list(i,clim_yearlist,sampling_obj,dst,var,y_var_name, out_prefix)
-  names(list_param_runGAMFusion)<-c("list_index","clim_yearlist","sampling_obj","dst","var","y_var_name","out_prefix")
-  #test<-mclapply(1:18, runGAMFusion,list_param=list_param_runGAMFusion,mc.preschedule=FALSE,mc.cores = 9)
-  #test<-runGAMFusion(1,list_param=list_param_runGAMFusion)
-  
-  #MAKE IT GENERAL: for any method: replace "gam_fus_mod" by "method_mod_obj"?
-  
-  gam_fus_mod<-mclapply(1:length(sampling_obj$ghcn_data_day),list_param=list_param_runGAMFusion,runGAMFusion,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
-  
-  #gam_fus_mod<-mclapply(1:length(sampling_obj$ghcn_data_day),runGAMFusion,list_param_runGAMFusion,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
-  #gam_fus_mod<-mclapply(1:length(ghcn.subsets), runGAMFusion,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
-  
-  save(gam_fus_mod,file= paste("gam_fus_mod_",y_var_name,out_prefix,".RData",sep=""))
+  if (interpolation_method=="gam_CAI" | interpolation_method=="gam_fusion"){
+    #input a list:note that ghcn.subsets is not sampling_obj$data_day_ghcn
+    list_param_run_prediction_daily_deviation <-list(i,clim_yearlist,sampling_obj,dst,var,y_var_name, interpolation_method,out_prefix)
+    names(list_param_run_prediction_daily_deviation)<-c("list_index","clim_yearlist","sampling_obj","dst","var","y_var_name","interpolation_method","out_prefix")
+    #test<-mclapply(1:18, runGAMFusion,list_param=list_param_runGAMFusion,mc.preschedule=FALSE,mc.cores = 9)
+    #test<-runGAMFusion(1,list_param=list_param_runGAMFusion)
+    
+    method_mod_obj<-mclapply(1:length(sampling_obj$ghcn_data_day),list_param=list_param_run_prediction_daily_deviation,run_prediction_daily_deviation,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
+    #method_mod_obj<-mclapply(1:1,list_param=list_param_run_prediction_daily_deviation,run_prediction_daily_deviation,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
+    
+    #method_mod_obj<-mclapply(1:length(sampling_obj$ghcn_data_day),runGAMFusion,list_param_runGAMFusion,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
+    #method_mod_obj<-mclapply(1:length(ghcn.subsets), runGAMFusion,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
+    
+  }
+    
+  save(method_mod_obj,file= paste("method_mod_obj_",interpolation_method,"_",y_var_name,out_prefix,".RData",sep=""))
   t2<-proc.time()-t1
   writeLines(as.character(t2),con=log_file,sep="\n")
   #browser()
@@ -243,9 +257,9 @@ raster_prediction_gam_fusion<-function(list_param_raster_prediction){
   ############### NOW RUN VALIDATION #########################
   #SIMPLIFY THIS PART: one call
   
-  list_tmp<-vector("list",length(gam_fus_mod))
-  for (i in 1:length(gam_fus_mod)){
-    tmp<-gam_fus_mod[[i]][[y_var_name]]  #y_var_name is the variable predicted (dailyTmax or dailyTmin)
+  list_tmp<-vector("list",length(method_mod_obj))
+  for (i in 1:length(method_mod_obj)){
+    tmp<-method_mod_obj[[i]][[y_var_name]]  #y_var_name is the variable predicted (dailyTmax or dailyTmin)
     list_tmp[[i]]<-tmp
   }
   rast_day_yearlist<-list_tmp #list of predicted images
@@ -253,21 +267,21 @@ raster_prediction_gam_fusion<-function(list_param_raster_prediction){
   writeLines("Validation step:",con=log_file,sep="\n")
   t1<-proc.time()
   #calculate_accuary_metrics<-function(i)
-  list_param_validation<-list(i,rast_day_yearlist,gam_fus_mod,y_var_name, out_prefix)
+  list_param_validation<-list(i,rast_day_yearlist,method_mod_obj,y_var_name, out_prefix)
   names(list_param_validation)<-c("list_index","rast_day_year_list","method_mod_obj","y_var_name","out_prefix") #same names for any method
   
-  #gam_fus_validation_mod<-mclapply(1:length(gam_fus_mod), calculate_accuracy_metrics,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
-  gam_fus_validation_mod<-mclapply(1:length(gam_fus_mod), list_param=list_param_validation, calculate_accuracy_metrics,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
+  #gam_fus_validation_mod<-mclapply(1:length(method_mod_obj), calculate_accuracy_metrics,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
+  validation_mod_obj <-mclapply(1:length(method_mod_obj), list_param=list_param_validation, calculate_accuracy_metrics,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
   
   #gam_fus_validation_mod<-mclapply(1:1, calculate_accuracy_metrics,mc.preschedule=FALSE,mc.cores = 1) #This is the end bracket from mclapply(...) statement
-  save(gam_fus_validation_mod,file= paste("gam_fus_validation_mod_",y_var_name,out_prefix,".RData",sep=""))
+  save(validation_mod_obj,file= paste(interpolation_method,"_validation_mod_obj_",y_var_name,out_prefix,".RData",sep=""))
   t2<-proc.time()-t1
   writeLines(as.character(t2),con=log_file,sep="\n")
   
   #################### ASSESSMENT OF PREDICTIONS: PLOTS OF ACCURACY METRICS ###########
   
   ##Create data.frame with valiation metrics for a full year
-  tb_diagnostic_v<-extract_from_list_obj(gam_fus_validation_mod,"metrics_v")
+  tb_diagnostic_v<-extract_from_list_obj(validation_mod_obj,"metrics_v")
   rownames(tb_diagnostic_v)<-NULL #remove row names
   
   #Call function to create plots of metrics for validation dataset
@@ -290,10 +304,10 @@ raster_prediction_gam_fusion<-function(list_param_raster_prediction){
   ################### PREPARE RETURN OBJECT ###############
   #Will add more information to be returned
   
-  raster_prediction_obj<-list(gamclim_fus_mod,gam_fus_mod,gam_fus_validation_mod,tb_diagnostic_v,summary_metrics_v)
-  names(raster_prediction_obj)<-c("gamclim_fus_mod","gam_fus_mod","gam_fus_validation_mod","tb_diagnostic_v",
+  raster_prediction_obj<-list(clim_method_mod_obj,method_mod_obj,validation_mod_obj,tb_diagnostic_v,summary_metrics_v)
+  names(raster_prediction_obj)<-c("clim_method_mod_obj","method_mod_obj","validation_mod_obj","tb_diagnostic_v",
                                   "summary_metrics_v")  
-  save(raster_prediction_obj,file= paste("raster_prediction_obj_",y_var_name,out_prefix,".RData",sep=""))
+  save(raster_prediction_obj,file= paste("raster_prediction_obj_",interpolation_method,"_", y_var_name,out_prefix,".RData",sep=""))
   
   return(raster_prediction_obj)
 }
