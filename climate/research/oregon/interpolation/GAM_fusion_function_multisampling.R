@@ -3,12 +3,12 @@
 #This script contains 5 functions used in the interpolation of temperature in the specfied study/processing area:                             
 # 1)predict_raster_model<-function(in_models,r_stack,out_filename)                                                             
 # 2)fit_models<-function(list_formulas,data_training)           
-# 3)runClimCAI<-function(j) : not working yet
+# 3)runClim_KGCAI<-function(j,list_param) : function that peforms GAM CAI method
 # 4)runClim_KGFusion<-function(j,list_param) function for monthly step (climatology) in the fusion method
 # 5)runGAMFusion <- function(i,list_param) : daily step for fusion method, perform daily prediction
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 04/02/2013                                                                                 
+#DATE: 04/20/2013                                                                                 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363--   
 
 ##Comments and TODO:
@@ -60,7 +60,7 @@ fit_models<-function(list_formulas,data_training){
 ####
 #TODO:
 #Add log file and calculate time and sizes for processes-outputs
-runClimCAI<-function(j,list_param){
+runClim_KGCAI <-function(j,list_param){
 
   #Make this a function with multiple argument that can be used by mcmapply??
   #Arguments: 
@@ -103,6 +103,7 @@ runClimCAI<-function(j,list_param){
   LST_name<-lst_avg[j] # name of LST month to be matched
   data_month$LST<-data_month[[LST_name]]
   
+  #Create formulas object from list of characters...
   list_formulas<-lapply(list_models,as.formula,env=.GlobalEnv) #mulitple arguments passed to lapply!!  
 
   #TMax to model...
@@ -112,7 +113,7 @@ runClimCAI<-function(j,list_param){
   if (var=="TMIN"){   
     data_month$y_var<-data_month$TMin #Adding TMin as the variable modeled
   }
-
+  #Fit gam models using data and list of formulas
   mod_list<-fit_models(list_formulas,data_month) #only gam at this stage
   cname<-paste("mod",1:length(mod_list),sep="") #change to more meaningful name?
   names(mod_list)<-cname
@@ -122,9 +123,6 @@ runClimCAI<-function(j,list_param){
   s_raster<-dropLayer(s_raster,pos)      # If it exists drop layer
   LST<-subset(s_raster,LST_name)
   names(LST)<-"LST"
-  #Screen for extreme values": this needs more thought, min and max val vary with regions
-  #min_val<-(-15+273.16) #if values less than -15C then screen out (note the Kelvin units that will need to be changed later in all datasets)
-  #r1[r1 < (min_val)]<-NA
   s_raster<-addLayer(s_raster,LST)            #Adding current month
   
   #Now generate file names for the predictions...
@@ -135,14 +133,14 @@ runClimCAI<-function(j,list_param){
     #j indicate which month is predicted
     data_name<-paste(var,"_clim_month_",j,"_",cname[k],"_",prop_month,
                      "_",run_samp,sep="")
-    raster_name<-paste("fusion_",data_name,out_prefix,".tif", sep="")
+    raster_name<-paste("CAI_",data_name,out_prefix,".tif", sep="")
     list_out_filename[[k]]<-raster_name
   }
   
   #now predict values for raster image...
   rast_clim_list<-predict_raster_model(mod_list,s_raster,list_out_filename)
   names(rast_clim_list)<-cname
-  #Some modles will not be predicted...remove them
+  #Some models will not be predicted because of the lack of training data...remove empty string from list of models
   rast_clim_list<-rast_clim_list[!sapply(rast_clim_list,is.null)] #remove NULL elements in list
   
   #Adding Kriging for Climatology options
@@ -164,7 +162,7 @@ runClimCAI<-function(j,list_param){
   #clim_rast<-LST-bias_rast
   data_name<-paste(var,"_clim_month_",j,"_",model_name,"_",prop_month,
                    "_",run_samp,sep="")
-  raster_name_clim<-paste("fusion_",data_name,out_prefix,".tif", sep="")
+  raster_name_clim<-paste("CAI_",data_name,out_prefix,".tif", sep="")
   writeRaster(clim_rast, filename=raster_name_clim,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
   
   #Adding to current objects
@@ -176,7 +174,7 @@ runClimCAI<-function(j,list_param){
   clim_obj<-list(rast_clim_list,data_month,mod_list,list_formulas)
   names(clim_obj)<-c("clim","data_month","mod","formulas")
   
-  save(clim_obj,file= paste("clim_obj_month_",j,"_",var,"_",out_prefix,".RData",sep=""))
+  save(clim_obj,file= paste("clim_obj_CAI_month_",j,"_",var,"_",out_prefix,".RData",sep=""))
   
   return(clim_obj) 
 }
@@ -321,9 +319,12 @@ runClim_KGFusion<-function(j,list_param){
 
 ## Run function for kriging...?
 
-#runGAMFusion <- function(i) {            # loop over dates
-runGAMFusion <- function(i,list_param) {            # loop over dates
-    #### Change this to allow explicitly arguments...
+#runGAMFusion <- function(i,list_param) {            # loop over dates
+run_prediction_daily_deviation <- function(i,list_param) {            # loop over dates
+  #This function produce daily prediction using monthly predicted clim surface.
+  #The output is both daily prediction and daily deviation from monthly steps.
+  
+  #### Change this to allow explicitly arguments...
   #Arguments: 
   #1)index: loop list index for individual run/fit
   #2)clim_year_list: list of climatology files for all models...(12*nb of models)
@@ -332,6 +333,7 @@ runGAMFusion <- function(i,list_param) {            # loop over dates
   #5)var: variable predicted -TMAX or TMIN
   #6)y_var_name: name of the variable predicted - dailyTMax, dailyTMin
   #7)out_prefix
+  #8)
   #
   #The output is a list of four shapefile names produced by the function:
   #1) list_temp: y_var_name
@@ -482,7 +484,7 @@ runGAMFusion <- function(i,list_param) {            # loop over dates
     data_name<-paste(y_var_name,"_predicted_",names(rast_clim_list)[j],"_",
                      sampling_dat$date[i],"_",sampling_dat$prop[i],
                      "_",sampling_dat$run_samp[i],sep="")
-    raster_name<-paste("fusion_",data_name,out_prefix,".tif", sep="")
+    raster_name<-paste(interpolation_method,"_",data_name,out_prefix,".tif", sep="")
     writeRaster(temp_predicted, filename=raster_name,overwrite=TRUE) 
     temp_list[[j]]<-raster_name
   }
