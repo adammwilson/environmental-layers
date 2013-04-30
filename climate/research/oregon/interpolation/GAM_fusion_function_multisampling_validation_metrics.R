@@ -2,7 +2,7 @@
 
 #The interpolation is done first at the monthly add delta.
 #AUTHOR: Benoit Parmentier                                                                        
-#DATE: 03/27/2013                                                                                 
+#DATE: 05/01/2013                                                                                 
 
 #Change this to allow explicitly arguments...
 #Arguments: 
@@ -166,61 +166,64 @@ boxplot_from_tb <-function(tb_diagnostic,metric_names,out_prefix){
     boxplot(test,outline=FALSE,horizontal=FALSE,cex=0.5,
             ylab=paste(metric_ac,"in degree C",sep=" "))
     #legend("bottomleft",legend=paste(names(rows_total),":",rows_total,sep=""),cex=0.7,bty="n")
-    title(as.character(t(paste(t(names(rows_total)),":",rows_total,sep=""))),cex=0.8)
+    #title(as.character(t(paste(t(names(rows_total)),":",rows_total,sep=""))),cex=0.8)
+    title(paste(metric_ac,"for",y_var_name,sep=" "),cex=0.8)
     dev.off()
   }
+  
   avg_tb$n<-rows_total #total number of predictions on which the mean is based
   median_tb$n<-rows_total
   summary_obj<-list(avg_tb,median_tb)
   return(summary_obj)  
 }
-
+#boxplot_month_from_tb(tb_diagnostic,metric_names,out_prefix)
 ## Function to display metrics by months/seasons
 boxplot_month_from_tb <-function(tb_diagnostic,metric_names,out_prefix){
-  #Add code here...
+  
+  #Generate boxplot per month for models and accuracy metrics
+  #Input parameters:
+  #1) df: data frame containing accurayc metrics (RMSE etc.) per day)
+  #2) metric_names: metrics used for validation
+  #3) out_prefix
+  #
+  
+  #################
+  ## BEGIN
+  
   date_f<-strptime(tb_diagnostic$date, "%Y%m%d")   # interpolation date being processed
   tb_diagnostic$month<-strftime(date_f, "%m")          # current month of the date being processed
   mod_names<-sort(unique(tb_diagnostic$pred_mod)) #models that have accuracy metrics
   tb_mod_list<-lapply(mod_names, function(k) subset(tb_diagnostic, pred_mod==k)) #this creates a list of 5 based on models names
   names(tb_mod_list)<-mod_names
-  agg_by_month <-function(tb_mod_list,j,metric_names){
-    for (k in 1:length(metric_names)){
-      metric_ac<-metric_names[k]
-      mod_pat<-glob2rx(paste(metric_ac,"_*",sep=""))   
-      mod_var<-grep(mod_pat,names(mod_metrics),value=TRUE) # using grep with "value" extracts the matching names     
-      d_month<-aggregate(metric_n~month, data=tb_mod_list[[j]], mean)  #Calculate monthly mean for every station in OR
-    }
-    return(d_month)
-  }
-  test<-lapply(1:length(tb_mod_list),FUN=agg_by_month,tb_mod_list=tb_mod_list)
-  
   t<-melt(tb_diagnostic,
           #measure=mod_var, 
           id=c("date","pred_mod","prop","month"),
           na.rm=F)
-  test<-cast(t,pred_mod+month~variable,mean)
-  tb_mod_list<-lapply(mod_names, function(k) subset(tb_diagnostic, pred_mod==k)) #this creates a list of 5 based on models names
-  for (k in 1:tb_mod_m_ist){
-    for (j in 1:length(metric_names)){
+  tb_mod_m_avg <-cast(t,pred_mod+month~variable,mean) #monthly mean for every model
+  tb_mod_m_sd <-cast(t,pred_mod+month~variable,sd)   #monthly sd for every model
+  
+  tb_mod_m_list <-lapply(mod_names, function(k) subset(tb_mod_m, pred_mod==k)) #this creates a list of 5 based on models names
+
+  for (k in 1:length(mod_names)){
+    mod_metrics <-tb_mod_list[[k]]
+    current_mod_name<- mod_names[k]
+    for (j in 1:length(metric_names)){    
       metric_ac<-metric_names[j]
-      mod_pat<-glob2rx(paste(metric_ac,"_*",sep=""))   
-      mod_var<-grep(mod_pat,names(mod_metrics),value=TRUE) # using grep with "value" extracts the matching names     
-      #browser()
-      test<-mod_metrics[mod_var]
-      png(paste("boxplot_metric_",metric_ac, out_prefix,".png", sep=""))
-      boxplot(test,outline=FALSE,horizontal=FALSE,cex=0.5,
+      col_selected<-c(metric_ac,"month")
+      test<-mod_metrics[col_selected]
+      png(paste("boxplot_metric_",metric_ac,"_",current_mod_name,"_by_month_",out_prefix,".png", sep=""))
+      boxplot(test[[metric_ac]]~test[[c("month")]],outline=FALSE,horizontal=FALSE,cex=0.5,
               ylab=paste(metric_ac,"in degree C",sep=" "))
       #legend("bottomleft",legend=paste(names(rows_total),":",rows_total,sep=""),cex=0.7,bty="n")
-      title(as.character(t(paste(t(names(rows_total)),":",rows_total,sep=""))),cex=0.8)
+      title(paste(metric_ac,"for",current_mod_name,"by month",sep=" "))
       dev.off()
-    }
+    }  
+    
   }
-  
-  
-
+  summary_month_obj <-c(tb_mod_m_list,tb_mod_m_avg,tb_mod_m_sd)
+  names(summary_month_obj)<-c("tb_list","metric_month_avg","metric_month_sd")
+  return(summary_month_obj)  
 }
-
-
 
 
 ####################################
