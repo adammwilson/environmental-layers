@@ -32,31 +32,31 @@ library(lattice)
 
 ##Paths to inputs and output
 #script_path<-"/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/"
-in_path <- "/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/input_data/"
-out_path<- "/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/output_data/"
-infile_covar<-"covariates__venezuela_region__VE_01292013.tif" #this is an output from covariate script
-date_selected<-c("20000101") ##This is for year 2000!!!
+#in_path <- "/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/input_data/"
+#out_path<- "/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/output_data/"
+#infile_covar<-"covariates__venezuela_region__VE_01292013.tif" #this is an output from covariate script
+#date_selected<-c("20000101") ##This is for year 2000!!!
 #raster_prediction_obj<-load_obj("raster_prediction_obj_dailyTmin_365d_GAM_fus5_all_lstd_03292013.RData")
 #out_prefix<-"_365d_GAM_fus5_all_lstd_03132013"
 #out_prefix<-"_365d_GAM_fus5_all_lstd_03142013"                #User defined output prefix
-out_prefix<-"_365d_GAM_fus5_all_lstd_03292013"                #User defined output prefix
-var<-"TMIN"
+#out_prefix<-"_365d_GAM_fus5_all_lstd_03292013"                #User defined output prefix
+#var<-"TMIN"
 #gam_fus_mod<-load_obj("gam_fus_mod_365d_GAM_fus5_all_lstd_02202013.RData")
-#validation_obj<-load_obj("gam_fus_validation_mod_365d_GAM_fus5_all_lstd_02202013.RData")
-#clim_obj<-load_obj("gamclim_fus_mod_365d_GAM_fus5_all_lstd_02202013.RData")
+#validation_mod_obj<-load_obj("gam_fus_validation_mod_365d_GAM_fus5_all_lstd_02202013.RData")
+#clim_method_mod_obj<-load_obj("gamclim_fus_mod_365d_GAM_fus5_all_lstd_02202013.RData")
 
-rnames<-c("x","y","lon","lat","N","E","N_w","E_w","elev","slope","aspect","CANHEIGHT","DISTOC")
-lc_names<-c("LC1","LC2","LC3","LC4","LC5","LC6","LC7","LC8","LC9","LC10","LC11","LC12")
-lst_names<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_09","mm_10","mm_11","mm_12",
-             "nobs_01","nobs_02","nobs_03","nobs_04","nobs_05","nobs_06","nobs_07","nobs_08",
-             "nobs_09","nobs_10","nobs_11","nobs_12")
-covar_names<-c(rnames,lc_names,lst_names)
+#rnames<-c("x","y","lon","lat","N","E","N_w","E_w","elev","slope","aspect","CANHEIGHT","DISTOC")
+#lc_names<-c("LC1","LC2","LC3","LC4","LC5","LC6","LC7","LC8","LC9","LC10","LC11","LC12")
+#lst_names<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_09","mm_10","mm_11","mm_12",
+#             "nobs_01","nobs_02","nobs_03","nobs_04","nobs_05","nobs_06","nobs_07","nobs_08",
+#             "nobs_09","nobs_10","nobs_11","nobs_12")
+#covar_names<-c(rnames,lc_names,lst_names)
 
-list_param_results_analyses<-list(in_path,out_path,script_path,raster_prediction_obj,interpolation_method,infile_covar,covar_names,date_selected,var,out_prefix)
-names(list_param_results_analyses)<-c("in_path","out_path","script_path","raster_prediction_obj", "interpolation_method",
-                     "infile_covar","covar_names","date_selected","var","out_prefix")
+#list_param_results_analyses<-list(in_path,out_path,script_path,raster_prediction_obj,interpolation_method,infile_covar,covar_names,date_selected,var,out_prefix)
+#names(list_param_results_analyses)<-c("in_path","out_path","script_path","raster_prediction_obj", "interpolation_method",
+#                     "infile_covar","covar_names","date_selected","var","out_prefix")
 
-setwd(in_path)
+#setwd(in_path)
 
 ## make this a script that calls several function:
 #1) covariate script
@@ -83,18 +83,12 @@ plots_assessment_by_date<-function(j,list_param){
   
   date_selected<-list_param$date_selected
   var<-list_param$var
-  interpolation
-  #gam_fus_mod<-load_obj("gam_fus_mod_365d_GAM_fus5_all_lstd_02202013.RData")
-  #validation_obj<-load_obj("gam_fus_validation_mod_365d_GAM_fus5_all_lstd_02202013.RData")
-  #clim_obj<-load_obj("gamclim_fus_mod_365d_GAM_fus5_all_lstd_02202013.RData")
+  interpolation_method <- list_param$interpolation_method
   
   raster_prediction_obj<-list_param$raster_prediction_obj
   method_mod_obj<-raster_prediction_obj$method_mod_obj
-  method_mod_obj<-raster_prediction_obj$gam_fus_mod #change later for any model type
-  #validation_obj<-raster_prediction_obj$validation_obj
-  validation_obj<-raster_prediction_obj$gam_fus_validation_mod #change later for any model type
-  #clim_obj<-raster_prediction_obj$clim_obj
-  clim_obj<-raster_prediction_obj$gamclim_fus_mod #change later for any model type
+  validation_mod_obj<-raster_prediction_obj$validation_mod_obj
+  clim_method_mod_obj <- raster_prediction_obj$clim_method_mod_obj
   
   if (var=="TMAX"){
     y_var_name<-"dailyTmax"
@@ -139,12 +133,12 @@ plots_assessment_by_date<-function(j,list_param){
   
   #Get validation metrics, daily spdf training and testing stations, monthly spdf station input
   sampling_dat<-method_mod_obj[[index]]$sampling_dat
-  metrics_v<-validation_obj[[index]]$metrics_v
-  metrics_s<-validation_obj[[index]]$metrics_s
-  data_v<-validation_obj[[index]]$data_v
-  data_s<-validation_obj[[index]]$data_s
-  data_month<-clim_obj[[index]]$data_month
-  formulas<-clim_obj[[index]]$formulas
+  metrics_v<-validation_mod_obj[[index]]$metrics_v
+  metrics_s<-validation_mod_obj[[index]]$metrics_s
+  data_v<-validation_mod_obj[[index]]$data_v
+  data_s<-validation_mod_obj[[index]]$data_s
+  data_month<-clim_method_mod_obj[[index]]$data_month
+  formulas<-clim_method_mod_obj[[index]]$formulas
   
   #Adding layer LST to the raster stack of covariates
   #The names of covariates can be changed...
@@ -260,18 +254,32 @@ plots_assessment_by_date<-function(j,list_param){
   
   ## Figure 7: delta surface and bias
   
-  png(paste("Bias_delta_surface_",y_var_name,"_",sampling_dat$date[i],"_",sampling_dat$prop[i],
-            "_",sampling_dat$run_samp[i],out_prefix,".png", sep=""))
-  
-  bias_rast<-stack(clim_obj[[index]]$bias)
-  delta_rast<-raster(method_mod_obj[[index]]$delta) #only one delta image!!!
-  names(delta_rast)<-"delta"
-  rast_temp_date<-stack(bias_rast,delta_rast)
-  rast_temp_date<-mask(rast_temp_date,LC_mask,file="test.tif",overwrite=TRUE)
-  #bias_d_rast<-raster("fusion_bias_LST_20100103_30_1_10d_GAM_fus5_all_lstd_02082013.rst")
-  plot(rast_temp_date)
-  
-  dev.off()
+  if (interpolation_method=="gam_fus"){
+    png(paste("Bias_delta_surface_",y_var_name,"_",sampling_dat$date[i],"_",sampling_dat$prop[i],
+              "_",sampling_dat$run_samp[i],out_prefix,".png", sep=""))
+    
+    bias_rast<-stack(clim_method_mod_obj[[index]]$bias)
+    delta_rast<-raster(method_mod_obj[[index]]$delta) #only one delta image!!!
+    names(delta_rast)<-"delta"
+    rast_temp_date<-stack(bias_rast,delta_rast)
+    rast_temp_date<-mask(rast_temp_date,LC_mask,file="test.tif",overwrite=TRUE)
+    #bias_d_rast<-raster("fusion_bias_LST_20100103_30_1_10d_GAM_fus5_all_lstd_02082013.rst")
+    plot(rast_temp_date)
+    dev.off()
+  }
+
+  if (interpolation_method=="gam_CAI"){
+    png(paste("clim_surface_",y_var_name,"_",sampling_dat$date[i],"_",sampling_dat$prop[i],
+              "_",sampling_dat$run_samp[i],out_prefix,".png", sep=""))
+    
+    clim_rast<-stack(clim_method_mod_obj[[index]]$clim)
+    rast_temp_date<-stack(clim_rast,delta_rast)
+    rast_temp_date<-mask(rast_temp_date,LC_mask,file="test.tif",overwrite=TRUE)
+    #bias_d_rast<-raster("fusion_bias_LST_20100103_30_1_10d_GAM_fus5_all_lstd_02082013.rst")
+    plot(rast_temp_date)
+    
+    dev.off()
+  }
   
   #Figure 9: histogram for all images...
   
