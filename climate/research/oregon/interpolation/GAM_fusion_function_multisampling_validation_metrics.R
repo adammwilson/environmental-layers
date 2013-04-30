@@ -178,8 +178,44 @@ boxplot_from_tb <-function(tb_diagnostic,metric_names,out_prefix){
 ## Function to display metrics by months/seasons
 boxplot_month_from_tb <-function(tb_diagnostic,metric_names,out_prefix){
   #Add code here...
-  #d_month<-aggregate(TMax~month, data=tb_diagnostic, mean)  #Calculate monthly mean for every station in OR
-  #d_month<-aggregate(TMax~month, data=tb_diagnostic, legnth)  #Calculate monthly mean for every station in OR
+  date_f<-strptime(tb_diagnostic$date, "%Y%m%d")   # interpolation date being processed
+  tb_diagnostic$month<-strftime(date_f, "%m")          # current month of the date being processed
+  mod_names<-sort(unique(tb_diagnostic$pred_mod)) #models that have accuracy metrics
+  tb_mod_list<-lapply(mod_names, function(k) subset(tb_diagnostic, pred_mod==k)) #this creates a list of 5 based on models names
+  names(tb_mod_list)<-mod_names
+  agg_by_month <-function(tb_mod_list,j,metric_names){
+    for (k in 1:length(metric_names)){
+      metric_ac<-metric_names[k]
+      mod_pat<-glob2rx(paste(metric_ac,"_*",sep=""))   
+      mod_var<-grep(mod_pat,names(mod_metrics),value=TRUE) # using grep with "value" extracts the matching names     
+      d_month<-aggregate(metric_n~month, data=tb_mod_list[[j]], mean)  #Calculate monthly mean for every station in OR
+    }
+    return(d_month)
+  }
+  test<-lapply(1:length(tb_mod_list),FUN=agg_by_month,tb_mod_list=tb_mod_list)
+  
+  t<-melt(tb_diagnostic,
+          #measure=mod_var, 
+          id=c("date","pred_mod","prop","month"),
+          na.rm=F)
+  test<-cast(t,pred_mod+month~variable,mean)
+  tb_mod_list<-lapply(mod_names, function(k) subset(tb_diagnostic, pred_mod==k)) #this creates a list of 5 based on models names
+  for (k in 1:tb_mod_m_ist){
+    for (j in 1:length(metric_names)){
+      metric_ac<-metric_names[j]
+      mod_pat<-glob2rx(paste(metric_ac,"_*",sep=""))   
+      mod_var<-grep(mod_pat,names(mod_metrics),value=TRUE) # using grep with "value" extracts the matching names     
+      #browser()
+      test<-mod_metrics[mod_var]
+      png(paste("boxplot_metric_",metric_ac, out_prefix,".png", sep=""))
+      boxplot(test,outline=FALSE,horizontal=FALSE,cex=0.5,
+              ylab=paste(metric_ac,"in degree C",sep=" "))
+      #legend("bottomleft",legend=paste(names(rows_total),":",rows_total,sep=""),cex=0.7,bty="n")
+      title(as.character(t(paste(t(names(rows_total)),":",rows_total,sep=""))),cex=0.8)
+      dev.off()
+    }
+  }
+  
   
 
 }
