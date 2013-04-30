@@ -10,7 +10,7 @@
 #STAGE 5: Output analyses-visualization of results for specific dates...
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 04/21/2013                                                                                 
+#DATE: 05/01/2013                                                                                 
 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363, TASK$568--   
 
@@ -55,15 +55,15 @@ stages_to_run<-c(0,0,3,4,5) #May decide on antoher strategy later on...
 #/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/climatology_03192013.py
 source(file.path(script_path,"covariates_production_temperatures_03212013.R"))
 source(file.path(script_path,"Database_stations_covariates_processing_function_04042013.R"))
-source(file.path(script_path,"GAM_fusion_analysis_raster_prediction_multisampling_04162013.R"))
-#source(file.path(script_path,"results_interpolation_date_output_analyses_04162013.R"))
+source(file.path(script_path,"GAM_fusion_analysis_raster_prediction_multisampling_04302013.R"))
+source(file.path(script_path,"results_interpolation_date_output_analyses_04302013.R"))
 #source(file.path(script_path,"results_covariates_database_stations_output_analyses_04012013.R"))
 
 #FUNCTIONS CALLED FROM GAM ANALYSIS RASTER PREDICTION ARE FOUND IN...
 
 source(file.path(script_path,"sampling_script_functions_03122013.R"))
-source(file.path(script_path,"GAM_fusion_function_multisampling_04162013.R")) #Include GAM_CAI
-source(file.path(script_path,"GAM_fusion_function_multisampling_validation_metrics_04162013.R"))
+source(file.path(script_path,"GAM_fusion_function_multisampling_04302013.R")) #Include GAM_CAI
+source(file.path(script_path,"GAM_fusion_function_multisampling_validation_metrics_04302013.R"))
 
 ############ STAGE 1: LST Climatology ###############
 
@@ -229,7 +229,18 @@ raster_prediction_obj <-raster_prediction_fun(list_param_raster_prediction)
 
 ############## STAGE 5: OUTPUT ANALYSES ##################
 
-#source(file.path(script_path,"results_interpolation_date_output_analyses_03272013.R"))
+date_selected<-c("20100101") ##This is for year 2000!!!
+#raster_prediction_obj<-load_obj("raster_prediction_obj_dailyTmin_365d_GAM_fus5_all_lstd_03292013.RData")
+#raster_prediction_obj<-load_obj("raster_prediction_obj_gam_CAI_dailyTmax_365d_GAM_CAI_all_lst_04162013.RData")
+#raster_prediciton_obj<-load_obj(paste("raster_prediction_obj","_","interpolation_method,
+#                                y_var_name,out_prefix,sep="")
+list_param_results_analyses<-list(in_path,out_path,script_path,raster_prediction_obj,interpolation_method,infile_covar,covar_names,date_selected,var,out_prefix)
+names(list_param_results_analyses)<-c("in_path","out_path","script_path","raster_prediction_obj","interpolation_method",
+                     "infile_covar","covar_names","date_selected","var","out_prefix")
+#plots_assessment_by_date<-function(j,list_param){
+
+plots_assessment_by_date(1,list_param_results_analyses)
+#source(file.path(script_path,"results_interpolation_date_output_analyses_04302013.R"))
 #Call as function...
 
 ###############   END OF SCRIPT   ###################
