@@ -8,7 +8,7 @@
 # 5)runGAMFusion <- function(i,list_param) : daily step for fusion method, perform daily prediction
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 04/20/2013                                                                                 
+#DATE: 04/30/2013                                                                                 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363--   
 
 ##Comments and TODO:
@@ -258,7 +258,7 @@ runClim_KGFusion<-function(j,list_param){
     #j indicate which month is predicted, var indicates TMIN or TMAX
     data_name<-paste(var,"_bias_LST_month_",j,"_",cname[k],"_",prop_month,
                      "_",run_samp,sep="")
-    raster_name<-paste("fusion_",data_name,out_prefix,".tif", sep="")
+    raster_name<-paste("fusion",data_name,out_prefix,".tif", sep="")
     list_out_filename[[k]]<-raster_name
   }
 
@@ -472,7 +472,7 @@ run_prediction_daily_deviation <- function(i,list_param) {            # loop ove
   #Saving kriged surface in raster images
   data_name<-paste("daily_delta_",y_var_name,"_",sampling_dat$date[i],"_",sampling_dat$prop[i],
                    "_",sampling_dat$run_samp[i],sep="")
-  raster_name_delta<-paste("fusion_",var,"_",data_name,out_prefix,".tif", sep="")
+  raster_name_delta<-paste(interpolation_method,"_",var,"_",data_name,out_prefix,".tif", sep="")
   writeRaster(daily_delta_rast, filename=raster_name_delta,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
   
   #Now predict daily after having selected the relevant month
