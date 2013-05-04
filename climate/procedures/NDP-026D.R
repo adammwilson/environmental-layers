@@ -70,6 +70,16 @@ cldm=do.call(rbind.data.frame,by(cld,list(month=as.factor(cld$month),StaID=as.fa
              cldsd=sd(x$Amt[x$Nobs>10]/100,na.rm=T))}))
 cldm[,c("lat","lon")]=st[match(cldm$StaID,st$StaID),c("lat","lon")]
 
+## means by year
+cldy=do.call(rbind.data.frame,by(cld,list(year=as.factor(cld$YR),StaID=as.factor(cld$StaID)),function(x){
+  data.frame(
+             year=x$YR[1],
+             StaID=x$StaID[1],
+             cld=mean(x$Amt[x$Nobs>10]/100,na.rm=T),
+             cldsd=sd(x$Amt[x$Nobs>10]/100,na.rm=T))}))
+cldy[,c("lat","lon")]=st[match(cldy$StaID,st$StaID),c("lat","lon")]
+
+
 #cldm=foreach(m=unique(cld$month),.combine='rbind')%:%
 #  foreach(s=unique(cld$StaID),.combine="rbind") %dopar% {
 #    x=cld[cld$month==m&cld$StaID==s,]
@@ -79,13 +89,15 @@ cldm[,c("lat","lon")]=st[match(cldm$StaID,st$StaID),c("lat","lon")]
 #               Amt=mean(x$Amt[x$Nobs>10],na.rm=T)/100)}
  
 
-## write out the table
+## write out the tables
+write.csv(cldy,file="cldy.csv")
 write.csv(cldm,file="cldm.csv")
 
 
 ##################
 ###
 cldm=read.csv("cldm.csv")
+cldy=read.csv("cldy.csv")
 
 
 ##make spatial object
@@ -96,9 +108,20 @@ projection(cldms)=CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
 #### Evaluate MOD35 Cloud data
 mod35=brick("../modis/mod35/MOD35_h11v08.nc",varname="CLD01")
 mod35sd=brick("../modis/mod35/MOD35_h11v08.nc",varname="CLD_sd")
-
 projection(mod35)="+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
-projection(mod35sd)="+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
+
+
+### use data from google earth engine
+mod35=brick("../modis/mod09/global_2009/")
+mod09=raster("../modis/mod09/global_2009/MOD09_2009.tif")
+
+n=100
+at=seq(0,100,length=n)
+colr=colorRampPalette(c("black","green","red"))
+cols=colr(n)
+
+levelplot(mod09,col.regions=cols,at=at)
+
 
 cldms=spTransform(cldms,CRS(projection(mod35)))
 

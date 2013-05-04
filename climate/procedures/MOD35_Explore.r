@@ -4,6 +4,7 @@ setwd("~/acrobates/adamw/projects/interp/data/modis/mod35")
 library(raster)
 library(rasterVis)
 library(rgdal)
+library(plotKML)
 
 #f=list.files(pattern="*.hdf")
 
@@ -53,12 +54,14 @@ Mode <- function(x,na.rm=T) {  #get MODE
 lulc2=aggregate(lulc,2,fun=function(x,na.rm=T) Mode(x))
 ## convert to factor table
 lulcf=lulc2
-ratify(lulcf)
-levels(lulcf)[[1]]
-lulc_levels=c("Water","Evergreen Needleleaf forest","Evergreen Broadleaf forest","Deciduous Needleleaf forest","Deciduous Broadleaf forest","Mixed forest","Closed shrublands","Open shrublands","Woody savannas","Savannas","Grasslands","Permanent wetlands","Croplands","Urban and built-up","Cropland/Natural vegetation mosaic","Snow and ice","Barren or sparsely vegetated")
-lulc_levels2=c("Water","Forest","Forest","Forest","Forest","Forest","Shrublands","Shrublands","Savannas","Savannas","Grasslands","Permanent wetlands","Croplands","Urban and built-up","Cropland/Natural vegetation mosaic","Snow and ice","Barren or sparsely vegetated")
-
-levels(lulcf)=list(data.frame(ID=0:16,LULC=lulc_levels,LULC2=lulc_levels2))
+lulcf=ratify(lulcf)
+levels(lulcf)
+table(as.matrix(lulcf))
+data(worldgrids_pal)  #load palette
+IGBP=data.frame(ID=0:16,col=worldgrids_pal$IGBP[-c(18,19)],
+  lulc_levels2=c("Water","Forest","Forest","Forest","Forest","Forest","Shrublands","Shrublands","Savannas","Savannas","Grasslands","Permanent wetlands","Croplands","Urban and built-up","Cropland/Natural vegetation mosaic","Snow and ice","Barren or sparsely vegetated"),stringsAsFactors=F)
+IGBP$class=rownames(IGBP);rownames(IGBP)=1:nrow(IGBP)
+levels(lulcf)=list(IGBP)
 
 
 ### load WORLDCLIM elevation 
@@ -84,8 +87,8 @@ forest=lulcm>=1&lulcm<=5
 
 ## MOD17
 mod17=raster("../MOD17/Npp_1km_C5.1_mean_00_to_06.tif",format="GTiff")
-mod17=crop(projectRaster(mod17,v6,method="bilinear"),v6)
 NAvalue(mod17)=32767
+mod17=crop(projectRaster(mod17,v6,method="bilinear"),v6)
 
 mod17qc=raster("../MOD17/Npp_QC_1km_C5.1_mean_00_to_06.tif",format="GTiff")
 mod17qc=crop(projectRaster(mod17qc,v6,method="bilinear"),v6)
@@ -100,8 +103,9 @@ mod43qc=crop(projectRaster(mod43qc,v6,method="bilinear"),v6)
 mod43qc[mod43qc<0|mod43qc>100]=NA
 
 ## Summary plot of mod17 and mod43
-modprod=stack(mod17qc,mod43qc)
-names(modprod)=c("MOD17","MOD43")
+modprod=stack(mod17/cellStats(mod17,max)*100,mod17qc,mod43,mod43qc)
+names(modprod)=c("MOD17","MOD17qc","MOD43","MOD43qc")
+
 
 ###
 
@@ -125,6 +129,10 @@ names(mdiff)=c("Collection_5-Collection_6")
 CairoPDF("output/mod35compare.pdf",width=11,height=8.5)
 #CairoPNG("output/mod35compare_%d.png",units="in", width=11,height=8.5,pointsize=4000,dpi=1200,antialias="subpixel")
 
+### LANDCOVER
+levelplot(lulcf,col.regions=levels(lulcf)[[1]]$col,colorkey=list(space="right",at=0:16,labels=list(at=seq(0.5,16.5,by=1),labels=levels(lulcf)[[1]]$class,cex=2)),margin=F)
+
+
 levelplot(mcompare,col.regions=cols,at=at,margin=F,sub="Frequency of MOD35 Clouds in March")
 #levelplot(dif,col.regions=bgyr(20),margin=F)
 levelplot(mdiff,col.regions=bgyr(100),at=seq(mdiff@data@min,mdiff@data@max,len=100),margin=F)
@@ -135,6 +143,9 @@ boxplot(as.matrix(subset(dif,subset=1))~forest,varwidth=T,notch=T);abline(h=0)
 
 levelplot(modprod,main="Missing Data (%) in MOD17 (NPP) and MOD43 (BRDF Reflectance)",
           sub="Tile H11v08 (Venezuela)",col.regions=cols,at=at)
+
+
+
 
 levelplot(modprod,main="Missing Data (%) in MOD17 (NPP) and MOD43 (BRDF Reflectance)",
           sub="Tile H11v08 (Venezuela)",col.regions=cols,at=at,
