@@ -1,7 +1,9 @@
 ### Process a folder of daily MOD35 HDF files to produce a climatology
 
+.libPaths("/pleiades/u/awilso10/R/x86_64-unknown-linux-gnu-library/2.15/")
+
 ## import commandline arguments
-library(getopt)
+library(getopt,lib="/pleiades/u/awilso10/R/x86_64-unknown-linux-gnu-library/2.15/")
 ## get options
 opta <- getopt(matrix(c(
                         'tile', 't', 1, 'character',
@@ -10,6 +12,9 @@ opta <- getopt(matrix(c(
 
 tile=opta$tile #tile="h11v08"
 verbose=opta$verbose  #print out extensive information for debugging?
+
+## set working directory
+setwd("/u/awilso10/MOD35")
 
 ### directory containing daily files
 outdir=paste("daily/",tile,"/",sep="")  #directory for separate daily files
@@ -38,33 +43,11 @@ if(verbose) print("Checking daily output in preparation for generating climatolo
   fdly$year=format(fdly$date,"%Y")
 nrow(fdly)
 
-## check validity (via npar and ntime) of nc files
-#for(i in 1:nrow(fdly)){
-#  fdly$ntime[i]<-as.numeric(system(paste("cdo -s ntime ",fdly$path[i]),intern=T))
-#  fdly$npar[i]<-as.numeric(system(paste("cdo -s npar ",fdly$path[i]),intern=T))
-#  fdly$fyear[i]<-as.numeric(system(paste("cdo -s showyear ",fdly$path[i]),intern=T))
-#  fdly$fmonth[i]<-as.numeric(system(paste("cdo -s showmon ",fdly$path[i]),intern=T))
-#  fdly$fvar[i]<-system(paste("cdo -s showvar ",fdly$path[i]),intern=T)
-#  print(paste(i," out of ",nrow(fdly)," for year ",  fdly$fyear[i]))
-#}
-
 ## print some summaries
 if(verbose) print("Summary of available daily files")
 print(table(fdly$year))
 print(table(fdly$month))
 #print(table(fdly$fvar))
-
-## Identify which files failed test
-#fdly$drop=is.na(fdly$npar)|fdly$fvar!=finalvars
-
-## delete files that fail check?
-delete=F
-if(delete) {
-  print(paste(sum(fdly$drop),"files will be deleted"))
-  file.remove(as.character(fdly$path[fdly$drop]))
-}
-## remove dropped files from list
-#fdly=fdly[!fdly$drop,]
 
 #################################################################################
 ## Combine the year-by-year files into a single daily file in the summary directory (for archiving)
@@ -108,10 +91,6 @@ if(verbose) print("Generate monthly climatologies")
 
 myear=as.integer(max(fdly$year))  #this year will be used in all dates of monthly climatologies (and day will = 15)
 
-## subset dates
-## due to bug (?) in CDO tools, only 10 years of data can be processed at a time or strange areas of NAs appear.
-datesubset="-seldate,2000-01-01,2011-12-31"
-
 ## Monthly means
 if(verbose) print("Calculating the monthly means")
 system(paste("cdo -O -b I8 -v sorttimestamp -setyear,",myear," -setday,15 -mulc,-1 -subc,100 -ymonmean ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ymonmean.nc",sep=""),wait=T)
@@ -127,36 +106,16 @@ tsdir,"/MOD35_",tile,"_ymonmean.nc",sep=""))
 #months=c("01","02","03","04","05","06","07","08","09","10","11","12")
 #  month="02"
 
-#ymonmean=function(month){
-#  tfile=paste(tempdir(),"/",tile,"_",month,"_",Sys.getpid(),".txt",sep="")
-#  write.table(paste(fdly$path[fdly$month==month],collapse=" "),tfile,col.names=F,row.names=F,quote=F)
-#  system(paste("cat ",tfile," | ",ncopath,"ncra -O -o ",tsdir,"/MOD35_",tile,"_",month,".nc",sep=""))
-#  system(paste("cdo -O -setyear,",myear," -setmon,",month," -setday,15 -mulc,-1 -subc,100  ",tsdir,"/MOD35_",tile,"_",month,".nc ",tsdir,"/MOD35_",tile,"_",month,"b.nc",sep=""))
-#  system(paste(ncopath,"ncrename -v PClear,PCloud ",tsdir,"/MOD35_",tile,"_",month,"b.nc",sep=""))
-#  system(paste(ncopath,"ncatted ",
-#" -a long_name,PCloud,o,c,\"Mean Probability of Cloud\" ",
-#" -a missing_value,PCloud,o,b,255 ",
-#" -a _FillValue,PCloud,d,b,255 ",
-#tsdir,"/MOD35_",tile,"_",month,"b.nc",sep=""))
-#}
-#mclapply(months,ymonmean)
-
-## merge to a single file
-#  system(paste("cdo -O -b I8 -v -mergetime ",paste(tsdir,"/MOD35_",tile,"_",months,"b.nc ",sep="",collapse=" ")," ",tsdir,"/MOD35_",tile,"_ymonmean.nc",sep=""))
-
-#system(paste("cdo -v -O selindexbox,1,100,1100,1200 ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_dailysmall.nc",sep=""),wait=T)
-#system(paste("cdo -v -O sorttimestamp -setyear,",myear," -setday,15 -mulc,-1 -subc,100 -ymonmean  ",outdir2,"/MOD35_",tile,"_dailysmall.nc ",tsdir,"/MOD35_",tile,"_ymonmean.nc",sep=""),wait=T)
-#system(paste("cdo -O sorttimestamp -setyear,",myear," -setday,15 -mulc,-1 -subc,100 -timmean -selmon,2 ",datesubset," ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ymonmean.nc",sep=""),wait=T)
-#system(paste("cdo -O sorttimestamp -setyear,",myear," -setday,15 -mulc,-1 -subc,100 -monmean   ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_monmean.nc",sep=""),wait=T)
-#system(paste("cdo -O sorttimestamp -setyear,",myear," -mulc,-1 -subc,100 -ydrunmean,30 ",datesubset," ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ydrunmean30.nc",sep=""),wait=T)
-#system(paste("scp ",tsdir,"/MOD35_",tile,"_ymonmean.nc adamw@acrobates.eeb.yale.edu:/data/personal/adamw/projects/interp/data/modis/mod35/",sep=""))
+#system(paste("cdo -O sorttimestamp -setyear,",myear," -mulc,-1 -subc,100 -ydrunmean,30 ",outdir2,"/MOD35_",tile,"_daily.nc ",outdir2,"/MOD35_",tile,"_ydrunmean30.nc &",sep=""),wait=T)
 #system(paste("scp summary/MOD35_",tile,".nc adamw@acrobates.eeb.yale.edu:/data/personal/adamw/projects/interp/data/modis/mod35/",sep=""))
 #system(paste("ncdump -h ",tsdir,"/MOD35_",tile,"_ymonmean.nc ",sep=""))
 
 
 ## Monthly standard deviation
 if(verbose) print("Calculating the monthly SD")
-system(paste("cdo -O -b I8 sorttimestamp -setyear,",myear," -setday,15 -ymonstd  ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ymonstd.nc",sep=""))
+system(paste("cdo -O -b I8 sorttimestamp -setyear,",myear," -setday,15 -ymonstd -monmean ",
+    outdir2,"/MOD35_",tile,"_daily.nc ",
+    tsdir,"/MOD35_",tile,"_ymonstd.nc",sep=""))
 system(paste(ncopath,"ncrename -v PClear,PCloud_sd ",tsdir,"/MOD35_",tile,"_ymonstd.nc",sep=""))
 system(paste(ncopath,"ncatted ",
 " -a long_name,PCloud_sd,o,c,\"Standard Deviation of p(cloud)\" ",

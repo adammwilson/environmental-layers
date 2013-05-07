@@ -12,6 +12,7 @@ verbose=T
 ## get MODLAND tile information
 tb=read.table("http://landweb.nascom.nasa.gov/developers/sn_tiles/sn_bound_10deg.txt",skip=6,nrows=648,header=T)
 tb$tile=paste("h",sprintf("%02d",tb$ih),"v",sprintf("%02d",tb$iv),sep="")
+tb=tb[tb$lon_min!=-999,]
 save(tb,file="modlandTiles.Rdata")
 load("modlandTiles.Rdata")
 
@@ -24,15 +25,20 @@ tile="h11v08"  # Venezuela
 #tile="h09v04"  # Oregon
 tile="h21v09"  #Kenya
 
-
 ### list of tiles to process
 tiles=c("h11v08","h21v09","h08v04","h09v04","h08v05","h09v05","h20v11","h31v11")
-tiles=tiles[c(1,4)]
+tiles=c("h10v08","h11v08","h12v08","h10v07","h11v07","h12v07")  # South America
+
+## subset to MODLAND tiles
+  modlandtiles=system("ls -r /nobackupp4/datapool/modis/MOD11A1.005/2010* | grep hdf$ | cut -c18-23 | sort | uniq - ",intern=T)
+ tb$land=tb$tile%in%modlandtiles
+tiles=tb$tile[tb$land]
+
+## subset tile corner matrix to tiles selected above
 tile_bb=tb[tb$tile%in%tiles,]
 
 ### get list of files to process
 datadir="/nobackupp4/datapool/modis/MOD35_L2.006/"
-#datadir="/nobackupp1/awilso10/mod06/data"   #for data downloaded from 
 
 outdir="daily/" #paste("daily/",tile,sep="")
 
@@ -62,22 +68,31 @@ fs$path=swaths$path[match(fs$id,swaths$id)]
   
 if(verbose) print(paste("###############",nrow(fs)," swath IDs recieved from database"))
 
-
 ## get all unique dates
 fs$dateid=format(as.Date(paste(fs$year,fs$day,sep=""),"%Y%j"),"%Y%m%d")
 alldates=unique(fs$dateid[fs$exists])
 
 #### Generate submission file
-alldates=format(seq(as.Date("2000-03-01"),as.Date("2011-12-31"),1),"%Y%m%d")
+startdate="2000-03-01"
+stopdate="2011-12-31"
+## just 2009
+startdate="2009-01-01"
+stopdate="2009-12-31"
+
+alldates=format(seq(as.Date(startdate),as.Date(stopdate),1),"%Y%m%d")
+
 proclist=expand.grid(date=alldates,tile=tiles)
 proclist$year=substr(proclist$date,1,4)
-  
+
+## identify tile-dates with no available swaths
+avail=unique(cbind.data.frame(tile=fs$tile,date=fs$dateid)[fs$exists, ])
+proclist$avail=paste(proclist$tile,proclist$date,sep="_")%in%paste(avail$tile,avail$date,sep="_")
+
 ## identify which have been completed
-fdone=data.frame(path=list.files(outdir,pattern="nc$",recursive=T))
+fdone=data.frame(path=system("ssh lou 'find MOD35/daily -name \"*.nc\"' ",intern=T))
+#fdone=data.frame(path=list.files(outdir,pattern="nc$",recursive=T))
 fdone$date=substr(basename(as.character(fdone$path)),14,21)
 fdone$tile=substr(basename(as.character(fdone$path)),7,12)
-
-## identify which date-tiles have already been run
 proclist$done=paste(proclist$tile,proclist$date,sep="_")%in%substr(basename(as.character(fdone$path)),7,21)
 
 ### report on what has already been processed
@@ -87,7 +102,10 @@ table(tile=proclist$tile[proclist$done],year=proclist$year[proclist$done])
 script="/u/awilso10/environmental-layers/climate/procedures/MOD35_L2_process.r"
 
 ## write the table processed by mpiexec
-write.table(paste("--verbose ",script," --date ",proclist$date[!proclist$done]," --verbose T --tile ",proclist$tile[!proclist$done],sep=""),
+tp=(!proclist$done)&proclist$avail  #date-tiles to process
+table(Available=proclist$avail,Completed=proclist$done)
+
+write.table(paste("--verbose ",script," --date ",proclist$date[tp]," --verbose T --tile ",proclist$tile[tp],sep=""),
 file=paste("notdone.txt",sep=""),row.names=F,col.names=F,quote=F)
 
 ### qsub script
@@ -132,8 +150,8 @@ system("qstat -u awilso10")
 ### Now submit the script to generate the climatologies
 
 tiles
-ctiles=tiles#[c(2)]  #subset to only some tiles (for example if some aren't finished yet)?
-climatescript="/u/awilso10/environmental-layers/climate/procedures/MOD35_Climatology.r"
+ctiles=tiles[c(1:3)]  #subset to only some tiles (for example if some aren't finished yet)?
+climatescript="/pleiades/u/awilso10/environmental-layers/climate/procedures/MOD35_Climatology.r"
 
 ## write the table processed by mpiexec
 write.table(paste("--verbose ",climatescript," --verbose T --tile ",ctiles,sep=""),
@@ -149,28 +167,28 @@ job="881394.pbspl1.nas.nasa.gov"
 ### qsub script
 cat(paste("
 #PBS -S /bin/bash
-##PBS -l select=50:ncpus=8:mpiprocs=8
-#PBS -l select=4:ncpus=4:mpiprocs=4
-#PBS -l walltime=2:00:00
+#PBS -l select=1:ncpus=16:mem=94
+#PBS -l walltime=24:00:00
 #PBS -j n
 #PBS -m be
 #PBS -N mod35_climate
-#PBS -q devel
+#PBS -q ldan
 #PBS -V
 ",if(delay) paste("#PBS -W depend=afterany:",job,sep="")," 
 
 CORES=16
-HDIR=/u/armichae/pr/
-#  source $HDIR/etc/environ.sh
-  source /u/awilso10/environ.sh
-  source /u/awilso10/.bashrc
+HDIR=/pleiades/u/armichae/pr/
+  source $HDIR/etc/environ.sh
+  source /pleiades/u/awilso10/environ.sh
+  source /pleiades/u/awilso10/.bashrc
+  source /pleiades/u/awilso10/moduleload
 IDIR=/nobackupp1/awilso10/mod35/
 ##WORKLIST=$HDIR/var/run/pxrRgrs/work.txt
 WORKLIST=$IDIR/notdone_climate.txt
 EXE=Rscript
 LOGSTDOUT=$IDIR/log/climatology_stdout
 LOGSTDERR=$IDIR/log/climatology_stderr
-### use mpiexec to parallelize across days
+### use mpiexec to parallelize across tiles
 mpiexec -np $CORES pxargs -a $WORKLIST -p $EXE -v -v -v --work-analyze 1> $LOGSTDOUT 2> $LOGSTDERR
 ",sep=""),file=paste("mod35_climatology_qsub",sep=""))
 
