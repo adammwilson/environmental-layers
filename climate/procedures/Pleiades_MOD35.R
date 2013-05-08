@@ -75,9 +75,9 @@ alldates=unique(fs$dateid[fs$exists])
 #### Generate submission file
 startdate="2000-03-01"
 stopdate="2011-12-31"
-## just 2009
-startdate="2009-01-01"
-stopdate="2009-12-31"
+## just 2005
+startdate="2005-01-01"
+stopdate="2005-12-31"
 
 alldates=format(seq(as.Date(startdate),as.Date(stopdate),1),"%Y%m%d")
 
@@ -102,7 +102,7 @@ table(tile=proclist$tile[proclist$done],year=proclist$year[proclist$done])
 script="/u/awilso10/environmental-layers/climate/procedures/MOD35_L2_process.r"
 
 ## write the table processed by mpiexec
-tp=(!proclist$done)&proclist$avail  #date-tiles to process
+tp=((!proclist$done)&proclist$avail)  #date-tiles to process
 table(Available=proclist$avail,Completed=proclist$done)
 
 write.table(paste("--verbose ",script," --date ",proclist$date[tp]," --verbose T --tile ",proclist$tile[tp],sep=""),
@@ -111,17 +111,20 @@ file=paste("notdone.txt",sep=""),row.names=F,col.names=F,quote=F)
 ### qsub script
 cat(paste("
 #PBS -S /bin/bash
-#PBS -l select=50:ncpus=8:mpiprocs=8
-##PBS -l select=2:ncpus=8:mpiprocs=8
-##PBS -l select=2:ncpus=4:mpiprocs=4
+#PBS -l select=100:ncpus=8:mpiprocs=8
+##PBS -l select=20:ncpus=8:mpiprocs=8
 #PBS -l walltime=5:00:00
+##PBS -l walltime=2:00:00
 #PBS -j n
 #PBS -m be
 #PBS -N mod35
 #PBS -q normal
+##PBS -q devel
 #PBS -V
 
-CORES=400
+CORES=800
+#CORES=160
+
 HDIR=/u/armichae/pr/
 #  source $HDIR/etc/environ.sh
   source /u/awilso10/environ.sh
@@ -150,11 +153,17 @@ system("qstat -u awilso10")
 ### Now submit the script to generate the climatologies
 
 tiles
-ctiles=tiles[c(1:3)]  #subset to only some tiles (for example if some aren't finished yet)?
+ctiles=tiles#[c(1:3)]  #subset to only some tiles (for example if some aren't finished yet)?
 climatescript="/pleiades/u/awilso10/environmental-layers/climate/procedures/MOD35_Climatology.r"
 
+## check which tiles have been processed and are on lou with a filename "MOD35_[tile].nc"
+cdone=data.frame(path=sapply(strsplit(basename(
+                   system("ssh lou 'find MOD35/summary -name \"MOD35_h[0-9][0-9]v[0-9][0-9].nc\"' ",intern=T)),split="_"),function(x) x[2]))
+cdone$tile=substr(basename(as.character(cdone$path)),1,6)
+print(paste(length(ctiles[!ctiles%in%cdone$tile]),"Tiles still need to be processed: /n ",ctiles[!ctiles%in%cdone$tile]))
+
 ## write the table processed by mpiexec
-write.table(paste("--verbose ",climatescript," --verbose T --tile ",ctiles,sep=""),
+write.table(paste("--verbose ",climatescript," --verbose T --tile ",ctiles[!ctiles%in%cdone$tile],sep=""),
 file=paste("notdone_climate.txt",sep=""),row.names=F,col.names=F,quote=F)
 
 ## delay start until previous jobs have finished?
@@ -177,11 +186,10 @@ cat(paste("
 ",if(delay) paste("#PBS -W depend=afterany:",job,sep="")," 
 
 CORES=16
-HDIR=/pleiades/u/armichae/pr/
+HDIR=/u/armichae/pr/
   source $HDIR/etc/environ.sh
   source /pleiades/u/awilso10/environ.sh
   source /pleiades/u/awilso10/.bashrc
-  source /pleiades/u/awilso10/moduleload
 IDIR=/nobackupp1/awilso10/mod35/
 ##WORKLIST=$HDIR/var/run/pxrRgrs/work.txt
 WORKLIST=$IDIR/notdone_climate.txt
@@ -209,16 +217,10 @@ system("qstat -u awilso10")
 
 #################################################################
 ### copy the files back to Yale
-summarydir="summary"
 
-sumfiles=list.files("summary",pattern="^MOD06_.*[0-9][.]nc",full=T)
-
-system(paste("scp ",paste(sumfiles,collapse=" ")," adamw@acrobates.eeb.yale.edu:/data/personal/adamw/projects/interp/data/modis/mod06/summary",sep=""))
-
-#system(paste("scp ",tsdir,"/MOD06_",tile,"*.nc adamw@acrobates.eeb.yale.edu:/data/personal/adamw/projects/interp/data/modis/mod06/summary",sep=""))
-#system(paste("scp ",paste(fs$path[40421:40422],collapse=" ")," adamw@acrobates.eeb.yale.edu:/data/personal/adamw/projects/interp/data/modis/mod06/swaths",sep=""))
-
-
-
+system("ssh lou")
+#scp `find MOD35/summary -name "MOD35_h[0-9][0-9]v[0-9][0-9].nc"` adamw@acrobates.eeb.yale.edu:/data/personal/adamw/projects/interp/data/modis/mod35/summary/
+rsync -vv `find MOD35/summary -name "MOD35_h[0-9][0-9]v[0-9][0-9].nc"` adamw@acrobates.eeb.yale.edu:/data/personal/adamw/projects/interp/data/modis/mod35/summary/
+exit
 
 

@@ -93,8 +93,12 @@ if(verbose) print(paste("Processing tile",tile," for date",date))
 ## load tile information and get bounding box
 load(file="/nobackupp1/awilso10/mod35/modlandTiles.Rdata")
 tile_bb=tb[tb$tile==tile,] ## identify tile of interest
-upleft=paste(tile_bb$lat_max,tile_bb$lon_min) #northwest corner
-lowright=paste(tile_bb$lat_min,tile_bb$lon_max) #southeast corner
+
+## get bounds of swath to keep and feed into grass when generating tile
+## expand a little (0.5 deg) to ensure that there is no clipping of pixels on the edges
+## tile will later be aligned with MODLAND tile so the extra will eventually be trimmed
+upleft=paste(min(90,tile_bb$lat_max+.5),max(-180,tile_bb$lon_min-.5)) #northwest corner
+lowright=paste(max(-90,tile_bb$lat_min-0.5),min(180,tile_bb$lon_max+0.5)) #southeast corner
 
 
 ## vars to process

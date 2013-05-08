@@ -33,7 +33,7 @@ ncopath="/nasa/sles11/nco/4.0.8/gcc/mpt/bin/"
 
 ################################################################################
 ## Get list of all daily files
-if(verbose) print("Checking daily output in preparation for generating climatology")
+if(verbose) print(paste("Checking daily output in preparation for generating climatology:",tile))
 
  fdly=data.frame(path=list.files(outdir,pattern="nc$",full=T),stringsAsFactors=F)
   fdly$file=basename(fdly$path)
@@ -44,14 +44,14 @@ if(verbose) print("Checking daily output in preparation for generating climatolo
 nrow(fdly)
 
 ## print some summaries
-if(verbose) print("Summary of available daily files")
+if(verbose) print(paste("Summary of available daily files:",tile))
 print(table(fdly$year))
 print(table(fdly$month))
 #print(table(fdly$fvar))
 
 #################################################################################
 ## Combine the year-by-year files into a single daily file in the summary directory (for archiving)
-if(verbose) print("Merging daily files into single file output")
+if(verbose) print(paste("Merging daily files into single file output:",tile))
 
 ## create temporary directory to put intermediate files (will be deleted when R quits)
 tsdir=paste(tempdir(),"/summary",sep="")
@@ -87,12 +87,12 @@ system(paste("cdo showmon ",outdir2,"/MOD35_",tile,"_daily.nc",sep=""))
 
 #############################
 ##  Generate the Climatologies
-if(verbose) print("Generate monthly climatologies")
+if(verbose) print(paste("Generate monthly climatologies: ",tile))
 
 myear=as.integer(max(fdly$year))  #this year will be used in all dates of monthly climatologies (and day will = 15)
 
 ## Monthly means
-if(verbose) print("Calculating the monthly means")
+if(verbose) print(paste("Calculating the monthly means:",tile))
 system(paste("cdo -O -b I8 -v sorttimestamp -setyear,",myear," -setday,15 -mulc,-1 -subc,100 -ymonmean ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ymonmean.nc",sep=""),wait=T)
 system(paste(ncopath,"ncrename -v PClear,PCloud ",tsdir,"/MOD35_",tile,"_ymonmean.nc",sep=""))
 system(paste(ncopath,"ncatted ",
@@ -112,8 +112,8 @@ tsdir,"/MOD35_",tile,"_ymonmean.nc",sep=""))
 
 
 ## Monthly standard deviation
-if(verbose) print("Calculating the monthly SD")
-system(paste("cdo -O -b I8 sorttimestamp -setyear,",myear," -setday,15 -ymonstd -monmean ",
+if(verbose) print(paste("Calculating the monthly SD:",tile))
+system(paste("cdo -O -b I8 sorttimestamp -setyear,",myear," -setday,15 -ymonstd -mulc,-1 -subc,100 -monmean ",
     outdir2,"/MOD35_",tile,"_daily.nc ",
     tsdir,"/MOD35_",tile,"_ymonstd.nc",sep=""))
 system(paste(ncopath,"ncrename -v PClear,PCloud_sd ",tsdir,"/MOD35_",tile,"_ymonstd.nc",sep=""))
@@ -122,7 +122,7 @@ system(paste(ncopath,"ncatted ",
 tsdir,"/MOD35_",tile,"_ymonstd.nc",sep=""))
 
 ## frequency of cloud days p(clear<90%)  
-if(verbose) print("Calculating the proportion of cloudy and probably cloudy days")
+if(verbose) print(paste("Calculating the proportion of cloudy and probably cloudy days:",tile))
 system(paste("cdo -O -b I8 sorttimestamp -setyear,",myear," -setday,15 -ymonmean  -mulc,100 -lec,90 -selvar,PClear ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ymoncld01.nc",sep=""))
 system(paste(ncopath,"ncrename -v PClear,CF ",tsdir,"/MOD35_",tile,"_ymoncld01.nc",sep=""))
 system(paste(ncopath,"ncatted ",
@@ -131,7 +131,7 @@ system(paste(ncopath,"ncatted ",
 tsdir,"/MOD35_",tile,"_ymoncld01.nc",sep=""))
 
 ## number of observations
-if(verbose) print("Calculating the number of missing variables")
+if(verbose) print(paste("Calculating the number of missing variables:",tile))
 system(paste("cdo -O -b I8 sorttimestamp  -setyear,",myear," -setday,15 -ymonmean -mulc,100  -eqc,9999 -setmisstoc,9999   -selvar,PClear ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ymonmiss.nc",sep=""))
 system(paste(ncopath,"ncrename -v PClear,Pmiss ",tsdir,"/MOD35_",tile,"_ymonmiss.nc",sep=""))
 system(paste(ncopath,"ncatted ",
@@ -143,14 +143,14 @@ system(paste(ncopath,"ncatted ",
 ## clean up variables?
 
 ## append variables to a single file
-if(verbose) print("Append all monthly climatologies into a single file")
+if(verbose) print(paste("Append all monthly climatologies into a single file:",tile))
 system(paste(ncopath,"ncks -O ",tsdir,"/MOD35_",tile,"_ymonmean.nc  ",tsdir,"/MOD35_",tile,"_ymon.nc",sep=""))
 system(paste(ncopath,"ncks -A ",tsdir,"/MOD35_",tile,"_ymonstd.nc  ",tsdir,"/MOD35_",tile,"_ymon.nc",sep=""))
 system(paste(ncopath,"ncks -A ",tsdir,"/MOD35_",tile,"_ymoncld01.nc  ",tsdir,"/MOD35_",tile,"_ymon.nc",sep=""))
 system(paste(ncopath,"ncks -A ",tsdir,"/MOD35_",tile,"_ymonmiss.nc  ",tsdir,"/MOD35_",tile,"_ymon.nc",sep=""))
 
 ## append sinusoidal grid from one of input files as CDO doesn't transfer all attributes
-if(verbose) print("Clean up file (update attributes, flip latitudes, add grid description")
+if(verbose) print(paste("Clean up file (update attributes, flip latitudes, add grid description:",tile))
 
 #system(paste(ncopath,"ncea -d time,0,1 -v sinusoidal ",list.files(outdir,full=T,pattern="[.]nc$")[1],"  ",tsdir,"/sinusoidal.nc",sep=""))
 #system(paste(ncopath,"ncks -A -d time,0,1 -v sinusoidal ",list.files(outdir,full=T,pattern="[.]nc$")[1],"  ",tsdir,"/MOD35_",tile,"_ymon.nc",sep=""))
