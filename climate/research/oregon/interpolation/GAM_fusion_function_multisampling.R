@@ -8,7 +8,7 @@
 # 5)runGAMFusion <- function(i,list_param) : daily step for fusion method, perform daily prediction
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 04/30/2013                                                                                 
+#DATE: 05/07/2013                                                                                 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363--   
 
 ##Comments and TODO:
@@ -73,7 +73,8 @@ runClim_KGCAI <-function(j,list_param){
   #7)var: TMAX or TMIN, variable being interpolated
   #8)y_var_name: output name, not used at this stage
   #9)out_prefix
-  #
+  #10) out_path
+  
   #The output is a list of four shapefile names produced by the function:
   #1) clim: list of output names for raster climatogies 
   #2) data_month: monthly training data for bias surface modeling
@@ -92,7 +93,8 @@ runClim_KGCAI <-function(j,list_param){
   var<-list_param$var
   y_var_name<-list_param$y_var_name
   out_prefix<-list_param$out_prefix
-    
+  out_path<-list_param$out_path
+  
   #Model and response variable can be changed without affecting the script
   prop_month<-0 #proportion retained for validation
   run_samp<-1
@@ -133,7 +135,7 @@ runClim_KGCAI <-function(j,list_param){
     #j indicate which month is predicted
     data_name<-paste(var,"_clim_month_",j,"_",cname[k],"_",prop_month,
                      "_",run_samp,sep="")
-    raster_name<-paste("CAI_",data_name,out_prefix,".tif", sep="")
+    raster_name<-file.path(out_path,paste("CAI_",data_name,out_prefix,".tif", sep=""))
     list_out_filename[[k]]<-raster_name
   }
   
@@ -162,7 +164,7 @@ runClim_KGCAI <-function(j,list_param){
   #clim_rast<-LST-bias_rast
   data_name<-paste(var,"_clim_month_",j,"_",model_name,"_",prop_month,
                    "_",run_samp,sep="")
-  raster_name_clim<-paste("CAI_",data_name,out_prefix,".tif", sep="")
+  raster_name_clim<-file.path(out_path,paste("CAI_",data_name,out_prefix,".tif", sep=""))
   writeRaster(clim_rast, filename=raster_name_clim,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
   
   #Adding to current objects
@@ -174,7 +176,7 @@ runClim_KGCAI <-function(j,list_param){
   clim_obj<-list(rast_clim_list,data_month,mod_list,list_formulas)
   names(clim_obj)<-c("clim","data_month","mod","formulas")
   
-  save(clim_obj,file= paste("clim_obj_CAI_month_",j,"_",var,"_",out_prefix,".RData",sep=""))
+  save(clim_obj,file= file.path(out_path,paste("clim_obj_CAI_month_",j,"_",var,"_",out_prefix,".RData",sep="")))
   
   return(clim_obj) 
 }
@@ -212,7 +214,8 @@ runClim_KGFusion<-function(j,list_param){
   var<-list_param$var
   y_var_name<-list_param$y_var_name
   out_prefix<-list_param$out_prefix
-
+  out_path<-list_param$out_path
+  
   #Model and response variable can be changed without affecting the script
   prop_month<-0 #proportion retained for validation
   run_samp<-1 #This option can be added later on if/when neeeded
@@ -258,7 +261,7 @@ runClim_KGFusion<-function(j,list_param){
     #j indicate which month is predicted, var indicates TMIN or TMAX
     data_name<-paste(var,"_bias_LST_month_",j,"_",cname[k],"_",prop_month,
                      "_",run_samp,sep="")
-    raster_name<-paste("fusion",data_name,out_prefix,".tif", sep="")
+    raster_name<-file.path(out_path,paste("fusion",data_name,out_prefix,".tif", sep=""))
     list_out_filename[[k]]<-raster_name
   }
 
@@ -275,7 +278,7 @@ runClim_KGFusion<-function(j,list_param){
     clim_fus_rast<-LST-subset(mod_rast,k)
     data_name<-paste(var,"_clim_LST_month_",j,"_",names(rast_clim_list)[k],"_",prop_month,
                      "_",run_samp,sep="")
-    raster_name<-paste("fusion_",data_name,out_prefix,".tif", sep="")
+    raster_name<-file.path(out_path,paste("fusion_",data_name,out_prefix,".tif", sep=""))
     rast_clim_list[[k]]<-raster_name
     writeRaster(clim_fus_rast, filename=raster_name,overwrite=TRUE)  #Wri
   }
@@ -292,14 +295,14 @@ runClim_KGFusion<-function(j,list_param){
   #Saving kriged surface in raster images
   data_name<-paste(var,"_bias_LST_month_",j,"_",model_name,"_",prop_month,
                    "_",run_samp,sep="")
-  raster_name_bias<-paste("fusion_",data_name,out_prefix,".tif", sep="")
+  raster_name_bias<-file.path(out_path,paste("fusion_",data_name,out_prefix,".tif", sep=""))
   writeRaster(bias_rast, filename=raster_name_bias,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
   
   #now climatology layer
   clim_rast<-LST-bias_rast
   data_name<-paste(var,"_clim_LST_month_",j,"_",model_name,"_",prop_month,
                    "_",run_samp,sep="")
-  raster_name_clim<-paste("fusion_",data_name,out_prefix,".tif", sep="")
+  raster_name_clim<-file.path(out_path,paste("fusion_",data_name,out_prefix,".tif", sep=""))
   writeRaster(clim_rast, filename=raster_name_clim,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
   
   #Adding to current objects
@@ -312,7 +315,7 @@ runClim_KGFusion<-function(j,list_param){
   clim_obj<-list(rast_bias_list,rast_clim_list,data_month,mod_list,list_formulas)
   names(clim_obj)<-c("bias","clim","data_month","mod","formulas")
   
-  save(clim_obj,file= paste("clim_obj_month_",j,"_",var,"_",out_prefix,".RData",sep=""))
+  save(clim_obj,file= file.path(out_path,paste("clim_obj_month_",j,"_",var,"_",out_prefix,".RData",sep="")))
   
   return(clim_obj)
 }
@@ -333,7 +336,7 @@ run_prediction_daily_deviation <- function(i,list_param) {            # loop ove
   #5)var: variable predicted -TMAX or TMIN
   #6)y_var_name: name of the variable predicted - dailyTMax, dailyTMin
   #7)out_prefix
-  #8)
+  #8)out_path
   #
   #The output is a list of four shapefile names produced by the function:
   #1) list_temp: y_var_name
@@ -356,6 +359,7 @@ run_prediction_daily_deviation <- function(i,list_param) {            # loop ove
   y_var_name<-list_param$y_var_name
   out_prefix<-list_param$out_prefix
   dst<-list_param$dst #monthly station dataset
+  out_path <-list_param$out_path
   
   ##########
   # STEP 1 - Read in information and get traing and testing stations
@@ -472,7 +476,7 @@ run_prediction_daily_deviation <- function(i,list_param) {            # loop ove
   #Saving kriged surface in raster images
   data_name<-paste("daily_delta_",y_var_name,"_",sampling_dat$date[i],"_",sampling_dat$prop[i],
                    "_",sampling_dat$run_samp[i],sep="")
-  raster_name_delta<-paste(interpolation_method,"_",var,"_",data_name,out_prefix,".tif", sep="")
+  raster_name_delta<-file.path(out_path,paste(interpolation_method,"_",var,"_",data_name,out_prefix,".tif", sep=""))
   writeRaster(daily_delta_rast, filename=raster_name_delta,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
   
   #Now predict daily after having selected the relevant month
@@ -484,7 +488,7 @@ run_prediction_daily_deviation <- function(i,list_param) {            # loop ove
     data_name<-paste(y_var_name,"_predicted_",names(rast_clim_list)[j],"_",
                      sampling_dat$date[i],"_",sampling_dat$prop[i],
                      "_",sampling_dat$run_samp[i],sep="")
-    raster_name<-paste(interpolation_method,"_",data_name,out_prefix,".tif", sep="")
+    raster_name<-file.path(out_path,paste(interpolation_method,"_",data_name,out_prefix,".tif", sep=""))
     writeRaster(temp_predicted, filename=raster_name,overwrite=TRUE) 
     temp_list[[j]]<-raster_name
   }
@@ -507,8 +511,8 @@ run_prediction_daily_deviation <- function(i,list_param) {            # loop ove
   obj_names<-c(y_var_name,"clim","delta","data_s","data_v",
                "sampling_dat",model_name)
   names(delta_obj)<-obj_names 
-  save(delta_obj,file= paste("delta_obj_",var,"_",sampling_dat$date[i],"_",sampling_dat$prop[i],
-                                "_",sampling_dat$run_samp[i],out_prefix,".RData",sep=""))
+  save(delta_obj,file= file.path(out_path,paste("delta_obj_",var,"_",sampling_dat$date[i],"_",sampling_dat$prop[i],
+                                "_",sampling_dat$run_samp[i],out_prefix,".RData",sep="")))
   return(delta_obj)
   
 }
