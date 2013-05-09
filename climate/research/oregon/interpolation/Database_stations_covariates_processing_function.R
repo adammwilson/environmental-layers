@@ -14,9 +14,10 @@ database_covariates_preparation<-function(list_param_prep){
   # 7)  infile_covarariates: tif file of raser covariates for the interpolation area: it should have a local projection                                                                                           
   # 8)  CRS_locs_WGS84: longlat EPSG 4326 used as coordinates reference system (proj4)for stations locations
   # 9)  in_path: input path for covariates data and other files, this is also the output?
-  # 10) covar_names: names of covariates used for the interpolation --may be removed later? (should be stored in the brick)
-  # 11) qc_flags_stations: flag used to screen out at this stage only two values...
-  # 12) out_prefix: output suffix added to output names--it is the same in the interpolation script
+  # 10) out_path: output path created in master script
+  # 11) covar_names: names of covariates used for the interpolation --may be removed later? (should be stored in the brick)
+  # 12) qc_flags_stations: flag used to screen out at this stage only two values...
+  # 13) out_prefix: output suffix added to output names--it is the same in the interpolation script
   #
   #The output is a list of four shapefile names produced by the function:
   #1) loc_stations: locations of stations as shapefile in EPSG 4326
@@ -27,11 +28,10 @@ database_covariates_preparation<-function(list_param_prep){
   #6) monthly_covar_ghcn_data: ghcn monthly averaged data with covariates for the year range of interpolation (locally projected)
   
   #AUTHOR: Benoit Parmentier                                                                       
-  #DATE: 04/05/2013                                                                                 
+  #DATE: 05/07/2013                                                                                 
   #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363--     
   #Comments and TODO
   #-Add buffer option...
-  #-Add output path argument option
   #-Add screening for value predicted: var
   ##################################################################################################
   
@@ -77,6 +77,7 @@ database_covariates_preparation<-function(list_param_prep){
   infile3<-list_param_prep$infile_covariates #"covariates__venezuela_region__VE_01292013.tif" #this is an output from covariate script
   CRS_locs_WGS84<-list_param_prep$CRS_locs_WGS84 #Station coords WGS84: same as earlier
   in_path <- list_param_prep$in_path #CRS_locs_WGS84"/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/input_data/"
+  out_path <- list_param_prep$out_path #CRS_locs_WGS84"/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/input_data/"
   covar_names<-list_param_prep$covar_names # names should be written in the tif file!!!
   qc_flags_stations <- list_param_prep$qc_flags_stations #flags allowed for the query from the GHCND??
   out_prefix<-list_param_prep$out_prefix #"_365d_GAM_fus5_all_lstd_03012013"                #User defined output prefix
@@ -146,15 +147,16 @@ database_covariates_preparation<-function(list_param_prep){
   ### STEP 3: Save results and outuput in textfile and a shape file
   #browser()
   #Save shape files of the locations of meteorological stations in the study area
-  outfile1<-file.path(in_path,paste("stations","_",out_prefix,".shp",sep=""))
+  #outfile1<-file.path(in_path,paste("stations","_",out_prefix,".shp",sep=""))
+  outfile1<-file.path(out_path,paste("stations","_",out_prefix,".shp",sep=""))
   writeOGR(stat_reg,dsn= dirname(outfile1),layer= sub(".shp","",basename(outfile1)), driver="ESRI Shapefile",overwrite_layer=TRUE)
   #writeOGR(dst,dsn= ".",layer= sub(".shp","",outfile4), driver="ESRI Shapefile",overwrite_layer=TRUE)
   
-  outfile2<-file.path(in_path,paste("ghcn_data_query_",var,"_",year_start,"_",year_end,out_prefix,".shp",sep=""))         #Name of the file
+  outfile2<-file.path(out_path,paste("ghcn_data_query_",var,"_",year_start,"_",year_end,out_prefix,".shp",sep=""))         #Name of the file
   #writeOGR(data_proj, paste(outfile, "shp", sep="."), outfile, driver ="ESRI Shapefile") #Note that the layer name is the file name without extension
   writeOGR(data_d,dsn= dirname(outfile2),layer= sub(".shp","",basename(outfile2)), driver="ESRI Shapefile",overwrite_layer=TRUE)
   
-  outfile3<-file.path(in_path,paste("ghcn_data_",var,"_",year_start,"_",year_end,out_prefix,".shp",sep=""))         #Name of the file
+  outfile3<-file.path(out_path,paste("ghcn_data_",var,"_",year_start,"_",year_end,out_prefix,".shp",sep=""))         #Name of the file
   #writeOGR(data_proj, paste(outfile, "shp", sep="."), outfile, driver ="ESRI Shapefile") #Note that the layer name is the file name without extension
   writeOGR(data_reg,dsn= dirname(outfile3),layer= sub(".shp","",basename(outfile3)), driver="ESRI Shapefile",overwrite_layer=TRUE)
   
@@ -162,7 +164,7 @@ database_covariates_preparation<-function(list_param_prep){
   ### STEP 4: Extract values at stations from covariates stack of raster images
   #Eventually this step may be skipped if the covariates information is stored in the database...
   
-  s_raster<-stack(infile3)                   #read in the data stack
+  s_raster<-stack(file.path(in_path,infile3))                   #read in the data stack
   names(s_raster)<-covar_names               #Assigning names to the raster layers: making sure it is included in the extraction
   stat_val<- extract(s_raster, data_reg)        #Extracting values from the raster stack for every point location in coords data frame.
   
@@ -192,7 +194,7 @@ database_covariates_preparation<-function(list_param_prep){
   }
   
   #write out a new shapefile (including .prj component)
-  outfile4<-file.path(in_path,paste("daily_covariates_ghcn_data_",var,"_",range_years[1],"_",range_years[2],out_prefix,".shp",sep=""))         #Name of the file
+  outfile4<-file.path(out_path,paste("daily_covariates_ghcn_data_",var,"_",range_years[1],"_",range_years[2],out_prefix,".shp",sep=""))         #Name of the file
   writeOGR(data_RST_SDF,dsn= dirname(outfile4),layer= sub(".shp","",basename(outfile4)), driver="ESRI Shapefile",overwrite_layer=TRUE)
   
   ###############################################################
@@ -224,7 +226,7 @@ database_covariates_preparation<-function(list_param_prep){
   coordinates(data_m)<-coords                      #Assign coordinates to the data frame
   proj4string(data_m)<-CRS_locs_WGS84                  #Assign coordinates reference system in PROJ4 format
   data_m<-spTransform(data_m,CRS(CRS_interp))     #Project from WGS84 to new coord. system
-  outfile5<-file.path(in_path,paste("monthly_query_ghcn_data_",var,"_",year_start_clim,"_",year_end_clim,out_prefix,".shp",sep=""))  #Name of the file
+  outfile5<-file.path(out_path,paste("monthly_query_ghcn_data_",var,"_",year_start_clim,"_",year_end_clim,out_prefix,".shp",sep=""))  #Name of the file
   writeOGR(data_m,dsn= dirname(outfile5),layer= sub(".shp","",basename(outfile5)), driver="ESRI Shapefile",overwrite_layer=TRUE)
   
   #In Venezuela and other regions where there are not many stations...mflag==S should be added..see Durenne etal.2010.
@@ -282,7 +284,7 @@ database_covariates_preparation<-function(list_param_prep){
   ####
   #write out a new shapefile (including .prj component)
   dst$OID<-1:nrow(dst) #need a unique ID?
-  outfile6<-file.path(in_path,paste("monthly_covariates_ghcn_data_",var,"_",year_start_clim,"_",year_end_clim,out_prefix,".shp",sep=""))  #Name of the file
+  outfile6<-file.path(out_path,paste("monthly_covariates_ghcn_data_",var,"_",year_start_clim,"_",year_end_clim,out_prefix,".shp",sep=""))  #Name of the file
   writeOGR(dst,dsn= dirname(outfile6),layer= sub(".shp","",basename(outfile6)), driver="ESRI Shapefile",overwrite_layer=TRUE)
   
   ### list of outputs return
