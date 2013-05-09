@@ -2,7 +2,7 @@
 
 #The interpolation is done first at the monthly add delta.
 #AUTHOR: Benoit Parmentier                                                                        
-#DATE: 05/01/2013                                                                                 
+#DATE: 05/06/2013                                                                                 
 
 #Change this to allow explicitly arguments...
 #Arguments: 
@@ -71,6 +71,7 @@ calculate_accuracy_metrics<-function(i,list_param){
   ############### BEGIN SCRIPT ###########
   
   #PARSING INPUT PARAMETERS
+  out_path <- list_param$out_path
   day_list<- list_param$rast_day_year_list[[i]]
   #day_list <-rast_day_yearlist[[i]] #list of prediction for the current date...
   names_mod<-names(day_list)
@@ -103,10 +104,14 @@ calculate_accuracy_metrics<-function(i,list_param){
   run_info<-cbind(sampling_dat_day,n=nv)
   run_info[rep(seq_len(nrow(run_info)), each=N),] #repeating same row n times
   metrics_v_df<-cbind(metrics_v_obj$metrics,run_info)
+  metrics_v_df["var_interp"]<-rep(y_var_name,times=nrow(metrics_v_df)) 
+  #Name of the variable interpolated, useful for cross-comparison between methods at later stages
   
   run_info<-cbind(sampling_dat_day,n=ns)
   run_info[rep(seq_len(nrow(run_info)), each=N),]
   metrics_s_df<-cbind(metrics_s_obj$metrics,run_info)
+  metrics_s_df["var_interp"]<-rep(y_var_name,times=nrow(metrics_s_df)) 
+  #Name of the variable interpolated, useful for cross-comparison between methods at later stages
   
   data_v<-spCbind(data_v,metrics_v_obj$residuals)
   data_s<-spCbind(data_s,metrics_s_obj$residuals)
@@ -131,20 +136,24 @@ extract_from_list_obj<-function(obj_list,list_name){
 
 #### Function to plot boxplot from data.frame table of accuracy metrics
 
-boxplot_from_tb <-function(tb_diagnostic,metric_names,out_prefix){
+boxplot_from_tb <-function(tb_diagnostic,metric_names,out_prefix,out_path){
   #now boxplots and mean per models
   library(gdata) #Nesssary to use cbindX
   
   ### Start script
+  y_var_name<-unique(tb_diagnostic$var_interp) #extract the name of interpolated variable: dailyTmax, dailyTmin
   
   mod_names<-sort(unique(tb_diagnostic$pred_mod)) #models that have accuracy metrics
   t<-melt(tb_diagnostic,
           #measure=mod_var, 
           id=c("date","pred_mod","prop"),
           na.rm=F)
+  t$value<-as.numeric(t$value) #problem with char!!!
   avg_tb<-cast(t,pred_mod~variable,mean)
-  
+  avg_tb$var_interp<-rep(y_var_name,times=nrow(avg_tb))
   median_tb<-cast(t,pred_mod~variable,median)
+  
+  #avg_tb<-cast(t,pred_mod~variable,mean)
   tb<-tb_diagnostic
  
   #mod_names<-sort(unique(tb$pred_mod)) #kept for clarity
@@ -162,9 +171,20 @@ boxplot_from_tb <-function(tb_diagnostic,metric_names,out_prefix){
     mod_var<-grep(mod_pat,names(mod_metrics),value=TRUE) # using grep with "value" extracts the matching names     
     #browser()
     test<-mod_metrics[mod_var]
-    png(paste("boxplot_metric_",metric_ac, out_prefix,".png", sep=""))
+    png(file.path(out_path,paste("boxplot_metric_",metric_ac, out_prefix,".png", sep="")))
+    #boxplot(test,outline=FALSE,horizontal=FALSE,cex=0.5,
+    #        ylab=paste(metric_ac,"in degree C",sep=" "))
+    
     boxplot(test,outline=FALSE,horizontal=FALSE,cex=0.5,
-            ylab=paste(metric_ac,"in degree C",sep=" "))
+              ylab=paste(metric_ac,"in degree C",sep=" "),axisnames=FALSE,axes=FALSE)
+    axis(1, labels = FALSE)
+    ## Create some text labels
+    labels <- labels<- names(test)
+    ## Plot x axis labels at default tick marks
+    text(1:ncol(test), par("usr")[3] - 0.25, srt = 45, adj = 1,
+         labels = labels, xpd = TRUE)
+    axis(2)
+    box()
     #legend("bottomleft",legend=paste(names(rows_total),":",rows_total,sep=""),cex=0.7,bty="n")
     #title(as.character(t(paste(t(names(rows_total)),":",rows_total,sep=""))),cex=0.8)
     title(paste(metric_ac,"for",y_var_name,sep=" "),cex=0.8)
@@ -174,11 +194,12 @@ boxplot_from_tb <-function(tb_diagnostic,metric_names,out_prefix){
   avg_tb$n<-rows_total #total number of predictions on which the mean is based
   median_tb$n<-rows_total
   summary_obj<-list(avg_tb,median_tb)
+  names(summary_obj)<-c("avg","median")
   return(summary_obj)  
 }
-#boxplot_month_from_tb(tb_diagnostic,metric_names,out_prefix)
+#boxplot_month_from_tb(tb_diagnostic,metric_names,out_prefix,out_path)
 ## Function to display metrics by months/seasons
-boxplot_month_from_tb <-function(tb_diagnostic,metric_names,out_prefix){
+boxplot_month_from_tb <-function(tb_diagnostic,metric_names,out_prefix,out_path){
   
   #Generate boxplot per month for models and accuracy metrics
   #Input parameters:
@@ -189,7 +210,7 @@ boxplot_month_from_tb <-function(tb_diagnostic,metric_names,out_prefix){
   
   #################
   ## BEGIN
-  
+  y_var_name<-unique(tb_diagnostic$var_interp) #extract the name of interpolated variable: dailyTmax, dailyTmin  
   date_f<-strptime(tb_diagnostic$date, "%Y%m%d")   # interpolation date being processed
   tb_diagnostic$month<-strftime(date_f, "%m")          # current month of the date being processed
   mod_names<-sort(unique(tb_diagnostic$pred_mod)) #models that have accuracy metrics
@@ -199,11 +220,14 @@ boxplot_month_from_tb <-function(tb_diagnostic,metric_names,out_prefix){
           #measure=mod_var, 
           id=c("date","pred_mod","prop","month"),
           na.rm=F)
+  t$value<-as.numeric(t$value) #problem with char!!!
   tb_mod_m_avg <-cast(t,pred_mod+month~variable,mean) #monthly mean for every model
+  tb_mod_m_avg$var_interp<-rep(y_var_name,times=nrow(tb_mod_m_avg))
+  
   tb_mod_m_sd <-cast(t,pred_mod+month~variable,sd)   #monthly sd for every model
   
-  tb_mod_m_list <-lapply(mod_names, function(k) subset(tb_mod_m, pred_mod==k)) #this creates a list of 5 based on models names
-
+  tb_mod_m_list <-lapply(mod_names, function(k) subset(tb_mod_m_avg, pred_mod==k)) #this creates a list of 5 based on models names
+  
   for (k in 1:length(mod_names)){
     mod_metrics <-tb_mod_list[[k]]
     current_mod_name<- mod_names[k]
@@ -211,9 +235,19 @@ boxplot_month_from_tb <-function(tb_diagnostic,metric_names,out_prefix){
       metric_ac<-metric_names[j]
       col_selected<-c(metric_ac,"month")
       test<-mod_metrics[col_selected]
-      png(paste("boxplot_metric_",metric_ac,"_",current_mod_name,"_by_month_",out_prefix,".png", sep=""))
+      png(file.path(out_path,paste("boxplot_metric_",metric_ac,"_",current_mod_name,"_by_month_",out_prefix,".png", sep="")))
       boxplot(test[[metric_ac]]~test[[c("month")]],outline=FALSE,horizontal=FALSE,cex=0.5,
-              ylab=paste(metric_ac,"in degree C",sep=" "))
+              ylab=paste(metric_ac,"in degree C",sep=" "),,axisnames=FALSE,axes=FALSE)
+      #boxplot(test[[metric_ac]]~test[[c("month")]],outline=FALSE,horizontal=FALSE,cex=0.5,
+      #        ylab=paste(metric_ac,"in degree C",sep=" "))
+      axis(1, labels = FALSE)
+      ## Create some text labels
+      labels <- month.abb # abbreviated names for each month
+      ## Plot x axis labels at default tick marks
+      text(1:length(labels), par("usr")[3] - 0.25, srt = 45, adj = 1,
+           labels = labels, xpd = TRUE)
+      axis(2)
+      box()
       #legend("bottomleft",legend=paste(names(rows_total),":",rows_total,sep=""),cex=0.7,bty="n")
       title(paste(metric_ac,"for",current_mod_name,"by month",sep=" "))
       dev.off()
