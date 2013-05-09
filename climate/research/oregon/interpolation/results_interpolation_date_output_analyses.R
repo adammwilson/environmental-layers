@@ -4,29 +4,14 @@
 #Part 1: Script produces plots for every selected date
 #Part 2: Examine 
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 04/16/2013                                                                                 
+#DATE: 05/10/2013                                                                                 
 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#???--   
 
-##Comments and TODO:
-#Separate inteprolation results analyses from covariates analyses 
-
 ##################################################################################################
 
-###Loading R library and packages   
-library(RPostgreSQL)
-library(sp)                                             # Spatial pacakge with class definition by Bivand et al.
-library(spdep)                                          # Spatial pacakge with methods and spatial stat. by Bivand et al.
-library(rgdal)                                          # GDAL wrapper for R, spatial utilities
-library(raster)
-library(gtools)
-library(rasterVis)
-library(graphics)
-library(grid)
-library(lattice)
 
 ### Parameters and arguments
-
 ##Paths to inputs and output
 #Select relevant dates and load R objects created during the interpolation step
 
@@ -56,34 +41,53 @@ library(lattice)
 #names(list_param_results_analyses)<-c("in_path","out_path","script_path","raster_prediction_obj", "interpolation_method",
 #                     "infile_covar","covar_names","date_selected","var","out_prefix")
 
-#setwd(in_path)
-
-## make this a script that calls several function:
-#1) covariate script
-#2) plots by dates
-#3) number of data points monthly and daily
-
-### Functions used in the script
-
-load_obj <- function(f) 
-{
-  env <- new.env()
-  nm <- load(f, env)[1]	
-  env[[nm]]
-}
-
-
-### PLOTTING RESULTS FROM VENEZUELA INTERPOLATION FOR ANALYSIS
-#source(file.path(script_path,"results_interpolation_date_output_analyses_04022013.R"))
-#j=1
-#plots_assessment_by_date(1,list_param_results_analyses)
-
-
 plots_assessment_by_date<-function(j,list_param){
+  ###Function to assess results from interpolation predictions
+  #AUTHOR: Benoit Parmentier                                                                       
+  #DATE: 05/10/2013                                                                                 
+  #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363--   
   
-  date_selected<-list_param$date_selected
-  var<-list_param$var
+  #1) in_path
+  #2) out_path
+  #3) script_path
+  #4) raster_prediction_obj
+  #5) interpolation_method
+  #6) infile_covariates
+  #7) covar_names
+  #8) date_selected_results
+  #9) var
+  #10) out_prefix
+  
+  ###Loading R library and packages   
+  library(RPostgreSQL)
+  library(sp)                                             # Spatial pacakge with class definition by Bivand et al.
+  library(spdep)                                          # Spatial pacakge with methods and spatial stat. by Bivand et al.
+  library(rgdal)                                          # GDAL wrapper for R, spatial utilities
+  library(raster)
+  library(gtools)
+  library(rasterVis)
+  library(graphics)
+  library(grid)
+  library(lattice)
+  
+  ## Function(s) used in script
+  
+  load_obj <- function(f) 
+  {
+    env <- new.env()
+    nm <- load(f, env)[1]  
+    env[[nm]]
+  }
+  
+  ### BEGIN SCRIPT
+  #Parse input parameters
+  
+  date_selected<-list_param$date_selected_results #dates for plot creation
+  var<-list_param$var #variable being interpolated
+  out_path <- list_param$out_path
   interpolation_method <- list_param$interpolation_method
+  infile_covariates <- list_param$infile_covariates
+  covar_names<-list_param$covar_names
   
   raster_prediction_obj<-list_param$raster_prediction_obj
   method_mod_obj<-raster_prediction_obj$method_mod_obj
@@ -99,9 +103,8 @@ plots_assessment_by_date<-function(j,list_param){
     y_var_month <-"TMin"
   }
   
-  ## Read covariate stack...
-  covar_names<-list_param$covar_names
-  s_raster<-brick(infile_covar)                   #read in the data stack
+  ## Read covariate brick...
+  s_raster<-brick(infile_covariates)
   names(s_raster)<-covar_names               #Assigning names to the raster layers: making sure it is included in the extraction
   
   ## Prepare study area  mask: based on LC12 (water)
@@ -128,8 +131,9 @@ plots_assessment_by_date<-function(j,list_param){
   
   #Get raster stack of interpolated surfaces
   index<-i_dates[[j]]
-  pred_temp<-as.character(method_mod_obj[[index]][[y_var_name]]) #list of files
-  rast_pred_temp<-stack(pred_temp) #stack of temperature predictions from models 
+  pred_temp<-as.character(method_mod_obj[[index]][[y_var_name]]) #list of files with path included
+  rast_pred_temp_s <-stack(pred_temp) #stack of temperature predictions from models (daily)
+  rast_pred_temp <-mask(rast_pred_temp_s,LC_mask,file=file.path(out_path,"test.tif"),overwrite=TRUE)
   
   #Get validation metrics, daily spdf training and testing stations, monthly spdf station input
   sampling_dat<-method_mod_obj[[index]]$sampling_dat
@@ -144,11 +148,11 @@ plots_assessment_by_date<-function(j,list_param){
   #The names of covariates can be changed...
   
   LST_month<-paste("mm_",month,sep="") # name of LST month to be matched
-  pos<-match("LST",layerNames(s_raster)) #Find the position of the layer with name "LST", if not present pos=NA
+  pos<-match("LST",names(s_raster)) #Find the position of the layer with name "LST", if not present pos=NA
   s_raster<-dropLayer(s_raster,pos)      # If it exists drop layer
-  pos<-match(LST_month,layerNames(s_raster)) #Find column with the current month for instance mm12
+  pos<-match(LST_month,names(s_raster)) #Find column with the current month for instance mm12
   r1<-raster(s_raster,layer=pos)             #Select layer from stack
-  layerNames(r1)<-"LST"
+  names(r1)<-"LST"
   #Get mask image!!
   
   date_proc<-strptime(sampling_dat$date, "%Y%m%d")   # interpolation date being processed
@@ -162,8 +166,8 @@ plots_assessment_by_date<-function(j,list_param){
   rmse<-metrics_v$rmse[nrow(metrics_v)]
   rmse_f<-metrics_s$rmse[nrow(metrics_s)]  
   
-  png(paste("LST_",y_var_month,"_scatterplot_",sampling_dat$date,"_",sampling_dat$prop,"_",sampling_dat$run_samp,
-            out_prefix,".png", sep=""))
+  png(file.path(out_path,paste("LST_",y_var_month,"_scatterplot_",sampling_dat$date,"_",sampling_dat$prop,"_",sampling_dat$run_samp,
+            out_prefix,".png", sep="")))
   plot(data_month[[y_var_month]],data_month$LST,xlab=paste("Station mo ",y_var_month,sep=""),ylab=paste("LST mo ",y_var_month,sep=""))
   title(paste("LST vs ", y_var_month,"for",datelabel,sep=" "))
   abline(0,1)
@@ -175,8 +179,8 @@ plots_assessment_by_date<-function(j,list_param){
   
   ## Figure 2: Daily_tmax_monthly_TMax_scatterplot, modify for TMin!!
   
-  png(paste("Monhth_day_scatterplot_",y_var_name,"_",y_var_month,"_",sampling_dat$date,"_",sampling_dat$prop,"_",sampling_dat$run_samp,
-            out_prefix,".png", sep=""))
+  png(file.path(out_path,paste("Month_day_scatterplot_",y_var_name,"_",y_var_month,"_",sampling_dat$date,"_",sampling_dat$prop,"_",sampling_dat$run_samp,
+            out_prefix,".png", sep="")))
   plot(data_s[[y_var_name]]~data_s[[y_var_month]],xlab=paste("Month") ,ylab=paste("Daily for",datelabel),main="across stations in VE")
   nb_point<-paste("ns=",length(data_s[[y_var_month]]),sep="")
   nb_point2<-paste("ns_obs=",length(data_s[[y_var_month]])-sum(is.na(data_s[[y_var_name]])),sep="")
@@ -190,8 +194,8 @@ plots_assessment_by_date<-function(j,list_param){
   #This is for mod_kr!! add other models later...
   model_name<-"mod_kr" #can be looped through models later on...
   
-  png(paste("Predicted_versus_observed_scatterplot_",y_var_name,"_",model_name,"_",sampling_dat$date,"_",sampling_dat$prop,"_",
-            sampling_dat$run_samp,out_prefix,".png", sep=""))
+  png(file.path(out_path,paste("Predicted_versus_observed_scatterplot_",y_var_name,"_",model_name,"_",sampling_dat$date,"_",sampling_dat$prop,"_",
+            sampling_dat$run_samp,out_prefix,".png", sep="")))
   y_range<-range(c(data_s[[model_name]],data_v[[model_name]]),na.rm=T)
   x_range<-range(c(data_s[[y_var_name]],data_v[[y_var_name]]),na.rm=T)
   col_t<- c("black","red")
@@ -215,8 +219,8 @@ plots_assessment_by_date<-function(j,list_param){
   dev.off()
   
   ## Figure 4a: prediction raster images
-  png(paste("Raster_prediction_",y_var_name,"_",sampling_dat$date,"_",sampling_dat$prop,"_",sampling_dat$run_samp,
-            out_prefix,".png", sep=""))
+  png(file.path(out_path,paste("Raster_prediction_",y_var_name,"_",sampling_dat$date,"_",sampling_dat$prop,"_",sampling_dat$run_samp,
+            out_prefix,".png", sep="")))
   #paste(metrics_v$pred_mod,format(metrics_v$rmse,digits=3),sep=":")
   names(rast_pred_temp)<-paste(metrics_v$pred_mod,format(metrics_v$rmse,digits=3),sep=":")
   #plot(rast_pred_temp)
@@ -224,17 +228,16 @@ plots_assessment_by_date<-function(j,list_param){
   dev.off()
   
   ## Figure 4b: prediction raster images
-  png(paste("Raster_prediction_plot",sampling_dat$date,"_",sampling_dat$prop,"_",sampling_dat$run_samp,
-            out_prefix,".png", sep=""))
+  png(file.path(out_path,paste("Raster_prediction_plot",sampling_dat$date,"_",sampling_dat$prop,"_",sampling_dat$run_samp,
+            out_prefix,".png", sep="")))
   #paste(metrics_v$pred_mod,format(metrics_v$rmse,digits=3),sep=":")
   names(rast_pred_temp)<-paste(metrics_v$pred_mod,format(metrics_v$rmse,digits=3),sep=":")
-  #plot(rast_pred_temp)
   plot(rast_pred_temp)
   dev.off()
   
   ## Figure 5: training and testing stations used
-  png(paste("Training_testing_stations_map_",y_var_name,"_",sampling_dat$date,"_",sampling_dat$prop,"_",sampling_dat$run_samp,
-            out_prefix,".png", sep=""))
+  png(file.path(out_path,paste("Training_testing_stations_map_",y_var_name,"_",sampling_dat$date,"_",sampling_dat$prop,"_",sampling_dat$run_samp,
+            out_prefix,".png", sep="")))
   plot(raster(rast_pred_temp,layer=5))
   plot(data_s,col="black",cex=1.2,pch=2,add=TRUE)
   plot(data_v,col="red",cex=1.2,pch=1,add=TRUE)
@@ -245,8 +248,8 @@ plots_assessment_by_date<-function(j,list_param){
   
   ## Figure 6: monthly stations used
   
-  png(paste("Monthly_data_study_area_", y_var_name,
-            out_prefix,".png", sep=""))
+  png(file.path(out_path,paste("Monthly_data_study_area_", y_var_name,
+            out_prefix,".png", sep="")))
   plot(raster(rast_pred_temp,layer=5))
   plot(data_month,col="black",cex=1.2,pch=4,add=TRUE)
   title("Monthly ghcn station in Venezuela for January")
@@ -255,26 +258,28 @@ plots_assessment_by_date<-function(j,list_param){
   ## Figure 7: delta surface and bias
   
   if (interpolation_method=="gam_fus"){
-    png(paste("Bias_delta_surface_",y_var_name,"_",sampling_dat$date[i],"_",sampling_dat$prop[i],
-              "_",sampling_dat$run_samp[i],out_prefix,".png", sep=""))
+    png(file.path(out_path,paste("Bias_delta_surface_",y_var_name,"_",sampling_dat$date[i],"_",sampling_dat$prop[i],
+              "_",sampling_dat$run_samp[i],out_prefix,".png", sep="")))
     
     bias_rast<-stack(clim_method_mod_obj[[index]]$bias)
     delta_rast<-raster(method_mod_obj[[index]]$delta) #only one delta image!!!
     names(delta_rast)<-"delta"
     rast_temp_date<-stack(bias_rast,delta_rast)
-    rast_temp_date<-mask(rast_temp_date,LC_mask,file="test.tif",overwrite=TRUE)
+    rast_temp_date<-mask(rast_temp_date,LC_mask,file=file.path(out_path,"test.tif"),overwrite=TRUE)
     #bias_d_rast<-raster("fusion_bias_LST_20100103_30_1_10d_GAM_fus5_all_lstd_02082013.rst")
     plot(rast_temp_date)
     dev.off()
   }
 
   if (interpolation_method=="gam_CAI"){
-    png(paste("clim_surface_",y_var_name,"_",sampling_dat$date[i],"_",sampling_dat$prop[i],
-              "_",sampling_dat$run_samp[i],out_prefix,".png", sep=""))
+    png(file.path(out_path,paste("clim_surface_",y_var_name,"_",sampling_dat$date[i],"_",sampling_dat$prop[i],
+              "_",sampling_dat$run_samp[i],out_prefix,".png", sep="")))
     
     clim_rast<-stack(clim_method_mod_obj[[index]]$clim)
+    delta_rast<-raster(method_mod_obj[[index]]$delta) #only one delta image!!!
+    names(delta_rast)<-"delta"
     rast_temp_date<-stack(clim_rast,delta_rast)
-    rast_temp_date<-mask(rast_temp_date,LC_mask,file="test.tif",overwrite=TRUE)
+    rast_temp_date<-mask(rast_temp_date,LC_mask,file=file.path(out_path,"test.tif"),overwrite=TRUE)
     #bias_d_rast<-raster("fusion_bias_LST_20100103_30_1_10d_GAM_fus5_all_lstd_02082013.rst")
     plot(rast_temp_date)
     
@@ -285,6 +290,7 @@ plots_assessment_by_date<-function(j,list_param){
   
   #histogram(rast_pred_temp)
   list_output_analyses<-list(metrics_s,metrics_v)
+  names(list_output_analyses) <- c("metrics_s", "metrics_v")
   return(list_output_analyses)
   
 }
