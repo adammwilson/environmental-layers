@@ -23,7 +23,7 @@ Created on Fri Oct 26 23:48:57 2012
 #  - deal with nightly LST too?
 #  - deal with more than just first two bits of QC flags?
 #     e.g.: r.mapcalc 'qc_level2 = (qc>>2) & 0x03'   
-#     0x03?? that means 0000_0011 and >>2 means shit twice on the right for 
+#     0x03?? that means 0000_0011 and >>2 means shift twice on the right for 
 #  - record all downloads to a log file?
 #
 # Jim Regetz
@@ -37,6 +37,7 @@ import os, glob
 import datetime, calendar
 import ftplib
 import grass.script as gs
+import argparse
 
 #from datetime import date
 #from datetime import datetime
@@ -90,42 +91,7 @@ def date_sequence(year_start,month_start,day_start,year_end,month_end,day_end):
         
     return(date_seq)
 
-#Added on January 16, 2012 by Benoit NCEAS
-def list_raster_per_month(listmaps):
-    """Determine starting and ending numeric day-of-year (doy)
-    asscociated with the specified month and year.
-
-    Arguments:
-    maplist -- list of raster grass-digit integer year
-    month -- integer month (1-12)
-    year_range -- list of years
-
-    Returns tuple of start and end doy for that month/year.
-    """
-    list_maps_month=list()
-    nb_month=12
-    for i in range(1,nb_month+1):
-        #i=i+1
-        #filename = listfiles_wd2[i] #list the files of interest
-        #monthlist[:]=[] #empty the list
-        monthlist=list()
-        #monthlist2[:]=[] #empty the list
-        j=0  #counter
-        for mapname in listmaps:
-            #tmp_str=LST[0]
-            date_map=mapname.split('_')[1][1:8]
-            #date = filename[filename.rfind('_MOD')-8:filename.rfind('_MOD')]
-            d=datetime.datetime.strptime(date_map,'%Y%j') #This produces a date object from a string extracted from the file name.
-            month=d.strftime('%m') #Extract the month of the current map
-            if int(month)==i:
-                #monthlist.append(listmaps[j])
-                monthlist.append(mapname)
-                #monthlist2.append(listmaps[j])
-            j=j+1
-        list_maps_month.append(monthlist)   #This is a list of a list containing a list for each month
-        #list_files2.append(monthlist2)
-    return(list_maps_month)    
-    
+   
 # quick function to return list of dirs in wd
 def list_contents(ftp):
     """Parse ftp directory listing into list of names of the files
@@ -218,6 +184,43 @@ def get_hdf_paths(hdfdir, tile, start_doy, end_doy, year):
         hdfs.append(os.path.abspath(files[0]))
     return hdfs
 
+#Added on January 16, 2012 by Benoit NCEAS
+def list_raster_per_month(listmaps):
+    """Determine starting and ending numeric day-of-year (doy)
+    asscociated with the specified month and year.
+
+    Arguments:
+    maplist -- list of raster grass-digit integer year
+    month -- integer month (1-12)
+    year_range -- list of years
+
+    Returns tuple of start and end doy for that month/year.
+    """
+    list_maps_month=list()
+    nb_month=12
+    for i in range(1,nb_month+1):
+        #i=i+1
+        #filename = listfiles_wd2[i] #list the files of interest
+        #monthlist[:]=[] #empty the list
+        monthlist=list()
+        #monthlist2[:]=[] #empty the list
+        j=0  #counter
+        for mapname in listmaps:
+            #tmp_str=LST[0]
+            date_map=mapname.split('_')[1][1:8]
+            #date = filename[filename.rfind('_MOD')-8:filename.rfind('_MOD')]
+            d=datetime.datetime.strptime(date_map,'%Y%j') #This produces a date object from a string extracted from the file name.
+            month=d.strftime('%m') #Extract the month of the current map
+            if int(month)==i:
+                #monthlist.append(listmaps[j])
+                monthlist.append(mapname)
+                #monthlist2.append(listmaps[j])
+            j=j+1
+        list_maps_month.append(monthlist)   #This is a list of a list containing a list for each month
+        #list_files2.append(monthlist2)
+    return(list_maps_month)    
+
+
 def calc_clim(maplist, name, overwrite=False):
     """Generate some climatalogies in GRASS based on the input list of
     maps. As usual, current GRASS region settings apply. Produces the
@@ -285,29 +288,54 @@ def main():
     #     proj4='+proj=sinu +a=6371007.181 +b=6371007.181 +ellps=sphere')
     ##    proj4='+proj=sinu +R=6371007.181 +nadgrids=@null +wktext')
 
- 
-    #### MOdified by Benoit in March 2013 
+    ########## START OF SCRIPT ##############
+    #### Modified by Benoit on May 13, 2013 
     
-    #Parameters
-    #Inputs from R??
-    tiles = ['h11v08','h11v07','h12v07','h12v08','h10v07','h10v08'] #These tiles correspond to Venezuela.
-    start_year = 2001
-    end_year = 2010
-    end_month=12
-    start_month=1
-    hdfdir =  '/home/parmentier/Data/benoit_test' #destination file where hdf files are stored locally after download.
-    night=1    # if 1 then produce night climatology
-    out_suffix="_03192013"
-    download=1  # if 1 then download files
+    ### INPUT Parameters
+    #Inputs from R?? there are 9 parameters
+   #tiles = ['h11v08','h11v07','h12v07','h12v08','h10v07','h10v08'] #These tiles correspond to Venezuela.
+    tiles= ['h12v08']    
+    #start_year = 2001
+    #end_year = 2010
+    #start_month=1
+    #end_month=12
+    #hdfdir =  '/home/layers/commons/modis/MOD11A1_tiles' #destination file where hdf files are stored locally after download.
+    #night=1    # if 1 then produce night climatology
+    #out_suffix="_03192013"
+    #download=1  # if 1 then download files
+ 
+    parser = argparse.ArgumentParser()
+    parser.add_argument("tiles", type=str, help="list of Modis tiles")
+    parser.add_argument("start_year", type=int, help="start year")
+    parser.add_argument("end_year", type=int, help="end year")
+    parser.add_argument("start_month", type=int, help="start month")
+    parser.add_argument("end_month", type=int, help="end month")
+    parser.add_argument("hdfdir", type=str, help="destination/source directory for hdf file")
+    parser.add_argument("night", type=int, help="night")
+    parser.add_argument("download", type=int, help="out_suffix")
+    parser.add_argument("out_suffix", type=str, help="out_suffix")
+
+    myargs = parser.parse_args()
+
+    tiles = myargs.tiles #These tiles correspond to Venezuela.
+    start_year = myargs.start_year
+    end_year = myargs.start_year 
+    end_month = myargs.end_month
+    start_month= myargs.start_month
+    hdfdir =  myargs.hdfdir
+    night= myargs.night    # if 1 then produce night climatology
+    out_suffix= myargs.out_suffix #"_03192013"
+    download=myargs.download# if 1 then download files
+    
+    tiles =tiles.split(",") #Create a list from string
+    #need to add on the fly creation of folder for each tile!!
     
     ################## First step: download data ###################
     # Added tile loop 
     year_list=range(start_year,end_year+1) #list of year to loop through
-    #for testing...
-    #year_list=[2001,2002]
-    #hdfdir = '/home/parmentier/Data/benoit_test2' 
-    #tiles = ['h10v07','h10v08','h12v07']
+
     if download==1:
+        
         for tile in tiles:
             for year in year_list:
                 start_doy = 1
@@ -320,9 +348,6 @@ def main():
     # modify loop to take into account "hdfs", list of hdf files needed in the next steps…  
     ################# Second step: compute climatology #################
     ## Process tile by tile...
-    ##start loop for tile
-    #tile= 'h12v08'
-    #tiles = ['h12v07','h12v08']
     var_name = ['LST_Day_1km','LST_Night_1km']
     if night==1:
         lst_var = var_name[1]
@@ -388,14 +413,17 @@ def main():
                     gs.mapcalc(' clim_rescaled = ('+ clims[j-1 ]+ ' * 0.02) -273.15')  
                     gs.run_command('r.out.gdal', input= 'clim_rescaled', output=clims[j-1]+ out_suffix+'.tif', type='Float32')
         #clims = calc_clim(LST, 'LST_%s_%d_%02d' % (tile, year, month))
-        # clean up  if necessary
         
-        #gs.run_command('g.remove', rast=','.join(LST))
-        #gs.os.environ['GRASS_OVERWRITE'] = '0'
+        # clean up GRASS DATABASE 
         
-        # clean up
-        #gs.run_command('g.gisenv', set='LOCATION_NAME=%s' % orig_location)
-        #gs.run_command('g.gisenv', set='MAPSET=%s' % orig_mapset)
-        #shutil.rmtree(os.path.join(gs.gisenv()['GISDBASE'], tmp_location))
+        gs.run_command('g.remove', rast=','.join(LST))
+        gs.os.environ['GRASS_OVERWRITE'] = '0'
+        
+        #clean up
+        gs.run_command('g.gisenv', set='LOCATION_NAME=%s' % orig_location)
+        gs.run_command('g.gisenv', set='MAPSET=%s' % orig_mapset)
+        shutil.rmtree(os.path.join(gs.gisenv()['GISDBASE'], tmp_location))
 
     return None
+
+
