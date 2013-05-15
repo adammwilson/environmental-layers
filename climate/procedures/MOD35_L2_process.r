@@ -44,13 +44,12 @@ verbose=T
 date=opta$date  
 tile=opta$tile 
 verbose=opta$verbose  #print out extensive information for debugging?
-outdir=paste("daily/",tile,"/",sep="")  #directory for separate daily files
 ## get year and doy from date
 year=format(as.Date(date,"%Y%m%d"),"%Y")
 doy=format(as.Date(date,"%Y%m%d"),"%j")
 
 if(platform=="pleiades"){
-  ## location of MOD06 files
+  ## location of MOD35 files
   datadir=paste("/nobackupp4/datapool/modis/MOD35_L2.006/",year,"/",doy,"/",sep="")
   ## path to some executables
   ncopath="/nasa/sles11/nco/4.0.8/gcc/mpt/bin/"
@@ -58,7 +57,10 @@ if(platform=="pleiades"){
   ## path to swath database
   db="/nobackupp4/pvotava/DB/export/swath_geo.sql.sqlite3.db"
   ## specify working directory
-  setwd("/nobackupp1/awilso10/mod35")
+  outdir=paste("daily/",tile,"/",sep="")  #directory for separate daily files
+  basedir="/nobackupp1/awilso10/mod35/tmp/" #directory to hold files temporarily before transferring to lou
+  setwd(tempdir())
+  ## grass database
   gisBase="/u/armichae/pr/grass-6.4.2/"
   ## path to MOD11A1 file for this tile to align grid/extent
   gridfile=list.files("/nobackupp4/datapool/modis/MOD11A1.005/2006.01.27",pattern=paste(tile,".*[.]hdf$",sep=""),recursive=T,full=T)[1]
@@ -69,6 +71,8 @@ if(platform=="pleiades"){
 if(platform=="litoria"){  #if running on local server, use different paths
   ## specify working directory
   setwd("~/acrobates/adamw/projects/interp")
+  outdir=paste("daily/",tile,"/",sep="")  #directory for separate daily files
+  basedir=outdir
   gisBase="/usr/lib/grass64"
    ## location of MOD06 files
   datadir="~/acrobates/adamw/projects/interp/data/modis/mod35"
@@ -87,10 +91,14 @@ if(platform=="litoria"){  #if running on local server, use different paths
 if(verbose) print(paste("Processing tile",tile," for date",date))
 
 ## load tile information and get bounding box
-load(file="modlandTiles.Rdata")
+load(file="/nobackupp1/awilso10/mod35/modlandTiles.Rdata")
 tile_bb=tb[tb$tile==tile,] ## identify tile of interest
-upleft=paste(tile_bb$lat_max,tile_bb$lon_min) #northwest corner
-lowright=paste(tile_bb$lat_min,tile_bb$lon_max) #southeast corner
+
+## get bounds of swath to keep and feed into grass when generating tile
+## expand a little (0.5 deg) to ensure that there is no clipping of pixels on the edges
+## tile will later be aligned with MODLAND tile so the extra will eventually be trimmed
+upleft=paste(min(90,tile_bb$lat_max+.5),max(-180,tile_bb$lon_min-.5)) #northwest corner
+lowright=paste(max(-90,tile_bb$lat_min-0.5),min(180,tile_bb$lon_max+0.5)) #southeast corner
 
 
 ## vars to process
@@ -181,9 +189,6 @@ if(!any(file.exists(outfiles))) {
 #####################################################
 ## Process the gridded files to align exactly with MODLAND tile and produce a daily summary of multiple swaths
   
-## Identify output file
-ncfile=paste(outdir,"/MOD35_",tile,"_",date,".nc",sep="")  #this is the 'final' daily output file
-
 ## function to convert binary to decimal to assist in identifying correct values
 ## this is helpful when defining QA handling below, but isn't used in processing
 ## b2d=function(x) sum(x * 2^(rev(seq_along(x)) - 1)) #http://tolstoy.newcastle.edu.au/R/e2/help/07/02/10596.html
@@ -200,8 +205,10 @@ ncfile=paste(outdir,"/MOD35_",tile,"_",date,".nc",sep="")  #this is the 'final' 
   tf=paste(tempdir(),"/grass", Sys.getpid(),"/", sep="")  #temporar
   if(!file.exists(tf)) dir.create(tf)
   ## create output directory if needed
-  if(!file.exists(dirname(ncfile))) dir.create(dirname(ncfile),recursive=T)
-  
+  ## Identify output file
+  ncfile=paste(basedir,"MOD35_",tile,"_",date,".nc",sep="")  #this is the 'final' daily output file
+  if(!file.exists(dirname(ncfile))) dir.create(dirname(ncfile))
+ 
   ## set up temporary grass instance for this PID
   if(verbose) print(paste("Set up temporary grass session in",tf))
   initGRASS(gisBase=gisBase,gisDbase=tf,SG=as(td,"SpatialGridDataFrame"),override=T,location="mod06",mapset="PERMANENT",home=tf,pid=Sys.getpid())
@@ -299,11 +306,6 @@ system(paste(ncopath,"ncks -A ",tempdir(),"/time.nc ",ncfile,sep=""))
 ncfile,sep=""))
 #system(paste(ncopath,"ncatted -a sourcecode,global,o,c,",script," ",ncfile,sep=""))
    
-  
-### delete the temporary files 
-  unlink_.gislock()
-  system(paste("rm -frR ",tf,sep=""))
-
 
 ## Confirm that the file has the correct attributes, otherwise delete it
 ntime=as.numeric(system(paste("cdo -s ntime ",ncfile),intern=T))
@@ -314,7 +316,22 @@ fvar=all(finalvars%in%strsplit(system(paste("cdo -s showvar ",ncfile),intern=T),
       print(paste("FILE ERROR:  tile ",tile," and date ",date," was not outputted correctly, deleting... "))
       file.remove(ncfile)
     }
-   
+
+############  copy files to lou
+if(platform=="pleiades"){
+  archivedir=paste("MOD35/",outdir,"/",sep="")  #directory to create on lou
+  system(paste("ssh -q bridge2 \"ssh -q lou mkdir -p ",archivedir,"\"",sep=""))
+  system(paste("ssh -q bridge2 \"scp -q ",ncfile," lou:",archivedir,"\"",sep=""))
+  file.remove(ncfile)
+  file.remove(paste(ncfile,".aux.xml",sep=""))
+}
+
+  
+### delete the temporary files 
+  unlink_.gislock()
+  system(paste("rm -frR ",tempdir(),sep=""))
+
+
   ## print out some info
 print(paste(" ###################################################################               Finished ",date,
 "################################################################"))
