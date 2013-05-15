@@ -5,7 +5,7 @@ setwd("~/acrobates/adamw/projects/interp/data/modis/mod35")
 library(multicore)
 library(raster)
 library(spgrass6)
-
+library(rgeos)
 ##download 3 days of modis swath data:
 
 url="ftp://ladsweb.nascom.nasa.gov/allData/51/MOD35_L2/2012/"
@@ -18,13 +18,14 @@ system(paste("wget -S --recursive --no-parent --no-directories -N -P swath --acc
 ## get MODLAND tile to serve as base
 #system("wget http://e4ftl01.cr.usgs.gov/MOLT/MOD13A3.005/2000.02.01/MOD13A3.A2000032.h00v08.005.2006271174446.hdf")
 #t=raster(paste("HDF4_EOS:EOS_GRID:\"",getwd(),"/MOD13A3.A2000032.h00v08.005.2006271174446.hdf\":MOD_Grid_monthly_1km_VI:1 km monthly NDVI",sep=""))
-t=raster(paste("../MOD17/Npp_1km_C5.1_mean_00_to_06.tif",sep=""))
+t=raster(paste("../MOD17/MOD17A3_Science_NPP_mean_00_12.tif",sep=""))
+projection(t)
 
 ## make global extent
 pmodis="+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
 
 glb=t
-values(glb)=NA
+#values(glb)=NA
 glb=extend(glb,extent(-180,180,-90,90))
 
 #glb=raster(glb,crs="+proj=longlat +datum=WGS84",nrows=42500,ncols=85000)
@@ -38,31 +39,42 @@ glb=extend(glb,extent(-180,180,-90,90))
 
 #### Grid and mosaic the swath data
 
-  stitch="sudo MRTDATADIR=\"/usr/local/heg/data\" PGSHOME=/usr/local/heg/TOOLKIT_MTD PWD=/home/adamw /usr/local/heg/bin/swtif"
+stitch="sudo MRTDATADIR=\"/usr/local/heg/data\" PGSHOME=/usr/local/heg/TOOLKIT_MTD PWD=/home/adamw /usr/local/heg/bin/swtif"
 
 files=paste(getwd(),"/",list.files("swath",pattern="hdf$",full=T),sep="")
 
 ## vars to process
 vars=as.data.frame(matrix(c(
   "Cloud_Mask",              "CM",
-#  "Quality_Assurance",       "QA"),
-  byrow=T,ncol=2,dimnames=list(1:2,c("variable","varid"))),stringsAsFactors=F)
+  "Sensor_Azimuth",       "ZA",
+  "Sensor_Zenith",        "SZ"),
+  byrow=T,ncol=2,dimnames=list(1:3,c("variable","varid"))),stringsAsFactors=F)
 
-## establish sudo priveleges to run swtif
-system("sudo ls")
+## global bounding box
+   gbb=cbind(c(-180,-180,180,180,-180),c(-85,85,85,-85,-85))
+   gpp = SpatialPolygons(list(Polygons(list(Polygon(gbb)),1)))
+   proj4string(gpp)=projection(glb)
 
-mclapply(files,function(file){
-  
-  tempfile=paste(tempdir(),"/",basename(file),sep="")
-#  tempfile2=paste("gridded/",sub("hdf","tif",basename(tempfile)),sep="")
-  tempfile2=paste(tempdir(),"/",sub("hdf","tif",basename(tempfile)),sep="")
 
-  outfile=paste("gridded2/",sub("hdf","tif",basename(tempfile)),sep="")
-
-  if(file.exists(outfile)) return(c(file,0))
-  ## First write the parameter file (careful, heg is very finicky!)
-  hdr=paste("NUM_RUNS = ",length(vars$varid),"|MULTI_BAND_HDFEOS:",length(vars$varid),sep="")
-  grp=paste("
+getpath<- function(file){  
+   setwd(tempdir())
+   bfile=sub(".hdf","",basename(file))
+   tempfile_path=paste(tempdir(),"/path_",basename(file),sep="")  #gridded path
+   tempfile_sz=paste(tempdir(),"/sz_",basename(file),sep="")  # gridded sensor zenith
+   tempfile2_path=paste(tempdir(),"/",bfile,".tif",sep="")  #gridded/masked/processed path
+   outfile=paste("~/acrobates/adamw/projects/interp/data/modis/mod35/gridded/",bfile,".tif",sep="")  #final file
+   if(file.exists(outfile)) return(c(file,0))
+   ## get bounding coordinates
+   glat=as.numeric(do.call(c,strsplit(sub("GRINGPOINTLATITUDE=","",system(paste("gdalinfo ",file," | grep GRINGPOINTLATITUDE"),intern=T)),split=",")))
+   glon=as.numeric(do.call(c,strsplit(sub("GRINGPOINTLONGITUDE=","",system(paste("gdalinfo ",file," | grep GRINGPOINTLONGITUDE"),intern=T)),split=",")))
+   bb=cbind(c(glon,glon[1]),c(glat,glat[1]))
+   pp = SpatialPolygons(list(Polygons(list(Polygon(bb)),1)))
+   proj4string(pp)=projection(glb)
+   ppc=gIntersection(pp,gpp)
+   ppc=gBuffer(ppc,width=0.3)  #buffer a little to remove gaps between images
+   ## First write the parameter file (careful, heg is very finicky!)
+   hdr=paste("NUM_RUNS = ",length(vars$varid),"|MULTI_BAND_HDFEOS:",length(vars$varid),sep="")
+   grp=paste("
 BEGIN
 INPUT_FILENAME=",file,"
 OBJECT_NAME=mod35
@@ -70,8 +82,8 @@ FIELD_NAME=",vars$variable,"|
 BAND_NUMBER = ",1:length(vars$varid),"
 OUTPUT_PIXEL_SIZE_X=0.008333333
 OUTPUT_PIXEL_SIZE_Y=0.008333333
-SPATIAL_SUBSET_UL_CORNER = ( 90 -180 )
-SPATIAL_SUBSET_LR_CORNER = ( -90 180 )
+SPATIAL_SUBSET_UL_CORNER = ( ",bbox(ppc)[2,2]," ",bbox(ppc)[1,1]," )
+SPATIAL_SUBSET_LR_CORNER = ( ",bbox(ppc)[2,1]," ",bbox(ppc)[1,2]," )
 OUTPUT_OBJECT_NAME = mod35|
 RESAMPLING_TYPE =NN
 OUTPUT_PROJECTION_TYPE = GEO
@@ -80,41 +92,78 @@ OUTPUT_PROJECTION_PARAMETERS = ( 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
 # projection parameters from http://landweb.nascom.nasa.gov/cgi-bin/QA_WWW/newPage.cgi?fileName=sn_gctp
 ELLIPSOID_CODE = WGS84
 OUTPUT_TYPE = HDFEOS
-OUTPUT_FILENAME= ",tempfile,"
+OUTPUT_FILENAME= ",tempfile_path,"
 END
 
 ",sep="")
 
-  ## if any remnants from previous runs remain, delete them
-   if(length(list.files(tempdir(),pattern=basename(file)))>0)
-    file.remove(list.files(tempdir(),pattern=basename(file),full=T))
-  ## write it to a file
- cat( c(hdr,grp)   , file=paste(tempdir(),"/",basename(file),"_MODparms.txt",sep=""))
+   ## if any remnants from previous runs remain, delete them
+   if(length(list.files(tempdir(),pattern=bfile)>0))
+     file.remove(list.files(tempdir(),pattern=bfile,full=T))
+   ## write it to a file
+   cat( c(hdr,grp)   , file=paste(tempdir(),"/",basename(file),"_MODparms.txt",sep=""))
+   ## now run the swath2grid tool
+   ## write the gridded file
+   print(paste("Starting",file))
+   system(paste("(",stitch," -p ",tempdir(),"/",basename(file),"_MODparms.txt -d)",sep=""),intern=F)#,ignore.stderr=F)
+##############  Now run the 5km summary
+   ## First write the parameter file (careful, heg is very finicky!)
+   hdr=paste("NUM_RUNS = ",nrow(vars[-1,]),"|MULTI_BAND_HDFEOS:",nrow(vars[-1,]),sep="")
+   grp=paste("
+BEGIN
+INPUT_FILENAME=",file,"
+OBJECT_NAME=mod35
+FIELD_NAME=",vars$variable[-1],"|
+BAND_NUMBER = ",1,"
+OUTPUT_PIXEL_SIZE_X=0.008333333
+#0.0416666
+OUTPUT_PIXEL_SIZE_Y=0.008333333
+#0.0416666
+SPATIAL_SUBSET_UL_CORNER = ( ",bbox(ppc)[2,2]," ",bbox(ppc)[1,1]," )
+SPATIAL_SUBSET_LR_CORNER = ( ",bbox(ppc)[2,1]," ",bbox(ppc)[1,2]," )
+#OUTPUT_OBJECT_NAME = mod35|
+RESAMPLING_TYPE =NN
+OUTPUT_PROJECTION_TYPE = GEO
+OUTPUT_PROJECTION_PARAMETERS = ( 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 )
+#OUTPUT_PROJECTION_PARAMETERS = ( 6371007.181 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 )
+# projection parameters from http://landweb.nascom.nasa.gov/cgi-bin/QA_WWW/newPage.cgi?fileName=sn_gctp
+ELLIPSOID_CODE = WGS84
+OUTPUT_TYPE = HDFEOS
+OUTPUT_FILENAME= ",tempfile_sz,"
+END
 
-  ## now run the swath2grid tool
-  ## write the gridded file
-  print(paste("Starting",file))
-  system(paste("(",stitch," -p ",tempdir(),"/",basename(file),"_MODparms.txt -d ; echo $$)",sep=""),intern=T,ignore.stderr=F)
-  ## convert to land path
-  d=raster(paste("HDF4_EOS:EOS_GRID:\"",tempfile,"\":mod35:Cloud_Mask_0",sep=""))
-#  za=raster(paste("HDF4_EOS:EOS_GRID:\"",tempfile,"\":mod35:Quality_Assurance_1",sep=""))
-  ## add projection information - ellipsoid should be wgs84
-  projection(d)=projection(glb)
-  extent(d)=alignExtent(d,extent(glb))
-                                        #  d=readAll(d)
-  getlc=function(x) {(x%/%2^6) %% 2^2}
-  calc(d,fun=getlc,filename=outfile,options=c("COMPRESS=LZW", "LEVEL=9","PREDICTOR=2"),datatype="INT1U",overwrite=T)
+",sep="")
 
-  ### warp it to align all pixels
-  system(paste("gdalwarp -overwrite -tap -tr 0.008333333 0.008333333 -co COMPRESS=LZW -co LEVEL=9 -co PREDICTOR=2 -s_srs \"",projection(glb),"\" ",tempfile2," ",outfile,sep=""))
+   ## write it to a file
+   cat( c(hdr,grp)   , file=paste(tempdir(),"/",basename(file),"_MODparms_angle.txt",sep=""))
+   
+   ## now run the swath2grid tool
+   ## write the gridded file
+   print(paste("Starting",file))
+   system(paste("(",stitch," -p ",tempdir(),"/",basename(file),"_MODparms_angle.txt -d)",sep=""),intern=F,ignore.stderr=F)
+####### import to R for processing
+   if(!file.exists(tempfile_path)) {
+     file.remove(list.files(tempdir(),pattern=bfile,full=T))
+     return(c(file,0))
+   }
+   ## convert to land path
+   d=raster(paste("HDF4_EOS:EOS_GRID:\"",tempfile_path,"\":mod35:Cloud_Mask_0",sep=""))
+   sz=raster(paste("HDF4_EOS:EOS_GRID:\"",tempfile_sz,"\":mod35:Sensor_Zenith",sep=""))
+   NAvalue(sz)=0
+   ## resample sensor angles to 1km grid and mask paths with angles >=30
+#   sz2=resample(sz,d,method="ngb",file=sub("hdf","tif",tempfile_sz),overwrite=T)
+   getlc=function(x,y) {ifelse(y==0|y>40,NA,((x%/%2^6) %% 2^2))}
+   path=  overlay(d,sz,fun=getlc,filename=tempfile2_path,options=c("COMPRESS=LZW", "LEVEL=9","PREDICTOR=2"),datatype="INT1U",overwrite=T)
+### warp them to align all pixels
+   system(paste("gdalwarp -overwrite -srcnodata 255 -dstnodata 255 -tap -tr 0.008333333 0.008333333 -co COMPRESS=LZW -co ZLEVEL=9 -co PREDICTOR=2 -s_srs \"",projection(t),"\" ",tempfile2_path," ",outfile,sep=""))
+   ## delete temporary files
+   file.remove(list.files(tempdir(),pattern=bfile,full=T))
+   return(c(file,1))
+ }
 
-#  getqa=function(x) {(x%/%2^1) %% 2^3}
-#  za=calc(za,fun=getqa)#,filename=outfile,options=c("COMPRESS=LZW", "LEVEL=9","PREDICTOR=2"),datatype="INT1U",overwrite=T)
-  ## resample to line up with glb so we can use mosaic later
-## delete temporary files
-  file.remove(tempfile,tempfile2)
-  return(c(file,1))
-})
+
+## establish sudo priveleges to run swtif
+system("sudo ls"); mclapply(files,getpath,mc.cores=10)
 
 ## check gdal can read all of them
 gfiles=list.files("gridded",pattern="tif$",full=T)
@@ -130,32 +179,23 @@ table(check)
 
 file.remove(gfiles[check==0])
 
+## use new gdal
+system(paste("/usr/local/gdal-1.10.0/bin/gdalwarp -wm 900 -overwrite -co COMPRESS=LZW -co PREDICTOR=2 -multi -r mode gridded/*.tif MOD35_path_gdalwarp.tif"))
+
+
 #  origin(raster(gfiles[5]))
   
-  
-  system(paste("gdalinfo ",gfiles[1]," | grep Origin"))
-  system(paste("gdalinfo ",gfiles[2]," | grep Origin"))
-  system(paste("gdalinfo ",gfiles[3]," | grep Origin"))
-
-system(paste("gdalwarp -tap -tr 0.008333333 0.008333333 -s_srs \"",projection(glb),"\" ",gfiles[1]," test1.tif"))
-system(paste("gdalwarp -tap -tr 0.008333333 0.008333333 -s_srs \"",projection(glb),"\" ",gfiles[2]," test2.tif"))
-  system(paste("gdalinfo test1.tif | grep Origin"))
-  system(paste("gdalinfo test2.tif | grep Origin"))
-system(paste("pkmosaic ",paste("-i",gfiles[1:2],collapse=" ")," -o MOD35_path2.tif  -m 6 -v -t 255"))
-system(paste("pkmosaic ",paste("-i",c("test1.tif","test2.tif"),collapse=" ")," -o MOD35_path2.tif  -m 6 -v -max 10 -ot Byte"))
-
-
   ## try with pktools
   ## global
-system(paste("pkmosaic -co COMPRESS=LZW -co PREDICTOR=2 ",paste("-i",list.files("gridded",full=T,pattern="tif$"),collapse=" ")," -o MOD35_path_pkmosaic.tif  -m 6 -v -t 255 -t 0 &"))
+system(paste("pkmosaic -co COMPRESS=LZW -co PREDICTOR=2 ",paste("-i",list.files("gridded",full=T,pattern="tif$"),collapse=" ")," -o MOD35_path_pkmosaic_max.tif  -m 2 -v -t 255 -t 0 &"))
 #bb="-ulx -180 -uly 90 -lrx 180 -lry -90"
 #bb="-ulx -180 -uly 90 -lrx 170 -lry 80"
 bb="-ulx -72 -uly 11 -lrx -59 -lry -1"
 
 
 #expand.grid(x=seq(-180,170,by=10),y=seq(-90,80))
-  
-system(paste("pkmosaic ",bb," -co COMPRESS=LZW -co PREDICTOR=2 ",paste("-i",list.files("gridded",full=T,pattern="tif$"),collapse=" ")," -o h11v08_path_pkmosaic.tif  -m 6 -v -t 255 -t 0 &"))
+gf2=  grep("2012009[.]03",gfiles,value=T)
+system(paste("pkmosaic ",bb," -co COMPRESS=LZW -co PREDICTOR=2 ",paste("-i",gf2,collapse=" ")," -o h11v08_path_pkmosaic.tif -ot Byte -m 7 -v -t 255"))
 
                                         #  bounding box?  
 
@@ -192,7 +232,6 @@ execGRASS("r.out.gdal",input="MOD35_path",output=paste(getwd(),"/MOD35_ProcessPa
 ### delete the temporary files 
   unlink_.gislock()
   system(paste("rm -frR ",tf,sep=""))
-
 
 #########################
 
