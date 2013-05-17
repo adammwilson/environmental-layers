@@ -10,7 +10,7 @@
 #STAGE 5: Output analyses-visualization of results for specific dates...
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 05/14/2013                                                                                 
+#DATE: 05/17/2013                                                                                 
 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363, TASK$568--   
 
@@ -44,18 +44,17 @@ library(plotrix)
 ### Need to add documentation ###
 
 script_path<-"/home/parmentier/Data/IPLANT_project/env_layers_scripts/"
-#script_path<-"/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/"
-#list_script_files<-
 
-##SCRIPT USED FOR THE PREDICTIONS: Source all scripts here to avoid confusion on versions being run!!!!
+##SCRIPT USED FOR THE PREDICTIONS: Source or list all scripts here to avoid confusion on versions being run!!!!
 
-#source(file.path(script_path,"master_script_temp_05132013.R")) #Master script can be run directly...
+#source(file.path(script_path,"master_script_temp_05162013.R")) #Master script can be run directly...
 
 #CALLED FROM MASTER SCRIPT:
-#modis_download_script <- file.path(script_path,"modis_download_05132013.py") # LST modis download python script
+
 modis_download_script <- file.path(script_path,"modis_download_05142013.py") # LST modis download python script
-clim_script <- file.path(script_path,"climatology_05132013.py") # LST climatology python script
-grass_setting_script <- file.path(script_path,"grass-setup.R")
+clim_script <- file.path(script_path,"climatology_05142013.py") # LST climatology python script
+grass_setting_script <- file.path(script_path,"grass-setup.R") #Set up system shell environment for python+GRASS
+source(file.path(script_path,"download_and_produce_MODIS_LST_climatology_05162013.R"))
 source(file.path(script_path,"covariates_production_temperatures_05132013.R"))
 source(file.path(script_path,"Database_stations_covariates_processing_function_05062013.R"))
 source(file.path(script_path,"GAM_fusion_analysis_raster_prediction_multisampling_05062013.R"))
@@ -72,7 +71,7 @@ source(file.path(script_path,"GAM_fusion_function_multisampling_validation_metri
 stages_to_run<-c(0,0,3,4,5) #May decide on antoher strategy later on...
 
 var<-"TMAX" # variable being interpolated
-out_prefix<-"_365d_GAM_CAI_all_lst_05132013"                #User defined output prefix
+out_prefix<-"_365d_GAM_CAI_all_lst_05172013"                #User defined output prefix
 #interpolation_method<-c("gam_fusion","gam_CAI") #other otpions to be added later
 interpolation_method<-c("gam_CAI") #other otpions to be added later
 #interpolation_method<-c("gam_fusion") #other otpions to be added later
@@ -89,7 +88,7 @@ if (!file.exists(out_path)){
 }
   
 lc_path<-"/home/layers/data/land-cover/lc-consensus-global"
-infile_modis_grid<-"modis_sinusoidal_grid_world.shp" #Give path!!! NEED TO CHANGE THIS...
+infile_modis_grid<-"/home/layers/commons/modis/modis_sinusoidal/modis_sinusoidal_grid_world.shp" #Give path!!! NEED TO CHANGE THIS...
 infile_elev<-"/home/layers/data/terrain/dem-cgiar-srtm-1km-tif/srtm_1km.tif"  #this is the global file: replace later with the input produced by the DEM team
 infile_canheight<-"/home/layers/data/land-cover/treeheight-simard2011/Simard_Pinto_3DGlobalVeg_JGR.tif"              #Canopy height
 list_tiles_modis <- c("h11v08,h11v07,h12v07,h12v08,h10v07,h10v08") #tile for Venezuela and surrounding area
@@ -102,7 +101,7 @@ CRS_interp<-"+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +un
 #CRS_interp <-"+proj=lcc +lat_1=43 +lat_2=45.5 +lat_0=41.75 +lon_0=-120.5 +x_0=400000 +y_0=0 +ellps=GRS80 +units=m +no_defs";
 CRS_locs_WGS84<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0") #Station coords WGS84
 out_region_name<-"_venezuela_region" #generated on the fly
-out_suffix<-"_VE_05092013"
+out_suffix<-"_VE_05172013"
 ref_rast_name<-""  #local raster name defining resolution, exent, local projection--. set on the fly??
 #ref_rast_name<-"mean_day244_rescaled.rst"  #local raster name defining resolution, exent: oregon
   
@@ -115,64 +114,44 @@ lst_names<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm
                "nobs_09","nobs_10","nobs_11","nobs_12")
 covar_names<-c(rnames,lc_names,lst_names)
   
-list_param_covar_production<-list(var,in_path,out_path,lc_path,infile_modis_grid,infile_elev,infile_canheight,
-                                    list_tiles_modis,infile_reg_outline,CRS_interp,CRS_locs_WGS84,out_region_name,
-                                    out_suffix,ref_rast_name,covar_names) 
-  
-names(list_param_covar_production)<-c("var","in_path","out_path","lc_path","infile_modis_grid","infile_elev","infile_canheight",
-                                        "list_tiles_modis","infile_reg_outline","CRS_interp","CRS_locs_WGS84","out_region_name",
-                                        "out_suffix","ref_rast_name","covar_names") 
-
 ############ STAGE 1: LST Climatology ###############
 
 #Parameters,Inputs from R to Python??
-#tiles = ['h11v08','h11v07','h12v07','h12v08','h10v07','h10v08'] #These tiles correspond to Venezuela.
-list_tiles_modis <- c("h11v08,h11v07,h12v07,h12v08,h10v07,h10v08") #tile for Venezuel and surrounding area
 #list_tiles_modis <- c("h08v04,h09v04") #tiles for Oregon #defined above...
 start_year = "2001"
 end_year = "2010"
 #end_year = "2002" #for testing (year included?)
-end_month= "12"
-start_month= "1"
-hdfdir =  '/home/layers/commons/modis/MOD11A1_tiles' #destination file where hdf files are stored locally after download.
-
-if (!file.exists(hdfdir)){
-  dir.create(hdfdir)
-  #} else{
-  #  out_path <-paste(out_path..)
-}
-if (var=="TMIN") {
-  night="1" # if 1 then produce night climatology
-} else{
-  night="0" # if 0 then produce day climatology
-}  
-download="1"  # if 1 then download modis files before calculating averages
+#hdfdir =  '/home/layers/commons/modis/MOD11A1_tiles' #destination file where hdf files are stored locally after download.
+hdfdir =  '/home/parmentier/Data/IPLANT_project/MOD11A1_tiles'
+download=1
+clim_calc=0
 out_suffix_modis="_05132013"
+#end_month= "12"
+#start_month= "1"
 
-list_param_python_script <- list(list_tiles_modis,start_year,end_year,start_month,end_month,hdfdir,
-                                 night,download,out_suffix_modis)
-names(list_param_python_script)<-c("list_tiles_modis","start_year","end_year","start_month","end_month","hdfdir",
-                                   "night","download","out_suffix_modis")
-list_param_python_script_str <- paste(unlist(list_param_python_script), collapse=" ")
-#command_str<-"python /home/parmentier/Data/test5.py h01v05,h02v05 2001 2005 12 1 /benoit 1 test_out 1"
-#paste(toString(list_param_python_script),collapse=",",sep=" ")
+list_param_download_clim_LST_script <- list(list_tiles_modis,start_year,end_year,hdfdir,
+                                            var,grass_setting_script,modis_download_script, clim_script,
+                                            download,clim_calc,out_suffix_modis)
+names(list_param_download_clim_LST_script)<-c("list_tiles_modis","start_year","end_year","hdfdir",
+                                              "var","grass_setting_script","modis_download_script","clim_script",
+                                              "download","clim_calc","out_suffix_modis")
 
 if (stages_to_run[1]==1){
-  ##Run download if necessary
-  if (download==1){
-    command_str <- paste("python",modis_download_script, list_param_python_script_str,sep=" ")
-    #command_str <- paste("python","/home/parmentier/Data/benoit_test/test5.py", list_param_python_script_str,sep=" ")
-    system(command_str)
-  }
-  ##Now run climatology
-  source(grass_setting_script)
-  command_str <- paste("python",clim_script, list_param_python_script_str,sep=" ")
-  system(command_str)
-  #/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/climatology_05132013.py
+  
+  download_calculate_MODIS_LST_climatology(1,list_param_download_clim_LST_script)
+
 }
+#Collect LST climatology list as output???
 
 ############ STAGE 2: Covariate production ################
 
+list_param_covar_production<-list(var,in_path,out_path,lc_path,infile_modis_grid,infile_elev,infile_canheight,
+                                  list_tiles_modis,infile_reg_outline,CRS_interp,CRS_locs_WGS84,out_region_name,
+                                  out_suffix,ref_rast_name,hdfdir,covar_names) 
+
+names(list_param_covar_production)<-c("var","in_path","out_path","lc_path","infile_modis_grid","infile_elev","infile_canheight",
+                                      "list_tiles_modis","infile_reg_outline","CRS_interp","CRS_locs_WGS84","out_region_name",
+                                      "out_suffix","ref_rast_name","hdfdir","covar_names") 
 
 ## Modify to store infile_covar_brick in output folder!!!
 if (stages_to_run[2]==2){
