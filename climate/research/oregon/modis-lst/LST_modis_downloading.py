@@ -32,7 +32,7 @@ import datetime, calendar
 import ftplib
 #import grass.script as gs
 import argparse
-
+import errno
 #from datetime import date
 #from datetime import datetime
 
@@ -177,12 +177,18 @@ def get_hdf_paths(hdfdir, tile, start_doy, end_doy, year):
         hdfs.append(os.path.abspath(files[0]))
     return hdfs
 
-
+def create_dir_and_check_existence(path):
+    try:
+        os.makedirs(path)
+    except OSError as exception:
+        if exception.errno != errno.EEXIST:
+            raise
+            
 def main():
     #from sys import argv                       # example client code
     #myargs = getopts(argv)
     
-    import argparse
+    #import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("tiles", type=str, help="list of Modis tiles")
     parser.add_argument("start_year", type=int, help="start year")
@@ -198,7 +204,7 @@ def main():
 
     tiles = myargs.tiles #These tiles correspond to Venezuela.
     start_year = myargs.start_year
-    end_year = myargs.start_year 
+    end_year = myargs.end_year 
     end_month = myargs.end_month
     start_month= myargs.start_month
     hdfdir =  myargs.hdfdir
@@ -216,7 +222,8 @@ def main():
     print 'this is the result',str(year_list)
     print(myargs)
     print(tiles)
-
+ 
+ 
     #tiles = ['h11v08','h11v07','h12v07','h12v08','h10v07','h10v08'] #These tiles correspond to Venezuela.
     #start_year = 2001
     #end_year = 2010
@@ -236,13 +243,16 @@ def main():
     #tiles = ['h10v07','h10v08','h12v07']
     if download==1:
         for tile in tiles:
+            outDir = os.path.join(hdfdir,tile)
+            create_dir_and_check_existence(outDir)
+            
             for year in year_list:
                 start_doy = 1
                 end_doy = 365
                 if calendar.isleap(year):
                     end_doy=366
                     
-                hdfs = download_mod11a1(hdfdir, tile, start_doy, end_doy, year)
+                hdfs = download_mod11a1(outDir, tile, start_doy, end_doy, year)
 
 if __name__ == '__main__':
     main()
