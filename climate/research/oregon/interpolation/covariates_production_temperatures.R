@@ -10,7 +10,7 @@
 # -MODIS LST: mean and obs
 #3) The output is a multiband file in tif format with projected covariates for the processing region/tile.             
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 03/21/2013                                                                                 
+#DATE: 05/14/2013                                                                                 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363--   
 
 ##Comments and TODO:
@@ -48,7 +48,7 @@ create_polygon_from_extent<-function(reg_ref_rast){
 }
 
 create_raster_region <-function(raster_name,reg_ref_rast){
-  #This functions returns a subset of tiles from the modis grdi.
+  #This functions returns a subset of tiles from the modis grdid.
   #Arguments: raster name of the file,reference file with
   #Output: spatial grid data frame of the subset of tiles
   
@@ -90,7 +90,22 @@ mosaic_raster_list<-function(mosaic_list,out_names,out_path){
 covariates_production_temperature<-function(list_param){
   #This functions produce covariates used in the interpolation of temperature.
   #It requires 15 arguments:
-  #
+  #1)  var : interpolated variable: TMIN, TMAX, (PRCP?)
+  #2)  out_path : output directory 
+  #3)  lc_path 
+  #4)  infile_modis_grid 
+  #5)  infile_elev : this is the global file: replace later with the input produced by the DEM team
+  #6)  infile_canheight : Canopy height
+  #7)  list_tiles_modis : tile for Venezuela and surrounding area
+  #8)  infile_reg_outline : input region outline defined by polygon
+  #9)  CRS_interp : local projection system
+  #10) CRS_locs_WGS84 : CRS_locs_WGS84 #
+  #11) out_region_name : generated on the fly
+  #12) out_suffix : added to the covariates stack/brick 
+  #13) ref_rast_name: local raster name defining resolution, exent, local projection--. set on the fly??
+  #14) hdfdir: directory where the LST averages are stored...
+  #15) out_suffix_modis : suffix used in producing LST climatology 
+  #16) covar_names : names of covariates
   #
   #
   
@@ -127,26 +142,35 @@ covariates_production_temperature<-function(list_param){
   out_region_name<-list_param$out_region_name  #generated on the fly
   out_suffix<-list_param$out_suffix 
   ref_rast_name<-list_param$ref_rast_name #local raster name defining resolution, exent, local projection--. set on the fly??
+  hdfdir <- list_param$hdfdir
+  out_suffix_modis <- list_param$out_suffix_modis
   covar_names<-list_param$covar_names 
   
   ##### SET UP STUDY AREA ####
   
-  setwd(in_path)
+  #setwd(in_path)
+  setwd(out_path)
   
-  filename<-sub(".shp","",infile_modis_grid)       #Removing the extension from file.
-  modis_grid<-readOGR(".", filename)     #Reading shape file using rgdal library
+  list_tiles_modis <- unlist(strsplit(list_tiles_modis,","))  # transform string into separate element in char vector
+  
+  filename<-sub(".shp","",basename(infile_modis_grid))       #Removing path and the extension from file name.
+  #modis_grid<-readOGR(".", filename)     #Reading shape file using rgdal library
+  modis_grid<-readOGR(dsn=dirname(infile_modis_grid), filename)     #Reading shape file using rgdal library
+  
   #filename<-sub(".shp","",infile1)       #Removing the extension from file.
   #world_countries<-readOGR(".", filename)     #Reading shape file using rgdal library
+  #outfile1<-file.path(out_path,paste("stations","_",out_prefix,".shp",sep=""))
+  #writeOGR(stat_reg,dsn= dirname(outfile1),layer= sub(".shp","",basename(outfile1)), driver="ESRI Shapefile",overwrite_layer=TRUE)
   
   if (infile_reg_outline!=""){
-    filename<-sub(".shp","",infile_reg_outline)   #Removing the extension from file.
-    reg_outline<-readOGR(".", filename)
+    filename<-sub(".shp","",basename(infile_reg_outline))   #Removing path and the extension from file name.
+    reg_outline<-readOGR(dsn=dirname(infile_reg_outline), filename)
   }
   
   if (infile_reg_outline==""){
     reg_outline<-create_modis_tiles_region(modis_grid,list_tiles_modis) #problem...this does not 
     #align with extent of modis LST!!!
-    writeOGR(reg_outline,dsn= ".",layer= paste("outline",out_region_name,"_",out_suffix,sep=""), 
+    writeOGR(reg_outline,dsn= out_path,layer= paste("outline",out_region_name,"_",out_suffix,sep=""), 
              driver="ESRI Shapefile",overwrite_layer="TRUE")
   }
   
@@ -166,15 +190,17 @@ covariates_production_temperature<-function(list_param){
     lst_pat<-"LST_Night_1km"
   }
   if (var=="TMAX"){
-    lst_pat<-"" #for the time being change at later stage...
-    #day_pat<-"LST_Day_1km"
+    lst_pat<-"LST_Day_1km" #for the time being change at later stage...
   }
   
   #Get list of files containing the LST averages
-  pat_str2 <- glob2rx(paste("nobs","*",lst_pat,"*.tif",sep=""))
-  tmp_str2<- mixedsort(list.files(pattern=pat_str2))
-  pat_str1 <- glob2rx(paste("mean","*",lst_pat,"*.tif",sep=""))
-  tmp_str1<- mixedsort(list.files(pattern=pat_str1))
+  #pat_str2 <- glob2rx(paste("nobs","*",lst_pat,"*.tif",sep=""))
+  pat_str2 <- glob2rx(paste("nobs","*",lst_pat,"*",out_suffix_modis,"*.tif",sep=""))
+  #mixedsort(list.files(path=hdfdir,pattern=".*tif"))
+  tmp_str2 <- mixedsort(list.files(path=hdfdir,pattern=pat_str2)) #note that this assumes the LST averages are stored in hdfdir
+  #pat_str1 <- glob2rx(paste("mean","*",lst_pat,"*.tif",sep=""))
+  pat_str1 <- glob2rx(paste("mean","*",lst_pat,"*",out_suffix_modis,"*.tif",sep=""))
+  tmp_str1 <- mixedsort(list.files(path=hdfdir,pattern=pat_str1))
   #add lines using grep to select tiles...
  
   #Format list for mosaicing: mosaic for every month the relevant number of files
