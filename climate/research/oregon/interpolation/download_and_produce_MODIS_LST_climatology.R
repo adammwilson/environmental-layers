@@ -53,6 +53,8 @@ download_calculate_MODIS_LST_climatology <-function(j,list_param){
   #j to be used later...parallelization??
   
   #Additional parameters
+  #list_tiles_modis <- unlist(strsplit(list_tiles_modis,","))  # transform string into separate element in char vector
+  #list_tiles_modis <- list_tiles_modis[j]
   end_month= "12"
   start_month= "1"
   
@@ -65,6 +67,7 @@ download_calculate_MODIS_LST_climatology <-function(j,list_param){
   
   ### CALCULATE NIGHT OR DAY CLIMATOLOGY?
   
+  
   if (var=="TMIN") {
     night="1" # if 1 then produce night climatology
   } else{
@@ -75,7 +78,7 @@ download_calculate_MODIS_LST_climatology <-function(j,list_param){
   
   list_param_python_script <- list(list_tiles_modis,start_year,end_year,start_month,end_month,hdfdir,
                                    night,download,out_suffix_modis)
-  names(list_param_python_script)<-c("list_tiles_modis","start_year","end_year","start_month","end_month","hdfdir",
+  names(list_param_python_script)<-c("list_andtiles_modis","start_year","end_year","start_month","end_month","hdfdir",
                                      "night","download","out_suffix_modis")
   list_param_python_script_str <- paste(unlist(list_param_python_script), collapse=" ")
   
@@ -114,24 +117,22 @@ download_calculate_MODIS_LST_climatology <-function(j,list_param){
 
 #list_tiles_modis <- c("h11v08,h11v07,h12v07,h12v08,h10v07,h10v08") #tile for Venezuela and surrounding area
 #list_tiles_modis <- c("h08v04,h09v04") #tiles for Oregon #defined above...
+list_tiles_modis <- c("h12v10,h13v10") #tiles for Oregon #defined above...
 #list_tiles_modis <- c("h09v09,h10v09,h11v09,h12v09,h13v09,h14v09")
 #list_tiles_modis <-c("h30v10,h31v10,h32v10,h30v11,h31v11") #list("Queensland")
 
-#list_tiles_modis <- c("h08v04")
 script_path<-"/home/parmentier/Data/IPLANT_project/env_layers_scripts/"
 modis_download_script <- file.path(script_path,"modis_download_05142013.py") # LST modis download python script
 clim_script <- file.path(script_path,"climatology_05142013.py") # LST climatology python script
 grass_setting_script <- file.path(script_path,"grass-setup.R")
-var="TMIN"
-list_tiles_modis <- c("h11v11,h12v11,h13v11,h14v11,h11v12,h12v12,h13v12,h12v13,h13v13,h13v14,h14v14")
-
+var="TMAX"
 start_year = "2001"
 end_year = "2010"
 hdfdir =  '/home/layers/commons/modis/MOD11A1_tiles' #destination file where hdf files are stored locally after download.
 #hdfdir =  '/home/parmentier/Data/IPLANT_project/MOD11A1_tiles'
 download=1
 clim_calc=0
-out_suffix_modis="_05202013"
+out_suffix_modis="_05222013"
 
 list_param_download_clim_LST_script <- list(list_tiles_modis,start_year,end_year,hdfdir,
                                  var,grass_setting_script,modis_download_script, clim_script,
@@ -139,7 +140,8 @@ list_param_download_clim_LST_script <- list(list_tiles_modis,start_year,end_year
 names(list_param_download_clim_LST_script)<-c("list_tiles_modis","start_year","end_year","hdfdir",
                                    "var","grass_setting_script","modis_download_script","clim_script",
                                    "download","clim_calc","out_suffix_modis")
-debug(download_calculate_MODIS_LST_climatology)
+#debug(download_calculate_MODIS_LST_climatology)
+#clim_production_obj <-mclapply(1:2, list_param=list_param_download_clim_LST_script, download_calculate_MODIS_LST_climatology,mc.preschedule=FALSE,mc.cores = 2) #This is the end bracket from mclapply(...) statement
 
 download_calculate_MODIS_LST_climatology(1,list_param_download_clim_LST_script)
 
