@@ -8,7 +8,7 @@
 #
 #AUTHORS: Benoit Parmentier    
 #         based on modified earlier python scripts from J. Regetz
-#DATE: 05/16/2013                                                                                 
+#DATE: 05/20/2013                                                                                 
 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#???--   
 
@@ -18,7 +18,7 @@ download_calculate_MODIS_LST_climatology <-function(j,list_param){
   
   ###Function to download and calculate LST climatology from MODIS tiles
   #AUTHOR: Benoit Parmentier                                                                       
-  #DATE: 05/16/2013                                                                                 
+  #DATE: 05/20/2013                                                                                 
   #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363--   
   
   #1) var 
@@ -92,14 +92,20 @@ download_calculate_MODIS_LST_climatology <-function(j,list_param){
   if (clim_calc==1){
     ##Now run climatology: Can add other climatology scripts or method to produce climatology later on...
     source(grass_setting_script) #Setting to access GRASS (current setting valid for Atlas at nceas)
-    command_clim_str <- paste("python",clim_script, list_param_python_script_str,sep=" ")
+    command_clim_str <- paste("python",clim_script, list_param_python_script_str,sep=" ") #preparing shell command
     system(command_clim_str)
     #/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/climatology_05132013.py
   }
   
   ## return list of files???, may be modified later to return clim list and list of downloaded files + missing.
-  list_output_obj <-list(command_download_str,command_clim_str)
-  names(list_output_obj) <- c("command_download_str", "command_clim_str")
+  if (clim_calc==1){
+    list_output_obj <-list(command_download_str,command_clim_str)
+    names(list_output_obj) <- c("command_download_str", "command_clim_str")
+  } else{
+    list_output_obj <-list(command_download_str)
+    names(list_output_obj) <- c("command_download_str")
+  }
+    #Add function to list files created or modify in python...
   
   return(list_output_obj)
 }
@@ -109,31 +115,23 @@ download_calculate_MODIS_LST_climatology <-function(j,list_param){
 #list_tiles_modis <- c("h11v08,h11v07,h12v07,h12v08,h10v07,h10v08") #tile for Venezuela and surrounding area
 #list_tiles_modis <- c("h08v04,h09v04") #tiles for Oregon #defined above...
 #list_tiles_modis <- c("h09v09,h10v09,h11v09,h12v09,h13v09,h14v09")
-#list_tiles_modis <- c("h09v09,h10v09,h11v09,h12v09,h13v09,h14v09,
-#                       h10v10,h11v10,h12v11,h13v12,h14v10")
-list_tiles_modis <-c("h30v10,h31v10,h32v10,h30v11,h31v11") #list("Queensland")
+#list_tiles_modis <-c("h30v10,h31v10,h32v10,h30v11,h31v11") #list("Queensland")
 
 #list_tiles_modis <- c("h08v04")
 script_path<-"/home/parmentier/Data/IPLANT_project/env_layers_scripts/"
 modis_download_script <- file.path(script_path,"modis_download_05142013.py") # LST modis download python script
-clim_script <- file.path(script_path,"climatology_05132013.py") # LST climatology python script
+clim_script <- file.path(script_path,"climatology_05142013.py") # LST climatology python script
 grass_setting_script <- file.path(script_path,"grass-setup.R")
-#source(file.path(script_path,"download_and_produce_MODIS_LST_climatology_05162013.R"))
-
 var="TMIN"
-#list_tiles_modis <- c("h08v04")
+list_tiles_modis <- c("h11v11,h12v11,h13v11,h14v11,h11v12,h12v12,h13v12,h12v13,h13v13,h13v14,h14v14")
+
 start_year = "2001"
 end_year = "2010"
-#end_year = "2002" #for testing (year included?)
-#end_month= "12"
-#start_month= "1"
 hdfdir =  '/home/layers/commons/modis/MOD11A1_tiles' #destination file where hdf files are stored locally after download.
 #hdfdir =  '/home/parmentier/Data/IPLANT_project/MOD11A1_tiles'
 download=1
 clim_calc=0
-out_suffix_modis="_05172013"
-#end_month= "12"
-#start_month= "1"
+out_suffix_modis="_05202013"
 
 list_param_download_clim_LST_script <- list(list_tiles_modis,start_year,end_year,hdfdir,
                                  var,grass_setting_script,modis_download_script, clim_script,
@@ -141,8 +139,8 @@ list_param_download_clim_LST_script <- list(list_tiles_modis,start_year,end_year
 names(list_param_download_clim_LST_script)<-c("list_tiles_modis","start_year","end_year","hdfdir",
                                    "var","grass_setting_script","modis_download_script","clim_script",
                                    "download","clim_calc","out_suffix_modis")
-#debug(download_calculate_MODIS_LST_climatology)
+debug(download_calculate_MODIS_LST_climatology)
 
-#download_calculate_MODIS_LST_climatology(1,list_param_download_clim_LST_script)
+download_calculate_MODIS_LST_climatology(1,list_param_download_clim_LST_script)
 
 ### END OF SCRIPT
