@@ -9,8 +9,8 @@ database_covariates_preparation<-function(list_param_prep){
   # 2)  var: the variable of interest - "TMAX","TMIN" or "PRCP" 
   # 3)  range_years: range of records used in the daily interpolation, note that upper bound year is not included               
   # 4)  range_years_clim: range of records used in the monthly climatology interpolation, note that upper bound is not included
-  # 5)  infile1: region outline as a shape file - used in the interpolation  stage too                              
-  # 6)  infile2: ghcnd stations locations as a textfile name with lat-long fields                                                                                   
+  # 5)  infile_reg_outline: region outline as a shape file - used in the interpolation  stage too                              
+  # 6)  infile_ghncd_data: ghcnd stations locations as a textfile name with lat-long fields                                                                                   
   # 7)  infile_covarariates: tif file of raser covariates for the interpolation area: it should have a local projection                                                                                           
   # 8)  CRS_locs_WGS84: longlat EPSG 4326 used as coordinates reference system (proj4)for stations locations
   # 9)  in_path: input path for covariates data and other files, this is also the output?
@@ -28,7 +28,7 @@ database_covariates_preparation<-function(list_param_prep){
   #6) monthly_covar_ghcn_data: ghcn monthly averaged data with covariates for the year range of interpolation (locally projected)
   
   #AUTHOR: Benoit Parmentier                                                                       
-  #DATE: 05/07/2013                                                                                 
+  #DATE: 05/21/2013                                                                                 
   #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363--     
   #Comments and TODO
   #-Add buffer option...
@@ -72,9 +72,9 @@ database_covariates_preparation<-function(list_param_prep){
   year_end <-list_param_prep$range_years[2] #"2011"                 #end year for the query (excluded)
   year_start_clim <-list_param_prep$range_years_clim[1] #right bound not included in the range!! starting year for monthly query to calculate clime
   year_end_clim <-list_param_prep$range_years_clim[2] #right bound not included in the range!! starting year for monthly query to calculate clime
-  infile1<- list_param_prep$infile1  #This is the shape file of outline of the study area                                                      #It is an input/output of the covariate script
-  infile2<-list_param_prep$infile2      #"/home/layers/data/climate/ghcn/v2.92-upd-2012052822/ghcnd-stations.txt"                              #This is the textfile of station locations from GHCND
-  infile3<-list_param_prep$infile_covariates #"covariates__venezuela_region__VE_01292013.tif" #this is an output from covariate script
+  infile_reg_outline<- list_param_prep$infile_reg_outline  #This is the shape file of outline of the study area                                                      #It is an input/output of the covariate script
+  infile_ghncd_data<-list_param_prep$infile_ghncd_data      #"/home/layers/data/climate/ghcn/v2.92-upd-2012052822/ghcnd-stations.txt"                              #This is the textfile of station locations from GHCND
+  infile_covariates<-list_param_prep$infile_covariates #"covariates__venezuela_region__VE_01292013.tif" #this is an output from covariate script
   CRS_locs_WGS84<-list_param_prep$CRS_locs_WGS84 #Station coords WGS84: same as earlier
   in_path <- list_param_prep$in_path #CRS_locs_WGS84"/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/input_data/"
   out_path <- list_param_prep$out_path #CRS_locs_WGS84"/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/input_data/"
@@ -83,16 +83,16 @@ database_covariates_preparation<-function(list_param_prep){
   out_prefix<-list_param_prep$out_prefix #"_365d_GAM_fus5_all_lstd_03012013"                #User defined output prefix
   
   ## working directory is the same for input and output for this function  
-  setwd(in_path) 
-  
+  #setwd(in_path) 
+  setwd(out_path)
   ##### STEP 1: Select station in the study area
   
-  filename<-sub(".shp","",infile1)             #Removing the extension from file.
-  interp_area <- readOGR(".",filename)
+  filename<-sub(".shp","",infile_reg_outline)             #Removing the extension from file.
+  interp_area <- readOGR(dsn=dirname(filename),basename(filename))
   CRS_interp<-proj4string(interp_area)         #Storing the coordinate information: geographic coordinates longlat WGS84
   
   #Read in GHCND database station locations
-  dat_stat <- read.fwf(infile2, 
+  dat_stat <- read.fwf(infile_ghncd_data, 
                        widths = c(11,9,10,7,3,31,4,4,6),fill=TRUE)
   colnames(dat_stat)<-c("STAT_ID","lat","lon","elev","state","name","GSNF","HCNF","WMOID")
   coords<- dat_stat[,c('lon','lat')]
@@ -164,7 +164,8 @@ database_covariates_preparation<-function(list_param_prep){
   ### STEP 4: Extract values at stations from covariates stack of raster images
   #Eventually this step may be skipped if the covariates information is stored in the database...
   
-  s_raster<-stack(file.path(in_path,infile3))                   #read in the data stack
+  #s_raster<-stack(file.path(in_path,infile_covariates))                   #read in the data stack
+  s_raster<-brick(infile_covariates)                   #read in the data stack
   names(s_raster)<-covar_names               #Assigning names to the raster layers: making sure it is included in the extraction
   stat_val<- extract(s_raster, data_reg)        #Extracting values from the raster stack for every point location in coords data frame.
   
