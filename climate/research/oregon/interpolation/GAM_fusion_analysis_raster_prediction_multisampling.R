@@ -104,8 +104,8 @@ raster_prediction_fun <-function(list_param_raster_prediction){
   script_path<-list_param_raster_prediction$script_path
   interpolation_method<-list_param_raster_prediction$interpolation_method
   
-  setwd(in_path)
-  
+  #setwd(in_path)
+  setwd(out_path)
   #Sourcing in the master script to avoid confusion on the latest versions of scripts and functions!!!
   
   #source(file.path(script_path,"sampling_script_functions_03122013.R"))
@@ -199,10 +199,10 @@ raster_prediction_fun <-function(list_param_raster_prediction){
       file=log_fname,sep="\n")
   t1<-proc.time()
   j=12
-  #browser()
+  #browser() #Missing out_path for gam_fusion list param!!!
   if (interpolation_method=="gam_fusion"){
-    list_param_runClim_KGFusion<-list(j,s_raster,covar_names,lst_avg,list_models,dst,var,y_var_name, out_prefix)
-    names(list_param_runClim_KGFusion)<-c("list_index","covar_rast","covar_names","lst_avg","list_models","dst","var","y_var_name","out_prefix")
+    list_param_runClim_KGFusion<-list(j,s_raster,covar_names,lst_avg,list_models,dst,var,y_var_name, out_prefix,out_path)
+    names(list_param_runClim_KGFusion)<-c("list_index","covar_rast","covar_names","lst_avg","list_models","dst","var","y_var_name","out_prefix","out_path")
     #source(file.path(script_path,"GAM_fusion_function_multisampling_03122013.R"))
     clim_method_mod_obj<-mclapply(1:12, list_param=list_param_runClim_KGFusion, runClim_KGFusion,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
     #test<-runClim_KGFusion(1,list_param=list_param_runClim_KGFusion)

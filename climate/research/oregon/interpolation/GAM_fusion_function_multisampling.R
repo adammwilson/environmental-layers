@@ -261,7 +261,7 @@ runClim_KGFusion<-function(j,list_param){
     #j indicate which month is predicted, var indicates TMIN or TMAX
     data_name<-paste(var,"_bias_LST_month_",j,"_",cname[k],"_",prop_month,
                      "_",run_samp,sep="")
-    raster_name<-file.path(out_path,paste("fusion",data_name,out_prefix,".tif", sep=""))
+    raster_name<-file.path(out_path,paste("fusion_",data_name,out_prefix,".tif", sep=""))
     list_out_filename[[k]]<-raster_name
   }
 
