@@ -10,7 +10,7 @@
 #STAGE 5: Output analyses-visualization of results for specific dates...
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 05/17/2013                                                                                 
+#DATE: 05/23/2013                                                                                 
 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363, TASK$568--   
 
@@ -47,17 +47,17 @@ script_path<-"/home/parmentier/Data/IPLANT_project/env_layers_scripts/"
 
 ##SCRIPT USED FOR THE PREDICTIONS: Source or list all scripts here to avoid confusion on versions being run!!!!
 
-#source(file.path(script_path,"master_script_temp_05162013.R")) #Master script can be run directly...
+#source(file.path(script_path,"master_script_temp_05212013.R")) #Master script can be run directly...
 
 #CALLED FROM MASTER SCRIPT:
 
 modis_download_script <- file.path(script_path,"modis_download_05142013.py") # LST modis download python script
 clim_script <- file.path(script_path,"climatology_05142013.py") # LST climatology python script
 grass_setting_script <- file.path(script_path,"grass-setup.R") #Set up system shell environment for python+GRASS
-source(file.path(script_path,"download_and_produce_MODIS_LST_climatology_05162013.R"))
+#source(file.path(script_path,"download_and_produce_MODIS_LST_climatology_05162013.R"))
 source(file.path(script_path,"covariates_production_temperatures_05132013.R"))
-source(file.path(script_path,"Database_stations_covariates_processing_function_05062013.R"))
-source(file.path(script_path,"GAM_fusion_analysis_raster_prediction_multisampling_05062013.R"))
+source(file.path(script_path,"Database_stations_covariates_processing_function_05212013.R"))
+source(file.path(script_path,"GAM_fusion_analysis_raster_prediction_multisampling_05212013.R"))
 source(file.path(script_path,"results_interpolation_date_output_analyses_05062013.R"))
 #source(file.path(script_path,"results_covariates_database_stations_output_analyses_04012013.R"))
 
@@ -71,10 +71,10 @@ source(file.path(script_path,"GAM_fusion_function_multisampling_validation_metri
 stages_to_run<-c(0,0,3,4,5) #May decide on antoher strategy later on...
 
 var<-"TMAX" # variable being interpolated
-out_prefix<-"_365d_GAM_CAI_all_lst_05172013"                #User defined output prefix
+out_prefix<-"_365d_GAM_fus_all_lst_05212013"                #User defined output prefix
 #interpolation_method<-c("gam_fusion","gam_CAI") #other otpions to be added later
-interpolation_method<-c("gam_CAI") #other otpions to be added later
-#interpolation_method<-c("gam_fusion") #other otpions to be added later
+#interpolation_method<-c("gam_CAI") #other otpions to be added later
+interpolation_method<-c("gam_fusion") #other otpions to be added later
 
 #Change input path?? for LST stage ??
 in_path  <- "/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/input_data/"
@@ -94,14 +94,14 @@ infile_canheight<-"/home/layers/data/land-cover/treeheight-simard2011/Simard_Pin
 list_tiles_modis <- c("h11v08,h11v07,h12v07,h12v08,h10v07,h10v08") #tile for Venezuela and surrounding area
 #list_tiles_modis <- c("h08v04","h09v04") #tiles for Oregon
   
-infile_reg_outline=""  #input region outline defined by polygon: none for Venezuel
+infile_reg_outline=""  #input region outline defined by polygon: none for Venezuela
 #infile_reg_outline <- "OR83M_state_outline.shp"  #input region outline defined by polygon: Oregon
   
 CRS_interp<-"+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs";
 #CRS_interp <-"+proj=lcc +lat_1=43 +lat_2=45.5 +lat_0=41.75 +lon_0=-120.5 +x_0=400000 +y_0=0 +ellps=GRS80 +units=m +no_defs";
 CRS_locs_WGS84<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0") #Station coords WGS84
 out_region_name<-"_venezuela_region" #generated on the fly
-out_suffix<-"_VE_05172013"
+out_suffix<-"_VE_05232013"
 ref_rast_name<-""  #local raster name defining resolution, exent, local projection--. set on the fly??
 #ref_rast_name<-"mean_day244_rescaled.rst"  #local raster name defining resolution, exent: oregon
   
@@ -125,7 +125,7 @@ end_year = "2010"
 hdfdir =  '/home/parmentier/Data/IPLANT_project/MOD11A1_tiles'
 download=1
 clim_calc=0
-out_suffix_modis="_05132013"
+out_suffix_modis="_0522013"
 #end_month= "12"
 #start_month= "1"
 
@@ -161,28 +161,30 @@ if (stages_to_run[2]==2){
 }else{
   #Provide brick of covariates if stage 2 is not run
   infile_covariates<-"/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/covariates__venezuela_region__VE_01292013.tif" #this is an output from covariate script and used in stage 3 and stage 4
+  infile_reg_outline<- "/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/outline_venezuela_region__VE_01292013.shp" 
   #infile_covariates<-"/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/covariates__venezuela_region_TMIN__VE_03192013.tif" #covariates stack for TMIN
   #infile_covariates<- "/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/covariates_Oregon_region_TMAX__OR_04052013.tif" #Oregon covar TMAX from earlier codes...for continuity
 }
 
 ############# STAGE 3: Data preparation ###############
 
-infile1<- "/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/outline_venezuela_region__VE_01292013.shp"      #This is the shape file of outline of the study area                                                      #It is an input/output of the covariate script
+#infile_reg_outline=""  #input region outline defined by polygon: none for Venezuela
+#This is the shape file of outline of the study area                                                      #It is an input/output of the covariate script
 #infile_reg_outline <- "OR83M_state_outline.shp"  #input region outline defined by polygon: Oregon
-#infile1 <-"OR83M_state_outline.shp" #remove this parameter!!!
+#infile_reg_outline <-"OR83M_state_outline.shp" #remove this parameter!!!
 #covar_names see stage 2
 
 #specific to this stage
 db.name <- "ghcn"       # name of the Postgres database
 range_years<-c("2010","2011") #right bound not included in the range!!
 range_years_clim<-c("2000","2011") #right bound not included in the range!!
-infile2<-"/home/layers/data/climate/ghcn/v2.92-upd-2012052822/ghcnd-stations.txt"                              #This is the textfile of station locations from GHCND
+infile_ghncd_data <-"/home/layers/data/climate/ghcn/v2.92-upd-2012052822/ghcnd-stations.txt"                              #This is the textfile of station locations from GHCND
 qc_flags_stations<-c("0","S")    #flags allowed for screening after the query from the GHCND??
 
 #list of 12 parameters for input in the function...
 
-list_param_prep<-list(db.name,var,range_years,range_years_clim,infile1,infile2,infile_covariates,CRS_locs_WGS84,in_path,out_path,covar_names,qc_flags_stations,out_prefix)
-cnames<-c("db.name","var","range_years","range_years_clim","infile1","infile2","infile_covariates","CRS_locs_WGS84","in_path","out_path","covar_names","qc_flags_stations","out_prefix")
+list_param_prep<-list(db.name,var,range_years,range_years_clim,infile_reg_outline,infile_ghncd_data,infile_covariates,CRS_locs_WGS84,in_path,out_path,covar_names,qc_flags_stations,out_prefix)
+cnames<-c("db.name","var","range_years","range_years_clim","infile_reg_outline","infile_ghncd_data","infile_covariates","CRS_locs_WGS84","in_path","out_path","covar_names","qc_flags_stations","out_prefix")
 names(list_param_prep)<-cnames
 
 ##### RUN SCRIPT TO GET STATION DATA WITH COVARIATES #####
@@ -216,11 +218,10 @@ prop_minmax<-c(0.3,0.3)  #if prop_min=prop_max and step=0 then predicitons are d
 dates_selected<-"" # if empty string then predict for the full year specified earlier
 
 #Models to run...this can be change for each run
-list_models<-c("y_var ~ s(elev_s)",
+list_models<-c("y_var ~ s(x,y)",
                "y_var ~ s(LST)",
-               "y_var ~ s(elev_s,LST)",
-               "y_var ~ s(lat) + s(lon)+ s(elev_s)",
-               "y_var ~ s(lat,lon,elev_s)",
+               "y_var ~ s(x,y,LST)",
+               "y_var ~ s(LST,elev_s)",
                "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST)", 
                "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST) + s(LC2)",
                "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST) + s(LC6)")
