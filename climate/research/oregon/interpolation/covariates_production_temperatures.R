@@ -10,7 +10,7 @@
 # -MODIS LST: mean and obs
 #3) The output is a multiband file in tif format with projected covariates for the processing region/tile.             
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 05/14/2013                                                                                 
+#DATE: 05/24/2013                                                                                 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363--   
 
 ##Comments and TODO:
@@ -84,6 +84,42 @@ mosaic_raster_list<-function(mosaic_list,out_names,out_path){
     #Writing the data in a raster file format...  
     rast_list[[i]]<-file.path(out_path,raster_name)
   }
+  return(rast_list)
+}
+
+mosaic_m_raster_list<-function(j,list_param){
+  #This functions returns a subset of tiles from the modis grid.
+  #Arguments: modies grid tile,list of tiles
+  #Output: spatial grid data frame of the subset of tiles
+  #Note that rasters are assumed to be in the same projection system!!
+  
+  #rast_list<-vector("list",length(mosaic_list))
+  #for (i in 1:length(mosaic_list)){  
+    # read the individual rasters into a list of RasterLayer objects
+    # this may be changed so that it is not read in the memory!!!
+  
+  #parse output...
+  
+  #j<-list_param$j
+  mosaic_list<-list_param$mosaic_list
+  out_path<-list_param$out_path
+  out_names<-list_param$out_rastnames
+  ## Start
+  
+  input.rasters <- lapply(as.character(mosaic_list[[j]]), raster)
+  mosaiced_rast<-input.rasters[[1]]
+    
+  for (k in 2:length(input.rasters)){
+    mosaiced_rast<-mosaic(mosaiced_rast,input.rasters[[k]], fun=mean)
+    #mosaiced_rast<-mosaic(mosaiced_rast,raster(input.rasters[[k]]), fun=mean)
+  }
+  
+  data_name<-paste("mosaiced_",sep="") #can add more later...
+  raster_name<-paste(data_name,out_names[j],".tif", sep="")
+  writeRaster(mosaiced_rast, filename=file.path(out_path,raster_name),overwrite=TRUE)  
+  #Writing the data in a raster file format...  
+  rast_list<-file.path(out_path,raster_name)
+  
   return(rast_list)
 }
 
@@ -193,7 +229,11 @@ covariates_production_temperature<-function(list_param){
     lst_pat<-"LST_Day_1km" #for the time being change at later stage...
   }
   
+  #Need to clean up this section, later on, works for now using mclapply...
   #Get list of files containing the LST averages
+  #lst_pat<-"*"
+  #out_suffix_modis <- "_01252013"
+  #hdfdir<-"/home/layers/commons/modis/MOD11A1_tiles/LST_averages"
   #pat_str2 <- glob2rx(paste("nobs","*",lst_pat,"*.tif",sep=""))
   pat_str2 <- glob2rx(paste("nobs","*",lst_pat,"*",out_suffix_modis,"*.tif",sep=""))
   #mixedsort(list.files(path=hdfdir,pattern=".*tif"))
@@ -218,12 +258,17 @@ covariates_production_temperature<-function(list_param){
   out_rastnames<-paste(list_date_names,out_rastnames,sep="")
   #reproject and crop if necessary
   #nobs_m_list<-list.files(pattern='mosaiced_.*._lst_nobs_VE_03182013.tif')
-  nobs_m_list<-mosaic_raster_list(mosaic_list,out_rastnames,out_path)
+  #nobs_m_list<-mosaic_raster_list(mosaic_list,out_rastnames,out_path)
+  list_param_mosaic<-list(j,mosaic_list,out_rastnames,out_path)
+  names(list_param_mosaic)<-c("j","mosaic_list","out_rastnames","out_path")
+
+  nobs_m_list <-mclapply(1:12, list_param=list_param_mosaic, mosaic_m_raster_list,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
+  #test<-mosaic_m_raster_list(1,list_param_mosaic)
   
   ##Now mosaic for mean: should reorder files!!
   pat_str1 <- glob2rx(paste("mean","*.tif",sep=""))
   tmp_str1<- mixedsort(list.files(pattern=pat_str1))
-  out_rastnames<-paste("_",lst_pat,"_","mean",out_suffix,sep="")
+  out_rastnames_mean<-paste("_",lst_pat,"_","mean",out_suffix,sep="")
   list_date_names<-c("jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec")
   mosaic_list<-split(tmp_str1,list_date_names)
   new_list<-vector("list",length(mosaic_list))
@@ -232,13 +277,20 @@ covariates_production_temperature<-function(list_param){
     names(mosaic_list)[j]<-list_date_names[i]
     new_list[i]<-mosaic_list[j]
   }
-  mosaic_list<-new_list
-  out_rastnames<-paste(list_date_names,out_rastnames,sep="")
+  mosaic_list<-new_list #list ready for mosaicing
+  out_rastnames_mean<-paste(list_date_names,out_rastnames_mean,sep="")
   #mean_m_list<-list.files(pattern='mosaiced_.*._lst_mean_VE_03182013.tif')
-  mean_m_list<-mosaic_raster_list(mosaic_list,out_rastnames,out_path)
-
+  #mean_m_list<-mosaic_raster_list(mosaic_list,out_rastnames,out_path)
+  list_param_mosaic<-list(j,mosaic_list,out_rastnames_mean,out_path)
+  names(list_param_mosaic)<-c("j","mosaic_list","out_rastnames","out_path")
+  
+  mean_m_list <-mclapply(1:12, list_param=list_param_mosaic, mosaic_m_raster_list,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
+      
   #Use this as ref file for now?? Ok for the time being: this will need to change to be a processing tile.
-  ref_rast<-raster(mean_m_list[[1]])
+  if (ref_name==""){
+    ref_rast<-raster(mean_m_list[[1]])
+  }
+  
   #ref_rast <-raster("mosaiced_dec_lst_mean_VE_03182013.tif")
   #Modis shapefile tile is slighly shifted:
   # +proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs for ref_rast
@@ -251,14 +303,16 @@ covariates_production_temperature<-function(list_param){
   #min_val<-(-15+273.16) #if values less than -15C then screen out (note the Kelvin units that will need to be changed later in all datasets)
   #LST[LST < (min_val)]<-NA
   
+  #add screening here...
+  
   #########################################
   ##2) Crop and reproject Canopy height data
   
   #Make it a function?
   #canopy_rast<-raster("Simard_Pinto_3DGlobalVeg_JGR.tif")
-  canopy_name<-file.path(in_path,infile_canheight)
-  
-  CANHEIGHT<-create_raster_region(canopy_name,ref_rast)
+  canopy_name<-file.path(infile_canheight)
+  #mclapply??
+  CANHEIGHT<-create_raster_region(canopy_name,ref_rast) #reproject and clip to raster region...
   
   ##########################################
   #3) Creating elev, aspect, slope from STRM
@@ -288,9 +342,11 @@ covariates_production_temperature<-function(list_param){
   lc_list<-list.files(pattern="con_1km_class_.*.tif")
   #lc<-raster(file.path(lc_path,lc_names))
   
+  #Very slow to reproject and clip images...
+  #Use mclapply and create new function( will work for any projection later on when tackling tile  by tile projections, use ref name)
   lc_reg_list<-vector("list",length(lc_list))
   for (i in 1:length(lc_list)){
-    
+
     lc_name<-lc_list[[i]]
     lc_reg<-create_raster_region(lc_name,ref_rast)
     data_name<-paste("reg_",sub(".tif","",lc_name),"_",sep="") #can add more later...
