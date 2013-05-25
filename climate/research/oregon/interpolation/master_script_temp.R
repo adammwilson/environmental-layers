@@ -10,7 +10,7 @@
 #STAGE 5: Output analyses-visualization of results for specific dates...
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 05/23/2013                                                                                 
+#DATE: 05/25/2013                                                                                 
 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363, TASK$568--   
 
@@ -71,7 +71,10 @@ source(file.path(script_path,"GAM_fusion_function_multisampling_validation_metri
 stages_to_run<-c(0,0,3,4,5) #May decide on antoher strategy later on...
 
 var<-"TMAX" # variable being interpolated
-out_prefix<-"_365d_GAM_fus_all_lst_05212013"                #User defined output prefix
+out_prefix<-"_365d_GAM_fus_all_lst_05252013"                #User defined output prefix
+out_suffix<-"_VE_05252013"
+out_suffix_modis="_05252013"
+
 #interpolation_method<-c("gam_fusion","gam_CAI") #other otpions to be added later
 #interpolation_method<-c("gam_CAI") #other otpions to be added later
 interpolation_method<-c("gam_fusion") #other otpions to be added later
@@ -101,7 +104,7 @@ CRS_interp<-"+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +un
 #CRS_interp <-"+proj=lcc +lat_1=43 +lat_2=45.5 +lat_0=41.75 +lon_0=-120.5 +x_0=400000 +y_0=0 +ellps=GRS80 +units=m +no_defs";
 CRS_locs_WGS84<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0") #Station coords WGS84
 out_region_name<-"_venezuela_region" #generated on the fly
-out_suffix<-"_VE_05232013"
+#out_suffix<-"_VE_05252013"
 ref_rast_name<-""  #local raster name defining resolution, exent, local projection--. set on the fly??
 #ref_rast_name<-"mean_day244_rescaled.rst"  #local raster name defining resolution, exent: oregon
   
@@ -125,7 +128,7 @@ end_year = "2010"
 hdfdir =  '/home/parmentier/Data/IPLANT_project/MOD11A1_tiles'
 download=1
 clim_calc=0
-out_suffix_modis="_0522013"
+#out_suffix_modis="_05252013"
 #end_month= "12"
 #start_month= "1"
 
@@ -218,15 +221,13 @@ prop_minmax<-c(0.3,0.3)  #if prop_min=prop_max and step=0 then predicitons are d
 dates_selected<-"" # if empty string then predict for the full year specified earlier
 
 #Models to run...this can be change for each run
-list_models<-c("y_var ~ s(x,y)",
-               "y_var ~ s(LST)",
-               "y_var ~ s(x,y,LST)",
-               "y_var ~ s(LST,elev_s)",
-               "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST)", 
-               "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST) + s(LC2)",
-               "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST) + s(LC6)")
-#               "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST) + s(DISTOC)")
-
+list_models<-c("y_var ~ te(x,y)",
+               "y_var ~ te(LST)",
+               "y_var ~ te(x,y,LST)",
+               "y_var ~ te(LST,elev_s)",
+               "y_var ~ te(lat,lon) + te(elev_s) + te(N_w,E_w) + te(LST)", 
+               "y_var ~ te(lat,lon) + te(elev_s) + te(N_w,E_w) + te(LST) + te(LC2)",
+               "y_var ~ te(lat,lon) + te(elev_s) + te(N_w,E_w) + te(LST) + te(LC6)")
 
 #Default name of LST avg to be matched               
 lst_avg<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_09","mm_10","mm_11","mm_12")  
