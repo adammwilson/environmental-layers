@@ -8,7 +8,7 @@
 #
 #AUTHORS: Benoit Parmentier    
 #         based on modified earlier python scripts from J. Regetz
-#DATE: 05/20/2013                                                                                 
+#DATE: 05/29/2013                                                                                 
 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#???--   
 
@@ -18,7 +18,7 @@ download_calculate_MODIS_LST_climatology <-function(j,list_param){
   
   ###Function to download and calculate LST climatology from MODIS tiles
   #AUTHOR: Benoit Parmentier                                                                       
-  #DATE: 05/20/2013                                                                                 
+  #DATE: 05/29/2013                                                                                 
   #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363--   
   
   #1) var 
@@ -78,7 +78,7 @@ download_calculate_MODIS_LST_climatology <-function(j,list_param){
   
   list_param_python_script <- list(list_tiles_modis,start_year,end_year,start_month,end_month,hdfdir,
                                    night,download,out_suffix_modis)
-  names(list_param_python_script)<-c("list_andtiles_modis","start_year","end_year","start_month","end_month","hdfdir",
+  names(list_param_python_script)<-c("list_tiles_modis","start_year","end_year","start_month","end_month","hdfdir",
                                      "night","download","out_suffix_modis")
   list_param_python_script_str <- paste(unlist(list_param_python_script), collapse=" ")
   
@@ -115,9 +115,13 @@ download_calculate_MODIS_LST_climatology <-function(j,list_param){
 
 ## Run function:
 
+#list_tiles_modis <- c("h10v04,h11v04,h12v04,h13v04,h14v04,h07v06") #tiles for Northenr America, Northern US...
+list_tiles_modis <- c("h12v04,h13v04,h14v04,h07v06") #tiles for Northenr America, Northern US...
 #list_tiles_modis <- c("h11v08,h11v07,h12v07,h12v08,h10v07,h10v08") #tile for Venezuela and surrounding area
 #list_tiles_modis <- c("h08v04,h09v04") #tiles for Oregon #defined above...
-list_tiles_modis <- c("h12v10,h13v10") #tiles for Oregon #defined above...
+
+#list_tiles_modis <- c("h09v04,h09v04") #tiles for Oregon #defined above...
+#list_tiles_modis <- c("h09v08,h09v07,h08v07,h0706,h08v06,h09v06,h10v06,h08v05,h09v05,h10v05,h11v05,h12v05") #tiles for Central America and Mexico Southern US...
 #list_tiles_modis <- c("h09v09,h10v09,h11v09,h12v09,h13v09,h14v09")
 #list_tiles_modis <-c("h30v10,h31v10,h32v10,h30v11,h31v11") #list("Queensland")
 
@@ -128,11 +132,13 @@ grass_setting_script <- file.path(script_path,"grass-setup.R")
 var="TMAX"
 start_year = "2001"
 end_year = "2010"
-hdfdir =  '/home/layers/commons/modis/MOD11A1_tiles' #destination file where hdf files are stored locally after download.
+#path on Jupiter
+
+hdfdir =  '/data/project/layers/commons/modis/MOD11A1_tiles' #destination file where hdf files are stored locally after download.
 #hdfdir =  '/home/parmentier/Data/IPLANT_project/MOD11A1_tiles'
 download=1
 clim_calc=0
-out_suffix_modis="_05222013"
+out_suffix_modis="_05292013"
 
 list_param_download_clim_LST_script <- list(list_tiles_modis,start_year,end_year,hdfdir,
                                  var,grass_setting_script,modis_download_script, clim_script,
