@@ -10,17 +10,18 @@
 #STAGE 5: Output analyses: assessment of results for specific dates...
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 05/27/2013                                                                                 
+#DATE: 05/30/2013                                                                                 
 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363, TASK$568--   
 
-##Comments and TODO:
+## TODO:
 # Modify code for stage 1 and call python script from R
 # Modify code for stage 2, make it a function and fully automated (distoc var)
 # Add options to run only specific stage + additional out_suffix?
 # Make master script a function?
 # Add log file for master script,add function to collect inputs and outputs
-# 
+# Comments for run:
+#Testing full code for 5 stages (no downloading) for Oregon region.
 ##################################################################################################
 
 ###Loading R library and packages   
@@ -54,8 +55,8 @@ script_path<-"/home/parmentier/Data/IPLANT_project/env_layers_scripts/"
 modis_download_script <- file.path(script_path,"modis_download_05142013.py") # LST modis download python script
 clim_script <- file.path(script_path,"climatology_05142013.py") # LST climatology python script
 grass_setting_script <- file.path(script_path,"grass-setup.R") #Set up system shell environment for python+GRASS
-#source(file.path(script_path,"download_and_produce_MODIS_LST_climatology_05162013.R"))
-source(file.path(script_path,"covariates_production_temperatures_05272013.R"))
+source(file.path(script_path,"download_and_produce_MODIS_LST_climatology_05302013.R"))
+source(file.path(script_path,"covariates_production_temperatures_05302013.R"))
 source(file.path(script_path,"Database_stations_covariates_processing_function_05212013.R"))
 source(file.path(script_path,"GAM_fusion_analysis_raster_prediction_multisampling_05212013.R"))
 source(file.path(script_path,"results_interpolation_date_output_analyses_05062013.R"))
@@ -68,22 +69,22 @@ source(file.path(script_path,"GAM_fusion_function_multisampling_05212013.R")) #I
 source(file.path(script_path,"GAM_fusion_function_multisampling_validation_metrics_05062013.R"))
 
 #stages_to_run<-c(1,2,3,4,5) #May decide on antoher strategy later on...
-stages_to_run<-c(0,2,3,4,5) #May decide on antoher strategy later on...
+stages_to_run<-c(1,2,3,4,5) #May decide on antoher strategy later on...
 
 var<-"TMAX" # variable being interpolated
-out_prefix<-"_365d_GAM_fus_all_lst_05242013"                #User defined output prefix
-out_suffix<-"_VE_05242013"
-out_suffix_modis <-"_05242013"
+out_prefix<-"_365d_GAM_fus_all_lst_05302013"                #User defined output prefix
+out_suffix<-"_OR_05302013"
+out_suffix_modis <-"_05302013"
 
 #interpolation_method<-c("gam_fusion","gam_CAI") #other otpions to be added later
 #interpolation_method<-c("gam_CAI") #other otpions to be added later
 interpolation_method<-c("gam_fusion") #other otpions to be added later
 
-#Change input path?? for LST stage ??
-in_path  <- "/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/input_data/"
-#in_path <- out_path
-out_path <- paste("/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/output_data",
-                  out_prefix,"/",sep="")
+#out_path <- paste("/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/output_data",
+#                  out_prefix,"/",sep="")
+out_path<-"/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/output_data"
+out_path <-paste(out_path,out_prefix,sep="")
+
 if (!file.exists(out_path)){
   dir.create(out_path)
   #} else{
@@ -101,29 +102,22 @@ infile_distoc <- "/data/project/layers/commons/distance_to_coast/GMT_intermediat
 #infile_covariates<- "/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/covariates_Oregon_region_TMAX__OR_04052013.tif" #Oregon covar TMAX from earlier codes...for continuity
 #infile_reg_outline=""  #input region outline defined by polygon: none for Venezuela
 #This is the shape file of outline of the study area                                                      #It is an input/output of the covariate script
-#infile_reg_outline <- "OR83M_state_outline.shp"  #input region outline defined by polygon: Oregon
+infile_reg_outline <- "/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/OR83M_state_outline.shp"  #input region outline defined by polygon: Oregon
 #infile_reg_outline <-"OR83M_state_outline.shp" #remove this parameter!!!
+#ref_rast_name<-""  #local raster name defining resolution, exent, local projection--. set on the fly?? 
+#this may be redundant with infile_reg_outline
+ref_rast_name<-"/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/mean_day244_rescaled.rst"  #local raster name defining resolution, exent: oregon
+
 #covar_names see stage 2
 
-#lc_path<-"/home/layers/data/land-cover/lc-consensus-global"
-#infile_modis_grid<-"/home/layers/commons/modis/modis_sinusoidal/modis_sinusoidal_grid_world.shp" #Give path!!! NEED TO CHANGE THIS...
-#infile_elev<-"/home/layers/data/terrain/dem-cgiar-srtm-1km-tif/srtm_1km.tif"  #this is the global file: replace later with the input produced by the DEM team
-#infile_canheight<-"/home/layers/data/land-cover/treeheight-simard2011/Simard_Pinto_3DGlobalVeg_JGR.tif"              #Canopy height
-
-list_tiles_modis <- c("h11v08,h11v07,h12v07,h12v08,h10v07,h10v08") #tile for Venezuela and surrounding area
-#list_tiles_modis <- c("h08v04","h09v04") #tiles for Oregon
+#list_tiles_modis <- c("h11v08,h11v07,h12v07,h12v08,h10v07,h10v08") #tile for Venezuela and surrounding area
+list_tiles_modis <- c("h08v04,h09v04") #tiles for Oregon
   
-infile_reg_outline=""  #input region outline defined by polygon: none for Venezuela
-#infile_reg_outline <- "OR83M_state_outline.shp"  #input region outline defined by polygon: Oregon
-  
-CRS_interp<-"+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs";
-#CRS_interp <-"+proj=lcc +lat_1=43 +lat_2=45.5 +lat_0=41.75 +lon_0=-120.5 +x_0=400000 +y_0=0 +ellps=GRS80 +units=m +no_defs";
+#CRS_interp<-"+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs";
+CRS_interp <-"+proj=lcc +lat_1=43 +lat_2=45.5 +lat_0=41.75 +lon_0=-120.5 +x_0=400000 +y_0=0 +ellps=GRS80 +units=m +no_defs";
 CRS_locs_WGS84<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0") #Station coords WGS84
-out_region_name<-"_venezuela_region" #generated on the fly
-#out_suffix<-"_VE_05252013"
-ref_rast_name<-""  #local raster name defining resolution, exent, local projection--. set on the fly?? 
-                  #this may be redundant with infile_reg_outline
-#ref_rast_name<-"mean_day244_rescaled.rst"  #local raster name defining resolution, exent: oregon
+#out_region_name<-"_venezuela_region" #generated on the fly
+out_region_name<-"_oregon_region" #generated on the fly
   
 #The names of covariates can be changed...these names should be output/input from covar script!!!
 rnames<-c("x","y","lon","lat","N","E","N_w","E_w","elev_s","slope","aspect","CANHEIGHT","DISTOC")
@@ -140,15 +134,10 @@ covar_names<-c(rnames,lc_names,lst_names)
 #list_tiles_modis <- c("h08v04,h09v04") #tiles for Oregon #defined above...
 start_year = "2001"
 end_year = "2010"
-#end_year = "2002" #for testing (year included?)
 #hdfdir =  '/home/layers/commons/modis/MOD11A1_tiles' #destination file where hdf files are stored locally after download.
-#hdfdir =  '/home/parmentier/Data/IPLANT_project/MOD11A1_tiles'
 hdfdir <- "/data/project/layers/commons/modis/MOD11A1_tiles"
-download=1
-clim_calc=0
-#out_suffix_modis="_05252013"
-#end_month= "12"
-#start_month= "1"
+download=0
+clim_calc=1
 
 list_param_download_clim_LST_script <- list(list_tiles_modis,start_year,end_year,hdfdir,
                                             var,grass_setting_script,modis_download_script, clim_script,
@@ -156,22 +145,23 @@ list_param_download_clim_LST_script <- list(list_tiles_modis,start_year,end_year
 names(list_param_download_clim_LST_script)<-c("list_tiles_modis","start_year","end_year","hdfdir",
                                               "var","grass_setting_script","modis_download_script","clim_script",
                                               "download","clim_calc","out_suffix_modis")
+no_tiles <- length(unlist(strsplit(list_tiles_modis,",")))  # transform string into separate element in char vector
 
 if (stages_to_run[1]==1){
+  #clim_production_obj <-mclapply(1:2, list_param=list_param_download_clim_LST_script, download_calculate_MODIS_LST_climatology,mc.preschedule=FALSE,mc.cores = 2) #This is the end bracket from mclapply(...) statement
+  clim_production_obj <-lapply(1:no_tiles, list_param=list_param_download_clim_LST_script, download_calculate_MODIS_LST_climatology) #,mc.preschedule=FALSE,mc.cores = 2) #This is the end bracket from mclapply(...) statement
   
-  download_calculate_MODIS_LST_climatology(1,list_param_download_clim_LST_script)
-
 }
 #Collect LST climatology list as output???
 
 ############ STAGE 2: Covariate production ################
 
 #list of 17 parameters
-list_param_covar_production<-list(var,in_path,out_path,lc_path,infile_modis_grid,infile_elev,infile_canheight,
+list_param_covar_production<-list(var,out_path,lc_path,infile_modis_grid,infile_elev,infile_canheight,
                                   infile_distoc,list_tiles_modis,infile_reg_outline,CRS_interp,CRS_locs_WGS84,out_region_name,
                                   out_suffix,out_suffix_modis,ref_rast_name,hdfdir,covar_names) 
 
-names(list_param_covar_production)<-c("var","in_path","out_path","lc_path","infile_modis_grid","infile_elev","infile_canheight",
+names(list_param_covar_production)<-c("var","out_path","lc_path","infile_modis_grid","infile_elev","infile_canheight",
                                       "infile_distoc","list_tiles_modis","infile_reg_outline","CRS_interp","CRS_locs_WGS84","out_region_name",
                                       "out_suffix","out_suffix_modis","ref_rast_name","hdfdir","covar_names") 
 
@@ -192,13 +182,15 @@ db.name <- "ghcn"       # name of the Postgres database
 range_years<-c("2010","2011") #right bound not included in the range!!
 range_years_clim<-c("2000","2011") #right bound not included in the range!!
 infile_ghncd_data <-"/home/layers/data/climate/ghcn/v2.92-upd-2012052822/ghcnd-stations.txt"                              #This is the textfile of station locations from GHCND
-qc_flags_stations<-c("0","S")    #flags allowed for screening after the query from the GHCND??
+#qc_flags_stations<-c("0","S")    #flags allowed for screening after the query from the GHCND??
+qc_flags_stations<-c("0")    #flags allowed for screening after the query from the GHCND??
+
 #infile_covariates and infile_reg_outline defined in stage 2 or at the start of script...
 
 #list of 12 parameters for input in the function...
 
-list_param_prep<-list(db.name,var,range_years,range_years_clim,infile_reg_outline,infile_ghncd_data,infile_covariates,CRS_locs_WGS84,in_path,out_path,covar_names,qc_flags_stations,out_prefix)
-cnames<-c("db.name","var","range_years","range_years_clim","infile_reg_outline","infile_ghncd_data","infile_covariates","CRS_locs_WGS84","in_path","out_path","covar_names","qc_flags_stations","out_prefix")
+list_param_prep<-list(db.name,var,range_years,range_years_clim,infile_reg_outline,infile_ghncd_data,infile_covariates,CRS_locs_WGS84,out_path,covar_names,qc_flags_stations,out_prefix)
+cnames<-c("db.name","var","range_years","range_years_clim","infile_reg_outline","infile_ghncd_data","infile_covariates","CRS_locs_WGS84","out_path","covar_names","qc_flags_stations","out_prefix")
 names(list_param_prep)<-cnames
 
 ##### RUN SCRIPT TO GET STATION DATA WITH COVARIATES #####
@@ -218,8 +210,8 @@ infile_locs<- list_outfiles$loc_stations_ghcn #outfile2? from database covar scr
 
 #names(outfiles_obj)<- c("loc_stations","loc_stations_ghcn","daily_covar_ghcn_data","monthly_covar_ghcn_data")
 
-list_param_data_prep<-list(infile_monthly,infile_daily,infile_locs,infile_covariates,covar_names,var,out_prefix,CRS_locs_WGS84)
-names(list_param_data_prep)<-c("infile_monthly","infile_daily","infile_locs","infile_covariates","covar_names","var","out_prefix","CRS_locs_WGS84")
+list_param_data_prep <- list(infile_monthly,infile_daily,infile_locs,infile_covariates,covar_names,var,out_prefix,CRS_locs_WGS84)
+names(list_param_data_prep) <- c("infile_monthly","infile_daily","infile_locs","infile_covariates","covar_names","var","out_prefix","CRS_locs_WGS84")
 
 #Set additional parameters
 #Input for sampling function...
@@ -232,43 +224,44 @@ prop_minmax<-c(0.3,0.3)  #if prop_min=prop_max and step=0 then predicitons are d
 dates_selected<-"" # if empty string then predict for the full year specified earlier
 
 #Models to run...this can be change for each run
-list_models<-c("y_var ~ s(x,y)",
-               "y_var ~ s(LST)",
-               "y_var ~ s(x,y,LST)",
-               "y_var ~ s(LST,elev_s)",
-               "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST)", 
-               "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST) + s(LC2)",
-               "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST) + s(LC6)")
-#               "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST) + s(DISTOC)")
 
+list_models<-c("y_var ~ s(elev_s)",
+               "y_var ~ s(LST)",
+               "y_var ~ s(elev_s,LST)",
+               "y_var ~ s(lat) + s(lon)+ s(elev_s)",
+               "y_var ~ s(lat,lon,elev_s)",
+               "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST)", 
+               "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST) + s(LC2)",	
+               "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST) + s(LC6)", 
+               "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST) + s(DISTOC)")
 #Default name of LST avg to be matched               
 lst_avg<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_09","mm_10","mm_11","mm_12")  
 
 #Collect all parameters in a list
 list_param_raster_prediction<-list(list_param_data_prep,
                                 seed_number,nb_sample,step,constant,prop_minmax,dates_selected,
-                                list_models,lst_avg,in_path,out_path,script_path,
+                                list_models,lst_avg,out_path,script_path,
                                 interpolation_method)
 names(list_param_raster_prediction)<-c("list_param_data_prep",
                                 "seed_number","nb_sample","step","constant","prop_minmax","dates_selected",
-                                "list_models","lst_avg","in_path","out_path","script_path",
+                                "list_models","lst_avg","out_path","script_path",
                                 "interpolation_method")
 
 raster_prediction_obj <-raster_prediction_fun(list_param_raster_prediction)
 
 ############## STAGE 5: OUTPUT ANALYSES ##################
 
-date_selected_results<-c("20100101") ##This is for year 2000!!!
-#raster_prediciton_obj<-load_obj(paste("raster_prediction_obj","_","interpolation_method,
-#                                y_var_name,out_prefix,sep="")
-list_param_results_analyses<-list(in_path,out_path,script_path,raster_prediction_obj,interpolation_method,
+date_selected_results<-c("20100101") 
+
+list_param_results_analyses<-list(out_path,script_path,raster_prediction_obj,interpolation_method,
                                   infile_covariates,covar_names,date_selected_results,var,out_prefix)
-names(list_param_results_analyses)<-c("in_path","out_path","script_path","raster_prediction_obj","interpolation_method",
+names(list_param_results_analyses)<-c("out_path","script_path","raster_prediction_obj","interpolation_method",
                      "infile_covariates","covar_names","date_selected_results","var","out_prefix")
 #plots_assessment_by_date<-function(j,list_param){
 if (stages_to_run[5]==5){
   #source(file.path(script_path,"results_interpolation_date_output_analyses_05062013.R"))
-  plots_assessment_by_date(1,list_param_results_analyses)
+  #Use lapply or mclapply
+  summary_v_day <-plots_assessment_by_date(1,list_param_results_analyses)
   #Call as function...
 }
   
