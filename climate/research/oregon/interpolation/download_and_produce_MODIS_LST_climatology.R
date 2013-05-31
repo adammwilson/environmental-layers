@@ -116,7 +116,7 @@ download_calculate_MODIS_LST_climatology <-function(j,list_param){
 }
 
 ## Run function:
-
+list_tiles_modis <- c("h09v03,h10v03,h11v03,h12v03,h13v03,h14v03") #tiles for Northenr America, Northern US...
 #list_tiles_modis <- c("h10v04,h11v04,h12v04,h13v04,h14v04,h07v06") #tiles for Northenr America, Northern US...
 #list_tiles_modis <- c("h12v04,h13v04,h14v04,h07v06") #tiles for Northenr America, Northern US...
 #list_tiles_modis <- c("h11v08,h11v07,h12v07,h12v08,h10v07,h10v08") #tile for Venezuela and surrounding area
@@ -128,33 +128,34 @@ download_calculate_MODIS_LST_climatology <-function(j,list_param){
 #list_tiles_modis <- c("h09v09,h10v09,h11v09,h12v09,h13v09,h14v09")
 #list_tiles_modis <-c("h30v10,h31v10,h32v10,h30v11,h31v11") #list("Queensland")
 
-#script_path<-"/home/parmentier/Data/IPLANT_project/env_layers_scripts/"
-#modis_download_script <- file.path(script_path,"modis_download_05142013.py") # LST modis download python script
-#clim_script <- file.path(script_path,"climatology_05142013.py") # LST climatology python script
-#grass_setting_script <- file.path(script_path,"grass-setup.R")
-#var="TMAX"
-#start_year = "2001"
-#end_year = "2010"
+script_path<-"/home/parmentier/Data/IPLANT_project/env_layers_scripts/"
+modis_download_script <- file.path(script_path,"modis_download_05142013.py") # LST modis download python script
+clim_script <- file.path(script_path,"climatology_05142013.py") # LST climatology python script
+grass_setting_script <- file.path(script_path,"grass-setup.R")
+var="TMAX"
+start_year = "2001"
+end_year = "2010"
 #end_year = "2002"
 
 #path on Jupiter
 
-#hdfdir =  '/data/project/layers/commons/modis/MOD11A1_tiles' #destination file where hdf files are stored locally after download.
+hdfdir =  '/data/project/layers/commons/modis/MOD11A1_tiles' #destination file where hdf files are stored locally after download.
 #hdfdir =  '/home/parmentier/Data/IPLANT_project/MOD11A1_tiles'
-#download=0
-#clim_calc=1
-#out_suffix_modis="_05302013"
+download=1
+clim_calc=0
+out_suffix_modis="_05312013"
 
-#list_param_download_clim_LST_script <- list(list_tiles_modis,start_year,end_year,hdfdir,
-#                                 var,grass_setting_script,modis_download_script, clim_script,
-#                                 download,clim_calc,out_suffix_modis)
-#names(list_param_download_clim_LST_script)<-c("list_tiles_modis","start_year","end_year","hdfdir",
-#                                   "var","grass_setting_script","modis_download_script","clim_script",
-#                                   "download","clim_calc","out_suffix_modis")
+list_param_download_clim_LST_script <- list(list_tiles_modis,start_year,end_year,hdfdir,
+                                var,grass_setting_script,modis_download_script, clim_script,
+                                download,clim_calc,out_suffix_modis)
+names(list_param_download_clim_LST_script)<-c("list_tiles_modis","start_year","end_year","hdfdir",
+                                  "var","grass_setting_script","modis_download_script","clim_script",
+                                  "download","clim_calc","out_suffix_modis")
 #debug(download_calculate_MODIS_LST_climatology)
 #clim_production_obj <-mclapply(1:2, list_param=list_param_download_clim_LST_script, download_calculate_MODIS_LST_climatology,mc.preschedule=FALSE,mc.cores = 2) #This is the end bracket from mclapply(...) statement
-#clim_production_obj <-lapply(1:2, list_param=list_param_download_clim_LST_script, download_calculate_MODIS_LST_climatology) #,mc.preschedule=FALSE,mc.cores = 2) #This is the end bracket from mclapply(...) statement
+no_tiles <- length(unlist(strsplit(list_tiles_modis,",")))  # transform string into separate element in char vector
+clim_production_obj <-lapply(1:no_tiles, list_param=list_param_download_clim_LST_script, download_calculate_MODIS_LST_climatology) #,mc.preschedule=FALSE,mc.cores = 2) #This is the end bracket from mclapply(...) statement
 
 #download_calculate_MODIS_LST_climatology(1,list_param_download_clim_LST_script)
-#source(file.path(script_path,"covariates_production_temperatures_05302013.R"))
+#source(file.path(script_path,"covariates_production_temperatures_05312013.R"))
 ### END OF SCRIPT
