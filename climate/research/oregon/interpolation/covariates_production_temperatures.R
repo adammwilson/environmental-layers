@@ -67,14 +67,14 @@ create__m_raster_region <-function(j,list_param){
   #Output: spatial grid data frame of the subset of tiles
   
   ## Parse input arguments
-  raster_name <- list_param$raster_name[j] #list of raster ot project and crop
-  reg_ref_rast <- list_param$reg_ref_rast 
+  raster_name <- list_param$raster_name[[j]] #list of raster ot project and crop, this is a list!!
+  reg_ref_rast <- list_param$reg_ref_rast #This must have a coordinate system defined!!
   out_rast_name <- list_param$out_rast_name[j]
   
   ## Start #
   layer_rast<-raster(raster_name)
-  new_proj<-proj4string(layer_rast)                  #Extract coordinates reference system in PROJ4 format
-  region_temp_projected<-projectExtent(reg_ref_rast,CRS(new_proj))     #Project from current to region coord. system
+  new_proj<-proj4string(layer_rast)                  #Extract current coordinates reference system in PROJ4 format
+  region_temp_projected<-projectExtent(reg_ref_rast,CRS(new_proj))     #Project from ref to current region coord. system
   layer_crop_rast<-crop(layer_rast, region_temp_projected) #crop using the extent from the region tile
   #layer_projected_rast<-projectRaster(from=layer_crop_rast,crs=proj4string(reg_outline),method="ngb")
   layer_projected_rast<-projectRaster(from=layer_crop_rast,to=reg_ref_rast,method="ngb")
@@ -314,33 +314,39 @@ covariates_production_temperature<-function(list_param){
   ### Now mosaic tiles...Note that function could be improved to use less memory
   list_param_mosaic<-list(j,mosaic_list_mean,out_rastnames_mean,out_path)
   names(list_param_mosaic)<-c("j","mosaic_list","out_rastnames","out_path")
-  mean_m_list <-mclapply(1:12, list_param=list_param_mosaic, mosaic_m_raster_list,mc.preschedule=FALSE,mc.cores = 12) #This is the end bracket from mclapply(...) statement
+  mean_m_list <-mclapply(1:12, list_param=list_param_mosaic, mosaic_m_raster_list,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
   
   list_param_mosaic<-list(j,mosaic_list_nobs,out_rastnames_nobs,out_path)
   names(list_param_mosaic)<-c("j","mosaic_list","out_rastnames","out_path")
-  nobs_m_list <-mclapply(1:12, list_param=list_param_mosaic, mosaic_m_raster_list,mc.preschedule=FALSE,mc.cores = 12) #This is the end bracket from mclapply(...) statement
+  nobs_m_list <-mclapply(1:12, list_param=list_param_mosaic, mosaic_m_raster_list,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
   
   #Use this as ref file for now?? Ok for the time being: this will need to change to be a processing tile.
   if (ref_rast_name==""){
-    ref_rast<-raster(mean_m_list[[1]])
+    ref_rast<-raster(mean_m_list[[1]]) 
+    #Use one mosaiced modis tile as reference image...We will need to add a function 
+    #to define a local reference system and reproject later!!
+    #Assign new projection system here in the argument CRS_interp (!it is used later)
   }else{
     ref_rast<-raster(ref_rast_name) #This is the reference image used to define the study/processing area
+    proj4string(ref_rast) <- CRS_interp #Assign given reference system
   }
   
   ## Project mosaiced tiles if local projection is provided...
 
   out_suffix_lst <-paste(out_suffix,".tif",sep="")          
   mean_lst_list_outnames<-change_names_file_list(mean_m_list,out_suffix_lst,"reg_",".tif",out_path=out_path)     
-  nobs_lst_list_outnames<-change_names_file_list(nobs_m_list,out_suffix_lst,"reg_",".tif",out_path=out_path)    
+  nobs_lst_list_outnames<-change_names_file_list(nobs_m_list,out_suffix_lst,"reg_",".tif",out_path=out_path)   
   
+  # if ref_name!="" need to reproject and clip!!! do this in mclapply for all the list of covar!!!
   if (ref_rast_name!=""){
     #list(mean_m_list)
     list_param_create_region<-list(j,raster_name=mean_m_list,reg_ref_rast=ref_rast,out_rast_name=mean_lst_list_outnames)
+    #test<-create__m_raster_region(1,list_param_create_region)
     mean_m_list <-mclapply(1:12, list_param=list_param_create_region, create__m_raster_region,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
     list_param_create_region<-list(j,raster_name=nobs_m_list,reg_ref_rast=ref_rast,out_rast_name=nobs_lst_list_outnames)
     nobs_m_list <-mclapply(1:12, list_param=list_param_create_region, create__m_raster_region,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
   }
-  # if ref_name!="" need to reproject and clip!!! do this in mclapply for all the list of covar!!!
+
   
   #ref_rast <-raster("mosaiced_dec_lst_mean_VE_03182013.tif")
   #Modis shapefile tile is slighly shifted:

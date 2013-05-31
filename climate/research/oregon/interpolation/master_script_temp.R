@@ -10,7 +10,7 @@
 #STAGE 5: Output analyses: assessment of results for specific dates...
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 05/30/2013                                                                                 
+#DATE: 05/31/2013                                                                                 
 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363, TASK$568--   
 
@@ -69,12 +69,12 @@ source(file.path(script_path,"GAM_fusion_function_multisampling_05212013.R")) #I
 source(file.path(script_path,"GAM_fusion_function_multisampling_validation_metrics_05062013.R"))
 
 #stages_to_run<-c(1,2,3,4,5) #May decide on antoher strategy later on...
-stages_to_run<-c(1,2,3,4,5) #May decide on antoher strategy later on...
+stages_to_run<-c(0,2,3,4,5) #May decide on antoher strategy later on...
 
 var<-"TMAX" # variable being interpolated
-out_prefix<-"_365d_GAM_fus_all_lst_05302013"                #User defined output prefix
-out_suffix<-"_OR_05302013"
-out_suffix_modis <-"_05302013"
+out_prefix<-"_365d_GAM_fus_all_lst_05312013"                #User defined output prefix
+out_suffix<-"_OR_05312013"
+out_suffix_modis <-"_05302013" #use tiles produce previously
 
 #interpolation_method<-c("gam_fusion","gam_CAI") #other otpions to be added later
 #interpolation_method<-c("gam_CAI") #other otpions to be added later
