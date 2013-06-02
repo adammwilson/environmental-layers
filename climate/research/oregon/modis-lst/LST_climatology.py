@@ -129,6 +129,13 @@ def load_qc_adjusted_lst(hdf):
     # return name of qc-adjusted LST raster in GRASS
     return lstname
 
+def create_dir_and_check_existence(path):
+    try:
+        os.makedirs(path)
+    except OSError as exception:
+        if exception.errno != errno.EEXIST:
+            raise
+            
 def main():
     #--------------------------------------------
     # Download and Calculate monthly climatology for daily LST time series for a specific area
@@ -150,16 +157,16 @@ def main():
     ### INPUT Parameters
     #Inputs from R?? there are 9 parameters
    #tiles = ['h11v08','h11v07','h12v07','h12v08','h10v07','h10v08'] #These tiles correspond to Venezuela.
-    #tiles= ['h08v04','h09v04']    
-    #start_year = 2001
-    #end_year = 2010
-    #start_month=1
-    #end_month=12
+    tiles= ['h08v04','h09v04']    
+    start_year = 2001
+    end_year = 2010
+    start_month=1
+    end_month=12
     #hdfdir =  '/home/layers/commons/modis/MOD11A1_tiles' #destination file where hdf files are stored locally after download.
-    #hdfdir =  '/home/parmentier/Data/IPLANT_project/MOD11A1_tiles' #destination file where hdf files are stored locally after download.
-    #night=1    # if 1 then produce night climatology
-    #out_suffix="_03192013"
-    #download=1  # if 1 then download files
+    hdfdir =  '/home/parmentier/Data/IPLANT_project/MOD11A1_tiles' #destination file where hdf files are stored locally after download.
+    night=1    # if 1 then produce night climatology
+    out_suffix="_03192013"
+    download=0  # if 1 then download files
    
     #Passing arguments from the shell...using positional assignment
     parser = argparse.ArgumentParser()
@@ -201,6 +208,9 @@ def main():
     if night==0:
         lst_var = var_name[0]
         
+    DirLST="LST_averages"
+    outDir = os.path.join(hdfdir,DirLST) #create output filesfor LST averages
+    create_dir_and_check_existence(outDir)
     #start = time.clock()    
     for tile in tiles:        
         # Set up a temporary GRASS data base   
@@ -255,13 +265,15 @@ def main():
         ##Now calculate clim per month, do a test for year1
         nb_month = 12
         for i in range(1,nb_month+1):
-            clims = calc_clim(list_maps_month[i-1],lst_var+'_'+tile+'_'+list_maps_name[i-1]+'_'+str(i-1))
+            clims = calc_clim(list_maps_month[i-1],lst_var+'_'+tile+'_'+list_maps_name[i-1]+'_'+str(i-1)) #length 2, list contains avg and nobs
             for j in range(1, len(clims)+1):
-                if j-1 ==0:
-                    gs.run_command('r.out.gdal', input= clims[j-1], output=clims[j-1]+ out_suffix +'.tif', type='Float64')
-                if j-1 ==1:
+                if j-1 ==0:  #if image is nobs (number of observation, then output as such)
+                    #gs.run_command('r.out.gdal', input= clims[j-1], output=clims[j-1]+ out_suffix +'.tif', type='Float64')
+                    gs.run_command('r.out.gdal', input= clims[j-1], output=os.path.join(outDir,clims[j-1])+out_suffix+'.tif', type='Float64',createopt='COMPRESS=LZW')
+                if j-1 ==1: #if image is avg clim then rescaled in celsius degrees
                     gs.mapcalc(' clim_rescaled = ('+ clims[j-1 ]+ ' * 0.02) -273.15')  
-                    gs.run_command('r.out.gdal', input= 'clim_rescaled', output=clims[j-1]+ out_suffix+'.tif', type='Float64')
+                    #gs.run_command('r.out.gdal', input= 'clim_rescaled', output=clims[j-1]+ out_suffix+'.tif', type='Float64')
+                    gs.run_command('r.out.gdal', input= 'clim_rescaled', output=os.path.join(outDir,clims[j-1])+out_suffix+'.tif', type='Float64',createopt='COMPRESS=LZW')
         #clims = calc_clim(LST, 'LST_%s_%d_%02d' % (tile, year, month))
         
         # clean up GRASS DATABASE: ok working
