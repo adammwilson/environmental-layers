@@ -99,12 +99,10 @@ raster_prediction_fun <-function(list_param_raster_prediction){
   #6 additional parameters for monthly climatology and more
   list_models<-list_param_raster_prediction$list_models
   lst_avg<-list_param_raster_prediction$lst_avg
-  in_path<-list_param_raster_prediction$in_path
   out_path<-list_param_raster_prediction$out_path
   script_path<-list_param_raster_prediction$script_path
   interpolation_method<-list_param_raster_prediction$interpolation_method
   
-  #setwd(in_path)
   setwd(out_path)
   #Sourcing in the master script to avoid confusion on the latest versions of scripts and functions!!!
   
@@ -113,8 +111,7 @@ raster_prediction_fun <-function(list_param_raster_prediction){
   #source(file.path(script_path,"GAM_fusion_function_multisampling_validation_metrics_03182013.R"))
   
   ###################### START OF THE SCRIPT ########################
-  
-  
+   
   if (var=="TMAX"){
     y_var_name<-"dailyTmax"                                       
   }
@@ -127,24 +124,12 @@ raster_prediction_fun <-function(list_param_raster_prediction){
   #create log file to keep track of details such as processing times and parameters.
   
   #log_fname<-paste("R_log_raster_prediction",out_prefix, ".log",sep="")
-  log_fname<-paste(out_path,"R_log_raster_prediction",out_prefix, ".log",sep="")
+  log_fname<-paste("R_log_raster_prediction",out_prefix, ".log",sep="")
   #sink(log_fname) #create new log file
-  file.create(log_fname) #create new log file
-  
-  #if (file.exists(log_fname)){  #Stop the script???
-  #  file.remove(log_fname)
-  #  log_file<-file(log_fname,"w")
-  #}
-  #if (!file.exists(log_fname)){
-  #  log_file<-file(file.path(out_path,log_fname),"w")
-  #}
+  file.create(file.path(path,log_fname)) #create new log file
   
   time1<-proc.time()    #Start stop watch
   
-  #writeLines(paste("Starting script at this local Date and Time: ",as.character(Sys.time()),sep=""),
-  #           con=log_file,sep="\n")
-  #writeLines("Starting script process time:",con=log_file,sep="\n")
-  #writeLines(as.character(time1),con=log_file,sep="\n")   
   cat(paste("Starting script at this local Date and Time: ",as.character(Sys.time()),sep=""),
              file=log_fname,sep="\n")
   cat("Starting script process time:",file=log_fname,sep="\n",append=TRUE)
@@ -207,7 +192,13 @@ raster_prediction_fun <-function(list_param_raster_prediction){
     clim_method_mod_obj<-mclapply(1:12, list_param=list_param_runClim_KGFusion, runClim_KGFusion,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
     #test<-runClim_KGFusion(1,list_param=list_param_runClim_KGFusion)
     #gamclim_fus_mod<-mclapply(1:6, list_param=list_param_runClim_KGFusion, runClim_KGFusion,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
-    
+    save(clim_method_mod_obj,file= file.path(out_path,paste(interpolation_method,"_mod_",y_var_name,out_prefix,".RData",sep="")))
+    list_tmp<-vector("list",length(clim_method_mod_obj))
+    for (i in 1:length(clim_method_mod_obj)){
+      tmp<-clim_method_mod_obj[[i]]$clim
+      list_tmp[[i]]<-tmp
+    }
+    clim_yearlist<-list_tmp
   }
   
   if (interpolation_method=="gam_CAI"){
@@ -215,28 +206,25 @@ raster_prediction_fun <-function(list_param_raster_prediction){
     names(list_param_runClim_KGCAI)<-c("list_index","covar_rast","covar_names","lst_avg","list_models","dst","var","y_var_name","out_prefix","out_path")
     clim_method_mod_obj<-mclapply(1:12, list_param=list_param_runClim_KGCAI, runClim_KGCAI,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
     #test<-runClim_KGCAI(1,list_param=list_param_runClim_KGCAI)
-    #gamclim_fus_mod<-mclapply(1:6, list_param=list_param_runClim_KGFusion, runClim_KGFusion,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
+    #gamclim_fus_mod<-mclapply(1:6, list_param=list_param_runClim_KGFusion, runClim_KGFusion,mc.preschedule=FALSE,mc.cores = 6) 
+    save(clim_method_mod_obj,file= file.path(out_path,paste(interpolation_method,"_mod_",y_var_name,out_prefix,".RData",sep="")))
+    list_tmp<-vector("list",length(clim_method_mod_obj))
+    for (i in 1:length(clim_method_mod_obj)){
+      tmp<-clim_method_mod_obj[[i]]$clim
+      list_tmp[[i]]<-tmp
+    }
+    clim_yearlist<-list_tmp
   }
     
-  #gamclim_fus_mod<-runClim_KGFusion(1,list_param=list_param_runClim_KGFusion) #This is the end bracket from mclapply(...) statement
-  save(clim_method_mod_obj,file= file.path(out_path,paste(interpolation_method,"_mod_",y_var_name,out_prefix,".RData",sep="")))
-  t2<-proc.time()-t1
   cat(as.character(t2),file=log_fname,sep="\n", append=TRUE)
-  
-  #now get list of raster clim layers
-  
-  list_tmp<-vector("list",length(clim_method_mod_obj))
-  for (i in 1:length(clim_method_mod_obj)){
-    tmp<-clim_method_mod_obj[[i]]$clim
-    list_tmp[[i]]<-tmp
-  }
+  t2<-proc.time()-t1
   
   ################## PREDICT AT DAILY TIME SCALE #################
   #Predict at daily time scale from single time scale or multiple time scale methods: 2 methods availabe now
   
   #put together list of clim models per month...
   #rast_clim_yearlist<-list_tmp
-  clim_yearlist<-list_tmp
+  
   #Second predict at the daily time scale: delta
   
   #method_mod_obj<-mclapply(1:1, runGAMFusion,mc.preschedule=FALSE,mc.cores = 1) #This is the end bracket from mclapply(...) statement
@@ -253,14 +241,22 @@ raster_prediction_fun <-function(list_param_raster_prediction){
     #test<-runGAMFusion(1,list_param=list_param_runGAMFusion)
     
     method_mod_obj<-mclapply(1:length(sampling_obj$ghcn_data_day),list_param=list_param_run_prediction_daily_deviation,run_prediction_daily_deviation,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
-    #method_mod_obj<-mclapply(1:1,list_param=list_param_run_prediction_daily_deviation,run_prediction_daily_deviation,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
+    save(method_mod_obj,file= file.path(out_path,paste("method_mod_obj_",interpolation_method,"_",y_var_name,out_prefix,".RData",sep="")))
+   }
+  
+  if (interpolation_method=="gam_daily"){
+    #input a list:note that ghcn.subsets is not sampling_obj$data_day_ghcn
     
-    #method_mod_obj<-mclapply(1:length(sampling_obj$ghcn_data_day),runGAMFusion,list_param_runGAMFusion,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
-    #method_mod_obj<-mclapply(1:length(ghcn.subsets), runGAMFusion,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
+    list_param_run_prediction_gam_daily <-list(i,s_raster,covar_names,lst_avg,list_models,dst,var,y_var_name, sampling_obj,interpolation_method,out_prefix,out_path)
+    names(list_param_run_prediction_gam_daily)<-c("list_index","covar_rast","covar_names","lst_avg","list_models","dst","var","y_var_name","sampling_obj","interpolation_method","out_prefix","out_path")
+    #test <- runGAM_day_fun(1,list_param_run_prediction_gam_daily)
+    method_mod_obj<-mclapply(1:length(sampling_obj$ghcn_data_day),list_param=list_param_run_prediction_gam_daily,runGAM_day_fun,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
+    #method_mod_obj<-mclapply(1:18,list_param=list_param_run_prediction_gam_daily,runGAM_day_fun,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
+    
+    save(method_mod_obj,file= file.path(out_path,paste("method_mod_obj_",interpolation_method,"_",y_var_name,out_prefix,".RData",sep="")))
     
   }
-    
-  save(method_mod_obj,file= file.path(out_path,paste("method_mod_obj_",interpolation_method,"_",y_var_name,out_prefix,".RData",sep="")))
+  
   t2<-proc.time()-t1
   cat(as.character(t2),file=log_fname,sep="\n", append=TRUE)
   #browser()
@@ -273,7 +269,7 @@ raster_prediction_fun <-function(list_param_raster_prediction){
     tmp<-method_mod_obj[[i]][[y_var_name]]  #y_var_name is the variable predicted (dailyTmax or dailyTmin)
     list_tmp[[i]]<-tmp
   }
-  rast_day_yearlist<-list_tmp #list of predicted images
+  rast_day_yearlist<-list_tmp #list of predicted images over full year...
   
   cat("Validation step:",file=log_fname,sep="\n", append=TRUE)
   t1<-proc.time()
@@ -316,11 +312,23 @@ raster_prediction_fun <-function(list_param_raster_prediction){
   ################### PREPARE RETURN OBJECT ###############
   #Will add more information to be returned
   
-  raster_prediction_obj<-list(clim_method_mod_obj,method_mod_obj,validation_mod_obj,tb_diagnostic_v,
-                              summary_metrics_v,summary_month_metrics_v)
-  names(raster_prediction_obj)<-c("clim_method_mod_obj","method_mod_obj","validation_mod_obj","tb_diagnostic_v",
-                                  "summary_metrics_v","summary_month_metrics_v")  
-  save(raster_prediction_obj,file= file.path(out_path,paste("raster_prediction_obj_",interpolation_method,"_", y_var_name,out_prefix,".RData",sep="")))
+  if (interpolation_method=="gam_CAI" | interpolation_method=="gam_fusion"){
+    raster_prediction_obj<-list(clim_method_mod_obj,method_mod_obj,validation_mod_obj,tb_diagnostic_v,
+                                summary_metrics_v,summary_month_metrics_v)
+    names(raster_prediction_obj)<-c("clim_method_mod_obj","method_mod_obj","validation_mod_obj","tb_diagnostic_v",
+                                    "summary_metrics_v","summary_month_metrics_v")  
+    save(raster_prediction_obj,file= file.path(out_path,paste("raster_prediction_obj_",interpolation_method,"_", y_var_name,out_prefix,".RData",sep="")))
+    
+  }
+  
+  if (interpolation_method=="gam_daily"){
+    raster_prediction_obj<-list(method_mod_obj,validation_mod_obj,tb_diagnostic_v,
+                                summary_metrics_v,summary_month_metrics_v)
+    names(raster_prediction_obj)<-c("method_mod_obj","validation_mod_obj","tb_diagnostic_v",
+                                    "summary_metrics_v","summary_month_metrics_v")  
+    save(raster_prediction_obj,file= file.path(out_path,paste("raster_prediction_obj_",interpolation_method,"_", y_var_name,out_prefix,".RData",sep="")))
+    
+  }
   
   return(raster_prediction_obj)
 }
