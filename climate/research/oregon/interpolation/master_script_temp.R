@@ -10,7 +10,7 @@
 #STAGE 5: Output analyses: assessment of results for specific dates...
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 06/03/2013                                                                                 
+#DATE: 06/05/2013                                                                                 
 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363, TASK$568--   
 
@@ -58,7 +58,7 @@ grass_setting_script <- file.path(script_path,"grass-setup.R") #Set up system sh
 source(file.path(script_path,"download_and_produce_MODIS_LST_climatology_05302013.R"))
 source(file.path(script_path,"covariates_production_temperatures_05302013.R"))
 source(file.path(script_path,"Database_stations_covariates_processing_function_05212013.R"))
-source(file.path(script_path,"GAM_fusion_analysis_raster_prediction_multisampling_06032013.R"))
+source(file.path(script_path,"GAM_fusion_analysis_raster_prediction_multisampling_06052013.R"))
 source(file.path(script_path,"results_interpolation_date_output_analyses_05062013.R"))
 #source(file.path(script_path,"results_covariates_database_stations_output_analyses_04012013.R"))
 
@@ -66,21 +66,22 @@ source(file.path(script_path,"results_interpolation_date_output_analyses_0506201
 
 source(file.path(script_path,"sampling_script_functions_03122013.R"))
 source(file.path(script_path,"GAM_fusion_function_multisampling_05212013.R")) #Include GAM_CAI
-source(file.path(script_path,"interpolation_method_day_function_multisampling_06032013.R")) #Include GAM_day
+source(file.path(script_path,"interpolation_method_day_function_multisampling_06052013.R")) #Include GAM_day
 source(file.path(script_path,"GAM_fusion_function_multisampling_validation_metrics_05062013.R"))
 
 #stages_to_run<-c(1,2,3,4,5) #May decide on antoher strategy later on...
 stages_to_run<-c(0,2,3,4,5) #May decide on antoher strategy later on...
 
 var<-"TMAX" # variable being interpolated
-out_prefix<-"_365d_GAM_fus_all_lst_06032013"                #User defined output prefix
-out_suffix<-"_OR_06032013"
+out_prefix<-"_365d_kriging_day_lst_06052013"                #User defined output prefix
+out_suffix<-"_OR_06052013"
 out_suffix_modis <-"_05302013" #use tiles produce previously
 
 #interpolation_method<-c("gam_fusion","gam_CAI","gam_daily") #other otpions to be added later
 #interpolation_method<-c("gam_CAI") #other otpions to be added later
 #interpolation_method<-c("gam_fusion") #other otpions to be added later
-interpolation_method<-c("gam_daily") #other otpions to be added later
+#interpolation_method<-c("gam_daily") #other otpions to be added later
+interpolation_method<-c("kriging_daily") #other otpions to be added later
 
 #out_path <- paste("/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/output_data",
 #                  out_prefix,"/",sep="")
@@ -117,6 +118,7 @@ list_tiles_modis <- c("h08v04,h09v04") #tiles for Oregon
   
 #CRS_interp<-"+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs";
 CRS_interp <-"+proj=lcc +lat_1=43 +lat_2=45.5 +lat_0=41.75 +lon_0=-120.5 +x_0=400000 +y_0=0 +ellps=GRS80 +units=m +no_defs";
+#"+proj=lcc +lat_1=43 +lat_2=45.5 +lat_0=41.75 +lon_0=-120.5 +x_0=400000 +y_0=0 +datum=NAD83 +units=m +no_defs +ellps=GRS80"
 CRS_locs_WGS84<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0") #Station coords WGS84
 #out_region_name<-"_venezuela_region" #generated on the fly
 out_region_name<-"_oregon_region" #generated on the fly
@@ -227,15 +229,26 @@ dates_selected<-"" # if empty string then predict for the full year specified ea
 
 #Models to run...this can be change for each run
 
-list_models<-c("y_var ~ s(elev_s)",
-               "y_var ~ s(LST)",
-               "y_var ~ s(elev_s,LST)",
-               "y_var ~ s(lat) + s(lon)+ s(elev_s)",
-               "y_var ~ s(lat,lon,elev_s)",
-               "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST)", 
-               "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST) + s(LC2)",	
-               "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST) + s(LC6)", 
-               "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST) + s(DISTOC)")
+#list_models<-c("y_var ~ s(elev_s)",
+#               "y_var ~ s(LST)",
+#               "y_var ~ s(elev_s,LST)",
+#               "y_var ~ s(lat) + s(lon)+ s(elev_s)",
+#               "y_var ~ s(lat,lon,elev_s)",
+#               "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST)", 
+#               "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST) + s(LC2)",	
+#               "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST) + s(LC6)", 
+#               "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST) + s(DISTOC)")
+#krmod2<-autoKrige(tmax~x_OR83M+y_OR83M,input_data=data_s,new_data=s_sgdf,data_variogram=data_s)
+list_models<-c("y_var ~ 1",
+               "y_var ~ x + y",
+               "y_var ~ x + y + elev_s",
+               "y_var ~ x + y + DISTOC",
+               "y_var ~ x + y + elev_s + DISTOC",
+               "y_var ~ x + y + N_w + E_w",
+               "y_var ~ LST",
+               "y_var ~ x + y + LST",
+               "y_var ~ x + y + elev_s + LST")
+
 #Default name of LST avg to be matched               
 lst_avg<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_09","mm_10","mm_11","mm_12")  
 
