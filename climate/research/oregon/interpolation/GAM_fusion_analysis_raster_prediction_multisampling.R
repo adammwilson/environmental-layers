@@ -11,7 +11,7 @@
 #5)possibilty of running GAM+FUSION or GAM+CAI and other options added
 #The interpolation is done first at the monthly time scale then delta surfaces are added.
 #AUTHOR: Benoit Parmentier                                                                        
-#DATE: 05/06/2013                                                                                 
+#DATE: 06/05/2013                                                                                 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#568--     
 #
 # TO DO:
@@ -68,7 +68,7 @@ raster_prediction_fun <-function(list_param_raster_prediction){
   library(plotrix)
   library(maptools)
   library(gdata) #Nesssary to use cbindX
-  
+  library(automap)
   ### Parameters and arguments
   #PARSING INPUTS/ARGUMENTS
 #   
@@ -126,7 +126,7 @@ raster_prediction_fun <-function(list_param_raster_prediction){
   #log_fname<-paste("R_log_raster_prediction",out_prefix, ".log",sep="")
   log_fname<-paste("R_log_raster_prediction",out_prefix, ".log",sep="")
   #sink(log_fname) #create new log file
-  file.create(file.path(path,log_fname)) #create new log file
+  file.create(file.path(out_path,log_fname)) #create new log file
   
   time1<-proc.time()    #Start stop watch
   
@@ -148,20 +148,14 @@ raster_prediction_fun <-function(list_param_raster_prediction){
     dates<-dates_selected #dates to be predicted 
   }
   
-  #Reaccccding of covariate brick covariates can be changed...
+  #Reading in covariate brickcan be changed...
   
   s_raster<-brick(infile_covariates)                   #read in the data brck
   names(s_raster)<-covar_names               #Assigning names to the raster layers: making sure it is included in the extraction
     
   #Reading monthly data
   dst<-readOGR(dsn=out_path,layer=sub(".shp","",basename(infile_monthly)))
-  
-  ### TO DO -important ###
-  #SCREENING IN COVARIATE SCRIPT AND DATA PREP SCRIPT !!! Only perform predictions here
-  #Screen for extreme values": this needs more thought, min and max val vary with regions
-  #min_val<-(-15+273.16) #if values less than -15C then screen out (note the Kelvin units that will need to be changed later in all datasets)
-  #r1[r1 < (min_val)]<-NA
-  
+    
   ########### CREATE SAMPLING -TRAINING AND TESTING STATIONS ###########
   
   #Input for sampling function...
@@ -215,10 +209,9 @@ raster_prediction_fun <-function(list_param_raster_prediction){
     }
     clim_yearlist<-list_tmp
   }
-    
-  cat(as.character(t2),file=log_fname,sep="\n", append=TRUE)
   t2<-proc.time()-t1
-  
+  cat(as.character(t2),file=log_fname,sep="\n", append=TRUE)
+
   ################## PREDICT AT DAILY TIME SCALE #################
   #Predict at daily time scale from single time scale or multiple time scale methods: 2 methods availabe now
   
@@ -250,6 +243,7 @@ raster_prediction_fun <-function(list_param_raster_prediction){
     list_param_run_prediction_gam_daily <-list(i,s_raster,covar_names,lst_avg,list_models,dst,var,y_var_name, sampling_obj,interpolation_method,out_prefix,out_path)
     names(list_param_run_prediction_gam_daily)<-c("list_index","covar_rast","covar_names","lst_avg","list_models","dst","var","y_var_name","sampling_obj","interpolation_method","out_prefix","out_path")
     #test <- runGAM_day_fun(1,list_param_run_prediction_gam_daily)
+    
     method_mod_obj<-mclapply(1:length(sampling_obj$ghcn_data_day),list_param=list_param_run_prediction_gam_daily,runGAM_day_fun,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
     #method_mod_obj<-mclapply(1:18,list_param=list_param_run_prediction_gam_daily,runGAM_day_fun,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
     
@@ -257,6 +251,18 @@ raster_prediction_fun <-function(list_param_raster_prediction){
     
   }
   
+  if (interpolation_method=="kriging_daily"){
+    #input a list:note that ghcn.subsets is not sampling_obj$data_day_ghcn
+    i<-1
+    list_param_run_prediction_kriging_daily <-list(i,s_raster,covar_names,lst_avg,list_models,dst,var,y_var_name, sampling_obj,interpolation_method,out_prefix,out_path)
+    names(list_param_run_prediction_kriging_daily)<-c("list_index","covar_rast","covar_names","lst_avg","list_models","dst","var","y_var_name","sampling_obj","interpolation_method","out_prefix","out_path")
+    #test <- runKriging_day_fun(1,list_param_run_prediction_kriging_daily)
+    method_mod_obj<-mclapply(1:length(sampling_obj$ghcn_data_day),list_param=list_param_run_prediction_kriging_daily,runKriging_day_fun,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
+    #method_mod_obj<-mclapply(1:18,list_param=list_param_run_prediction_kriging_daily,runKriging_day_fun,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
+    
+    save(method_mod_obj,file= file.path(out_path,paste("method_mod_obj_",interpolation_method,"_",y_var_name,out_prefix,".RData",sep="")))
+    
+  }
   t2<-proc.time()-t1
   cat(as.character(t2),file=log_fname,sep="\n", append=TRUE)
   #browser()
@@ -321,7 +327,7 @@ raster_prediction_fun <-function(list_param_raster_prediction){
     
   }
   
-  if (interpolation_method=="gam_daily"){
+  if (interpolation_method=="gam_daily" | interpolation_method=="kriging_daily" ){
     raster_prediction_obj<-list(method_mod_obj,validation_mod_obj,tb_diagnostic_v,
                                 summary_metrics_v,summary_month_metrics_v)
     names(raster_prediction_obj)<-c("method_mod_obj","validation_mod_obj","tb_diagnostic_v",
