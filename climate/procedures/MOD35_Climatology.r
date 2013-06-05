@@ -10,11 +10,12 @@ opta <- getopt(matrix(c(
                         'verbose','v',1,'logical'
                         ), ncol=4, byrow=TRUE))
 
-tile=opta$tile #tile="h11v08"
+tile=opta$tile #tile="h00v08"
 verbose=opta$verbose  #print out extensive information for debugging?
 
 ## set working directory
-setwd("/u/awilso10/MOD35")
+setwd("/nobackupp1/awilso10/mod35")
+#setwd("/u/awilso10/MOD35")
 
 ### directory containing daily files
 outdir=paste("daily/",tile,"/",sep="")  #directory for separate daily files
@@ -68,9 +69,9 @@ system(paste(ncopath,"ncatted ",
 #" -a missing_value,PClear,o,b,255 ",
 #" -a _FillValue,PClear,d,b,255 ",
 " -a units,time,o,c,\"days since 2000-1-1 0:0:0\" ",
-" -a title,global,o,c,\"MODIS Cloud Product (MOD35) Daily Timeseries\" ",
+" -a title,global,o,c,\"MODIS Cloud Product (MOD35) Summaries\" ",
 " -a institution,global,o,c,\"Yale University\" ",
-" -a source,global,o,c,\"MODIS Cloud Mask (MOD35)\" ",
+" -a source,global,o,c,\"MODIS Collection 6 Cloud Mask (MOD35)\" ",
 " -a comment,global,o,c,\"Compiled by Adam M. Wilson (adam.wilson@yale.edu)\" ",
 outdir2,"/MOD35_",tile,"_daily.nc",sep=""))
 
@@ -91,6 +92,16 @@ if(verbose) print(paste("Generate monthly climatologies: ",tile))
 
 myear=as.integer(max(fdly$year))  #this year will be used in all dates of monthly climatologies (and day will = 15)
 
+## Overall Means
+if(verbose) print(paste("Calculating the overall mean:",tile))
+system(paste("cdo -O -b I8 -v sorttimestamp -setyear,",myear," -setmon,1 -setday,1 -mulc,-1 -subc,100 -timmean -selyear,2009 ",outdir2,"/MOD35_",tile,"_daily.nc ",outdir2,"/MOD35_",tile,"_2009mean.nc",sep=""),wait=T)
+system(paste(ncopath,"ncrename -v PClear,PCloud ",outdir2,"/MOD35_",tile,"_2009mean.nc",sep=""))
+system(paste(ncopath,"ncatted ",
+" -a long_name,PCloud,o,c,\"Mean Probability of Cloud\" ",
+" -a missing_value,PCloud,o,b,255 ",
+" -a _FillValue,PCloud,d,b,255 ",
+outdir2,"/MOD35_",tile,"_2009mean.nc",sep=""))
+
 ## Monthly means
 if(verbose) print(paste("Calculating the monthly means:",tile))
 system(paste("cdo -O -b I8 -v sorttimestamp -setyear,",myear," -setday,15 -mulc,-1 -subc,100 -ymonmean ",outdir2,"/MOD35_",tile,"_daily.nc ",tsdir,"/MOD35_",tile,"_ymonmean.nc",sep=""),wait=T)
@@ -109,7 +120,6 @@ tsdir,"/MOD35_",tile,"_ymonmean.nc",sep=""))
 #system(paste("cdo -O sorttimestamp -setyear,",myear," -mulc,-1 -subc,100 -ydrunmean,30 ",outdir2,"/MOD35_",tile,"_daily.nc ",outdir2,"/MOD35_",tile,"_ydrunmean30.nc &",sep=""),wait=T)
 #system(paste("scp summary/MOD35_",tile,".nc adamw@acrobates.eeb.yale.edu:/data/personal/adamw/projects/interp/data/modis/mod35/",sep=""))
 #system(paste("ncdump -h ",tsdir,"/MOD35_",tile,"_ymonmean.nc ",sep=""))
-
 
 ## Monthly standard deviation
 if(verbose) print(paste("Calculating the monthly SD:",tile))

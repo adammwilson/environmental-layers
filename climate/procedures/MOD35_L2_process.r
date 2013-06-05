@@ -35,8 +35,8 @@ if ( !is.null(opta$help) )
 
 
 ## default date and tile to play with  (will be overwritten below when running in batch)
-date="20000410"
-tile="h11v08"
+#date="20000410"
+#tile="h11v08"
 platform="pleiades" 
 verbose=T
 
@@ -58,7 +58,7 @@ if(platform=="pleiades"){
   db="/nobackupp4/pvotava/DB/export/swath_geo.sql.sqlite3.db"
   ## specify working directory
   outdir=paste("daily/",tile,"/",sep="")  #directory for separate daily files
-  basedir="/nobackupp1/awilso10/mod35/tmp/" #directory to hold files temporarily before transferring to lou
+  basedir="/nobackupp1/awilso10/mod35/daily/" #directory to hold files temporarily before transferring to lou
   setwd(tempdir())
   ## grass database
   gisBase="/u/armichae/pr/grass-6.4.2/"
@@ -207,7 +207,7 @@ if(!any(file.exists(outfiles))) {
   ## create output directory if needed
   ## Identify output file
   ncfile=paste(basedir,"MOD35_",tile,"_",date,".nc",sep="")  #this is the 'final' daily output file
-  if(!file.exists(dirname(ncfile))) dir.create(dirname(ncfile))
+  if(!file.exists(dirname(ncfile))) dir.create(dirname(ncfile,recursive=T))
  
   ## set up temporary grass instance for this PID
   if(verbose) print(paste("Set up temporary grass session in",tf))
@@ -318,18 +318,18 @@ fvar=all(finalvars%in%strsplit(system(paste("cdo -s showvar ",ncfile),intern=T),
     }
 
 ############  copy files to lou
-if(platform=="pleiades"){
-  archivedir=paste("MOD35/",outdir,"/",sep="")  #directory to create on lou
-  system(paste("ssh -q bridge2 \"ssh -q lou mkdir -p ",archivedir,"\"",sep=""))
-  system(paste("ssh -q bridge2 \"scp -q ",ncfile," lou:",archivedir,"\"",sep=""))
-  file.remove(ncfile)
-  file.remove(paste(ncfile,".aux.xml",sep=""))
-}
+#if(platform=="pleiades"){
+#  archivedir=paste("MOD35/",outdir,"/",sep="")  #directory to create on lou
+#  system(paste("ssh -q bridge2 \"ssh -q lou mkdir -p ",archivedir,"\"",sep=""))
+#  system(paste("ssh -q bridge2 \"scp -q ",ncfile," lou:",archivedir,"\"",sep=""))
+#  file.remove(ncfile)
+#  file.remove(paste(ncfile,".aux.xml",sep=""))
+#}
 
   
 ### delete the temporary files 
-  unlink_.gislock()
-  system(paste("rm -frR ",tempdir(),sep=""))
+#  unlink_.gislock()
+#  system(paste("rm -frR ",tempdir(),sep=""))
 
 
   ## print out some info

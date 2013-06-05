@@ -19,18 +19,11 @@ load("modlandTiles.Rdata")
 ## delete temporary log file that can grow to GB
 system("rm /nobackupp1/awilso10/software/heg/TOOLKIT_MTD/runtime/LogStatus")
 
-
-tile="h11v08"  # Venezuela
-#tile="h11v07"  # Venezuela coast
-#tile="h09v04"  # Oregon
-tile="h21v09"  #Kenya
-
 ### list of tiles to process
-tiles=c("h11v08","h21v09","h08v04","h09v04","h08v05","h09v05","h20v11","h31v11")
 tiles=c("h10v08","h11v08","h12v08","h10v07","h11v07","h12v07")  # South America
 
 ## subset to MODLAND tiles
-  modlandtiles=system("ls -r /nobackupp4/datapool/modis/MOD11A1.005/2010* | grep hdf$ | cut -c18-23 | sort | uniq - ",intern=T)
+ modlandtiles=system("ls -r /nobackupp4/datapool/modis/MOD11A1.005/2010* | grep hdf$ | cut -c18-23 | sort | uniq - ",intern=T)
  tb$land=tb$tile%in%modlandtiles
 tiles=tb$tile[tb$land]
 
@@ -43,41 +36,50 @@ datadir="/nobackupp4/datapool/modis/MOD35_L2.006/"
 outdir="daily/" #paste("daily/",tile,sep="")
 
 ##find swaths in region from sqlite database for the specified date/tile
-## path to swath database
-db="/nobackupp4/pvotava/DB/export/swath_geo.sql.sqlite3.db"
-con=dbConnect("SQLite", dbname = db)
-fs=do.call(rbind.data.frame,lapply(1:nrow(tile_bb),function(i){
-  d=dbGetQuery(con,paste("SELECT * from swath_geo6
+## this takes a while, about 30 minutes, so only rebuild if you need to update what's available...
+rebuildswathtable=F
+if(rebuildswathtable){
+  ## path to swath database
+  db="/nobackupp4/pvotava/DB/export/swath_geo.sql.sqlite3.db"
+  con=dbConnect("SQLite", dbname = db)
+  fs=do.call(rbind.data.frame,lapply(1:nrow(tile_bb),function(i){
+    d=dbGetQuery(con,paste("SELECT * from swath_geo6
             WHERE east>=",tile_bb$lon_min[i]," AND
                   west<=",tile_bb$lon_max[i]," AND
                   north>=",tile_bb$lat_min[i]," AND
                   south<=",tile_bb$lat_max[i])
-    )
-  d$tile=tile_bb$tile[i]
-  print(paste("Finished tile",tile_bb$tile[i]))
-  return(d)
-}))
-con=dbDisconnect(con)
-fs$id=substr(fs$id,7,19)
+      )
+    d$tile=tile_bb$tile[i]
+    print(paste("Finished tile",tile_bb$tile[i]))
+    return(d)
+  }))
+  con=dbDisconnect(con)
+  fs$id=substr(fs$id,7,19)
 
-### Identify which swaths are available in the datapool
-swaths=data.frame(path=list.files(datadir,pattern=paste("hdf$"),recursive=T,full=T),stringsAsFactors=F)  #all swaths in data pool
-swaths$id=substr(basename(swaths$path),10,22)
-fs$exists=fs$id%in%swaths$id 
-fs$path=swaths$path[match(fs$id,swaths$id)]
-  
+  ## Identify which swaths are available in the datapool
+  swaths=data.frame(path=list.files(datadir,pattern=paste("hdf$"),recursive=T,full=T),stringsAsFactors=F)  #all swaths in data pool
+  swaths$id=substr(basename(swaths$path),10,22)
+  fs$exists=fs$id%in%swaths$id 
+  fs$path=swaths$path[match(fs$id,swaths$id)]
+
+  ## write tile-swath list to disk
+  save(fs,swaths,file="swathtile.Rdata")
+}
+
+load("swathtile.Rdata")
+
 if(verbose) print(paste("###############",nrow(fs)," swath IDs recieved from database"))
 
 ## get all unique dates
 fs$dateid=format(as.Date(paste(fs$year,fs$day,sep=""),"%Y%j"),"%Y%m%d")
-alldates=unique(fs$dateid[fs$exists])
+#alldates=unique(fs$dateid[fs$exists])
 
 #### Generate submission file
 startdate="2000-03-01"
 stopdate="2011-12-31"
-## just 2005
-startdate="2005-01-01"
-stopdate="2005-12-31"
+## just 2005-2010
+startdate="2009-01-01"
+stopdate="2009-12-31"
 
 alldates=format(seq(as.Date(startdate),as.Date(stopdate),1),"%Y%m%d")
 
@@ -89,8 +91,8 @@ avail=unique(cbind.data.frame(tile=fs$tile,date=fs$dateid)[fs$exists, ])
 proclist$avail=paste(proclist$tile,proclist$date,sep="_")%in%paste(avail$tile,avail$date,sep="_")
 
 ## identify which have been completed
-fdone=data.frame(path=system("ssh lou 'find MOD35/daily -name \"*.nc\"' ",intern=T))
-#fdone=data.frame(path=list.files(outdir,pattern="nc$",recursive=T))
+#fdone=data.frame(path=system("ssh lou 'find MOD35/daily -name \"*.nc\"' ",intern=T))
+fdone=data.frame(path=list.files(outdir,pattern="nc$",recursive=T))
 fdone$date=substr(basename(as.character(fdone$path)),14,21)
 fdone$tile=substr(basename(as.character(fdone$path)),7,12)
 proclist$done=paste(proclist$tile,proclist$date,sep="_")%in%substr(basename(as.character(fdone$path)),7,21)
@@ -98,6 +100,11 @@ proclist$done=paste(proclist$tile,proclist$date,sep="_")%in%substr(basename(as.c
 ### report on what has already been processed
 print(paste(sum(!proclist$done)," out of ",nrow(proclist)," (",round(100*sum(!proclist$done)/nrow(proclist),2),"%) remain"))
 table(tile=proclist$tile[proclist$done],year=proclist$year[proclist$done])
+table(table(tile=proclist$tile[!proclist$done],year=proclist$year[!proclist$done]))
+
+### explore tile counts
+#x=table(tile=proclist$tile[proclist$done],year=proclist$year[proclist$done])
+#x=x[order(rownames(x)),]
 
 script="/u/awilso10/environmental-layers/climate/procedures/MOD35_L2_process.r"
 
@@ -111,18 +118,18 @@ file=paste("notdone.txt",sep=""),row.names=F,col.names=F,quote=F)
 ### qsub script
 cat(paste("
 #PBS -S /bin/bash
-#PBS -l select=100:ncpus=8:mpiprocs=8
-##PBS -l select=20:ncpus=8:mpiprocs=8
-#PBS -l walltime=5:00:00
-##PBS -l walltime=2:00:00
+##PBS -l select=100:ncpus=8:mpiprocs=8
+#PBS -l select=10:ncpus=8:mpiprocs=8
+##PBS -l walltime=8:00:00
+#PBS -l walltime=2:00:00
 #PBS -j n
 #PBS -m be
 #PBS -N mod35
-#PBS -q normal
-##PBS -q devel
+##PBS -q normal
+#PBS -q devel
 #PBS -V
 
-CORES=800
+CORES=80
 #CORES=160
 
 HDIR=/u/armichae/pr/
@@ -147,20 +154,24 @@ system(paste("cat notdone.txt | wc -l ",sep=""))
 
 ## Submit it
 system(paste("qsub mod35_qsub",sep=""))
+
 system("qstat -u awilso10")
 
 #######################################################
 ### Now submit the script to generate the climatologies
 
 tiles
+ctiles=c("h10v08","h11v08","h12v08","h10v07","h11v07","h12v07")  # South America
+
 ctiles=tiles#[c(1:3)]  #subset to only some tiles (for example if some aren't finished yet)?
 climatescript="/pleiades/u/awilso10/environmental-layers/climate/procedures/MOD35_Climatology.r"
 
 ## check which tiles have been processed and are on lou with a filename "MOD35_[tile].nc"
+cdone=data.frame(path="",tile="")  #use this if you want to re-run everything
 cdone=data.frame(path=sapply(strsplit(basename(
                    system("ssh lou 'find MOD35/summary -name \"MOD35_h[0-9][0-9]v[0-9][0-9].nc\"' ",intern=T)),split="_"),function(x) x[2]))
 cdone$tile=substr(basename(as.character(cdone$path)),1,6)
-print(paste(length(ctiles[!ctiles%in%cdone$tile]),"Tiles still need to be processed: /n ",ctiles[!ctiles%in%cdone$tile]))
+print(paste(length(ctiles[!ctiles%in%cdone$tile]),"Tiles still need to be processed"))
 
 ## write the table processed by mpiexec
 write.table(paste("--verbose ",climatescript," --verbose T --tile ",ctiles[!ctiles%in%cdone$tile],sep=""),
@@ -176,16 +187,17 @@ job="881394.pbspl1.nas.nasa.gov"
 ### qsub script
 cat(paste("
 #PBS -S /bin/bash
-#PBS -l select=1:ncpus=16:mem=94
-#PBS -l walltime=24:00:00
+#PBS -l select=20:ncpus=8:mem=94
+#PBS -l walltime=3:00:00
 #PBS -j n
 #PBS -m be
 #PBS -N mod35_climate
-#PBS -q ldan
+#PBS -q normal
+##PBS -q ldan
 #PBS -V
 ",if(delay) paste("#PBS -W depend=afterany:",job,sep="")," 
 
-CORES=16
+CORES=160
 HDIR=/u/armichae/pr/
   source $HDIR/etc/environ.sh
   source /pleiades/u/awilso10/environ.sh
@@ -220,7 +232,7 @@ system("qstat -u awilso10")
 
 system("ssh lou")
 #scp `find MOD35/summary -name "MOD35_h[0-9][0-9]v[0-9][0-9].nc"` adamw@acrobates.eeb.yale.edu:/data/personal/adamw/projects/interp/data/modis/mod35/summary/
-rsync -vv `find MOD35/summary -name "MOD35_h[0-9][0-9]v[0-9][0-9].nc"` adamw@acrobates.eeb.yale.edu:/data/personal/adamw/projects/interp/data/modis/mod35/summary/
+system("rsync -cavv `find summary -name \"MOD35_h[0-9][0-9]v[0-9][0-9]_mean.nc\"` adamw@acrobates.eeb.yale.edu:/data/personal/adamw/projects/interp/data/modis/mod35/summary/")
 exit
 
 
