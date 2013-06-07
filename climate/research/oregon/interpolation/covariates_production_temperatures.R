@@ -283,7 +283,11 @@ covariates_production_temperature<-function(list_param){
   pat_str1 <- glob2rx(paste("mean","*",lst_pat,"*",out_suffix_modis,"*.tif",sep=""))
   tmp_str1 <- mixedsort(list.files(path=hdfdir_lst_avg,pattern=pat_str1,full.names=TRUE))
   #add lines using grep to select tiles...
- 
+  keywords <- list_tiles_modis
+  #screen for relevant tiles...
+  tmp_str2 <-unlist(lapply(keywords,grep,tmp_str2,value=TRUE))
+  tmp_str1 <-unlist(lapply(keywords,grep,tmp_str1,value=TRUE))
+  
   #Format list for mosaicing: mosaic for every month the relevant number of files
   out_rastnames<-paste("_",lst_pat,"_","nobs",out_suffix,sep="")
   list_date_names<-c("jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec")
