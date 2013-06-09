@@ -11,7 +11,7 @@
 #5)possibilty of running GAM+FUSION or GAM+CAI and other options added
 #The interpolation is done first at the monthly time scale then delta surfaces are added.
 #AUTHOR: Benoit Parmentier                                                                        
-#DATE: 06/05/2013                                                                                 
+#DATE: 06/08/2013                                                                                 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#568--     
 #
 # TO DO:
@@ -68,7 +68,9 @@ raster_prediction_fun <-function(list_param_raster_prediction){
   library(plotrix)
   library(maptools)
   library(gdata) #Nesssary to use cbindX
-  library(automap)
+  library(automap)  #autokrige function
+  library(spgwr)   #GWR method
+  
   ### Parameters and arguments
   #PARSING INPUTS/ARGUMENTS
 #   
@@ -104,11 +106,6 @@ raster_prediction_fun <-function(list_param_raster_prediction){
   interpolation_method<-list_param_raster_prediction$interpolation_method
   
   setwd(out_path)
-  #Sourcing in the master script to avoid confusion on the latest versions of scripts and functions!!!
-  
-  #source(file.path(script_path,"sampling_script_functions_03122013.R"))
-  #source(file.path(script_path,"GAM_fusion_function_multisampling_03122013.R"))
-  #source(file.path(script_path,"GAM_fusion_function_multisampling_validation_metrics_03182013.R"))
   
   ###################### START OF THE SCRIPT ########################
    
@@ -184,7 +181,7 @@ raster_prediction_fun <-function(list_param_raster_prediction){
     names(list_param_runClim_KGFusion)<-c("list_index","covar_rast","covar_names","lst_avg","list_models","dst","var","y_var_name","out_prefix","out_path")
     #source(file.path(script_path,"GAM_fusion_function_multisampling_03122013.R"))
     clim_method_mod_obj<-mclapply(1:12, list_param=list_param_runClim_KGFusion, runClim_KGFusion,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
-    #test<-runClim_KGFusion(1,list_param=list_param_runClim_KGFusion)
+    men#test<-runClim_KGFusion(1,list_param=list_param_runClim_KGFusion)
     #gamclim_fus_mod<-mclapply(1:6, list_param=list_param_runClim_KGFusion, runClim_KGFusion,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
     save(clim_method_mod_obj,file= file.path(out_path,paste(interpolation_method,"_mod_",y_var_name,out_prefix,".RData",sep="")))
     list_tmp<-vector("list",length(clim_method_mod_obj))
@@ -226,6 +223,7 @@ raster_prediction_fun <-function(list_param_raster_prediction){
   cat(paste("Local Date and Time: ",as.character(Sys.time()),sep=""),
       file=log_fname,sep="\n")
   
+  #TODO : Same call for all functions!!! Replace by one "if" for all multi time scale methods...
   if (interpolation_method=="gam_CAI" | interpolation_method=="gam_fusion"){
     #input a list:note that ghcn.subsets is not sampling_obj$data_day_ghcn
     list_param_run_prediction_daily_deviation <-list(i,clim_yearlist,sampling_obj,dst,var,y_var_name, interpolation_method,out_prefix,out_path)
@@ -237,6 +235,7 @@ raster_prediction_fun <-function(list_param_raster_prediction){
     save(method_mod_obj,file= file.path(out_path,paste("method_mod_obj_",interpolation_method,"_",y_var_name,out_prefix,".RData",sep="")))
    }
   
+  #TODO : Same call for all functions!!! Replace by one "if" for all daily single time scale methods...
   if (interpolation_method=="gam_daily"){
     #input a list:note that ghcn.subsets is not sampling_obj$data_day_ghcn
     
@@ -258,6 +257,20 @@ raster_prediction_fun <-function(list_param_raster_prediction){
     names(list_param_run_prediction_kriging_daily)<-c("list_index","covar_rast","covar_names","lst_avg","list_models","dst","var","y_var_name","sampling_obj","interpolation_method","out_prefix","out_path")
     #test <- runKriging_day_fun(1,list_param_run_prediction_kriging_daily)
     method_mod_obj<-mclapply(1:length(sampling_obj$ghcn_data_day),list_param=list_param_run_prediction_kriging_daily,runKriging_day_fun,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
+    #method_mod_obj<-mclapply(1:18,list_param=list_param_run_prediction_kriging_daily,runKriging_day_fun,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
+    
+    save(method_mod_obj,file= file.path(out_path,paste("method_mod_obj_",interpolation_method,"_",y_var_name,out_prefix,".RData",sep="")))
+    
+  }
+  
+  if (interpolation_method=="gwr_daily"){
+    #input a list:note that ghcn.subsets is not sampling_obj$data_day_ghcn
+    i<-1
+    list_param_run_prediction_gwr_daily <-list(i,s_raster,covar_names,lst_avg,list_models,dst,var,y_var_name, sampling_obj,interpolation_method,out_prefix,out_path)
+    names(list_param_run_prediction_gwr_daily)<-c("list_index","covar_rast","covar_names","lst_avg","list_models","dst","var","y_var_name","sampling_obj","interpolation_method","out_prefix","out_path")
+    #test <- run_interp_day_fun(1,list_param_run_prediction_gwr_daily)
+    method_mod_obj<-mclapply(1:length(sampling_obj$ghcn_data_day),list_param=list_param_run_prediction_gwr_daily,run_interp_day_fun,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
+    #method_mod_obj<-mclapply(1:9,list_param=list_param_run_prediction_gwr_daily,run_interp_day_fun,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
     #method_mod_obj<-mclapply(1:18,list_param=list_param_run_prediction_kriging_daily,runKriging_day_fun,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
     
     save(method_mod_obj,file= file.path(out_path,paste("method_mod_obj_",interpolation_method,"_",y_var_name,out_prefix,".RData",sep="")))
@@ -326,8 +339,8 @@ raster_prediction_fun <-function(list_param_raster_prediction){
     save(raster_prediction_obj,file= file.path(out_path,paste("raster_prediction_obj_",interpolation_method,"_", y_var_name,out_prefix,".RData",sep="")))
     
   }
-  
-  if (interpolation_method=="gam_daily" | interpolation_method=="kriging_daily" ){
+  #use %in% instead of "|" operator
+  if (interpolation_method=="gam_daily" | interpolation_method=="kriging_daily" | interpolation_method=="gwr_daily"){
     raster_prediction_obj<-list(method_mod_obj,validation_mod_obj,tb_diagnostic_v,
                                 summary_metrics_v,summary_month_metrics_v)
     names(raster_prediction_obj)<-c("method_mod_obj","validation_mod_obj","tb_diagnostic_v",
