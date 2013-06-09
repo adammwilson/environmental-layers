@@ -116,7 +116,7 @@ download_calculate_MODIS_LST_climatology <-function(j,list_param){
 }
 
 ## Run function:
-list_tiles_modis <- c("h09v03,h10v03,h11v03,h12v03,h13v03,h14v03") #tiles for Northenr America, Northern US...
+#list_tiles_modis <- c("h09v02,h10v02,h11v02,h12v02,h13v02,h14v02,h15v02") #tiles for Northenr America, Northern US...
 #list_tiles_modis <- c("h10v04,h11v04,h12v04,h13v04,h14v04,h07v06") #tiles for Northenr America, Northern US...
 #list_tiles_modis <- c("h12v04,h13v04,h14v04,h07v06") #tiles for Northenr America, Northern US...
 #list_tiles_modis <- c("h11v08,h11v07,h12v07,h12v08,h10v07,h10v08") #tile for Venezuela and surrounding area
@@ -126,11 +126,11 @@ list_tiles_modis <- c("h09v03,h10v03,h11v03,h12v03,h13v03,h14v03") #tiles for No
 #list_tiles_modis <- c("h09v04,h09v04") #tiles for Oregon #defined above...
 #list_tiles_modis <- c("h09v08,h09v07,h08v07,h0706,h08v06,h09v06,h10v06,h08v05,h09v05,h10v05,h11v05,h12v05") #tiles for Central America and Mexico Southern US...
 #list_tiles_modis <- c("h09v09,h10v09,h11v09,h12v09,h13v09,h14v09")
-#list_tiles_modis <-c("h30v10,h31v10,h32v10,h30v11,h31v11") #list("Queensland")
+list_tiles_modis <-c("h30v10,h31v10,h32v10,h30v11,h31v11") #list("Queensland")
 
 script_path<-"/home/parmentier/Data/IPLANT_project/env_layers_scripts/"
 modis_download_script <- file.path(script_path,"modis_download_05142013.py") # LST modis download python script
-clim_script <- file.path(script_path,"climatology_05142013.py") # LST climatology python script
+clim_script <- file.path(script_path,"climatology_06092013.py") # LST climatology python script
 grass_setting_script <- file.path(script_path,"grass-setup.R")
 var="TMAX"
 start_year = "2001"
@@ -141,9 +141,9 @@ end_year = "2010"
 
 hdfdir =  '/data/project/layers/commons/modis/MOD11A1_tiles' #destination file where hdf files are stored locally after download.
 #hdfdir =  '/home/parmentier/Data/IPLANT_project/MOD11A1_tiles'
-download=1
-clim_calc=0
-out_suffix_modis="_05312013"
+download=0
+clim_calc=1
+out_suffix_modis="_05242013"
 
 list_param_download_clim_LST_script <- list(list_tiles_modis,start_year,end_year,hdfdir,
                                 var,grass_setting_script,modis_download_script, clim_script,
