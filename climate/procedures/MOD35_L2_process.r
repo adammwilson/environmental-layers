@@ -35,7 +35,7 @@ if ( !is.null(opta$help) )
 
 
 ## default date and tile to play with  (will be overwritten below when running in batch)
-#date="20000410"
+#date="20090129"
 #tile="h11v08"
 platform="pleiades" 
 verbose=T
@@ -57,14 +57,14 @@ if(platform=="pleiades"){
   ## path to swath database
   db="/nobackupp4/pvotava/DB/export/swath_geo.sql.sqlite3.db"
   ## specify working directory
-  outdir=paste("daily/",tile,"/",sep="")  #directory for separate daily files
-  basedir="/nobackupp1/awilso10/mod35/daily/" #directory to hold files temporarily before transferring to lou
+  outdir=paste("/nobackupp1/awilso10/mod35/daily/",tile,"/",sep="")  #directory for separate daily files
+  basedir="/nobackupp1/awilso10/mod35/" #directory to hold files temporarily before transferring to lou
   setwd(tempdir())
   ## grass database
   gisBase="/u/armichae/pr/grass-6.4.2/"
   ## path to MOD11A1 file for this tile to align grid/extent
-  gridfile=list.files("/nobackupp4/datapool/modis/MOD11A1.005/2006.01.27",pattern=paste(tile,".*[.]hdf$",sep=""),recursive=T,full=T)[1]
-  td=readGDAL(paste("HDF4_EOS:EOS_GRID:\"",gridfile,"\":MODIS_Grid_Daily_1km_LST:Night_view_angl",sep=""))
+  gridfile=list.files("/nobackupp4/datapool/modis/MOD11A2.005/2009.01.01",pattern=paste(tile,".*[.]hdf$",sep=""),recursive=T,full=T)[1]
+  td=readGDAL(paste("HDF4_EOS:EOS_GRID:\"",gridfile,"\":MODIS_Grid_8Day_1km_LST:LST_Day_1km",sep=""))
   projection(td)="+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs +datum=WGS84 +ellps=WGS84 "
 }
 
@@ -97,9 +97,8 @@ tile_bb=tb[tb$tile==tile,] ## identify tile of interest
 ## get bounds of swath to keep and feed into grass when generating tile
 ## expand a little (0.5 deg) to ensure that there is no clipping of pixels on the edges
 ## tile will later be aligned with MODLAND tile so the extra will eventually be trimmed
-upleft=paste(min(90,tile_bb$lat_max+.5),max(-180,tile_bb$lon_min-.5)) #northwest corner
+upleft=paste(min(90,tile_bb$lat_max+0.5),max(-180,tile_bb$lon_min-0.5)) #northwest corner
 lowright=paste(max(-90,tile_bb$lat_min-0.5),min(180,tile_bb$lon_max+0.5)) #southeast corner
-
 
 ## vars to process
 vars=as.data.frame(matrix(c(
@@ -108,7 +107,7 @@ vars=as.data.frame(matrix(c(
   byrow=T,ncol=2,dimnames=list(1:2,c("variable","varid"))),stringsAsFactors=F)
 
 ## vector of variables expected to be in final netcdf file.  If these are not present, the file will be deleted at the end.
-finalvars=c("PClear")
+finalvars=c("CMday","CMnight")
 
 
 #####################################################
@@ -146,8 +145,9 @@ INPUT_FILENAME=",file,"
 OBJECT_NAME=mod35
 FIELD_NAME=",vars$variable,"|
 BAND_NUMBER = 1
-OUTPUT_PIXEL_SIZE_X=1000
-OUTPUT_PIXEL_SIZE_Y=1000
+OUTPUT_PIXEL_SIZE_X=926.6
+OUTPUT_PIXEL_SIZE_Y=926.6
+# MODIS 1km Resolution
 SPATIAL_SUBSET_UL_CORNER = ( ",upleft," )
 SPATIAL_SUBSET_LR_CORNER = ( ",lowright," )
 #RESAMPLING_TYPE =",ifelse(grepl("Flag|Mask|Quality",vars),"NN","CUBIC"),"
@@ -169,13 +169,8 @@ END
   cat(c(hdr,grp)    , file=paste(tempdir(),"/",basename(file),"_MODparms.txt",sep=""))
   ## now run the swath2grid tool
   ## write the gridded file
-  log=system(paste("(",swtifpath," -p ",tempdir(),"/",basename(file),"_MODparms.txt -d ; echo $$)",sep=""),intern=T,ignore.stderr=T)
-  ## clean up temporary files in working directory
-#  file.remove(list.files(pattern=
-#              paste("filetable.temp_",
-#              as.numeric(log[length(log)]):(as.numeric(log[length(log)])+3),sep="",collapse="|")))  #Look for files with PID within 3 of parent process
-  if(verbose) print(log)
-  print(paste("Finished gridding ", file))
+  system(paste("(",swtifpath," -p ",tempdir(),"/",basename(file),"_MODparms.txt -d)",sep=""),intern=F,ignore.stderr=F)
+  print(paste("Finished gridding ", file," for tile ",tile))
 }  #end looping over swaths
 
 ########################
@@ -206,8 +201,8 @@ if(!any(file.exists(outfiles))) {
   if(!file.exists(tf)) dir.create(tf)
   ## create output directory if needed
   ## Identify output file
-  ncfile=paste(basedir,"MOD35_",tile,"_",date,".nc",sep="")  #this is the 'final' daily output file
-  if(!file.exists(dirname(ncfile))) dir.create(dirname(ncfile,recursive=T))
+  ncfile=paste(outdir,"MOD35_",tile,"_",date,".nc",sep="")  #this is the 'final' daily output file
+  if(!file.exists(dirname(ncfile))) dir.create(dirname(ncfile),recursive=T)
  
   ## set up temporary grass instance for this PID
   if(verbose) print(paste("Set up temporary grass session in",tf))
@@ -217,7 +212,7 @@ if(!any(file.exists(outfiles))) {
   ## Define region by importing one MOD11A1 raster.
   print("Import one MOD11A1 raster to define grid")
   if(platform=="pleiades") {
-    execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",gridfile,"\":MODIS_Grid_Daily_1km_LST:Night_view_angl",sep=""),
+    execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",gridfile,"\":MODIS_Grid_8Day_1km_LST:LST_Day_1km",sep=""),
               output="modisgrid",flags=c("quiet","overwrite","o"))
     system("g.region rast=modisgrid save=roi --overwrite",ignore.stdout=F,ignore.stderr=F)
   }
@@ -248,31 +243,36 @@ if(verbose) print(paste(nfs,"swaths available for processing"))
     system(paste("r.mapcalc <<EOF
                 QA_useful_",i," =  if((QA_",i," / 2^0) % 2==1,1,0)
                 CM_cloud_",i," =  if((CM1_",i," / 2^0) % 2==1,(CM1_",i," / 2^1) % 2^2,-9999)
-                Pclear1_",i," = if(CM_cloud_",i,"==0,0,if(CM_cloud_",i,"==1,66,if(CM_cloud_",i,"==2,95,if(CM_cloud_",i,"==3,99,-9999))))
-                Pclear_",i," = if(QA_useful_",i,"==1,Pclear1_",i,",-9999)
+                CM_dayflag_",i," =  if((CM1_",i," / 2^3) % 2==1,1,0)
+                CMday_",i," = if(QA_useful_",i,"==1&CM_dayflag_",i,"==1,CM_cloud_",i,",-9999)
+                CMnight_",i," = if(QA_useful_",i,"==1&CM_dayflag_",i,"==0,CM_cloud_",i,",-9999)
 EOF",sep=""))
+                                        #Pclear1_",i," = if(CM_cloud_",i,"==0,0,if(CM_cloud_",i,"==1,66,if(CM_cloud_",i,"==2,95,if(CM_cloud_",i,"==3,99,-9999))))
+                                        #CM_path_",i," =   ((CM1_",i," / 2^6) % 2^2) 
 
-     #                CM_path_",i," =   ((CM1_",i," / 2^6) % 2^2) 
+#     execGRASS("r.null",map=paste("Pclearday_",i,sep=""),setnull="-9999")
+#     execGRASS("r.null",map=paste("Pclearnight_",i,sep=""),setnull="-9999")
 
-     execGRASS("r.null",map=paste("Pclear_",i,sep=""),setnull="-9999")
-     execGRASS("r.null",map=paste("CM_cloud_",i,sep=""),setnull="-9999")
+     execGRASS("r.null",map=paste("CMday_",i,sep=""),setnull="-9999")
+     execGRASS("r.null",map=paste("CMnight_",i,sep=""),setnull="-9999")
    
     
  } #end loop through sub daily files
 
 #### Now generate daily minimum p(clear)
   system(paste("r.mapcalc <<EOF
-         Pclear_daily=int((min(",paste("if(isnull(Pclear_",1:nfs,"),9999,Pclear_",1:nfs,")",sep="",collapse=","),"))) 
+         CMday_daily=int((min(",paste("if(isnull(CMday_",1:nfs,"),9999,CMday_",1:nfs,")",sep="",collapse=","),"))) 
+         CMnight_daily=int((min(",paste("if(isnull(CMnight_",1:nfs,"),9999,CMnight_",1:nfs,")",sep="",collapse=","),"))) 
 EOF",sep=""))
 
 
 ## reset null values
-execGRASS("r.null",map="Pclear_daily",setnull="9999")
-
+execGRASS("r.null",map="CMday_daily",setnull="9999")
+execGRASS("r.null",map="CMnight_daily",setnull="9999")
 
   ### Write the files to a netcdf file
   ## create image group to facilitate export as multiband netcdf
-    execGRASS("i.group",group="mod35",input=c("Pclear_daily")) ; print("")
+    execGRASS("i.group",group="mod35",input=c("CMday_daily","CMnight_daily")) ; print("")
    
   if(file.exists(ncfile)) file.remove(ncfile)  #if it exists already, delete it
   execGRASS("r.out.gdal",input="mod35",output=ncfile,type="Byte",nodata=255,flags=c("quiet"),
@@ -296,13 +296,18 @@ execGRASS("r.null",map="Pclear_daily",setnull="9999")
 system(paste("ncgen -o ",tempdir(),"/time.nc ",tempdir(),"/time.cdl",sep=""))
 system(paste(ncopath,"ncks -A ",tempdir(),"/time.nc ",ncfile,sep=""))
 ## add other attributes
-  system(paste(ncopath,"ncrename -v Band1,PClear ",ncfile,sep=""))
+  system(paste(ncopath,"ncrename -v Band1,CMday -v Band2,CMnight ",ncfile,sep=""))
   system(paste(ncopath,"ncatted ",
-" -a units,PClear,o,c,\"Probability (%)\" ",
-" -a missing_value,PClear,o,b,255 ",
-" -a _FillValue,PClear,o,b,255 ",
-" -a valid_range,PClear,o,b,\"0,100\" ",
-" -a long_name,PClear,o,c,\"Probability of Clear Sky\" ",
+" -a units,CMday,o,c,\"Cloud Flag (0-3)\" ",
+" -a missing_value,CMday,o,b,255 ",
+" -a _FillValue,CMday,o,b,255 ",
+" -a valid_range,CMday,o,b,\"0,3\" ",
+" -a long_name,CMday,o,c,\"Cloud Flag from 'day' pixels\" ",
+" -a units,CMnight,o,c,\"Cloud Flag (0-3)\" ",
+" -a missing_value,CMnight,o,b,255 ",
+" -a _FillValue,CMnight,o,b,255 ",
+" -a valid_range,CMnight,o,b,\"0,3\" ",
+" -a long_name,CMnight,o,c,\"Cloud Flag from 'night' pixels\" ",
 ncfile,sep=""))
 #system(paste(ncopath,"ncatted -a sourcecode,global,o,c,",script," ",ncfile,sep=""))
    
