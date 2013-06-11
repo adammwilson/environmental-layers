@@ -94,8 +94,8 @@ database_covariates_preparation<-function(list_param_prep){
   #Read in GHCND database station locations
   dat_stat <- read.fwf(infile_ghncd_data, 
                        widths = c(11,9,10,7,3,31,4,4,6),fill=TRUE)
-  colnames(dat_stat)<-c("STAT_ID","lat","lon","elev","state","name","GSNF","HCNF","WMOID")
-  coords<- dat_stat[,c('lon','lat')]
+  colnames(dat_stat)<-c("STAT_ID","latitude","longitude","elev","state","name","GSNF","HCNF","WMOID")
+  coords<- dat_stat[,c('longitude','latitude')]
   coordinates(dat_stat)<-coords
   proj4string(dat_stat)<-CRS_locs_WGS84 #this is the WGS84 projection
   #proj4string(dat_stat)<-CRS_interp
@@ -131,7 +131,7 @@ database_covariates_preparation<-function(list_param_prep){
   
   #Transform the subset data frame in a spatial data frame and reproject
   data_reg<-data_table                               #Make a copy of the data frame
-  coords<- data_reg[c('lon','lat')]              #Define coordinates in a data frame: clean up here!!
+  coords<- data_reg[c('longitude','latitude')]              #Define coordinates in a data frame: clean up here!!
   coordinates(data_reg)<-coords                      #Assign coordinates to the data frame
   proj4string(data_reg)<-CRS_locs_WGS84                #Assign coordinates reference system in PROJ4 format
   data_reg<-spTransform(data_reg,CRS(CRS_interp))     #Project from WGS84 to new coord. system
@@ -168,6 +168,7 @@ database_covariates_preparation<-function(list_param_prep){
   s_raster<-brick(infile_covariates)                   #read in the data stack
   names(s_raster)<-covar_names               #Assigning names to the raster layers: making sure it is included in the extraction
   stat_val<- extract(s_raster, data_reg)        #Extracting values from the raster stack for every point location in coords data frame.
+  #stat_val_test<- extract(s_raster, data_reg,def=TRUE)
   
   #create a shape file and data_frame with names
   
@@ -223,7 +224,7 @@ database_covariates_preparation<-function(list_param_prep){
   #Save the query data here...
   data_m<-merge(data_m, stat_reg, by.x="station", by.y="STAT_ID")   #Inner join all columns are retained
   #Extracting covariates from stack for the monthly dataset...
-  coords<- data_m[c('lon','lat')]              #Define coordinates in a data frame
+  coords<- data_m[c('longitude','latitude')]              #Define coordinates in a data frame
   coordinates(data_m)<-coords                      #Assign coordinates to the data frame
   proj4string(data_m)<-CRS_locs_WGS84                  #Assign coordinates reference system in PROJ4 format
   data_m<-spTransform(data_m,CRS(CRS_interp))     #Project from WGS84 to new coord. system
@@ -258,7 +259,9 @@ database_covariates_preparation<-function(list_param_prep){
   }
   
   #Extracting covariates from stack for the monthly dataset...
-  coords<- dst[c('lon','lat')]              #Define coordinates in a data frame
+  #names(dst)[5:6] <-c('latitude','longitude')
+  coords<- dst[c('longitude','latitude')]              #Define coordinates in a data frame
+  
   coordinates(dst)<-coords                      #Assign coordinates to the data frame
   proj4string(dst)<-CRS_locs_WGS84                  #Assign coordinates reference system in PROJ4 format
   dst_month<-spTransform(dst,CRS(CRS_interp))     #Project from WGS84 to new coord. system
@@ -292,6 +295,8 @@ database_covariates_preparation<-function(list_param_prep){
   
   outfiles_obj<-list(outfile1,outfile2,outfile3,outfile4,outfile5,outfile6)
   names(outfiles_obj)<- c("loc_stations","loc_stations_ghcn","daily_query_ghcn_data","daily_covar_ghcn_data","monthly_query_ghcn_data","monthly_covar_ghcn_data")
+  save(outfiles_obj,file= file.path(out_path,paste("met_stations_outfiles_obj_",interpolation_method,"_", out_prefix,".RData",sep="")))
+  
   return(outfiles_obj)
   
   #END OF FUNCTION # 
