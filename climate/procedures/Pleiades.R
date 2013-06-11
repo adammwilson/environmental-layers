@@ -174,6 +174,7 @@ mpiexec -np $CORES pxargs -a $WORKLIST -p $EXE -v -v -v --work-analyze 1> $LOGST
 ### Now process the climatologies
 ",sep=""),file=paste("mod06_climatology_qsub",sep=""))
 
+
 ## check files
 system(paste("cat mod06_climatology_qsub",sep=""))        #qsub submission script
 system(paste("cat notdone_climate.txt | head",sep=""))    #top of job file

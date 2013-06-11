@@ -36,7 +36,7 @@ if ( !is.null(opta$help) )
 
 ## default date and tile to play with  (will be overwritten below when running in batch)
 #date="20090129"
-#tile="h11v08"
+#tile="h17v00"
 platform="pleiades" 
 verbose=T
 
@@ -54,6 +54,20 @@ if(platform=="pleiades"){
   ## path to some executables
   ncopath="/nasa/sles11/nco/4.0.8/gcc/mpt/bin/"
   swtifpath="/nobackupp1/awilso10/software/heg/bin/swtif"
+  swtifpath="/nobackupp4/pvotava/software/heg/bin/swtif"
+  ## path to swath database
+  db="/nobackupp4/pvotava/DB/export/swath_geo.sql.sqlite3.db"
+  ## specify working directory
+  outdir=paste("/nobackupp1/awilso10/mod35/daily/",tile,"/",sep="")  #directory for separate daily files
+  basedir="/nobackupp1/awilso10/mod35/" #directory to hold files temporarily before transferring to lou
+  setwd(tempdir())
+  ## grass database
+  gisBase="/u/armichae/pr/grass-6.4.2/"
+  ## path to MOD11A1 file for this tile to align grid/extent
+  gridfile=list.files("/nobackupp4/datapool/modis/MOD11A2.005/2009.01.01",pattern=paste(tile,".*[.]hdf$",sep=""),recursive=T,full=T)[1]
+  td=readGDAL(paste("HDF4_EOS:EOS_GRID:\"",gridfile,"\":MODIS_Grid_8Day_1km_LST:LST_Day_1km",sep=""))
+  projection(td)="+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs +datum=WGS84 +ellps=WGS84 "
+}
   ## path to swath database
   db="/nobackupp4/pvotava/DB/export/swath_geo.sql.sqlite3.db"
   ## specify working directory
@@ -104,6 +118,8 @@ lowright=paste(max(-90,tile_bb$lat_min-0.5),min(180,tile_bb$lon_max+0.5)) #south
 vars=as.data.frame(matrix(c(
   "Cloud_Mask",              "CM",
   "Quality_Assurance",       "QA"),
+#  "Solar_Azimuth",        "SA",
+#  "Sensor_Zenith",        "SZ"),
   byrow=T,ncol=2,dimnames=list(1:2,c("variable","varid"))),stringsAsFactors=F)
 
 ## vector of variables expected to be in final netcdf file.  If these are not present, the file will be deleted at the end.
@@ -137,6 +153,7 @@ for(file in swaths){
   ## Function to generate hegtool parameter file for multi-band HDF-EOS file
   print(paste("Starting file",basename(file)))
   outfile=paste(tempdir(),"/",basename(file),sep="")
+  ### Get 1km data
   ## First write the parameter file (careful, heg is very finicky!)
   hdr=paste("NUM_RUNS = ",length(vars$varid),"|MULTI_BAND_HDFEOS:",length(vars$varid),sep="")
   grp=paste("
@@ -169,7 +186,7 @@ END
   cat(c(hdr,grp)    , file=paste(tempdir(),"/",basename(file),"_MODparms.txt",sep=""))
   ## now run the swath2grid tool
   ## write the gridded file
-  system(paste("(",swtifpath," -p ",tempdir(),"/",basename(file),"_MODparms.txt -d)",sep=""),intern=F,ignore.stderr=F)
+  system(paste(swtifpath," -p ",tempdir(),"/",basename(file),"_MODparms.txt -d  -tmpLatLondir ",tempdir(),sep=""),intern=F,ignore.stderr=F)
   print(paste("Finished gridding ", file," for tile ",tile))
 }  #end looping over swaths
 
@@ -180,6 +197,20 @@ if(!any(file.exists(outfiles))) {
   print(paste("########################################   No gridded files for region exist for tile",tile," on date",date))
   q("no",status=0)
 }
+
+plot=F
+if(plot){
+i=1
+GDALinfo(outfiles[i])
+d=brick(
+  raster(paste("HDF4_EOS:EOS_GRID:\"",outfiles[i],"\":mod35:Cloud_Mask_0",sep="")),
+  raster(paste("HDF4_EOS:EOS_GRID:\"",outfiles[i],"\":mod35:Quality_Assurance_0",sep="")),
+  raster(paste("HDF4_EOS:EOS_GRID:\"",outfiles[i],"\":mod35:Sensor_Zenith",sep="")),
+  raster(paste("HDF4_EOS:EOS_GRID:\"",outfiles[i],"\":mod35:Solar_Azimuth",sep="")))
+plot(d)
+}
+# TODO: import sensor zenith separately and mask out bad pixels
+system(paste("scp ",outfiles[1]," adamw@acrobates.eeb.yale.edu:/data/personal/adamw/projects/interp/tmp/",sep=""))
 
 #####################################################
 ## Process the gridded files to align exactly with MODLAND tile and produce a daily summary of multiple swaths
