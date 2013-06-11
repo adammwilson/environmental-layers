@@ -4,42 +4,32 @@
 #Part 1: Script produces plots for every selected date
 #Part 2: Examine 
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 05/10/2013                                                                                 
+#DATE: 06/10/2013                                                                                 
 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#???--   
 
 ##################################################################################################
 
+## Function(s) used in script
 
-### Parameters and arguments
-##Paths to inputs and output
-#Select relevant dates and load R objects created during the interpolation step
+load_obj <- function(f) 
+{
+  env <- new.env()
+  nm <- load(f, env)[1]  
+  env[[nm]]
+}
 
-##Paths to inputs and output
-#script_path<-"/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/"
-#in_path <- "/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/input_data/"
-#out_path<- "/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/output_data/"
-#infile_covar<-"covariates__venezuela_region__VE_01292013.tif" #this is an output from covariate script
-#date_selected<-c("20000101") ##This is for year 2000!!!
-#raster_prediction_obj<-load_obj("raster_prediction_obj_dailyTmin_365d_GAM_fus5_all_lstd_03292013.RData")
-#out_prefix<-"_365d_GAM_fus5_all_lstd_03132013"
-#out_prefix<-"_365d_GAM_fus5_all_lstd_03142013"                #User defined output prefix
-#out_prefix<-"_365d_GAM_fus5_all_lstd_03292013"                #User defined output prefix
-#var<-"TMIN"
-#gam_fus_mod<-load_obj("gam_fus_mod_365d_GAM_fus5_all_lstd_02202013.RData")
-#validation_mod_obj<-load_obj("gam_fus_validation_mod_365d_GAM_fus5_all_lstd_02202013.RData")
-#clim_method_mod_obj<-load_obj("gamclim_fus_mod_365d_GAM_fus5_all_lstd_02202013.RData")
+#Also used in validation script...place new files for common functions used in interpolation
 
-#rnames<-c("x","y","lon","lat","N","E","N_w","E_w","elev","slope","aspect","CANHEIGHT","DISTOC")
-#lc_names<-c("LC1","LC2","LC3","LC4","LC5","LC6","LC7","LC8","LC9","LC10","LC11","LC12")
-#lst_names<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_09","mm_10","mm_11","mm_12",
-#             "nobs_01","nobs_02","nobs_03","nobs_04","nobs_05","nobs_06","nobs_07","nobs_08",
-#             "nobs_09","nobs_10","nobs_11","nobs_12")
-#covar_names<-c(rnames,lc_names,lst_names)
-
-#list_param_results_analyses<-list(in_path,out_path,script_path,raster_prediction_obj,interpolation_method,infile_covar,covar_names,date_selected,var,out_prefix)
-#names(list_param_results_analyses)<-c("in_path","out_path","script_path","raster_prediction_obj", "interpolation_method",
-#                     "infile_covar","covar_names","date_selected","var","out_prefix")
+extract_from_list_obj<-function(obj_list,list_name){
+  list_tmp<-vector("list",length(obj_list))
+  for (i in 1:length(obj_list)){
+    tmp<-obj_list[[i]][[list_name]] #double bracket to return data.frame
+    list_tmp[[i]]<-tmp
+  }
+  tb_list_tmp<-do.call(rbind,list_tmp) #long rownames
+  return(tb_list_tmp) #this is  a data.frame
+}
 
 plots_assessment_by_date<-function(j,list_param){
   ###Function to assess results from interpolation predictions
@@ -70,15 +60,6 @@ plots_assessment_by_date<-function(j,list_param){
   library(grid)
   library(lattice)
   
-  ## Function(s) used in script
-  
-  load_obj <- function(f) 
-  {
-    env <- new.env()
-    nm <- load(f, env)[1]  
-    env[[nm]]
-  }
-  
   ### BEGIN SCRIPT
   #Parse input parameters
   
@@ -92,7 +73,6 @@ plots_assessment_by_date<-function(j,list_param){
   raster_prediction_obj<-list_param$raster_prediction_obj
   method_mod_obj<-raster_prediction_obj$method_mod_obj
   validation_mod_obj<-raster_prediction_obj$validation_mod_obj
-  clim_method_mod_obj <- raster_prediction_obj$clim_method_mod_obj
   
   if (var=="TMAX"){
     y_var_name<-"dailyTmax"
@@ -141,9 +121,9 @@ plots_assessment_by_date<-function(j,list_param){
   metrics_s<-validation_mod_obj[[index]]$metrics_s
   data_v<-validation_mod_obj[[index]]$data_v
   data_s<-validation_mod_obj[[index]]$data_s
-  data_month<-clim_method_mod_obj[[index]]$data_month
-  formulas<-clim_method_mod_obj[[index]]$formulas
+  formulas<-method_mod_obj[[index]]$formulas
   
+
   #Adding layer LST to the raster stack of covariates
   #The names of covariates can be changed...
   
@@ -166,59 +146,76 @@ plots_assessment_by_date<-function(j,list_param){
   rmse<-metrics_v$rmse[nrow(metrics_v)]
   rmse_f<-metrics_s$rmse[nrow(metrics_s)]  
   
-  png(file.path(out_path,paste("LST_",y_var_month,"_scatterplot_",sampling_dat$date,"_",sampling_dat$prop,"_",sampling_dat$run_samp,
-            out_prefix,".png", sep="")))
-  plot(data_month[[y_var_month]],data_month$LST,xlab=paste("Station mo ",y_var_month,sep=""),ylab=paste("LST mo ",y_var_month,sep=""))
-  title(paste("LST vs ", y_var_month,"for",datelabel,sep=" "))
-  abline(0,1)
-  nb_point<-paste("n=",length(data_month[[y_var_month]]),sep="")
-  mean_bias<-paste("Mean LST bias= ",format(mean(data_month$LSTD_bias,na.rm=TRUE),digits=3),sep="")
-  #Add the number of data points on the plot
-  legend("topleft",legend=c(mean_bias,nb_point),bty="n")
-  dev.off()
+  if (interpolation_method=="gam_CAI" | interpolation_method=="gam_fusion"){
+    clim_method_mod_obj <- raster_prediction_obj$clim_method_mod_obj
+    data_month<-clim_method_mod_obj[[index]]$data_month
+    
+    png(file.path(out_path,paste("LST_",y_var_month,"_scatterplot_",sampling_dat$date,"_",sampling_dat$prop,"_",sampling_dat$run_samp,
+                                 out_prefix,".png", sep="")))
+    plot(data_month[[y_var_month]],data_month$LST,xlab=paste("Station mo ",y_var_month,sep=""),ylab=paste("LST mo ",y_var_month,sep=""))
+    title(paste("LST vs ", y_var_month,"for",datelabel,sep=" "))
+    abline(0,1)
+    nb_point<-paste("n=",length(data_month[[y_var_month]]),sep="")
+    mean_bias<-paste("Mean LST bias= ",format(mean(data_month$LSTD_bias,na.rm=TRUE),digits=3),sep="")
+    #Add the number of data points on the plot
+    legend("topleft",legend=c(mean_bias,nb_point),bty="n")
+    dev.off()
+    
+    ## Figure 2: Daily_tmax_monthly_TMax_scatterplot, modify for TMin!!
+    
+    png(file.path(out_path,paste("Month_day_scatterplot_",y_var_name,"_",y_var_month,"_",sampling_dat$date,"_",sampling_dat$prop,"_",sampling_dat$run_samp,
+                                 out_prefix,".png", sep="")))
+    plot(data_s[[y_var_name]]~data_s[[y_var_month]],xlab=paste("Month") ,ylab=paste("Daily for",datelabel),main="across stations in VE")
+    nb_point<-paste("ns=",length(data_s[[y_var_month]]),sep="")
+    nb_point2<-paste("ns_obs=",length(data_s[[y_var_month]])-sum(is.na(data_s[[y_var_name]])),sep="")
+    nb_point3<-paste("n_month=",length(data_month[[y_var_month]]),sep="")
+    #Add the number of data points on the plot
+    legend("topleft",legend=c(nb_point,nb_point2,nb_point3),bty="n",cex=0.8)
+    dev.off()
+    
+    ## Figure 3: monthly stations used
+    
+    png(file.path(out_path,paste("Monthly_data_study_area_", y_var_name,
+                                 out_prefix,".png", sep="")))
+    plot(raster(rast_pred_temp,layer=5))
+    plot(data_month,col="black",cex=1.2,pch=4,add=TRUE)
+    title("Monthly ghcn station in Venezuela for January")
+    dev.off()
   
-  ## Figure 2: Daily_tmax_monthly_TMax_scatterplot, modify for TMin!!
+  }
+  ## Figure 4: Predicted_tmax_versus_observed_scatterplot 
   
-  png(file.path(out_path,paste("Month_day_scatterplot_",y_var_name,"_",y_var_month,"_",sampling_dat$date,"_",sampling_dat$prop,"_",sampling_dat$run_samp,
-            out_prefix,".png", sep="")))
-  plot(data_s[[y_var_name]]~data_s[[y_var_month]],xlab=paste("Month") ,ylab=paste("Daily for",datelabel),main="across stations in VE")
-  nb_point<-paste("ns=",length(data_s[[y_var_month]]),sep="")
-  nb_point2<-paste("ns_obs=",length(data_s[[y_var_month]])-sum(is.na(data_s[[y_var_name]])),sep="")
-  nb_point3<-paste("n_month=",length(data_month[[y_var_month]]),sep="")
-  #Add the number of data points on the plot
-  legend("topleft",legend=c(nb_point,nb_point2,nb_point3),bty="n",cex=0.8)
-  dev.off()
+  names_mod <- names(method_mod_obj[[index]][[y_var_name]]) #names of models to plot
+  #model_name<-"mod_kr" #can be looped through models later on...
   
-  ## Figure 3: Predicted_tmax_versus_observed_scatterplot 
+  for (k in 1:length(names_mod)){
+    model_name <- names_mod[k]
+    png(file.path(out_path,paste("Predicted_versus_observed_scatterplot_",y_var_name,"_",model_name,"_",sampling_dat$date,"_",sampling_dat$prop,"_",
+                                 sampling_dat$run_samp,out_prefix,".png", sep="")))
+    y_range<-range(c(data_s[[model_name]],data_v[[model_name]]),na.rm=T)
+    x_range<-range(c(data_s[[y_var_name]],data_v[[y_var_name]]),na.rm=T)
+    col_t<- c("black","red")
+    pch_t<- c(1,2)
+    plot(data_s[[model_name]],data_s[[y_var_name]], 
+         xlab=paste("Actual daily for",datelabel),ylab="Pred daily", 
+         ylim=y_range,xlim=x_range,col=col_t[1],pch=pch_t[1])
+    points(data_v[[model_name]],data_v[[y_var_name]],col=col_t[2],pch=pch_t[2])
+    grid(lwd=0.5, col="black")
+    abline(0,1)
+    legend("topleft",legend=c("training","testing"),pch=pch_t,col=col_t,bty="n",cex=0.8)
+    title(paste("Predicted_versus_observed_",y_var_name,"_",model_name,"_",datelabel,sep=" "))
+    nb_point1<-paste("ns_obs=",length(data_s[[y_var_name]])-sum(is.na(data_s[[model_name]])),sep="")
+    nb_point2<-paste("nv_obs=",length(data_v[[y_var_name]])-sum(is.na(data_v[[model_name]])),sep="")
+    
+    rmse_str1<-paste("RMSE= ",format(rmse,digits=3),sep="")
+    rmse_str2<-paste("RMSE_f= ",format(rmse_f,digits=3),sep="")
+    
+    #Add the number of data points on the plot
+    legend("bottomright",legend=c(nb_point1,nb_point2,rmse_str1,rmse_str2),bty="n",cex=0.8)
+    dev.off()
+  }
   
-  #This is for mod_kr!! add other models later...
-  model_name<-"mod_kr" #can be looped through models later on...
-  
-  png(file.path(out_path,paste("Predicted_versus_observed_scatterplot_",y_var_name,"_",model_name,"_",sampling_dat$date,"_",sampling_dat$prop,"_",
-            sampling_dat$run_samp,out_prefix,".png", sep="")))
-  y_range<-range(c(data_s[[model_name]],data_v[[model_name]]),na.rm=T)
-  x_range<-range(c(data_s[[y_var_name]],data_v[[y_var_name]]),na.rm=T)
-  col_t<- c("black","red")
-  pch_t<- c(1,2)
-  plot(data_s[[model_name]],data_s[[y_var_name]], 
-       xlab=paste("Actual daily for",datelabel),ylab="Pred daily", 
-       ylim=y_range,xlim=x_range,col=col_t[1],pch=pch_t[1])
-  points(data_v[[model_name]],data_v[[y_var_name]],col=col_t[2],pch=pch_t[2])
-  grid(lwd=0.5, col="black")
-  abline(0,1)
-  legend("topleft",legend=c("training","testing"),pch=pch_t,col=col_t,bty="n",cex=0.8)
-  title(paste("Predicted_versus_observed_",y_var_name,"_",model_name,"_",datelabel,sep=" "))
-  nb_point1<-paste("ns_obs=",length(data_s[[y_var_name]])-sum(is.na(data_s[[model_name]])),sep="")
-  nb_point2<-paste("nv_obs=",length(data_v[[y_var_name]])-sum(is.na(data_v[[model_name]])),sep="")
-
-  rmse_str1<-paste("RMSE= ",format(rmse,digits=3),sep="")
-  rmse_str2<-paste("RMSE_f= ",format(rmse_f,digits=3),sep="")
-  
-  #Add the number of data points on the plot
-  legend("bottomright",legend=c(nb_point1,nb_point2,rmse_str1,rmse_str2),bty="n",cex=0.8)
-  dev.off()
-  
-  ## Figure 4a: prediction raster images
+  ## Figure 5a: prediction raster images
   png(file.path(out_path,paste("Raster_prediction_",y_var_name,"_",sampling_dat$date,"_",sampling_dat$prop,"_",sampling_dat$run_samp,
             out_prefix,".png", sep="")))
   #paste(metrics_v$pred_mod,format(metrics_v$rmse,digits=3),sep=":")
@@ -227,7 +224,7 @@ plots_assessment_by_date<-function(j,list_param){
   levelplot(rast_pred_temp)
   dev.off()
   
-  ## Figure 4b: prediction raster images
+  ## Figure 5b: prediction raster images
   png(file.path(out_path,paste("Raster_prediction_plot",sampling_dat$date,"_",sampling_dat$prop,"_",sampling_dat$run_samp,
             out_prefix,".png", sep="")))
   #paste(metrics_v$pred_mod,format(metrics_v$rmse,digits=3),sep=":")
@@ -235,7 +232,7 @@ plots_assessment_by_date<-function(j,list_param){
   plot(rast_pred_temp)
   dev.off()
   
-  ## Figure 5: training and testing stations used
+  ## Figure 6: training and testing stations used
   png(file.path(out_path,paste("Training_testing_stations_map_",y_var_name,"_",sampling_dat$date,"_",sampling_dat$prop,"_",sampling_dat$run_samp,
             out_prefix,".png", sep="")))
   plot(raster(rast_pred_temp,layer=5))
@@ -246,18 +243,9 @@ plots_assessment_by_date<-function(j,list_param){
          pch=c(2,1),bty="n")
   dev.off()
   
-  ## Figure 6: monthly stations used
-  
-  png(file.path(out_path,paste("Monthly_data_study_area_", y_var_name,
-            out_prefix,".png", sep="")))
-  plot(raster(rast_pred_temp,layer=5))
-  plot(data_month,col="black",cex=1.2,pch=4,add=TRUE)
-  title("Monthly ghcn station in Venezuela for January")
-  dev.off()
-  
   ## Figure 7: delta surface and bias
   
-  if (interpolation_method=="gam_fus"){
+  if (interpolation_method=="gam_fusion"){
     png(file.path(out_path,paste("Bias_delta_surface_",y_var_name,"_",sampling_dat$date[i],"_",sampling_dat$prop[i],
               "_",sampling_dat$run_samp[i],out_prefix,".png", sep="")))
     
@@ -287,6 +275,18 @@ plots_assessment_by_date<-function(j,list_param){
   }
   
   #Figure 9: histogram for all images...
+  
+  #Write out accuracy information:
+  
+  #add sd later...
+  write.table(tb_diagnostic_v,)
+  tb_diagnostic_v <- raster_prediction_obj$tb_diagnostic_v
+  raster_prediction_obj$summary_metrics_v
+  raster_prediction_obj$summary_month_metrics_v$metric_month_avg
+  raster_prediction_obj$summary_month_metrics_v$metric_month_sd
+  
+  #write.table(tb_diagnostic_v, file= file.path(out_path,interpolation_method,"_tb_diagnostic_v",out_prefix,".txt",sep=""), sep=",",overwrite=FALSE)
+  write.table(tb, file= paste(path,"/","results2_gwr_Assessment_measure_all",out_prefix,".txt",sep=""), sep=",")
   
   #histogram(rast_pred_temp)
   list_output_analyses<-list(metrics_s,metrics_v)
