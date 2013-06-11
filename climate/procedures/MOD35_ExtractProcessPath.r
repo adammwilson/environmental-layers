@@ -65,13 +65,14 @@ getpath<- function(file){
    outfile=paste("~/acrobates/adamw/projects/interp/data/modis/mod35/gridded/",bfile,".tif",sep="")  #final file
    if(file.exists(outfile)) return(c(file,0))
    ## get bounding coordinates
-   glat=as.numeric(do.call(c,strsplit(sub("GRINGPOINTLATITUDE=","",system(paste("gdalinfo ",file," | grep GRINGPOINTLATITUDE"),intern=T)),split=",")))
-   glon=as.numeric(do.call(c,strsplit(sub("GRINGPOINTLONGITUDE=","",system(paste("gdalinfo ",file," | grep GRINGPOINTLONGITUDE"),intern=T)),split=",")))
-   bb=cbind(c(glon,glon[1]),c(glat,glat[1]))
-   pp = SpatialPolygons(list(Polygons(list(Polygon(bb)),1)))
-   proj4string(pp)=projection(glb)
-   ppc=gIntersection(pp,gpp)
-   ppc=gBuffer(ppc,width=0.3)  #buffer a little to remove gaps between images
+#   glat=as.numeric(do.call(c,strsplit(sub("GRINGPOINTLATITUDE=","",system(paste("gdalinfo ",file," | grep GRINGPOINTLATITUDE"),intern=T)),split=",")))
+#   glon=as.numeric(do.call(c,strsplit(sub("GRINGPOINTLONGITUDE=","",system(paste("gdalinfo ",file," | grep GRINGPOINTLONGITUDE"),intern=T)),split=",")))
+#   bb=cbind(c(glon,glon[1]),c(glat,glat[1]))
+#   pp = SpatialPolygons(list(Polygons(list(Polygon(bb)),1)))
+#   proj4string(pp)=projection(glb)
+#   ppc=gIntersection(pp,gpp)
+#   ppc=gBuffer(ppc,width=0.3)  #buffer a little to remove gaps between images
+ppc=gpp
    ## First write the parameter file (careful, heg is very finicky!)
    hdr=paste("NUM_RUNS = ",length(vars$varid),"|MULTI_BAND_HDFEOS:",length(vars$varid),sep="")
    grp=paste("
@@ -183,11 +184,14 @@ file.remove(gfiles[check==0])
 system(paste("/usr/local/gdal-1.10.0/bin/gdalwarp -wm 900 -overwrite -co COMPRESS=LZW -co PREDICTOR=2 -multi -r mode gridded/*.tif MOD35_path_gdalwarp.tif"))
 
 
+###  Merge them into a geotiff
+    system(paste("gdal_merge.py -v -init 255 -n 255 -o MOD35_ProcessPath_gdalmerge2.tif -co \"ZLEVEL=9\" -co \"COMPRESS=LZW\" -co \"PREDICTOR=2\" `ls -d -1 gridded/*.tif --sort=size `",sep=""))
+
 #  origin(raster(gfiles[5]))
   
   ## try with pktools
   ## global
-system(paste("pkmosaic -co COMPRESS=LZW -co PREDICTOR=2 ",paste("-i",list.files("gridded",full=T,pattern="tif$"),collapse=" ")," -o MOD35_path_pkmosaic_max.tif  -m 2 -v -t 255 -t 0 &"))
+system(paste("pkmosaic -co COMPRESS=LZW -co PREDICTOR=2 ",paste("-i",list.files("gridded",full=T,pattern="tif$"),collapse=" ")," -o MOD35_path_pkmosaic_mode.tif  -m 6 -v -t 255 -t 0 &"))
 #bb="-ulx -180 -uly 90 -lrx 180 -lry -90"
 #bb="-ulx -180 -uly 90 -lrx 170 -lry 80"
 bb="-ulx -72 -uly 11 -lrx -59 -lry -1"
@@ -238,9 +242,6 @@ execGRASS("r.out.gdal",input="MOD35_path",output=paste(getwd(),"/MOD35_ProcessPa
 
 cols=c("blue","lightblue","tan","green")
 
-
-  ###  Merge them into a geotiff
-    system(paste("gdal_merge.py -v -n 255 -o MOD35_ProcessPath.tif -co \"COMPRESS=LZW\" -co \"PREDICTOR=2\" `ls -d -1 gridded/*.tif`",sep=""))
 
 
 ## connect to raster to extract land-cover bit
