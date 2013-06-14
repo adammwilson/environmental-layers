@@ -296,26 +296,40 @@ if(verbose) print(paste(nfs,"swaths available for processing"))
      lon=raster(paste("HDF4_SDS:UNKNOWN:\"",tswath,"\":1",sep=""))
      ## HEG Tool reprojection results in large areas of sprious values (regions outside data areas are filled in using the interpolation method)
      ## need to crop the resulting projected data to eliminate these areas
-     coords=cbind.data.frame(melt(as.matrix(lat))[,1:3],lon=melt(as.matrix(lon))[,3])
-     coords=coords[coords$X1%in%range(coords$X1)|coords$X2%in%range(coords$X2),4:3];colnames(coords)=c("lon","lat")
-     #coords=cbind.data.frame(lat=melt(as.matrix(lat))[,3],lon=melt(as.matrix(lon))[,3])
+     coords=cbind.data.frame(lat=melt(as.matrix(lat))[,3],lon=melt(as.matrix(lon))[,3],ID=1)
      ## crop to big bbox
-#     coords=coords[coords$lat<tile_bb$lat_max+0.5&coords$lat>tile_bb$lat_min-0.5&
-#       coords$lon>tile_bb$lon_min-0.5&coords$lon<tile_bb$lon_max+0.5,]
-#     coordinates(coords)=c("lon","lat")
-#     proj4string(coords)="+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs "
+     coords=coords[coords$lat<tile_bb$lat_max+0.5&coords$lat>tile_bb$lat_min-0.5&
+       coords$lon>tile_bb$lon_min-0.5&coords$lon<tile_bb$lon_max+0.5,]
+     coordinates(coords)=c("lon","lat")
+     proj4string(coords)="+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs "
      ## project to sinusoidal
      coords2=spTransform(coords,CRS(projection(td)))
-     ## fit alpha hull to draw polygon around region with data
-     ah=ahull(coordinates(coords2),alpha=100000)
-     ah2=ah$x[ah$alpha.extremes,]
-     ah2=ah$edges[,c("x1","y1")]
-  
-     pp = SpatialPolygons(list(Polygons(list(Polygon(coords[c(1:nrow(coords),1),])),1)))
-     proj4string(pp)=projection(td)
+     writeOGR(coords2,dsn=".",layer=sub("[.]hdf","",basename(tswath)),driver="ESRI Shapefile",overwrite=T)
 
+     system(paste("gdal_grid -ot Byte -a count:radius1=10000:radius2=10000 ",
+" -txe ",paste(bbox(td)[1,],sep="",collapse=" "),
+" -tye ",paste(bbox(td)[2,],sep="",collapse=" "),
+" -outsize ",paste(td@grid@cells.dim,collapse=" "),
+" -l ",sub("[.]hdf","",basename(tswath))," ", 
+sub("[.]hdf",".shp",basename(tswath))," mask_",sub("[.]hdf",".tif",basename(tswath)),sep=""))
+
+
+     ps=rasterize(coords2,d2[[2]])
+     dist=distance(ps,edge=F)
+     dist2=dist<10000
+
+     ## fit alpha hull to draw polygon around region with data
+#     ah=ahull(coordinates(coords2),alpha=100000)
+#     ah2=ah$x[ah$alpha.extremes,]
+#     ah2=ah$edges[,c("x1","y1")]
+  
+#     pp = SpatialPolygons(list(Polygons(list(Polygon(coords[c(1:nrow(coords),1),])),1)))
+#     proj4string(pp)=projection(td)
+
+
+     plot(stack(lon,lat))
      plot(coords,add=F);axis(1);axis(2)
-     plot(d2[[2]],add=F)
+     plot(d2[[8]],add=F)
      plot(coords2,add=T);axis(1);axis(2)
      plot(ah,wpoints=F,add=T,col="red")
      points(ah2,add=T)
@@ -379,8 +393,9 @@ EOF",sep=""))
          raster(readRAST6(paste("SZ_",i,sep="")))
          )
        plot(d2[[2]],add=F)
-       plot(coords2,pch=16,cex=.2,add=T)
+       points(coords2,pch=16,cex=.2,add=T)
        plot(pp,add=F,usePolypath = FALSE)#(sp.polygons(pp),usePolypath = FALSE)
+       
      }
        
      
