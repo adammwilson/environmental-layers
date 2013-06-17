@@ -39,121 +39,81 @@ glb=extend(glb,extent(-180,180,-90,90))
 
 #### Grid and mosaic the swath data
 
-stitch="sudo MRTDATADIR=\"/usr/local/heg/data\" PGSHOME=/usr/local/heg/TOOLKIT_MTD PWD=/home/adamw /usr/local/heg/bin/swtif"
+stitch="sudo MRTDATADIR=\"/usr/local/heg/2.12/data\" PGSHOME=/usr/local/heg/2.12/TOOLKIT_MTD PWD=/home/adamw /usr/local/heg/2.12/bin/swtif"
+stitch="/usr/local/heg/2.12/bin/swtif"
 
+stitch="sudo MRTDATADIR=\"/usr/local/heg/2.11/data\" PGSHOME=/usr/local/heg/2.11/TOOLKIT_MTD PWD=/home/adamw /usr/local/heg/2.11/bin/swtif"
 files=paste(getwd(),"/",list.files("swath",pattern="hdf$",full=T),sep="")
 
 ## vars to process
 vars=as.data.frame(matrix(c(
-  "Cloud_Mask",              "CM",
-  "Sensor_Azimuth",       "ZA",
-  "Sensor_Zenith",        "SZ"),
-  byrow=T,ncol=2,dimnames=list(1:3,c("variable","varid"))),stringsAsFactors=F)
+  "Cloud_Mask",           "CM",   "NN",    1,
+#  "Sensor_Azimuth",       "ZA",   "CUBIC", 1,
+  "Sensor_Zenith",        "SZ",   "CUBIC", 1),
+  byrow=T,ncol=4,dimnames=list(1:2,c("variable","varid","method","band"))),stringsAsFactors=F)
 
 ## global bounding box
-   gbb=cbind(c(-180,-180,180,180,-180),c(-85,85,85,-85,-85))
+   gbb=cbind(c(-180,-180,180,180,-180),c(-90,90,90,-90,-90))
    gpp = SpatialPolygons(list(Polygons(list(Polygon(gbb)),1)))
    proj4string(gpp)=projection(glb)
 
+outdir="~/acrobates/adamw/projects/interp/data/modis/mod35/gridded/"
 
-getpath<- function(file){  
-   setwd(tempdir())
-   bfile=sub(".hdf","",basename(file))
-   tempfile_path=paste(tempdir(),"/path_",basename(file),sep="")  #gridded path
-   tempfile_sz=paste(tempdir(),"/sz_",basename(file),sep="")  # gridded sensor zenith
-   tempfile2_path=paste(tempdir(),"/",bfile,".tif",sep="")  #gridded/masked/processed path
-   outfile=paste("~/acrobates/adamw/projects/interp/data/modis/mod35/gridded/",bfile,".tif",sep="")  #final file
-   if(file.exists(outfile)) return(c(file,0))
-   ## get bounding coordinates
-#   glat=as.numeric(do.call(c,strsplit(sub("GRINGPOINTLATITUDE=","",system(paste("gdalinfo ",file," | grep GRINGPOINTLATITUDE"),intern=T)),split=",")))
-#   glon=as.numeric(do.call(c,strsplit(sub("GRINGPOINTLONGITUDE=","",system(paste("gdalinfo ",file," | grep GRINGPOINTLONGITUDE"),intern=T)),split=",")))
-#   bb=cbind(c(glon,glon[1]),c(glat,glat[1]))
-#   pp = SpatialPolygons(list(Polygons(list(Polygon(bb)),1)))
-#   proj4string(pp)=projection(glb)
-#   ppc=gIntersection(pp,gpp)
-#   ppc=gBuffer(ppc,width=0.3)  #buffer a little to remove gaps between images
-ppc=gpp
+swtif<-function(file,var){
+  outfile=paste(tempdir(),"/",var$varid,"_",basename(file),sep="")  #gridded path
    ## First write the parameter file (careful, heg is very finicky!)
-   hdr=paste("NUM_RUNS = ",length(vars$varid),"|MULTI_BAND_HDFEOS:",length(vars$varid),sep="")
+   hdr=paste("NUM_RUNS = 1")
    grp=paste("
 BEGIN
 INPUT_FILENAME=",file,"
 OBJECT_NAME=mod35
-FIELD_NAME=",vars$variable,"|
-BAND_NUMBER = ",1:length(vars$varid),"
+FIELD_NAME=",var$variable,"|
+BAND_NUMBER = ",var$band,"
 OUTPUT_PIXEL_SIZE_X=0.008333333
 OUTPUT_PIXEL_SIZE_Y=0.008333333
-SPATIAL_SUBSET_UL_CORNER = ( ",bbox(ppc)[2,2]," ",bbox(ppc)[1,1]," )
-SPATIAL_SUBSET_LR_CORNER = ( ",bbox(ppc)[2,1]," ",bbox(ppc)[1,2]," )
-OUTPUT_OBJECT_NAME = mod35|
-RESAMPLING_TYPE =NN
+SPATIAL_SUBSET_UL_CORNER = ( ",bbox(gpp)[2,2]," ",bbox(gpp)[1,1]," )
+SPATIAL_SUBSET_LR_CORNER = ( ",bbox(gpp)[2,1]," ",bbox(gpp)[1,2]," )
+RESAMPLING_TYPE =",var$method,"
 OUTPUT_PROJECTION_TYPE = GEO
 OUTPUT_PROJECTION_PARAMETERS = ( 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 )
 # OUTPUT_PROJECTION_PARAMETERS = ( 6371007.181 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 )
 # projection parameters from http://landweb.nascom.nasa.gov/cgi-bin/QA_WWW/newPage.cgi?fileName=sn_gctp
 ELLIPSOID_CODE = WGS84
 OUTPUT_TYPE = HDFEOS
-OUTPUT_FILENAME= ",tempfile_path,"
+OUTPUT_FILENAME= ",outfile,"
 END
 
 ",sep="")
-
-   ## if any remnants from previous runs remain, delete them
-   if(length(list.files(tempdir(),pattern=bfile)>0))
-     file.remove(list.files(tempdir(),pattern=bfile,full=T))
    ## write it to a file
    cat( c(hdr,grp)   , file=paste(tempdir(),"/",basename(file),"_MODparms.txt",sep=""))
    ## now run the swath2grid tool
    ## write the gridded file
    print(paste("Starting",file))
-   system(paste("(",stitch," -p ",tempdir(),"/",basename(file),"_MODparms.txt -d)",sep=""),intern=F)#,ignore.stderr=F)
-##############  Now run the 5km summary
-   ## First write the parameter file (careful, heg is very finicky!)
-   hdr=paste("NUM_RUNS = ",nrow(vars[-1,]),"|MULTI_BAND_HDFEOS:",nrow(vars[-1,]),sep="")
-   grp=paste("
-BEGIN
-INPUT_FILENAME=",file,"
-OBJECT_NAME=mod35
-FIELD_NAME=",vars$variable[-1],"|
-BAND_NUMBER = ",1,"
-OUTPUT_PIXEL_SIZE_X=0.008333333
-#0.0416666
-OUTPUT_PIXEL_SIZE_Y=0.008333333
-#0.0416666
-SPATIAL_SUBSET_UL_CORNER = ( ",bbox(ppc)[2,2]," ",bbox(ppc)[1,1]," )
-SPATIAL_SUBSET_LR_CORNER = ( ",bbox(ppc)[2,1]," ",bbox(ppc)[1,2]," )
-#OUTPUT_OBJECT_NAME = mod35|
-RESAMPLING_TYPE =NN
-OUTPUT_PROJECTION_TYPE = GEO
-OUTPUT_PROJECTION_PARAMETERS = ( 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 )
-#OUTPUT_PROJECTION_PARAMETERS = ( 6371007.181 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 )
-# projection parameters from http://landweb.nascom.nasa.gov/cgi-bin/QA_WWW/newPage.cgi?fileName=sn_gctp
-ELLIPSOID_CODE = WGS84
-OUTPUT_TYPE = HDFEOS
-OUTPUT_FILENAME= ",tempfile_sz,"
-END
+   system(paste("",stitch," -p ",tempdir(),"/",basename(file),"_MODparms.txt -d -log /dev/null ",sep=""),intern=F)#,ignore.stderr=F)
+   print(paste("Finished processing variable",var$variable,"from ",basename(file),"to",outfile))
+}  
 
-",sep="")
-
-   ## write it to a file
-   cat( c(hdr,grp)   , file=paste(tempdir(),"/",basename(file),"_MODparms_angle.txt",sep=""))
-   
-   ## now run the swath2grid tool
-   ## write the gridded file
-   print(paste("Starting",file))
-   system(paste("(",stitch," -p ",tempdir(),"/",basename(file),"_MODparms_angle.txt -d)",sep=""),intern=F,ignore.stderr=F)
+getpath<- function(file){  
+   setwd(tempdir())
+   bfile=sub(".hdf","",basename(file))
+   tempfile2_path=paste(tempdir(),"/",bfile,".tif",sep="")  #gridded/masked/processed path
+   outfile=paste(outdir,"/",bfile,".tif",sep="")  #final file
+   if(file.exists(outfile)) return(c(file,0))
+   ppc=gpp
+#######
+## run swtif for each band
+   lapply(1:nrow(vars),function(i) swtif(file,vars[i,]))
 ####### import to R for processing
-   if(!file.exists(tempfile_path)) {
+  
+   if(!file.exists(paste(tempdir(),"/CM_",basename(file),sep=""))) {
      file.remove(list.files(tempdir(),pattern=bfile,full=T))
      return(c(file,0))
    }
    ## convert to land path
-   d=raster(paste("HDF4_EOS:EOS_GRID:\"",tempfile_path,"\":mod35:Cloud_Mask_0",sep=""))
-   sz=raster(paste("HDF4_EOS:EOS_GRID:\"",tempfile_sz,"\":mod35:Sensor_Zenith",sep=""))
-   NAvalue(sz)=0
-   ## resample sensor angles to 1km grid and mask paths with angles >=30
-#   sz2=resample(sz,d,method="ngb",file=sub("hdf","tif",tempfile_sz),overwrite=T)
-   getlc=function(x,y) {ifelse(y==0|y>40,NA,((x%/%2^6) %% 2^2))}
+   d=raster(paste(tempdir(),"/CM_",basename(file),sep=""))
+   sz=raster(paste(tempdir(),"/SZ_",basename(file),sep=""))
+   NAvalue(sz)=-9999
+   getlc=function(x,y) {ifelse(y==0|y>6000,NA,((x%/%2^6) %% 2^2))}
    path=  overlay(d,sz,fun=getlc,filename=tempfile2_path,options=c("COMPRESS=LZW", "LEVEL=9","PREDICTOR=2"),datatype="INT1U",overwrite=T)
 ### warp them to align all pixels
    system(paste("gdalwarp -overwrite -srcnodata 255 -dstnodata 255 -tap -tr 0.008333333 0.008333333 -co COMPRESS=LZW -co ZLEVEL=9 -co PREDICTOR=2 -s_srs \"",projection(t),"\" ",tempfile2_path," ",outfile,sep=""))
@@ -163,11 +123,11 @@ END
  }
 
 
-## establish sudo priveleges to run swtif
-system("sudo ls"); mclapply(files,getpath,mc.cores=10)
+### run it
+mclapply(files[1:200],getpath,mc.cores=10)
 
 ## check gdal can read all of them
-gfiles=list.files("gridded",pattern="tif$",full=T)
+gfiles=list.files(outdir,pattern="tif$",full=T)
 length(gfiles)
 
 check=do.call(rbind,mclapply(gfiles,function(file){
@@ -181,7 +141,7 @@ table(check)
 file.remove(gfiles[check==0])
 
 ## use new gdal
-system(paste("/usr/local/gdal-1.10.0/bin/gdalwarp -wm 900 -overwrite -co COMPRESS=LZW -co PREDICTOR=2 -multi -r mode gridded/*.tif MOD35_path_gdalwarp.tif"))
+system(paste("/usr/local/gdal-1.10.0/bin/gdalwarp -wm 900 -overwrite -co COMPRESS=LZW -co PREDICTOR=2 -multi -r mode ",outdir,"/*.tif MOD35_path_gdalwarp.tif",sep=""))
 
 
 ###  Merge them into a geotiff

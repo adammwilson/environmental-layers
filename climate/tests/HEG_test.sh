@@ -1,0 +1,34 @@
+#! /bin/bash
+
+mkdir /tmp/tmp1
+cd /tmp/tmp1
+
+## get swath data
+wget ftp://ladsweb.nascom.nasa.gov/allData/6/MOD35_L2/2009/029/MOD35_L2.A2009029.0005.006.2012245113426.hdf
+
+## build parameter file
+echo "
+NUM_RUNS = 1
+
+BEGIN
+INPUT_FILENAME = /tmp/tmp1/MOD35_L2.A2009029.0005.006.2012245113426.hdf
+OBJECT_NAME = mod35
+FIELD_NAME = Cloud_Mask|
+BAND_NUMBER = 1
+OUTPUT_PIXEL_SIZE_X = 1013.0
+OUTPUT_PIXEL_SIZE_Y = 1013.0
+SPATIAL_SUBSET_UL_CORNER = ( 89.929451 -179.998932 )
+SPATIAL_SUBSET_LR_CORNER = ( 64.8638 179.998108 )
+RESAMPLING_TYPE = NN
+OUTPUT_PROJECTION_TYPE = SIN
+ELLIPSOID_CODE = WGS84
+OUTPUT_PROJECTION_PARAMETERS = ( 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0  )
+OUTPUT_FILENAME = /tmp/tmp1/MOD35_L2.A2009029.0005.006.2012245113426_mod35.hdf
+OUTPUT_TYPE = HDFEOS
+END
+" > params.txt
+
+### run it
+swtif -p params.txt -d  -tmpLatLondir /tmp/tmp1/
+
+## now view the output file in 
