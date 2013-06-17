@@ -118,8 +118,8 @@ file=paste("notdone.txt",sep=""),row.names=F,col.names=F,quote=F)
 ### qsub script
 cat(paste("
 #PBS -S /bin/bash
-##PBS -l select=100:ncpus=8:mpiprocs=8
-#PBS -l select=10:ncpus=8:mpiprocs=8
+#PBS -l select=1:ncpus=8:mpiprocs=8
+##PBS -l select=10:ncpus=8:mpiprocs=8
 ##PBS -l walltime=8:00:00
 #PBS -l walltime=2:00:00
 #PBS -j n
@@ -129,11 +129,11 @@ cat(paste("
 #PBS -q devel
 #PBS -V
 
-CORES=80
+CORES=8
 #CORES=160
 
 HDIR=/u/armichae/pr/
-#  source $HDIR/etc/environ.sh
+  source $HDIR/etc/environ.sh
   source /u/awilso10/environ.sh
   source /u/awilso10/.bashrc
 IDIR=/nobackupp1/awilso10/mod35/
@@ -145,7 +145,6 @@ LOGSTDERR=$IDIR/log/mod35_stderr
 ### use mpiexec to parallelize across days
 mpiexec -np $CORES pxargs -a $WORKLIST -p $EXE -v -v -v --work-analyze 1> $LOGSTDOUT 2> $LOGSTDERR
 ",sep=""),file=paste("mod35_qsub",sep=""))
-
 
 ### Check the files
 system(paste("cat mod35_qsub",sep=""))
@@ -160,6 +159,7 @@ system("qstat -u awilso10")
 #######################################################
 ### Now submit the script to generate the climatologies
 
+
 tiles
 ctiles=c("h10v08","h11v08","h12v08","h10v07","h11v07","h12v07")  # South America
 
@@ -170,6 +170,8 @@ climatescript="/pleiades/u/awilso10/environmental-layers/climate/procedures/MOD3
 cdone=data.frame(path="",tile="")  #use this if you want to re-run everything
 cdone=data.frame(path=sapply(strsplit(basename(
                    system("ssh lou 'find MOD35/summary -name \"MOD35_h[0-9][0-9]v[0-9][0-9].nc\"' ",intern=T)),split="_"),function(x) x[2]))
+cdone=data.frame(path=sapply(strsplit(basename(
+                   system("find summary -name \"MOD35_h[0-9][0-9]v[0-9][0-9].nc\"",intern=T)),split="_"),function(x) x[2]))
 cdone$tile=substr(basename(as.character(cdone$path)),1,6)
 print(paste(length(ctiles[!ctiles%in%cdone$tile]),"Tiles still need to be processed"))
 
@@ -187,17 +189,18 @@ job="881394.pbspl1.nas.nasa.gov"
 ### qsub script
 cat(paste("
 #PBS -S /bin/bash
-#PBS -l select=20:ncpus=8:mem=94
-#PBS -l walltime=3:00:00
+#PBS -l select=40:ncpus=8:mem=94
+#PBS -l walltime=2:00:00
 #PBS -j n
 #PBS -m be
 #PBS -N mod35_climate
-#PBS -q normal
+#PBS -q devel
+##PBS -q normal
 ##PBS -q ldan
 #PBS -V
 ",if(delay) paste("#PBS -W depend=afterany:",job,sep="")," 
 
-CORES=160
+CORES=320
 HDIR=/u/armichae/pr/
   source $HDIR/etc/environ.sh
   source /pleiades/u/awilso10/environ.sh
@@ -230,9 +233,16 @@ system("qstat -u awilso10")
 #################################################################
 ### copy the files back to Yale
 
+
 system("ssh lou")
 #scp `find MOD35/summary -name "MOD35_h[0-9][0-9]v[0-9][0-9].nc"` adamw@acrobates.eeb.yale.edu:/data/personal/adamw/projects/interp/data/modis/mod35/summary/
-system("rsync -cavv `find summary -name \"MOD35_h[0-9][0-9]v[0-9][0-9]_mean.nc\"` adamw@acrobates.eeb.yale.edu:/data/personal/adamw/projects/interp/data/modis/mod35/summary/")
+system("rsync -cavv `find summary -name \"MOD35_h[0-9][0-9]v[0-9][0-9]_2009mean.nc\"` adamw@acrobates.eeb.yale.edu:/data/personal/adamw/projects/interp/data/modis/mod35/summary/")
+system("rsync -cavv `find summary -name \"MOD35_h[0-9][0-9]v[0-9][0-9].nc\"` adamw@acrobates.eeb.yale.edu:/data/personal/adamw/projects/interp/data/modis/mod35/summary/")
+
+
+system("gdalbuildvrt MOD35C6_2009.vrt summary/*2009mean.nc ") 
+system("gdal_translate -stats -co \"COMPRESS=LZW\" -of GTiff MOD35C6_2009.vrt MOD35C6_2009.tif ")              
+system("scp MOD35C6_2009.tif adamw@acrobates.eeb.24.177.10.190:/Users/adamw/Downloads/")
 exit
 
 
