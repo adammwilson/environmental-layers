@@ -11,7 +11,7 @@
 # -24 LST layers: "climatology" produced from MOD11A1, LST (mean and obs) using script in step 1 of workflow
 # 3) The output is a multiband file in tif format with projected covariates for the processing region/tile.             
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 05/27/2013                                                                                 
+#DATE: 06/19/2013                                                                                 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363--   
 
 ##Comments and TODO:
@@ -166,6 +166,44 @@ change_names_file_list<-function(list_name,out_suffix,out_prefix,extension,out_p
   return(unlist(lf_new_names_list))
 }
 
+screening_val_r_stack_fun<-function(list_val_range,r_stack){
+  #Screening values for raster stack
+  #input: list_val_range: list of character strings comma separated
+  #        e.g.: "mm_12,-15,50","mm_12,-15,50"
+  #               variable name, min value, max value
+    
+  
+  tab_range_list<-do.call(rbind,as.list(list_val_range))
+
+  #tab_range <- strsplit(tab_range_list[[j]],",")
+  
+  tab_range <- strsplit(tab_range_list,",")
+  tab_range <-as.data.frame(do.call(rbind, tab_range))
+  names(tab_range)<-c("varname","vmin","vmax")
+  tab_range$vmin <- as.numeric(tab_range$vmin)
+  tab_range$vmax <- as.numeric(tab_range$vmax)
+  val_rst<-vector("list",nrow(tab_range)) #list of one row data.frame
+  
+  for (k in 1:nrow(tab_range)){
+    avl<-c(-Inf,tab_range$vmin[k],NA, tab_range$vmax[k],+Inf,NA)   #This creates a input vector...val 1 are -9999, 2 neg, 3 positive
+    rclmat<-matrix(avl,ncol=3,byrow=TRUE)
+    #s_raster_r<-raster(r_stack,match(tab_range$varterm[k],names(r_stack))) #select relevant layer from stack
+    s_raster_r<-raster(r_stack,match(tab_range$varname[k],names(r_stack)))
+    s_raster_r<-reclassify(s_raster_r,rclmat)  #now reclass values 
+    #r_stack<-dropLayer(r_stack,match(tab_range$varname[k],names(r_stack)))
+    names(s_raster_r)<-tab_range$varname[k] #Loss of layer names when using reclass
+    val_rst[[k]]<-s_raster_r
+  }
+  #could be taken out of function for parallelization
+  s_rst_m<-stack(val_rst) #This a raster stack with valid range of values
+  retained_names<-setdiff(names(r_stack),as.character(tab_range$varname))
+  r_stack <- dropLayer(r_stack,match(tab_range$varname,names(r_stack)))
+  names(r_stack) <-retained_names
+  r_stack <- addLayer(r_stack,s_rst_m) #add back layers that were screened out
+  
+  return(r_stack)
+}
+
 covariates_production_temperature<-function(list_param){
   #This functions produce covariates used in the interpolation of temperature.
   #It requires 16 arguments:
@@ -187,7 +225,7 @@ covariates_production_temperature<-function(list_param){
   #16) hdfdir: directory where the LST averages are stored...
   #17) out_suffix_modis : suffix used in producing LST climatology 
   #18) covar_names : names of covariates
-  #
+  #19) list_val_range: names and valid range for covariates in brick
   #
   
   ###Loading R library and packages   
@@ -226,6 +264,7 @@ covariates_production_temperature<-function(list_param){
   hdfdir <- list_param$hdfdir
   out_suffix_modis <- list_param$out_suffix_modis
   covar_names<-list_param$covar_names 
+  list_val_range <-list_param$list_val_range
   
   ##### SET UP STUDY AREA ####
   
@@ -437,12 +476,10 @@ covariates_production_temperature<-function(list_param){
   names(s_raster)<-covar_names
   
   ##Write function to screen data values...
-  
-  #Screen LST for extreme values?
-  #min_val<-(-15+273.16) #if values less than -15C then screen out (note the Kelvin units that will need to be changed later in all datasets)
-  #LST[LST < (min_val)]<-NA
-  
   #add screening here...
+  #browser()
+  #test <-screening_val_r_stack_fun(list_val_range,s_raster)
+  s_raster<-screening_val_r_stack_fun(list_val_range,s_raster)
   
   #Write out stack of number of change 
   data_name<-paste("covariates_",out_region_name,"_",sep="")
@@ -454,8 +491,8 @@ covariates_production_temperature<-function(list_param){
   #using bil format more efficient??
   
   #return reg_outline!!!
-  covar_obj <-list(raster_name,infile_reg_outline)
-  names(covar_obj) <-c("infile_covariates","infile_reg_outline")
+  covar_obj <-list(raster_name,infile_reg_outline,names(s_raster))
+  names(covar_obj) <-c("infile_covariates","infile_reg_outline","covar_names")
   return(covar_obj)
 }
 
