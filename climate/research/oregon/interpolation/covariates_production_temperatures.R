@@ -11,7 +11,7 @@
 # -24 LST layers: "climatology" produced from MOD11A1, LST (mean and obs) using script in step 1 of workflow
 # 3) The output is a multiband file in tif format with projected covariates for the processing region/tile.             
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 06/19/2013                                                                                 
+#DATE: 06/20/2013                                                                                 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363--   
 
 ##Comments and TODO:
@@ -204,6 +204,52 @@ screening_val_r_stack_fun<-function(list_val_range,r_stack){
   return(r_stack)
 }
 
+define_crs_from_extent_fun<-function(reg_outline,buffer_dist){
+  #Screening values for raster stack
+  #input: list_val_range: list of character strings comma separated
+  #        e.g.: "mm_12,-15,50","mm_12,-15,50"
+  #               variable name, min value, max value
+  library(rgeos)
+  
+  #Buffer function not in use yet!! need query for specific matching MODIS tile !!! use gIntersection
+  if (buffer_dist!=0){
+    reg_outline_dissolved <- gUnionCascaded(reg_outline)  #dissolve polygons
+    reg_outline <- gBuffer(reg_outline_dissolved,width=buffer_dist*1000)
+  }
+  
+  #CRS_interp <-"+proj=lcc +lat_1=43 +lat_2=45.5 +lat_0=41.75 +lon_0=-120.5 +x_0=400000 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs";
+  reg_centroid <- gCentroid(reg_outline)
+  reg_centroid_WGS84 <- spTransform(reg_centroid,CRS_locs_WGS84) #get cooddinates of center of region in lat, lon
+  reg_outline_WGS84 <- spTransform(reg_outline,CRS_locs_WGS84) #get cooddinates of center of region in lat, lon
+  reg_extent <-extent( reg_outline_WGS84) #get boudning box of extent
+  #  xy_latlon<-project(xy, CRS_interp, inv=TRUE) # find lat long for projected coordinats (or pixels...)
+
+  #Calculate projection parameters
+  reg_lat_1 <- ymin(reg_extent)+((ymax(reg_extent)- ymin(reg_extent))/4)
+  reg_lat_2 <- ymax(reg_extent)-((ymax(reg_extent)- ymin(reg_extent))/4)
+
+  reg_lon_0 <- coordinates(reg_centroid_WGS84)[1]
+  reg_lat_0 <- coordinates(reg_centroid_WGS84)[2]
+  reg_x_0 <- 0
+  reg_y_0 <- 0
+  
+  #Add false northing and false easting calucation for y_0,x_0
+  #CRS_interp <- paste("+proj=lcc +lat_1=",43," +lat_2=",45.5," +lat_0=",41.75," +lon_0=",-120.5,
+  #                    " +x_0=",0,"+y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs")
+  
+  CRS_interp <- paste("+proj=lcc +lat_1=",reg_lat_1," +lat_2=",reg_lat_2," +lat_0=",reg_lat_0," +lon_0=",reg_lon_0,
+                      " +x_0=",reg_x_0," +y_0=",reg_y_0," +ellps=WGS84 +datum=WGS84 +units=m +no_defs",sep="")
+  
+  reg_outline_interp <- spTransform(reg_outline,CRS(CRS_interp)) #get cooddinates of center of region in lat, lon
+  
+  #add part to save projected file??
+  #return reg_outline!!!
+  reg_outline_obj <-list(reg_outline_interp,CRS_interp)
+  names(reg_outline_obj) <-c("reg_outline","CRS_interp")
+  return(reg_outline_obj)
+} 
+  
+  
 covariates_production_temperature<-function(list_param){
   #This functions produce covariates used in the interpolation of temperature.
   #It requires 16 arguments:
@@ -265,6 +311,7 @@ covariates_production_temperature<-function(list_param){
   out_suffix_modis <- list_param$out_suffix_modis
   covar_names<-list_param$covar_names 
   list_val_range <-list_param$list_val_range
+  buffer_dist <-list_param$buffer_dist
   
   ##### SET UP STUDY AREA ####
   
@@ -288,8 +335,17 @@ covariates_production_temperature<-function(list_param){
   
   #if no shapefile defining the study/processing area then create one using modis grid tiles
   if (infile_reg_outline==""){
-    reg_outline<-create_modis_tiles_region(modis_grid,list_tiles_modis) #problem...this does not 
+    reg_outline_modis <-create_modis_tiles_region(modis_grid,list_tiles_modis) #problem...this does not 
     #align with extent of modis LST!!!
+    #now add projection on the fly
+    infile_reg_outline <-paste("modis_outline",out_region_name,"_",out_suffix,".shp",sep="")
+    writeOGR(reg_outline_modis,dsn= out_path,layer= sub(".shp","",infile_reg_outline), 
+             driver="ESRI Shapefile",overwrite_layer="TRUE")
+    
+    reg_outline_obj <- define_crs_from_extent_fun(reg_outline_modis,buffer_dist)
+    reg_outline <-reg_outline_obj$reg_outline
+    CRS_interp <-reg_outline_obj$CRS_interp
+    
     infile_reg_outline <-paste("outline",out_region_name,"_",out_suffix,".shp",sep="")
     writeOGR(reg_outline,dsn= out_path,layer= sub(".shp","",infile_reg_outline), 
              driver="ESRI Shapefile",overwrite_layer="TRUE")
@@ -365,13 +421,15 @@ covariates_production_temperature<-function(list_param){
   
   #Use this as ref file for now?? Ok for the time being: this will need to change to be a processing tile.
   if (ref_rast_name==""){
-    ref_rast<-raster(mean_m_list[[1]]) 
     #Use one mosaiced modis tile as reference image...We will need to add a function 
+    ref_rast_temp <-raster(mean_m_list[[1]]) 
+    ref_rast <-projectRaster(from=ref_rast_temp,crs=CRS_interp,method="ngb")
+
     #to define a local reference system and reproject later!!
     #Assign new projection system here in the argument CRS_interp (!it is used later)
   }else{
     ref_rast<-raster(ref_rast_name) #This is the reference image used to define the study/processing area
-    proj4string(ref_rast) <- CRS_interp #Assign given reference system
+    proj4string(ref_rast) <- CRS_interp #Assign given reference system from master script...
   }
   
   ## Project mosaiced tiles if local projection is provided...
@@ -380,16 +438,22 @@ covariates_production_temperature<-function(list_param){
   mean_lst_list_outnames<-change_names_file_list(mean_m_list,out_suffix_lst,"reg_",".tif",out_path=out_path)     
   nobs_lst_list_outnames<-change_names_file_list(nobs_m_list,out_suffix_lst,"reg_",".tif",out_path=out_path)   
   
+  #list(mean_m_list)
+  list_param_create_region<-list(j,raster_name=mean_m_list,reg_ref_rast=ref_rast,out_rast_name=mean_lst_list_outnames)
+  #test<-create__m_raster_region(1,list_param_create_region)
+  mean_m_list <-mclapply(1:12, list_param=list_param_create_region, create__m_raster_region,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
+  list_param_create_region<-list(j,raster_name=nobs_m_list,reg_ref_rast=ref_rast,out_rast_name=nobs_lst_list_outnames)
+  nobs_m_list <-mclapply(1:12, list_param=list_param_create_region, create__m_raster_region,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
+  
   # if ref_name!="" need to reproject and clip!!! do this in mclapply for all the list of covar!!!
-  if (ref_rast_name!=""){
-    #list(mean_m_list)
-    list_param_create_region<-list(j,raster_name=mean_m_list,reg_ref_rast=ref_rast,out_rast_name=mean_lst_list_outnames)
-    #test<-create__m_raster_region(1,list_param_create_region)
-    mean_m_list <-mclapply(1:12, list_param=list_param_create_region, create__m_raster_region,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
-    list_param_create_region<-list(j,raster_name=nobs_m_list,reg_ref_rast=ref_rast,out_rast_name=nobs_lst_list_outnames)
-    nobs_m_list <-mclapply(1:12, list_param=list_param_create_region, create__m_raster_region,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
-  }
-
+  #if (ref_rast_name!=""){
+  #  #list(mean_m_list)
+  #  list_param_create_region<-list(j,raster_name=mean_m_list,reg_ref_rast=ref_rast,out_rast_name=mean_lst_list_outnames)
+  #  #test<-create__m_raster_region(1,list_param_create_region)
+  #  mean_m_list <-mclapply(1:12, list_param=list_param_create_region, create__m_raster_region,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
+  #  list_param_create_region<-list(j,raster_name=nobs_m_list,reg_ref_rast=ref_rast,out_rast_name=nobs_lst_list_outnames)
+  #  nobs_m_list <-mclapply(1:12, list_param=list_param_create_region, create__m_raster_region,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
+  #}
   
   #ref_rast <-raster("mosaiced_dec_lst_mean_VE_03182013.tif")
   #Modis shapefile tile is slighly shifted:

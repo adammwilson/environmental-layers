@@ -10,7 +10,7 @@
 #STAGE 5: Output analyses: assessment of results for specific dates...
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 06/19/2013                                                                                 
+#DATE: 06/20/2013                                                                                 
 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363, TASK$568--   
 
@@ -53,7 +53,7 @@ modis_download_script <- file.path(script_path,"modis_download_05142013.py") # L
 clim_script <- file.path(script_path,"climatology_05312013.py") # LST climatology python script
 grass_setting_script <- file.path(script_path,"grass-setup.R") #Set up system shell environment for python+GRASS
 source(file.path(script_path,"download_and_produce_MODIS_LST_climatology_05302013.R"))
-source(file.path(script_path,"covariates_production_temperatures_06192013.R"))
+source(file.path(script_path,"covariates_production_temperatures_06202013.R"))
 source(file.path(script_path,"Database_stations_covariates_processing_function_05212013.R"))
 source(file.path(script_path,"GAM_fusion_analysis_raster_prediction_multisampling_06082013.R"))
 source(file.path(script_path,"results_interpolation_date_output_analyses_06102013.R"))
@@ -101,21 +101,25 @@ infile_distoc <- "/data/project/layers/commons/distance_to_coast/GMT_intermediat
 #infile_reg_outline<- "/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/outline_venezuela_region__VE_01292013.shp" 
 #infile_covariates<-"/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/covariates__venezuela_region_TMIN__VE_03192013.tif" #covariates stack for TMIN
 #infile_covariates<- "/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/covariates_Oregon_region_TMAX__OR_04052013.tif" #Oregon covar TMAX from earlier codes...for continuity
-#infile_reg_outline=""  #input region outline defined by polygon: none for Venezuela
+infile_reg_outline=""  #input region outline defined by polygon: none for Venezuela
 #This is the shape file of outline of the study area                                                      #It is an input/output of the covariate script
-infile_reg_outline <- "/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/OR83M_state_outline.shp"  #input region outline defined by polygon: Oregon
+#infile_reg_outline <- "/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/OR83M_state_outline.shp"  #input region outline defined by polygon: Oregon
 #infile_reg_outline <-"OR83M_state_outline.shp" #remove this parameter!!!
-#ref_rast_name<-""  #local raster name defining resolution, exent, local projection--. set on the fly?? 
+ref_rast_name<-""  #local raster name defining resolution, exent, local projection--. set on the fly?? 
 #this may be redundant with infile_reg_outline
-ref_rast_name<-"/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/mean_day244_rescaled.rst"  #local raster name defining resolution, exent: oregon
+#ref_rast_name<-"/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/mean_day244_rescaled.rst"  #local raster name defining resolution, exent: oregon
+buffer_dist<-0 #not in use yet, must change climatology step to make sure additional tiles are downloaded and LST averages
+               #must also be calculated for neighbouring tiles.
 
 #covar_names see stage 2
 
 #list_tiles_modis <- c("h11v08,h11v07,h12v07,h12v08,h10v07,h10v08") #tile for Venezuela and surrounding area
 list_tiles_modis <- c("h08v04,h09v04") #tiles for Oregon
   
-#CRS_interp<-"+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs";
-CRS_interp <-"+proj=lcc +lat_1=43 +lat_2=45.5 +lat_0=41.75 +lon_0=-120.5 +x_0=400000 +y_0=0 +ellps=GRS80 +units=m +no_defs";
+CRS_interp<-"+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs";
+#CRS_interp <-"+proj=lcc +lat_1=43 +lat_2=45.5 +lat_0=41.75 +lon_0=-120.5 +x_0=400000 +y_0=0 +ellps=GRS80 +units=m +no_defs";
+#CRS_interp <-"+proj=lcc +lat_1=43 +lat_2=45.5 +lat_0=41.75 +lon_0=-120.5 +x_0=400000 +y_0=0 +ellps=GRS80 +units=m +no_defs";
+
 #"+proj=lcc +lat_1=43 +lat_2=45.5 +lat_0=41.75 +lon_0=-120.5 +x_0=400000 +y_0=0 +datum=NAD83 +units=m +no_defs +ellps=GRS80"
 CRS_locs_WGS84<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0") #Station coords WGS84
 #out_region_name<-"_venezuela_region" #generated on the fly
@@ -163,14 +167,14 @@ if (stages_to_run[1]==1){
 
 ############ STAGE 2: Covariate production ################
 
-#list of 17 parameters
+#list of 18 parameters
 list_param_covar_production<-list(var,out_path,lc_path,infile_modis_grid,infile_elev,infile_canheight,
                                   infile_distoc,list_tiles_modis,infile_reg_outline,CRS_interp,CRS_locs_WGS84,out_region_name,
-                                  list_val_range,out_suffix,out_suffix_modis,ref_rast_name,hdfdir,covar_names) 
+                                  buffer_dist,list_val_range,out_suffix,out_suffix_modis,ref_rast_name,hdfdir,covar_names) 
 
 names(list_param_covar_production)<-c("var","out_path","lc_path","infile_modis_grid","infile_elev","infile_canheight",
                                       "infile_distoc","list_tiles_modis","infile_reg_outline","CRS_interp","CRS_locs_WGS84","out_region_name",
-                                      "list_val_range","out_suffix","out_suffix_modis","ref_rast_name","hdfdir","covar_names") 
+                                      "buffer_dist","list_val_range","out_suffix","out_suffix_modis","ref_rast_name","hdfdir","covar_names") 
 
 ## Modify to store infile_covar_brick in output folder!!!
 if (stages_to_run[2]==2){
