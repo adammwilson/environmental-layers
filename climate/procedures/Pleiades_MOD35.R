@@ -118,18 +118,18 @@ file=paste("notdone.txt",sep=""),row.names=F,col.names=F,quote=F)
 ### qsub script
 cat(paste("
 #PBS -S /bin/bash
-#PBS -l select=1:ncpus=8:mpiprocs=8
-##PBS -l select=10:ncpus=8:mpiprocs=8
-##PBS -l walltime=8:00:00
-#PBS -l walltime=2:00:00
+##PBS -l select=1:ncpus=8:mpiprocs=8
+#PBS -l select=100:ncpus=8:mpiprocs=8
+#PBS -l walltime=8:00:00
+##PBS -l walltime=2:00:00
 #PBS -j n
 #PBS -m be
 #PBS -N mod35
-##PBS -q normal
-#PBS -q devel
+#PBS -q normal
+##PBS -q devel
 #PBS -V
 
-CORES=8
+CORES=800
 #CORES=160
 
 HDIR=/u/armichae/pr/
