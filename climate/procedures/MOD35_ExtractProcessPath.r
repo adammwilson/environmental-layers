@@ -124,7 +124,7 @@ getpath<- function(file){
 
 
 ### run it
-mclapply(files[1:200],getpath,mc.cores=10)
+mclapply(files,getpath,mc.cores=10)
 
 ## check gdal can read all of them
 gfiles=list.files(outdir,pattern="tif$",full=T)
@@ -145,7 +145,7 @@ system(paste("/usr/local/gdal-1.10.0/bin/gdalwarp -wm 900 -overwrite -co COMPRES
 
 
 ###  Merge them into a geotiff
-    system(paste("gdal_merge.py -v -init 255 -n 255 -o MOD35_ProcessPath_gdalmerge2.tif -co \"ZLEVEL=9\" -co \"COMPRESS=LZW\" -co \"PREDICTOR=2\" `ls -d -1 gridded/*.tif --sort=size `",sep=""))
+    system(paste("gdal_merge.py -v -init 255 -n 255 -o ",outdir,"/../MOD35_ProcessPath_gdalmerge2.tif -co \"ZLEVEL=9\" -co \"COMPRESS=LZW\" -co \"PREDICTOR=2\" `ls -d -1 ",outdir,"/*.tif --sort=size `",sep=""))
 
 #  origin(raster(gfiles[5]))
   

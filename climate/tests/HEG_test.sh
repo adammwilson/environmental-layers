@@ -3,15 +3,20 @@
 mkdir /tmp/tmp1
 cd /tmp/tmp1
 
+url="ftp://ladsweb.nascom.nasa.gov/allData/6/MOD35_L2/2009/029/"
+## two granules that still show interpolation artifacts
+granule="MOD35_L2.A2009029.0500.006.2012245113542.hdf"
+granule="MOD35_L2.A2009029.0320.006.2012245113606.hdf"
+
 ## get swath data
-wget ftp://ladsweb.nascom.nasa.gov/allData/6/MOD35_L2/2009/029/MOD35_L2.A2009029.0005.006.2012245113426.hdf
+wget $url$granule
 
 ## build parameter file
 echo "
 NUM_RUNS = 1
 
 BEGIN
-INPUT_FILENAME = /tmp/tmp1/MOD35_L2.A2009029.0005.006.2012245113426.hdf
+INPUT_FILENAME = $granule
 OBJECT_NAME = mod35
 FIELD_NAME = Cloud_Mask|
 BAND_NUMBER = 1
@@ -23,12 +28,12 @@ RESAMPLING_TYPE = NN
 OUTPUT_PROJECTION_TYPE = SIN
 ELLIPSOID_CODE = WGS84
 OUTPUT_PROJECTION_PARAMETERS = ( 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0  )
-OUTPUT_FILENAME = /tmp/tmp1/MOD35_L2.A2009029.0005.006.2012245113426_mod35.hdf
+OUTPUT_FILENAME = out_$granule
 OUTPUT_TYPE = HDFEOS
 END
 " > params.txt
 
 ### run it
-swtif -p params.txt -d  -tmpLatLondir /tmp/tmp1/
+/usr/local/heg/2.12/bin/swtif -p params.txt -d  -tmpLatLondir /tmp/tmp1
 
 ## now view the output file in 
