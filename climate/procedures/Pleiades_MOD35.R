@@ -21,9 +21,11 @@ system("rm /nobackupp1/awilso10/software/heg/TOOLKIT_MTD/runtime/LogStatus")
 
 ### list of tiles to process
 tiles=c("h10v08","h11v08","h12v08","h10v07","h11v07","h12v07")  # South America
+## a northern block of tiles
+expand.grid(paste("h",11:17,sep=""),v=c("v00","v01","v02","v03","v04"))
 
-## subset to MODLAND tiles
- modlandtiles=system("ls -r /nobackupp4/datapool/modis/MOD11A1.005/2010* | grep hdf$ | cut -c18-23 | sort | uniq - ",intern=T)
+b## subset to MODLAND tiles
+modlandtiles=system("ls -r /nobackupp4/datapool/modis/MOD11A1.005/2010* | grep hdf$ | cut -c18-23 | sort | uniq - ",intern=T)
  tb$land=tb$tile%in%modlandtiles
 tiles=tb$tile[tb$land]
 
@@ -118,18 +120,18 @@ file=paste("notdone.txt",sep=""),row.names=F,col.names=F,quote=F)
 ### qsub script
 cat(paste("
 #PBS -S /bin/bash
-#PBS -l select=1:ncpus=8:mpiprocs=8
-##PBS -l select=10:ncpus=8:mpiprocs=8
-##PBS -l walltime=8:00:00
-#PBS -l walltime=2:00:00
+##PBS -l select=1:ncpus=8:mpiprocs=8
+#PBS -l select=100:ncpus=8:mpiprocs=8
+#PBS -l walltime=8:00:00
+##PBS -l walltime=2:00:00
 #PBS -j n
 #PBS -m be
 #PBS -N mod35
-##PBS -q normal
-#PBS -q devel
+#PBS -q normal
+##PBS -q devel
 #PBS -V
 
-CORES=8
+CORES=800
 #CORES=160
 
 HDIR=/u/armichae/pr/

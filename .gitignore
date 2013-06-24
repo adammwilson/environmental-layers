@@ -1,3 +1,5 @@
+core[.]*
+tmp*
 *.Rhistory
 *.Rdata
 *[~]
