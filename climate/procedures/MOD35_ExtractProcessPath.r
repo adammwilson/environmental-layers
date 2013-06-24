@@ -42,8 +42,8 @@ glb=extend(glb,extent(-180,180,-90,90))
 stitch="sudo MRTDATADIR=\"/usr/local/heg/2.12/data\" PGSHOME=/usr/local/heg/2.12/TOOLKIT_MTD PWD=/home/adamw /usr/local/heg/2.12/bin/swtif"
 stitch="/usr/local/heg/2.12/bin/swtif"
 
-stitch="sudo MRTDATADIR=\"/usr/local/heg/2.11/data\" PGSHOME=/usr/local/heg/2.11/TOOLKIT_MTD PWD=/home/adamw /usr/local/heg/2.11/bin/swtif"
-files=paste(getwd(),"/",list.files("swath",pattern="hdf$",full=T),sep="")
+#stitch="sudo MRTDATADIR=\"/usr/local/heg/2.11/data\" PGSHOME=/usr/local/heg/2.11/TOOLKIT_MTD PWD=/home/adamw /usr/local/heg/2.11/bin/swtif"
+#files=paste(getwd(),"/",list.files("swath",pattern="hdf$",full=T),sep="")
 
 ## vars to process
 vars=as.data.frame(matrix(c(
@@ -141,7 +141,7 @@ table(check)
 file.remove(gfiles[check==0])
 
 ## use new gdal
-system(paste("/usr/local/gdal-1.10.0/bin/gdalwarp -wm 900 -overwrite -co COMPRESS=LZW -co PREDICTOR=2 -multi -r mode ",outdir,"/*.tif MOD35_path_gdalwarp.tif",sep=""))
+system(paste("nohup /usr/local/gdal-1.10.0/bin/gdalwarp -wm 900 -overwrite -co COMPRESS=LZW -co PREDICTOR=2 -multi -r mode ",outdir,"/*.tif MOD35_path_gdalwarp.tif &",sep=""))
 
 
 ###  Merge them into a geotiff
