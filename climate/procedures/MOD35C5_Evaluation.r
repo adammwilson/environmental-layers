@@ -9,6 +9,7 @@ library(plotKML)
 library(Cairo)
 library(reshape)
 library(rgeos)
+library(splancs)
 
 ## get % cloudy
 mod09=raster("data/MOD09_2009.tif")
@@ -21,10 +22,10 @@ NAvalue(mod35c5)=0
 
 ## mod35C6 annual
 if(!file.exists("data/MOD35C6_2009.tif")){
-  system("/usr/local/gdal-1.10.0/bin/gdalbuildvrt -a_srs '+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs' -sd 1 -b 1 data/MOD35C6.vrt /home/adamw/acrobates/adamw/projects/interp/data/modis/mod35/summary/*2009mean.nc ")
-  system("align.sh data/MOD35C6.vrt data/MOD09_2009.tif data/MOD35C6_2009.tif")
+  system("/usr/local/gdal-1.10.0/bin/gdalbuildvrt -a_srs '+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs' -sd 1 -b 1 data/MOD35C6.vrt /home/adamw/acrobates/adamw/projects/interp/data/modis/mod35/summary/*mean.nc ")
+  system("align.sh data/MOD35C6.vrt data/MOD09_2009.tif data/MOD35C6_2009.kmz")
 }
-mod35c6=raster("data/MOD35C6_2009.tif")
+mod35c6=raster("data/MOD35C6_2009_v1.tif")
 names(mod35c6)="C6MOD35CF"
 NAvalue(mod35c6)=255
 
@@ -158,11 +159,10 @@ trans=SpatialLines(list(r1,r2,r3,r5),CRS("+proj=longlat +ellps=WGS84 +datum=WGS8
 writeOGR(SpatialLinesDataFrame(trans,data=data.frame(ID=names(trans)),match.ID=F),"output",layer="transects",driver="ESRI Shapefile",overwrite=T)
 
 ## buffer transects to get regional values 
-transb=gBuffer(trans,0.4)
+transb=gBuffer(trans,byid=T,width=0.4)
 
 ## make polygons of bounding boxes
 bb0 <- lapply(slot(transb, "polygons"), bbox)
-library(splancs)
 bb1 <- lapply(bb0, bboxx)
 # turn these into matrices using a helper function in splancs
 bb2 <- lapply(bb1, function(x) rbind(x, x[1,]))
@@ -175,7 +175,6 @@ for (i in seq(along=bb3)) bb3[[i]] <- Polygons(list(Polygon(bb2[[i]])),
                    ID=rn[i])
 # loop over the closed matrix rings, adding the IDs
 bbs <- SpatialPolygons(bb3, proj4string=CRS(proj4string(transb)))
-
 
 trd1=lapply(1:length(transb),function(x) {
   td=crop(mod11,transb[x])
@@ -219,32 +218,24 @@ transd=do.call(rbind.data.frame,lapply(1:length(trans),function(l) {
 transd$type=ifelse(grepl("MOD35|MOD09|CF",transd$variable),"CF","Data")
 
 
-
 ## comparison of % cloudy days
 dif_c5_09=mod35c5-mod09
-dif_c6_09=mod35c6-mod09
-dif_c5_c6=mod35c5-mod35c6
+#dif_c6_09=mod35c6-mod09
+#dif_c5_c6=mod35c5-mod35c6
 
+## exploring various ways to compare cloud products
 t1=trd1[[1]]
 dif_p=calc(trd1[[1]], function(x) (x[1]-x[3])/(1-x[1]))
 edge=edge(subset(t1,"MCD12Q1"),classes=T,type="inner")
 names(edge)="edge"
 td1=as.data.frame(stack(t1,edge))
 
-
 cor(td1$MOD17,td1$C5MOD35,use="complete",method="spearman")
 cor(td1$MOD17[td1$edge==1],td1$C5MOD35[td1$edge==1],use="complete",method="spearman")
-
 cor(td1,use="complete",method="spearman")
-
 splom(t1)
-
 plot(mod17,mod17qc)
-
 xyplot(MOD17~C5MOD35CF|edge,data=td1)
-
-     , function(x) (x[1]-x[3])/(1-x[1]))
-
 plot(dif_p)
 
 #rondonia=trd[trd$trans=="Brazil",]
@@ -260,9 +251,9 @@ library(maptools)
 coast=map2SpatialLines(map("world", interior=FALSE, plot=FALSE),proj4string=CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"))
 
 g1=levelplot(stack(mod35c5,mod09),xlab=" ",scales=list(x=list(draw=F),y=list(alternating=1)),col.regions=cols,at=at)+layer(sp.polygons(bbs[1:4],lwd=2))+layer(sp.lines(coast,lwd=.5))
-g2=levelplot(dif,col.regions=bgrayr(100),at=seq(-70,70,len=100),margin=F,ylab=" ",colorkey=list("right"))+layer(sp.polygons(bbs[1:4],lwd=2))+layer(sp.lines(coast,lwd=.5))
+g2=levelplot(dif_c5_09,col.regions=bgrayr(100),at=seq(-70,70,len=100),margin=F,ylab=" ",colorkey=list("right"))+layer(sp.polygons(bbs[1:4],lwd=2))+layer(sp.lines(coast,lwd=.5))
 trellis.par.set(background=list(fill="white"),panel.background=list(fill="white"))
-#g3=histogram(dif,bg="white",col="black",border=NA,scales=list(x=list(at=c(-50,0,50)),y=list(draw=F),cex=1))+layer(panel.abline(v=0,col="red",lwd=2))
+g3=histogram(dif_c5_09,bg="white",col="black",border=NA,scales=list(x=list(at=c(-50,0,50)),y=list(draw=F),cex=1))+layer(panel.abline(v=0,col="red",lwd=2))
 
 ### regional plots
 p1=useOuterStrips(levelplot(value~x*y|variable+trans,data=trd[!trd$variable%in%c("MCD12Q1","MOD35pp"),],asp=1,scales=list(draw=F,rot=0,relation="free"),
@@ -338,11 +329,10 @@ p4=xyplot(value~dist|transect,groups=variable,type=c("smooth","p"),
  strip = strip.custom(par.strip.text=list(cex=.75)))
 print(p4)
 
-trdw=cast(trd,trans+x+y~variable,value="value")
-transdw=cast(transd,transect+dist~variable,value="value")
-
-xyplot(MOD11CF~C5MOD35CF|transect,groups=MCD12Q1,data=transdw,pch=16,cex=1,scales=list(relation="free"))
-xyplot(MOD17~C5MOD35CF|trans,groups=MCD12Q1,data=trdw,pch=16,cex=1,scales=list(relation="free"))
+#trdw=cast(trd,trans+x+y~variable,value="value")
+#transdw=cast(transd,transect+dist~variable,value="value")
+#xyplot(MOD11CF~C5MOD35CF|transect,groups=MCD12Q1,data=transdw,pch=16,cex=1,scales=list(relation="free"))
+#xyplot(MOD17~C5MOD35CF|trans,groups=MCD12Q1,data=trdw,pch=16,cex=1,scales=list(relation="free"))
 
 #p5=levelplot(value~x*y|variable,data=rondonia,asp=1,scales=list(draw=F,rot=0,relation="free"),colorkey=T)#,
 #print(p5)
@@ -352,9 +342,9 @@ CairoPDF("output/mod35compare.pdf",width=11,height=7)
 #CairoPNG("output/mod35compare_%d.png",units="in", width=11,height=8.5,pointsize=4000,dpi=1200,antialias="subpixel")
 ### Global Comparison
 print(g1)
-#print(g1,position=c(0,.33,1,1),more=T)
-#print(g2,position=c(0,0,1,0.394),more=T)
-#print(g3,position=c(0.31,0.06,.42,0.27),more=F)
+print(g1,position=c(0,.33,1,1),more=T)
+print(g2,position=c(0,0,1,0.394),more=T)
+print(g3,position=c(0.31,0.06,.42,0.27),more=F)
 ### MOD35 Desert Processing path
 levelplot(pp,asp=1,scales=list(draw=T,rot=0),maxpixels=1e6,
           at=c(-1:3),col.regions=c("blue","cyan","tan","darkgreen"),margin=F,
