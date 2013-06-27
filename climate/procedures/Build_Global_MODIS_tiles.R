@@ -3,7 +3,7 @@ library(raster)
 
 ######
 ### proceed by raster using information at http://code.env.duke.edu/projects/mget/wiki/SinusoidalMODIS
-maketile=function(tile){
+maketile=function(tile,outdir="MODTILES"){
   ## check tile
   ## list of tile outside valid region
   nodata=c('h00v00','h01v00','h02v00','h03v00','h04v00','h05v00','h06v00','h07v00','h08v00','h09v00','h10v00',
@@ -25,7 +25,6 @@ maketile=function(tile){
   ##
   h=as.numeric(substr(tile,2,3))
   v=as.numeric(substr(tile,5,6))
-  print(paste("Making a raster grid for tile",tile))
   ## Earth Width (m)
   ew=20015109.354*2
   ## Tile width or height = earth width / 36 = (20015109.354 + 20015109.354) / 36 = 1111950.5196666666 m
@@ -43,19 +42,32 @@ maketile=function(tile){
   ext=extent(llx,llx+(nc*cs),lly,lly+(nc*cs))
   grid=raster(ext,nrows=nc,ncol=nc,crs=proj)
   names(grid)=tile
+  writeRaster(grid,paste(outdir,"/",tile,".tif",sep=""),options=c("COMPRESS=LZW"),datatype="INT1U",overwrite=T)
   return(grid)
 }
 
-
+## run it and save the extents as an Rdata object for easy retrieval
 gs=expand.grid(h=0:35,v=0:17)
 gs$tile=paste("h",sprintf("%02d",gs$h),"v",sprintf("%02d",gs$v),sep="")
-
 modtiles=lapply(1:nrow(gs),function(i) maketile(gs$tile[i]))
 names(modtiles)=gs$tile
 
-## two tiles for testing
-tiles=c("h22v02","h03v11")
 
-## path to MOD11A1 file for this tile to align grid/extent
-gridfile=list.files("/nobackupp4/datapool/modis/MOD11A2.005/2009.01.01",pattern=paste(tiles[1],".*[.]hdf$",sep=""),recursive=T,full=T)[1]
-td=raster(paste("HDF4_EOS:EOS_GRID:\"",gridfile,"\":MODIS_Grid_8Day_1km_LST:LST_Day_1km",sep=""))
+## function to confirm that this method results in identical (e same extent, number of rows and columns, projection, resolution, and origin) rasters as MODIS LST data
+checkgrid<-function(tile){
+  print(tile)
+  ## path to MOD11A1 file for this tile to align grid/extent
+  gridfile=list.files("/nobackupp4/datapool/modis/MOD11A2.005/2009.01.01",pattern=paste(tile,".*[.]hdf$",sep=""),recursive=T,full=T)[1]
+  if(!file.exists(gridfile)) return(NULL)
+  td=raster(paste("HDF4_EOS:EOS_GRID:\"",gridfile,"\":MODIS_Grid_8Day_1km_LST:LST_Day_1km",sep=""))
+  td2=maketile(tile)
+  return(compareRaster(td,td2,res=T,orig=T,rotation=T))
+}
+
+testing=F
+if(testing){
+  ## make the comparison for every tile
+  dat=do.call(c,lapply(gs$tile,checkgrid))
+  ## summarize the results
+  table(dat)
+}

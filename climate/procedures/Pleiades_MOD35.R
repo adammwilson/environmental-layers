@@ -16,18 +16,16 @@ tb=tb[tb$lon_min!=-999,]
 save(tb,file="modlandTiles.Rdata")
 load("modlandTiles.Rdata")
 
-## delete temporary log file that can grow to GB
-system("rm /nobackupp1/awilso10/software/heg/TOOLKIT_MTD/runtime/LogStatus")
-
+## Choose some tiles to process
 ### list of tiles to process
 tiles=c("h10v08","h11v08","h12v08","h10v07","h11v07","h12v07")  # South America
 ## a northern block of tiles
-expand.grid(paste("h",11:17,sep=""),v=c("v00","v01","v02","v03","v04"))
+tiles=apply(expand.grid(paste("h",11:17,sep=""),v=c("v00","v01","v02","v03","v04")),1,function(x) paste(x,collapse="",sep=""))
+## subset to MODLAND tiles
+alltiles=system("ls -r MODTILES/ | grep tif$ | cut -c1-6 | sort | uniq - ",intern=T)
 
-b## subset to MODLAND tiles
-modlandtiles=system("ls -r /nobackupp4/datapool/modis/MOD11A1.005/2010* | grep hdf$ | cut -c18-23 | sort | uniq - ",intern=T)
- tb$land=tb$tile%in%modlandtiles
-tiles=tb$tile[tb$land]
+## subset to tiles in global region (not outside global boundary in sinusoidal projection)
+tiles=tiles[tiles%in%alltiles]
 
 ## subset tile corner matrix to tiles selected above
 tile_bb=tb[tb$tile%in%tiles,]
@@ -109,8 +107,9 @@ table(table(tile=proclist$tile[!proclist$done],year=proclist$year[!proclist$done
 #x=x[order(rownames(x)),]
 
 script="/u/awilso10/environmental-layers/climate/procedures/MOD35_L2_process.r"
-
+ 
 ## write the table processed by mpiexec
+tp=T  # rerun everything
 tp=((!proclist$done)&proclist$avail)  #date-tiles to process
 table(Available=proclist$avail,Completed=proclist$done)
 
@@ -161,6 +160,11 @@ system("qstat -u awilso10")
 #######################################################
 ### Now submit the script to generate the climatologies
 
+## report 'mostly' finished tiles
+## this relyies on proclist above so be sure to update above before running
+md=table(tile=proclist$tile[!proclist$done],year=proclist$year[!proclist$done])
+mdt=names(md[md<10,])
+tiles=mdt
 
 tiles
 ctiles=c("h10v08","h11v08","h12v08","h10v07","h11v07","h12v07")  # South America
@@ -191,7 +195,7 @@ job="881394.pbspl1.nas.nasa.gov"
 ### qsub script
 cat(paste("
 #PBS -S /bin/bash
-#PBS -l select=40:ncpus=8:mem=94
+#PBS -l select=10:ncpus=8:mem=94
 #PBS -l walltime=2:00:00
 #PBS -j n
 #PBS -m be
@@ -202,7 +206,7 @@ cat(paste("
 #PBS -V
 ",if(delay) paste("#PBS -W depend=afterany:",job,sep="")," 
 
-CORES=320
+CORES=80
 HDIR=/u/armichae/pr/
   source $HDIR/etc/environ.sh
   source /pleiades/u/awilso10/environ.sh
@@ -238,7 +242,7 @@ system("qstat -u awilso10")
 
 system("ssh lou")
 #scp `find MOD35/summary -name "MOD35_h[0-9][0-9]v[0-9][0-9].nc"` adamw@acrobates.eeb.yale.edu:/data/personal/adamw/projects/interp/data/modis/mod35/summary/
-system("rsync -cavv `find summary -name \"MOD35_h[0-9][0-9]v[0-9][0-9]_2009mean.nc\"` adamw@acrobates.eeb.yale.edu:/data/personal/adamw/projects/interp/data/modis/mod35/summary/")
+system("rsync -cavv `find summary -name \"MOD35_h[0-9][0-9]v[0-9][0-9]_mean.nc\"` adamw@acrobates.eeb.yale.edu:/data/personal/adamw/projects/interp/data/modis/mod35/summary/")
 system("rsync -cavv `find summary -name \"MOD35_h[0-9][0-9]v[0-9][0-9].nc\"` adamw@acrobates.eeb.yale.edu:/data/personal/adamw/projects/interp/data/modis/mod35/summary/")
 
 

@@ -33,12 +33,13 @@ if ( !is.null(opta$help) )
           q(status=1);
      }
 
-testing=T
+testing=F
 platform="pleiades" 
 
 ## default date and tile to play with  (will be overwritten below when running in batch)
 if(testing){
   date="20090129"
+  tile="h11v08"
   tile="h17v00"
   verbose=T
 }
@@ -69,8 +70,8 @@ if(platform=="pleiades"){
   ## grass database
   gisBase="/u/armichae/pr/grass-6.4.2/"
   ## path to MOD11A1 file for this tile to align grid/extent
-  gridfile=list.files("/nobackupp4/datapool/modis/MOD11A2.005/2009.01.01",pattern=paste(tile,".*[.]hdf$",sep=""),recursive=T,full=T)[1]
-  td=readGDAL(paste("HDF4_EOS:EOS_GRID:\"",gridfile,"\":MODIS_Grid_8Day_1km_LST:LST_Day_1km",sep=""))
+  gridfile=list.files("/nobackupp1/awilso10/mod35/MODTILES/",pattern=tile,full=T)[1]
+  td=raster(gridfile)
   projection(td)="+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs +datum=WGS84 +ellps=WGS84 "
 }
 
@@ -232,8 +233,7 @@ plot(d)
   ## Define region by importing one MOD11A1 raster.
   print("Import one MOD11A1 raster to define grid")
   if(platform=="pleiades") {
-    execGRASS("r.in.gdal",input=paste("HDF4_EOS:EOS_GRID:\"",gridfile,"\":MODIS_Grid_8Day_1km_LST:LST_Day_1km",sep=""),
-              output="modisgrid",flags=c("quiet","overwrite","o"))
+    execGRASS("r.in.gdal",input=td@file@name,output="modisgrid",flags=c("quiet","overwrite","o"))
     system("g.region rast=modisgrid save=roi --overwrite",ignore.stdout=F,ignore.stderr=F)
   }
 
@@ -262,25 +262,33 @@ if(verbose) print(paste(nfs,"swaths available for processing"))
      ## Sensor Zenith      ## extract first bit to keep only "low angle" observations
      execGRASS("r.in.gdal",input=paste("SenZen_",bfile,sep=""),
              output=paste("SZ_",i,sep=""),flags=c("overwrite","o")) ; print("")
-     
+   
      ## check for interpolation artefacts
 #     execGRASS("r.stats",input=paste("SZ_",i,sep=""),output=paste("SZ_",i,".txt",sep=""),flags=c("c"))
 #     execGRASS("r.clump",input=paste("SZ_",i,sep=""),output=paste("SZ_",i,"_clump",sep=""))
 #     execGRASS("r.stats",input=paste("SZ_",i,"_clump",sep=""),output="-",flags=c("c"))
 
-     p=-50:50
-     system(paste("r.mapcalc \"SZ_",i,"_clump=if(min(",paste("SZ_",i,"[0,",p,"]",sep="",collapse=","),")==max(",paste("SZ_",i,"[0,",p,"]",sep="",collapse=","),"),1,0)\"",sep=""))
-     vals=do.call(rbind.data.frame,strsplit(execGRASS("r.stats",input=paste("SZ_",i,"_clump",sep=""),output="-",flags=c("c"),intern=T),split=" "))
-     colnames(vals)=c("value","count")
-     vals$count=as.numeric(as.character(vals$count))
-     vals$value=as.numeric(as.character(vals$value))
-     vals=na.omit(vals)
-     vals$count[vals$value==1&vals$count>10]
+     ## write out the table of weights for use in the neighborhood analysis to identify bad pixels from swtif
+     p=75  #must be odd
+     mat=matrix(rep(0,p*p),nrow=p)
+     mat[0.5+p/2,]=1
+     cat(mat,file="weights.txt")
+     execGRASS("r.neighbors",input=paste("SZ_",i,sep=""),output=paste("SZ_",i,"clump",sep=""),method="range",size=p,weight="weights.txt")  # too slow!
+     system(paste("r.mapcalc \"SZ_",i,"_clump2=SZ_",i,"clump==0\"",sep=""))
+
+#     p=-50:50
+#     system(paste("r.mapcalc \"SZ_",i,"_clump=if(min(",paste("SZ_",i,"[0,",p,"]",sep="",collapse=","),")==max(",paste("SZ_",i,"[0,",p,"]",sep="",collapse=","),"),1,0)\"",sep=""))
+#     system(paste("r.mapcalc \"SZ_",i,"_clump=if(min(",paste("SZ_",i,"[0,",min(p,"]",sep="",collapse=","),")==max(",paste("SZ_",i,"[0,",p,"]",sep="",collapse=","),"),1,0)\"",sep=""))
+#     vals=do.call(rbind.data.frame,strsplit(execGRASS("r.stats",input=paste("SZ_",i,"_clump",sep=""),output="-",flags=c("c"),intern=T),split=" "))
+#     colnames(vals)=c("value","count")
+#     vals$count=as.numeric(as.character(vals$count))
+#     vals$value=as.numeric(as.character(vals$value))
+#     vals=na.omit(vals)
+#     vals$count[vals$value==1&vals$count>10]
                                             #
      #plot(p~value,data=vals)
 #     print(sum(vals$p[vals$p>.1]))
      
-     ## TODO: use this to flag problem swaths?
      ## Solar Zenith      ## extract first bit to keep only "low angle" observations
      execGRASS("r.in.gdal",input=paste("SolZen_",bfile,sep=""),
              output=paste("SoZ_",i,sep=""),flags=c("overwrite","o")) ; print("")
@@ -288,12 +296,12 @@ if(verbose) print(paste(nfs,"swaths available for processing"))
      system(paste("r.mapcalc <<EOF
                 CM_fill_",i," =  if(isnull(CM1_",i,"),1,0)
                 QA_useful_",i," =  if((QA_",i," / 2^0) % 2==1,1,0)
-                SZ_low_",i," =  if(SZ_",i,"_clump==0&SZ_",i,"<6000,1,0)
+                SZ_low_",i," =  if(SZ_",i,"_clump2==0&SZ_",i,"<6000,1,0)
                 SoZ_low_",i," =  if(SoZ_",i,"<8500,1,0)
                 CM_dayflag_",i," =  if((CM1_",i," / 2^3) % 2==1,1,0)
                 CM_cloud_",i," =  if((CM1_",i," / 2^0) % 2==1,(CM1_",i," / 2^1) % 2^2,null())
-                SZday_",i," = if(SZ_",i,"_clump==0&CM_dayflag_",i,"==1,SZ_",i,",null())
-                SZnight_",i," = if(SZ_",i,"_clump==0&CM_dayflag_",i,"==0,SZ_",i,",null())
+                SZday_",i," = if(SZ_",i,"_clump2==0&CM_dayflag_",i,"==1,SZ_",i,",null())
+                SZnight_",i," = if(SZ_",i,"_clump2==0&CM_dayflag_",i,"==0,SZ_",i,",null())
                 CMday_",i," = if(SoZ_low_",i,"==1&SZ_low_",i,"==1&QA_useful_",i,"==1&CM_dayflag_",i,"==1,CM_cloud_",i,",null())
                 CMnight_",i," = if(SZ_low_",i,"==1&QA_useful_",i,"==1&CM_dayflag_",i,"==0,CM_cloud_",i,",null())
 EOF",sep=""))
@@ -306,15 +314,16 @@ EOF",sep=""))
      if(drawplot){
        d2=stack(
 #         raster(readRAST6(paste("QA_useful_",i,sep=""))),
-#         raster(readRAST6(paste("CM1_",i,sep=""))),
+         raster(readRAST6(paste("CM1_",i,sep=""))),
 #         raster(readRAST6(paste("CM_cloud_",i,sep=""))),
 #         raster(readRAST6(paste("CM_dayflag_",i,sep=""))),
 #         raster(readRAST6(paste("CMday_",i,sep=""))),
-         raster(readRAST6(paste("CMnight_",i,sep=""))),
+#         raster(readRAST6(paste("CMnight_",i,sep=""))),
 #         raster(readRAST6(paste("CM_fill_",i,sep=""))),
 #         raster(readRAST6(paste("SoZ_",i,sep=""))),
          raster(readRAST6(paste("SZ_",i,sep=""))),
-         raster(readRAST6(paste("SZ_",i,"_clump",sep="")))
+         raster(readRAST6(paste("SZ_",i,"_clump",sep=""))),
+         raster(readRAST6(paste("SZ_",i,"_clump2",sep="")))
          )
        plot(d2,add=F)
      }
@@ -335,9 +344,11 @@ paste("r.mapcalc <<EOF
 ))
 
 if(plot){
-  sz1=brick(lapply(1:nfs,function(i) raster(readRAST6(paste("SZnight_",i,sep="")))))
-  sz_clump=brick(lapply(1:nfs,function(i) raster(readRAST6(paste("SZ_",i,"_clump",sep="")))))
-  d=brick(lapply(1:nfs,function(i) raster(readRAST6(paste("CMnight_",i,sep="")))))
+  ps=1:nfs
+  ps=c(12,14,17)
+  sz1=brick(lapply(ps,function(i) raster(readRAST6(paste("SZnight_",i,sep="")))))
+  sz_clump=brick(lapply(ps,function(i) raster(readRAST6(paste("SZ_",i,"_clump2",sep="")))))
+  d=brick(lapply(ps,function(i) raster(readRAST6(paste("CMnight_",i,sep="")))))
   d2=brick(list(raster(readRAST6("SZday_min")),raster(readRAST6("SZnight_min")),raster(readRAST6("CMday_daily")),raster(readRAST6("CMnight_daily"))))
   library(rasterVis)
   levelplot(sz1,col.regions=rainbow(100),at=seq(min(sz1@data@min),max(sz1@data@max),len=100))
@@ -350,8 +361,8 @@ if(plot){
   ### Write the files to a netcdf file
   ## create image group to facilitate export as multiband netcdf
     execGRASS("i.group",group="mod35",input=c("CMday_daily","CMnight_daily")) ; print("")
-   
-  if(file.exists(ncfile)) file.remove(ncfile)  #if it exists already, delete it
+
+if(file.exists(ncfile)) file.remove(ncfile)  #if it exists already, delete it
   execGRASS("r.out.gdal",input="mod35",output=ncfile,type="Byte",nodata=255,flags=c("quiet"),
 #      createopt=c("FORMAT=NC4","ZLEVEL=5","COMPRESS=DEFLATE","WRITE_GDAL_TAGS=YES","WRITE_LONLAT=NO"),format="netCDF")  #for compressed netcdf
       createopt=c("FORMAT=NC","WRITE_GDAL_TAGS=YES","WRITE_LONLAT=NO"),format="netCDF")
@@ -379,12 +390,12 @@ system(paste(ncopath,"ncks -A ",tempdir(),"/time.nc ",ncfile,sep=""))
 " -a missing_value,CMday,o,b,255 ",
 " -a _FillValue,CMday,o,b,255 ",
 " -a valid_range,CMday,o,b,\"0,3\" ",
-" -a long_name,CMday,o,c,\"Cloud Flag from 'day' pixels\" ",
+" -a long_name,CMday,o,c,\"Cloud Flag from day pixels\" ",
 " -a units,CMnight,o,c,\"Cloud Flag (0-3)\" ",
 " -a missing_value,CMnight,o,b,255 ",
 " -a _FillValue,CMnight,o,b,255 ",
 " -a valid_range,CMnight,o,b,\"0,3\" ",
-" -a long_name,CMnight,o,c,\"Cloud Flag from 'night' pixels\" ",
+" -a long_name,CMnight,o,c,\"Cloud Flag from night pixels\" ",
 ncfile,sep=""))
 #system(paste(ncopath,"ncatted -a sourcecode,global,o,c,",script," ",ncfile,sep=""))
    
@@ -398,7 +409,6 @@ fvar=all(finalvars%in%strsplit(system(paste("cdo -s showvar ",ncfile),intern=T),
       print(paste("FILE ERROR:  tile ",tile," and date ",date," was not outputted correctly, deleting... "))
       file.remove(ncfile)
     }
-
 ############  copy files to lou
 #if(platform=="pleiades"){
 #  archivedir=paste("MOD35/",outdir,"/",sep="")  #directory to create on lou
@@ -415,8 +425,7 @@ fvar=all(finalvars%in%strsplit(system(paste("cdo -s showvar ",ncfile),intern=T),
 
 
   ## print out some info
-print(paste(" ###################################################################               Finished ",tile,"-",date,
-"################################################################"))
+print(paste("#######################               Finished ",tile,"-",date, "###################################"))
 
 ## delete old files
 #system("cleartemp")
