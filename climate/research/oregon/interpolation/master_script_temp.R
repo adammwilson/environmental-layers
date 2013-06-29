@@ -45,7 +45,7 @@ script_path<-"/home/parmentier/Data/IPLANT_project/env_layers_scripts/"
 
 ##SCRIPT USED FOR THE PREDICTIONS: Source or list all scripts here to avoid confusion on versions being run!!!!
 
-#source(file.path(script_path,"master_script_temp_06082013.R")) #Master script can be run directly...
+#source(file.path(script_path,"master_script_temp_06272013.R")) #Master script can be run directly...
 
 #CALLED FROM MASTER SCRIPT:
 
@@ -53,11 +53,11 @@ modis_download_script <- file.path(script_path,"modis_download_05142013.py") # L
 clim_script <- file.path(script_path,"climatology_05312013.py") # LST climatology python script
 grass_setting_script <- file.path(script_path,"grass-setup.R") #Set up system shell environment for python+GRASS
 source(file.path(script_path,"download_and_produce_MODIS_LST_climatology_05302013.R"))
-source(file.path(script_path,"covariates_production_temperatures_06202013.R"))
+source(file.path(script_path,"covariates_production_temperatures_06272013.R"))
 source(file.path(script_path,"Database_stations_covariates_processing_function_05212013.R"))
 source(file.path(script_path,"GAM_fusion_analysis_raster_prediction_multisampling_06082013.R"))
 source(file.path(script_path,"results_interpolation_date_output_analyses_06102013.R"))
-#source(file.path(script_path,"results_covariates_database_stations_output_analyses_04012013.R"))
+#source(file.path(script_path,"results_covariates_database_stations_output_analyses_04012013.R")) #to be completed
 
 #FUNCTIONS CALLED FROM GAM ANALYSIS RASTER PREDICTION ARE FOUND IN...
 
@@ -134,7 +134,7 @@ lst_names<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm
                "nobs_09","nobs_10","nobs_11","nobs_12")
 covar_names<-c(rnames,lc_names,lst_names)
   
-list_val_range <-c("lon,180,180","lat,-90,90","N,-1,1","E,-1,1","N_w,-1,1","E_w,-1,1","elev_s,0,6000","slope,0,90",
+list_val_range <-c("lon,-180,180","lat,-90,90","N,-1,1","E,-1,1","N_w,-1,1","E_w,-1,1","elev_s,0,6000","slope,0,90",
                    "aspect,0,360","DISTOC,-0,10000000","CANHEIGHT,0,255","LC1,0,100","LC3,0,100","mm_01,-15,50",
                    "mm_02,-15,50","mm_03,-15,50","mm_04,-15,50","mm_05,-15,50","mm_06,-15,50","mm_07,-15,50",
                    "mm_08,-15,50","mm_09,-15,50","mm_10,-15,50","mm_11,-15,50","mm_12,-15,50")

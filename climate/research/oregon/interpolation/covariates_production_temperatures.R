@@ -180,8 +180,9 @@ screening_val_r_stack_fun<-function(list_val_range,r_stack){
   tab_range <- strsplit(tab_range_list,",")
   tab_range <-as.data.frame(do.call(rbind, tab_range))
   names(tab_range)<-c("varname","vmin","vmax")
-  tab_range$vmin <- as.numeric(tab_range$vmin)
-  tab_range$vmax <- as.numeric(tab_range$vmax)
+  tab_range$vmin <- as.numeric(as.character(tab_range$vmin)) #transform to character first to avoid values being considered as factor
+  tab_range$vmax <- as.numeric(as.character(tab_range$vmax))
+  tab_range$varname <- as.character(tab_range$varname)
   val_rst<-vector("list",nrow(tab_range)) #list of one row data.frame
   
   for (k in 1:nrow(tab_range)){
@@ -196,7 +197,7 @@ screening_val_r_stack_fun<-function(list_val_range,r_stack){
   }
   #could be taken out of function for parallelization
   s_rst_m<-stack(val_rst) #This a raster stack with valid range of values
-  retained_names<-setdiff(names(r_stack),as.character(tab_range$varname))
+  retained_names<-setdiff(names(r_stack),tab_range$varname)
   r_stack <- dropLayer(r_stack,match(tab_range$varname,names(r_stack)))
   names(r_stack) <-retained_names
   r_stack <- addLayer(r_stack,s_rst_m) #add back layers that were screened out
@@ -539,10 +540,7 @@ covariates_production_temperature<-function(list_param){
   #covar_names<-c(rnames,lc_names,lst_names)
   names(s_raster)<-covar_names
   
-  ##Write function to screen data values...
-  #add screening here...
-  #browser()
-  #test <-screening_val_r_stack_fun(list_val_range,s_raster)
+  #Screen values given valid value ranges for specified variables
   s_raster<-screening_val_r_stack_fun(list_val_range,s_raster)
   
   #Write out stack of number of change 
