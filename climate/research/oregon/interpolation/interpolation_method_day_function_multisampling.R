@@ -236,7 +236,7 @@ fit_models<-function(list_formulas,data_training){
 }
 
 ####
-#TODO:
+#TODO:Should use interp_day_fun!!
 #Add log file and calculate time and sizes for processes-outputs
 runGAM_day_fun <-function(i,list_param){
 
@@ -274,7 +274,7 @@ runGAM_day_fun <-function(i,list_param){
   interpolation_method <-list_param$interpolation_method
   out_prefix<-list_param$out_prefix
   out_path<-list_param$out_path
-  
+  screen_data_training<-list_param$screen_data_training
 
   ghcn.subsets<-sampling_obj$ghcn_data_day
   sampling_dat <- sampling_obj$sampling_dat
@@ -357,7 +357,15 @@ runGAM_day_fun <-function(i,list_param){
   
   list_formulas<-lapply(list_models,as.formula,env=.GlobalEnv) #mulitple arguments passed to lapply!!
   
-  mod_list<-fit_models(list_formulas,data_s) #only gam at this stage
+  if(screen_data_training==TRUE){
+    col_names <-unlist(lapply(list_formulas,all.vars)) #extract all covariates names used in the models
+    col_names<-unique(col_names)
+    data_fit <- remove_na_spdf(col_names,data_s)
+  }else{
+    data_fit <- data_s
+  }
+  mod_list<-fit_models(list_formulas,data_fit) #only gam at this stage
+  #mod_list<-fit_models(list_formulas,data_s) #only gam at this stage
   cname<-paste("mod",1:length(mod_list),sep="") #change to more meaningful name?
   names(mod_list)<-cname
   
@@ -697,7 +705,15 @@ run_interp_day_fun <-function(i,list_param){
   #now fit and predict values for raster image...
   
   if (interpolation_method=="gam_daily"){
-    mod_list<-fit_models(list_formulas,data_s) #only gam at this stage
+    if(screen_data_training==TRUE){
+      col_names <-unlist(lapply(list_formulas,all.vars)) #extract all covariates names used in the models
+      col_names<-unique(col_names)
+      data_fit <- remove_na_spdf(col_names,data_s)
+    }else{
+      data_fit <- data_s
+    }
+    #mod_list<-fit_models(list_formulas,data_s) #only gam at this stage
+    mod_list<-fit_models(list_formulas,data_fit) #only gam at this stage
     names(mod_list)<-cname
     rast_day_list<-predict_raster_model(mod_list,s_raster,list_out_filename)
     names(rast_day_list)<-cname
