@@ -10,7 +10,7 @@
 #STAGE 5: Output analyses: assessment of results for specific dates...
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 07/05/2013                                                                                 
+#DATE: 07/06/2013                                                                                 
 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363, TASK$568--   
 
@@ -71,8 +71,8 @@ source(file.path(script_path,"GAM_fusion_function_multisampling_validation_metri
 stages_to_run<-c(0,2,3,4,5) #May decide on antoher strategy later on...
 
 var<-"TMAX" # variable being interpolated
-out_prefix<-"_365d_gam_day_lst_comb2_07052013"                #User defined output prefix
-out_suffix<-"_OR_07052013"
+out_prefix<-"_365d_gam_day_lst_comb1_07062013"                #User defined output prefix
+out_suffix<-"_OR_07062013"
 out_suffix_modis <-"_05302013" #use tiles produce previously
 
 #interpolation_method<-c("gam_fusion","gam_CAI","gam_daily") #other otpions to be added later
@@ -239,25 +239,25 @@ screen_data_training<-TRUE
 #Models to run...this can be change for each run
 
 #Combination 1
-# list_models<-c("y_var ~ s(elev_s)",
-#               "y_var ~ s(LST)",
-#               "y_var ~ s(elev_s,LST)",
-#               "y_var ~ s(lat) + s(lon)+ s(elev_s)",
-#               "y_var ~ s(lat,lon,elev_s)",
-#               "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST)", 
-#               "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST) + s(LC6)",  
-#               "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST) + ti(LC6,LST)", 
-#               "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST) + s(DISTOC)")
+list_models<-c("y_var ~ s(elev_s)",
+              "y_var ~ s(LST)",
+              "y_var ~ s(elev_s,LST)",
+              "y_var ~ s(lat) + s(lon)+ s(elev_s)",
+              "y_var ~ s(lat,lon,elev_s)",
+              "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST)", 
+              "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST) + s(LC6)",  
+              "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST) + ti(LC6,LST)", 
+              "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST) + s(DISTOC)")
 
 #testing new combinations and tensor for paper
-list_models<-c("y_var ~ s(x,y)",
-               "y_var ~ s(x)+ s(y) + s(LST) + ti(x,y) + ti(x,y,LST)",
-               "y_var ~ s(elev_s) + s(LST) + ti(elev_s,LST)",
-               "y_var ~ s(lat) + s(lon) + s(LST)",
-               "y_var ~ s(lat) + s(lon) + s(elev_s)+ ti(lat,lon) + ti(lat,lon,elev_s)",
-               "y_var ~ s(lat,lon) + s(LST)", 
-               "y_var ~ s(lat,lon) + s(elev_s) + s(LST)",  
-               "y_var ~ s(x) + s(y) + s(elev_s) + ti(x,y) + ti(x,y,elev_s)")
+# list_models<-c("y_var ~ s(x,y)",
+#                "y_var ~ s(x)+ s(y) + s(LST) + ti(x,y) + ti(x,y,LST)",
+#                "y_var ~ s(elev_s) + s(LST) + ti(elev_s,LST)",
+#                "y_var ~ s(lat) + s(lon) + s(LST)",
+#                "y_var ~ s(lat) + s(lon) + s(elev_s)+ ti(lat,lon) + ti(lat,lon,elev_s)",
+#                "y_var ~ s(lat,lon) + s(LST)", 
+#                "y_var ~ s(lat,lon) + s(elev_s) + s(LST)",  
+#                "y_var ~ s(x) + s(y) + s(elev_s) + ti(x,y) + ti(x,y,elev_s)")
 
 
 #list_models<-c("y_var~ lat + lon + elev_",
