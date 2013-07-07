@@ -181,8 +181,8 @@ raster_prediction_fun <-function(list_param_raster_prediction){
     names(list_param_runClim_KGFusion)<-c("list_index","covar_rast","covar_names","lst_avg","list_models","dst","var","y_var_name","out_prefix","out_path")
     #source(file.path(script_path,"GAM_fusion_function_multisampling_03122013.R"))
     clim_method_mod_obj<-mclapply(1:12, list_param=list_param_runClim_KGFusion, runClim_KGFusion,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
-    men#test<-runClim_KGFusion(1,list_param=list_param_runClim_KGFusion)
-    #gamclim_fus_mod<-mclapply(1:6, list_param=list_param_runClim_KGFusion, runClim_KGFusion,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
+    #clim_method_mod_obj<-mclapply(1:6, list_param=list_param_runClim_KGFusion, runClim_KGFusion,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
+    #test<-runClim_KGFusion(3,list_param=list_param_runClim_KGFusion)
     save(clim_method_mod_obj,file= file.path(out_path,paste(interpolation_method,"_mod_",y_var_name,out_prefix,".RData",sep="")))
     list_tmp<-vector("list",length(clim_method_mod_obj))
     for (i in 1:length(clim_method_mod_obj)){
@@ -226,6 +226,7 @@ raster_prediction_fun <-function(list_param_raster_prediction){
   #TODO : Same call for all functions!!! Replace by one "if" for all multi time scale methods...
   if (interpolation_method=="gam_CAI" | interpolation_method=="gam_fusion"){
     #input a list:note that ghcn.subsets is not sampling_obj$data_day_ghcn
+    i<-1
     list_param_run_prediction_daily_deviation <-list(i,clim_yearlist,sampling_obj,dst,var,y_var_name, interpolation_method,out_prefix,out_path)
     names(list_param_run_prediction_daily_deviation)<-c("list_index","clim_yearlist","sampling_obj","dst","var","y_var_name","interpolation_method","out_prefix","out_path")
     #test<-mclapply(1:18, runGAMFusion,list_param=list_param_runGAMFusion,mc.preschedule=FALSE,mc.cores = 9)
@@ -238,7 +239,7 @@ raster_prediction_fun <-function(list_param_raster_prediction){
   #TODO : Same call for all functions!!! Replace by one "if" for all daily single time scale methods...
   if (interpolation_method=="gam_daily"){
     #input a list:note that ghcn.subsets is not sampling_obj$data_day_ghcn
-    
+    i<-1
     list_param_run_prediction_gam_daily <-list(i,s_raster,covar_names,lst_avg,list_models,dst,var,y_var_name, sampling_obj,interpolation_method,out_prefix,out_path)
     names(list_param_run_prediction_gam_daily)<-c("list_index","covar_rast","covar_names","lst_avg","list_models","dst","var","y_var_name","sampling_obj","interpolation_method","out_prefix","out_path")
     #test <- runGAM_day_fun(1,list_param_run_prediction_gam_daily)

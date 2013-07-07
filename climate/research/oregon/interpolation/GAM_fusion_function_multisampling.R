@@ -265,7 +265,7 @@ runClim_KGFusion<-function(j,list_param){
     list_out_filename[[k]]<-raster_name
   }
 
-  #now predict values for raster image...
+  #now predict values for raster image...by providing fitted model list, raster brick and list of output file names
   rast_bias_list<-predict_raster_model(mod_list,s_raster,list_out_filename)
   names(rast_bias_list)<-cname
   #Some modles will not be predicted...remove them
@@ -286,29 +286,40 @@ runClim_KGFusion<-function(j,list_param){
   #### STEP 4:Adding Kriging for Climatology options
   
   bias_xy<-coordinates(data_month)
-  fitbias<-Krig(bias_xy,data_month$LSTD_bias,theta=1e5) #use TPS or krige 
-  mod_krtmp1<-fitbias
+  #fitbias<-Krig(bias_xy,data_month$LSTD_bias,theta=1e5) #use TPS or krige 
+  fitbias<-try(Krig(bias_xy,data_month$LSTD_bias,theta=1e5)) #use TPS or krige 
+ 
   model_name<-"mod_kr"
+
+  if (inherits(fitbias,"Krig")){
+    #Saving kriged surface in raster images
+    bias_rast<-bias_rast<-interpolate(LST,fitbias) #interpolation using function from raster package
+    data_name<-paste(var,"_bias_LST_month_",j,"_",model_name,"_",prop_month,
+                     "_",run_samp,sep="")
+    raster_name_bias<-file.path(out_path,paste("fusion_",data_name,out_prefix,".tif", sep=""))
+    writeRaster(bias_rast, filename=raster_name_bias,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
+    
+    #now climatology layer
+    clim_rast<-LST-bias_rast
+    data_name<-paste(var,"_clim_LST_month_",j,"_",model_name,"_",prop_month,
+                     "_",run_samp,sep="")
+    raster_name_clim<-file.path(out_path,paste("fusion_",data_name,out_prefix,".tif", sep=""))
+    writeRaster(clim_rast, filename=raster_name_clim,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
+    #Adding to current objects
+    mod_list[[model_name]]<-fitbias
+    rast_bias_list[[model_name]]<-raster_name_bias
+    rast_clim_list[[model_name]]<-raster_name_clim
+  }
   
-   
-  bias_rast<-interpolate(LST,fitbias) #interpolation using function from raster package
-  #Saving kriged surface in raster images
-  data_name<-paste(var,"_bias_LST_month_",j,"_",model_name,"_",prop_month,
-                   "_",run_samp,sep="")
-  raster_name_bias<-file.path(out_path,paste("fusion_",data_name,out_prefix,".tif", sep=""))
-  writeRaster(bias_rast, filename=raster_name_bias,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
-  
-  #now climatology layer
-  clim_rast<-LST-bias_rast
-  data_name<-paste(var,"_clim_LST_month_",j,"_",model_name,"_",prop_month,
-                   "_",run_samp,sep="")
-  raster_name_clim<-file.path(out_path,paste("fusion_",data_name,out_prefix,".tif", sep=""))
-  writeRaster(clim_rast, filename=raster_name_clim,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
-  
-  #Adding to current objects
-  mod_list[[model_name]]<-mod_krtmp1
-  rast_bias_list[[model_name]]<-raster_name_bias
-  rast_clim_list[[model_name]]<-raster_name_clim
+  if (inherits(fitbias,"try-error")){
+    #NEED TO DEAL WITH THIS!!!
+    
+    #Adding to current objects
+    mod_list[[model_name]]<-NULL
+    rast_bias_list[[model_name]]<-NULL
+    rast_clim_list[[model_name]]<-NULL
+  }
+
   
   #### STEP 5: Prepare object and return
   
