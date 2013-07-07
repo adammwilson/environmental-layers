@@ -250,6 +250,19 @@ define_crs_from_extent_fun<-function(reg_outline,buffer_dist){
   return(reg_outline_obj)
 } 
   
+### Assing projection system to raster layer
+assign_projection_crs <-function(i,list_param){
+  #assign projection to list of raster
+  #proj_str: proj4 information
+  #filename: raster file 
+  proj_str<-list_param$proj_str
+  list_filename<-list_param$list_filename
+  
+  filename <-list_filename[[i]]
+  r<-raster(readGDAL(filename))
+  projection(r)<-proj_str
+  writeRaster(r,filename=filename,overwrite=TRUE)
+}
   
 covariates_production_temperature<-function(list_param){
   #This functions produce covariates used in the interpolation of temperature.
@@ -420,12 +433,28 @@ covariates_production_temperature<-function(list_param){
   names(list_param_mosaic)<-c("j","mosaic_list","out_rastnames","out_path")
   nobs_m_list <-mclapply(1:12, list_param=list_param_mosaic, mosaic_m_raster_list,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
   
+  ## Project mosaiced tiles if local projection is provided...
+  #Modis shapefile tile is slighly shifted: this needs to be resolved...
+  # +proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs for ref_rast
+  #"+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs" ??
+  #reassign proj from modis tile to raster? there is a 10m diff in semi-axes...(a and b)
+  #This is a temporary solution, we will need to find out how 6370997m was assigned as axis
+  
+  proj_modis_str <-"+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
+  list_param_assign_proj <-list(j,nobs_m_list,proj_modis_str)
+  names(list_param_assign_proj)<-c("j","list_filename","proj_str")
+  #assign_projection_crs(1,list_param_assign_proj)
+  mclapply(1:12, list_param=list_param_assign_proj, assign_projection_crs,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
+  list_param_assign_proj <-list(j,mean_m_list,proj_modis_str)
+  names(list_param_assign_proj)<-c("j","list_filename","proj_str")
+  mclapply(1:12, list_param=list_param_assign_proj, assign_projection_crs,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
+  
   #Use this as ref file for now?? Ok for the time being: this will need to change to be a processing tile.
   if (ref_rast_name==""){
     #Use one mosaiced modis tile as reference image...We will need to add a function 
     ref_rast_temp <-raster(mean_m_list[[1]]) 
     ref_rast <-projectRaster(from=ref_rast_temp,crs=CRS_interp,method="ngb")
-
+    
     #to define a local reference system and reproject later!!
     #Assign new projection system here in the argument CRS_interp (!it is used later)
   }else{
@@ -433,7 +462,6 @@ covariates_production_temperature<-function(list_param){
     proj4string(ref_rast) <- CRS_interp #Assign given reference system from master script...
   }
   
-  ## Project mosaiced tiles if local projection is provided...
 
   out_suffix_lst <-paste(out_suffix,".tif",sep="")          
   mean_lst_list_outnames<-change_names_file_list(mean_m_list,out_suffix_lst,"reg_",".tif",out_path=out_path)     
@@ -455,12 +483,6 @@ covariates_production_temperature<-function(list_param){
   #  list_param_create_region<-list(j,raster_name=nobs_m_list,reg_ref_rast=ref_rast,out_rast_name=nobs_lst_list_outnames)
   #  nobs_m_list <-mclapply(1:12, list_param=list_param_create_region, create__m_raster_region,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
   #}
-  
-  #ref_rast <-raster("mosaiced_dec_lst_mean_VE_03182013.tif")
-  #Modis shapefile tile is slighly shifted:
-  # +proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs for ref_rast
-  #"+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs" ??
-  #reassign proj from modis tile to raster? there is a 10m diff in semi-axes...(a and b)
   
   ######################################
   #4) LCC land cover
@@ -552,9 +574,10 @@ covariates_production_temperature<-function(list_param){
                  overwrite=TRUE,NAflag=-999,bylayer=FALSE,bandorder="BSQ")
   #using bil format more efficient??
   
-  #return reg_outline!!!
+  #return reg_outline!!! After screeening the order of the names of covariates has changed!!! We must keep track of this!!
   covar_obj <-list(raster_name,infile_reg_outline,names(s_raster))
   names(covar_obj) <-c("infile_covariates","infile_reg_outline","covar_names")
+  save(covar_obj,file= file.path(out_path,paste("covar_obj_",out_prefix,".RData",sep="")))
   return(covar_obj)
 }
 
