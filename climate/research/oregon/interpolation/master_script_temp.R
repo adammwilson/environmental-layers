@@ -10,7 +10,7 @@
 #STAGE 5: Output analyses: assessment of results for specific dates...
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 06/28/2013                                                                                 
+#DATE: 07/02/2013                                                                                 
 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363, TASK$568--   
 
@@ -54,16 +54,16 @@ modis_download_script <- file.path(script_path,"modis_download_05142013.py") # L
 clim_script <- file.path(script_path,"climatology_05312013.py") # LST climatology python script
 grass_setting_script <- file.path(script_path,"grass-setup.R") #Set up system shell environment for python+GRASS
 #source(file.path(script_path,"download_and_produce_MODIS_LST_climatology_06112013.R"))
-source(file.path(script_path,"covariates_production_temperatures_06272013.R"))
+source(file.path(script_path,"covariates_production_temperatures_07022013.R"))
 source(file.path(script_path,"Database_stations_covariates_processing_function_06112013.R"))
-source(file.path(script_path,"GAM_fusion_analysis_raster_prediction_multisampling_06082013.R"))
+source(file.path(script_path,"GAM_fusion_analysis_raster_prediction_multisampling_06112013.R"))
 source(file.path(script_path,"results_interpolation_date_output_analyses_06112013.R"))
 #source(file.path(script_path,"results_covariates_database_stations_output_analyses_04012013.R")) #to be completed
 
 #FUNCTIONS CALLED FROM GAM ANALYSIS RASTER PREDICTION ARE FOUND IN...
 
 source(file.path(script_path,"sampling_script_functions_03122013.R"))
-source(file.path(script_path,"GAM_fusion_function_multisampling_06112013.R")) #Include GAM_CAI
+source(file.path(script_path,"GAM_fusion_function_multisampling_07022013.R")) #Include GAM_CAI
 source(file.path(script_path,"interpolation_method_day_function_multisampling_06082013.R")) #Include GAM_day
 source(file.path(script_path,"GAM_fusion_function_multisampling_validation_metrics_05062013.R"))
 
@@ -71,14 +71,14 @@ source(file.path(script_path,"GAM_fusion_function_multisampling_validation_metri
 stages_to_run<-c(0,2,3,4,5) #May decide on antoher strategy later on...
 
 var<-"TMAX" # variable being interpolated
-out_prefix<-"_365d_gam_fus_lst_06282013"                #User defined output prefix
-out_suffix<-"_OR_06282013"
+out_prefix<-"_365d_gam_day_lst_07032013"                #User defined output prefix
+out_suffix<-"_OR_07032013"
 out_suffix_modis <-"_05302013" #use tiles produce previously
 
 #interpolation_method<-c("gam_fusion","gam_CAI","gam_daily") #other otpions to be added later
 #interpolation_method<-c("gam_CAI") #other otpions to be added later
-interpolation_method<-c("gam_fusion") #other otpions to be added later
-#interpolation_method<-c("gam_daily") #other otpions to be added later
+#interpolation_method<-c("gam_fusion") #other otpions to be added later
+interpolation_method<-c("gam_daily") #other otpions to be added later
 #interpolation_method<-c("kriging_daily") #other otpions to be added later
 #interpolation_method<-c("gwr_daily") #other otpions to be added later
 
