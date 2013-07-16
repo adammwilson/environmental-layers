@@ -86,7 +86,7 @@ alldates=format(seq(as.Date(startdate),as.Date(stopdate),1),"%Y%m%d")
 proclist=expand.grid(date=alldates,tile=tiles)
 proclist$year=substr(proclist$date,1,4)
 
-## identify tile-dates with no available swaths
+ ## identify tile-dates with no available swaths
 avail=unique(cbind.data.frame(tile=fs$tile,date=fs$dateid)[fs$exists, ])
 proclist$avail=paste(proclist$tile,proclist$date,sep="_")%in%paste(avail$tile,avail$date,sep="_")
 
@@ -119,10 +119,10 @@ file=paste("notdone.txt",sep=""),row.names=F,col.names=F,quote=F)
 ### qsub script
 cat(paste("
 #PBS -S /bin/bash
-##PBS -l select=1:ncpus=8:mpiprocs=8
-#PBS -l select=100:ncpus=8:mpiprocs=8
-#PBS -l walltime=8:00:00
-##PBS -l walltime=2:00:00
+#PBS -l select=20:ncpus=8:mpiprocs=8
+##PBS -l select=100:ncpus=8:mpiprocs=8
+##PBS -l walltime=8:00:00
+#PBS -l walltime=4:00:00
 #PBS -j n
 #PBS -m be
 #PBS -N mod35
@@ -130,8 +130,8 @@ cat(paste("
 ##PBS -q devel
 #PBS -V
 
-CORES=800
-#CORES=160
+#CORES=800
+CORES=160
 
 HDIR=/u/armichae/pr/
   source $HDIR/etc/environ.sh
