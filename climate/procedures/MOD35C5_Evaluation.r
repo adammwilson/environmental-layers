@@ -22,13 +22,12 @@ NAvalue(mod35c5)=0
 
 ## mod35C6 annual
 if(!file.exists("data/MOD35C6_2009.tif")){
-  system("/usr/local/gdal-1.10.0/bin/gdalbuildvrt -a_srs '+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs' -sd 1 -b 1 data/MOD35C6.vrt /home/adamw/acrobates/adamw/projects/interp/data/modis/mod35/summary/*mean.nc ")
-  system("align.sh data/MOD35C6.vrt data/MOD09_2009.tif data/MOD35C6_2009.kmz")
+  system("/usr/local/gdal-1.10.0/bin/gdalbuildvrt  -a_srs '+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs' -sd 1 -b 1 data/MOD35C6.vrt `find /home/adamw/acrobates/adamw/projects/interp/data/modis/mod35/summary/ -name '*h[1]*_mean.nc'` ")
+  system("align.sh data/MOD35C6.vrt data/MOD09_2009.tif data/MOD35C6_2009.tif")
 }
-mod35c6=raster("data/MOD35C6_2009_v1.tif")
+mod35c6=raster("data/MOD35C6_2009.tif")
 names(mod35c6)="C6MOD35CF"
 NAvalue(mod35c6)=255
-
 
 ## landcover
 if(!file.exists("data/MCD12Q1_IGBP_2009_051_wgs84_1km.tif")){
@@ -226,16 +225,29 @@ dif_c5_09=mod35c5-mod09
 ## exploring various ways to compare cloud products
 t1=trd1[[1]]
 dif_p=calc(trd1[[1]], function(x) (x[1]-x[3])/(1-x[1]))
-edge=edge(subset(t1,"MCD12Q1"),classes=T,type="inner")
+edge=calc(edge(subset(t1,"MCD12Q1"),classes=T,type="inner"),function(x) ifelse(x==1,1,NA))
+edgeb=buffer(edge,width=5000)
+edgeb=calc(edgeb,function(x) ifelse(is.na(x),0,1))
+
 names(edge)="edge"
-td1=as.data.frame(stack(t1,edge))
+names(edgeb)="edgeb"
+
+td1=as.data.frame(stack(t1,edge,edgeb))
 
 cor(td1$MOD17,td1$C5MOD35,use="complete",method="spearman")
-cor(td1$MOD17[td1$edge==1],td1$C5MOD35[td1$edge==1],use="complete",method="spearman")
-cor(td1,use="complete",method="spearman")
+cor(td1$MOD17[td1$edgeb==1],td1$C5MOD35[td1$edgeb==1],use="complete",method="spearman")
+round(cor(td1,use="complete",method="spearman"),2)
+## tests
+cor.test(td1$MOD17,td1$C5MOD35,use="complete",method="spearman",alternative="two.sided")
+cor.test(td1$MOD17,td1$C6MOD35,use="complete",method="spearman",alternative="two.sided")
+cor.test(td1$MOD17,td1$C5MOD35,use="complete",method="spearman",alternative="two.sided")
+
+cor.test(
 splom(t1)
 plot(mod17,mod17qc)
-xyplot(MOD17~C5MOD35CF|edge,data=td1)
+xyplot(MOD17~C5MOD35CF|edgeb,data=td1)
+bwplot(MCD12Q1~C5MOD35CF|edgeb,data=td1)
+
 plot(dif_p)
 
 #rondonia=trd[trd$trans=="Brazil",]
@@ -251,9 +263,13 @@ library(maptools)
 coast=map2SpatialLines(map("world", interior=FALSE, plot=FALSE),proj4string=CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"))
 
 g1=levelplot(stack(mod35c5,mod09),xlab=" ",scales=list(x=list(draw=F),y=list(alternating=1)),col.regions=cols,at=at)+layer(sp.polygons(bbs[1:4],lwd=2))+layer(sp.lines(coast,lwd=.5))
+
 g2=levelplot(dif_c5_09,col.regions=bgrayr(100),at=seq(-70,70,len=100),margin=F,ylab=" ",colorkey=list("right"))+layer(sp.polygons(bbs[1:4],lwd=2))+layer(sp.lines(coast,lwd=.5))
-trellis.par.set(background=list(fill="white"),panel.background=list(fill="white"))
-g3=histogram(dif_c5_09,bg="white",col="black",border=NA,scales=list(x=list(at=c(-50,0,50)),y=list(draw=F),cex=1))+layer(panel.abline(v=0,col="red",lwd=2))
+g2$strip=strip.custom(var.name="Difference (C5MOD35-MOD09)",style=1,strip.names=T,strip.levels=F)  #update strip text
+bg <- trellis.par.get("panel.background")
+bg$col <- "white"
+trellis.par.set("panel.background",bg)
+g3=histogram(dif_c5_09,col="black",border=NA,scales=list(x=list(at=c(-50,0,50)),y=list(draw=F),cex=1))+layer(panel.abline(v=0,col="red",lwd=2))
 
 ### regional plots
 p1=useOuterStrips(levelplot(value~x*y|variable+trans,data=trd[!trd$variable%in%c("MCD12Q1","MOD35pp"),],asp=1,scales=list(draw=F,rot=0,relation="free"),
@@ -327,7 +343,7 @@ p4=xyplot(value~dist|transect,groups=variable,type=c("smooth","p"),
                       rectangles=list(border=NA,col=c(NA,IGBP$col[sort(unique(transd$value[transd$variable=="MCD12Q1"]+1))])),
                       text=list(c("MCD12Q1 IGBP Land Cover",IGBP$class[sort(unique(transd$value[transd$variable=="MCD12Q1"]+1))])))))),
  strip = strip.custom(par.strip.text=list(cex=.75)))
-print(p4)
+#print(p4)
 
 #trdw=cast(trd,trans+x+y~variable,value="value")
 #transdw=cast(transd,transect+dist~variable,value="value")
@@ -342,9 +358,10 @@ CairoPDF("output/mod35compare.pdf",width=11,height=7)
 #CairoPNG("output/mod35compare_%d.png",units="in", width=11,height=8.5,pointsize=4000,dpi=1200,antialias="subpixel")
 ### Global Comparison
 print(g1)
-print(g1,position=c(0,.33,1,1),more=T)
-print(g2,position=c(0,0,1,0.394),more=T)
-print(g3,position=c(0.31,0.06,.42,0.27),more=F)
+print(g1,position=c(0,.35,1,1),more=T)
+print(g2,position=c(0,0,1,0.415),more=F)
+#print(g3,position=c(0.31,0.06,.42,0.27),more=F)
+         
 ### MOD35 Desert Processing path
 levelplot(pp,asp=1,scales=list(draw=T,rot=0),maxpixels=1e6,
           at=c(-1:3),col.regions=c("blue","cyan","tan","darkgreen"),margin=F,
@@ -358,8 +375,8 @@ print(p4)
 dev.off()
 
 ### summary stats for paper
-  td=cast(transect+loc+dist~variable,value="value",data=transd)
-  td2=melt.data.frame(td,id.vars=c("transect","dist","loc","MOD35pp","MCD12Q1"))
+td=cast(transect+loc+dist~variable,value="value",data=transd)
+td2=melt.data.frame(td,id.vars=c("transect","dist","loc","MOD35pp","MCD12Q1"))
 
 ## function to prettyprint mean/sd's
 msd= function(x) paste(round(mean(x,na.rm=T),1),"% ±",round(sd(x,na.rm=T),1),sep="")
