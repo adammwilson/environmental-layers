@@ -573,6 +573,7 @@ covariates_production_temperature<-function(list_param){
   s_raster_m<-mask(s_raster,LC_mask,filename=raster_name,
                  overwrite=TRUE,NAflag=-999,bylayer=FALSE,bandorder="BSQ")
   #using bil format more efficient??
+  raster_name<-file.path(out_path, raster_name) #adding path to covariates brick
   
   #return reg_outline!!! After screeening the order of the names of covariates has changed!!! We must keep track of this!!
   covar_obj <-list(raster_name,infile_reg_outline,names(s_raster))
