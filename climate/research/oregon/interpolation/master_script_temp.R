@@ -10,7 +10,7 @@
 #STAGE 5: Output analyses: assessment of results for specific dates...
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 07/17/2013                                                                                 
+#DATE: 07/18/2013                                                                                 
 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363, TASK$568--   
 
@@ -71,12 +71,16 @@ source(file.path(script_path,"GAM_fusion_function_multisampling_validation_metri
 
 #stages_to_run<-c(1,2,3,4,5) #May decide on antoher strategy later on...
 #stages_to_run<-c(0,2,3,4,5) #May decide on antoher strategy later on...
-stages_to_run<-c(0,2,3,4,5) #MRun only raster fitting, prediction and assessemnt (providing lst averages, covar brick and met stations)
+stages_to_run<-c(0,0,0,4,5) #MRun only raster fitting, prediction and assessemnt (providing lst averages, covar brick and met stations)
+#If stage 2 is skipped then use previous covar object
+covar_obj_file<-"/data/project/layers/commons/data_workflow/output_data_365d_gam_fus_lst_test_run_07172013/covar_obj__365d_gam_fus_lst_test_run_07172013.RData"
+#If stage 3 is skipped then use previous met_stations object
+met_stations_outfiles_obj_file<-"/data/project/layers/commons/data_workflow/output_data_365d_gam_fus_lst_test_run_07172013/met_stations_outfiles_obj_gam_fusion__365d_gam_fus_lst_test_run_07172013.RData"
 
 
 var<-"TMAX" # variable being interpolated
-out_prefix<-"_365d_gam_fus_lst_test_run_07172013"                #User defined output prefix
-out_suffix<-"_OR_07172013"                                       #Regional suffix
+out_prefix<-"_365d_gam_fus_lst_test_run_07182013"                #User defined output prefix
+out_suffix<-"_OR_07182013"                                       #Regional suffix
 out_suffix_modis <-"_05302013"                       #pattern to find tiles produced previously     
 
 #interpolation_method<-c("gam_fusion","gam_CAI","gam_daily") #other otpions to be added later
@@ -112,11 +116,6 @@ ref_rast_name<-"/data/project/layers/commons/data_workflow/inputs/region_outline
 buffer_dist<-0 #not in use yet, must change climatology step to make sure additional tiles are downloaded and LST averages
                #must also be calculated for neighbouring tiles.
 
-#If stage 2 is skipped then use previous covar object
-covar_obj_file<-"/data/project/layers/commons/data_workflow/output_data_365d_gam_fus_lst_test_run_07162013/covar_obj__365d_gam_fus_lst_test_run_07162013.RData"
-#covar_names see stage 2
-#If stage 3 is skipped then use previous met_stations object
-met_stations_outfiles_obj_file<-"/data/project/layers/commons/data_workflow/output_data_365d_gam_fus_lst_test_run_07162013/met_stations_outfiles_obj_gam_fusion__365d_gam_fus_lst_test_run_07162013.RData"
 #list_tiles_modis <- c("h11v08,h11v07,h12v07,h12v08,h10v07,h10v08") #tile for Venezuela and surrounding area
 list_tiles_modis <- c("h08v04,h09v04") #tiles for Oregon
   
