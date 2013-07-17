@@ -10,7 +10,7 @@
 #STAGE 5: Output analyses: assessment of results for specific dates...
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 07/06/2013                                                                                 
+#DATE: 07/09/2013                                                                                 
 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363, TASK$568--   
 
@@ -46,7 +46,7 @@ script_path<-"/home/parmentier/Data/IPLANT_project/env_layers_scripts/"
 
 ##SCRIPT USED FOR THE PREDICTIONS: Source or list all scripts here to avoid confusion on versions being run!!!!
 
-#source(file.path(script_path,"master_script_temp_06272013.R")) #Master script can be run directly...
+#source(file.path(script_path,"master_script_temp_07092013.R")) #Master script can be run directly...
 
 #CALLED FROM MASTER SCRIPT:
 
@@ -71,8 +71,8 @@ source(file.path(script_path,"GAM_fusion_function_multisampling_validation_metri
 stages_to_run<-c(0,2,3,4,5) #May decide on antoher strategy later on...
 
 var<-"TMAX" # variable being interpolated
-out_prefix<-"_365d_gam_day_lst_comb1_07062013"                #User defined output prefix
-out_suffix<-"_OR_07062013"
+out_prefix<-"_365d_gam_day_lst_comb3_07092013"                #User defined output prefix
+out_suffix<-"_OR_07092013"
 out_suffix_modis <-"_05302013" #use tiles produce previously
 
 #interpolation_method<-c("gam_fusion","gam_CAI","gam_daily") #other otpions to be added later
@@ -126,7 +126,7 @@ CRS_locs_WGS84<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0") #S
 out_region_name<-"_oregon_region" #generated on the fly
   
 #The names of covariates can be changed...these names should be output/input from covar script!!!
-rnames<-c("x","y","lon","lat","N","E","N_w","E_w","elev_s","slope","aspect","CANHEIGHT","DISTOC")
+rnames<-c("x","y","lon","lat","N","E","N_w","E_w","elev_s","slope","aspect","CANHGHT","DISTOC")
 lc_names<-c("LC1","LC2","LC3","LC4","LC5","LC6","LC7","LC8","LC9","LC10","LC11","LC12")
 #lc_names<-c("LC1","LC2","LC3","LC4","LC5","LC6","LC7","LC8","LC9","LC10") #use older version for continuity check to be changed
 lst_names<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_09","mm_10","mm_11","mm_12",
@@ -135,7 +135,7 @@ lst_names<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm
 covar_names<-c(rnames,lc_names,lst_names)
   
 list_val_range <-c("lon,-180,180","lat,-90,90","N,-1,1","E,-1,1","N_w,-1,1","E_w,-1,1","elev_s,0,6000","slope,0,90",
-                   "aspect,0,360","DISTOC,-0,10000000","CANHEIGHT,0,255","LC2,0,100","LC6,0,100","mm_01,-15,50",
+                   "aspect,0,360","DISTOC,-0,10000000","CANHGHT,0,255","LC1,0,100","LC5,0,100","mm_01,-15,50",
                    "mm_02,-15,50","mm_03,-15,50","mm_04,-15,50","mm_05,-15,50","mm_06,-15,50","mm_07,-15,50",
                    "mm_08,-15,50","mm_09,-15,50","mm_10,-15,50","mm_11,-15,50","mm_12,-15,50")
 
@@ -234,20 +234,30 @@ constant<-0             #if value 1 then use the same samples as date one for th
 prop_minmax<-c(0.3,0.3)  #if prop_min=prop_max and step=0 then predicitons are done for the number of dates...
 #dates_selected<-c("20100101","20100102","20100103","20100901") # Note that the dates set must have a specific format: yyymmdd
 dates_selected<-"" # if empty string then predict for the full year specified earlier
-screen_data_training<-TRUE
+screen_data_training<-FALSE
 
 #Models to run...this can be change for each run
+#LC1: Evergreen/deciduous needleleaf trees
+#Combination 3: for paper baseline=s(lat,lon)+s(elev)
+list_models<-c("y_var ~ s(lat,lon) + s(elev_s)",
+               "y_var ~ s(lat,lon) + s(elev_s) + s(N_w)",
+               "y_var ~ s(lat,lon) + s(elev_s) + s(E_w)",
+               "y_var ~ s(lat,lon) + s(elev_s) + s(LST)",
+               "y_var ~ s(lat,lon) + s(elev_s) + s(DISTOC)",
+               "y_var ~ s(lat,lon) + s(elev_s) + s(LC1)",
+               "y_var ~ s(lat,lon) + s(elev_s) + s(CANHGHT)",
+               "y_var ~ s(lat,lon) + s(elev_s) + s(LST) + ti(LST,LC1)",
+               "y_var ~ s(lat,lon) + s(elev_s) + s(LST) + ti(LST,CANHGHT)")
 
-#Combination 1
-list_models<-c("y_var ~ s(elev_s)",
-              "y_var ~ s(LST)",
-              "y_var ~ s(elev_s,LST)",
-              "y_var ~ s(lat) + s(lon)+ s(elev_s)",
-              "y_var ~ s(lat,lon,elev_s)",
-              "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST)", 
-              "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST) + s(LC6)",  
-              "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST) + ti(LC6,LST)", 
-              "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST) + s(DISTOC)")
+# list_models<-c("y_var ~ s(elev_s)",
+#               "y_var ~ s(LST)",
+#               "y_var ~ s(elev_s,LST)",
+#               "y_var ~ s(lat) + s(lon)+ s(elev_s)",
+#               "y_var ~ s(lat,lon,elev_s)",
+#               "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST)", 
+#               "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST) + s(LC6)",  
+#               "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST) + ti(LC6,LST)", 
+#               "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST) + s(DISTOC)")
 
 #testing new combinations and tensor for paper
 # list_models<-c("y_var ~ s(x,y)",
@@ -302,4 +312,18 @@ if (stages_to_run[5]==5){
   
 ###############   END OF SCRIPT   ###################
 #####################################################
+
+# #LAND COVER INFORMATION
+# LC1: Evergreen/deciduous needleleaf trees
+# LC2: Evergreen broadleaf trees
+# LC3: Deciduous broadleaf trees
+# LC4: Mixed/other trees
+# LC5: Shrubs
+# LC6: Herbaceous vegetation
+# LC7: Cultivated and managed vegetation
+# LC8: Regularly flooded shrub/herbaceous vegetation
+# LC9: Urban/built-up
+# LC10: Snow/ice
+# LC11: Barren lands/sparse vegetation
+# LC12: Open water
 
