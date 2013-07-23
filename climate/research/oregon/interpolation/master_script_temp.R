@@ -48,7 +48,7 @@ script_path<-"/data/project/layers/commons/data_workflow/env_layers_scripts/"
 
 ##SCRIPT USED FOR THE PREDICTIONS: Source or list all scripts here to avoid confusion on versions being run!!!!
 
-#source(file.path(script_path,"master_script_temp_07162013.R")) #Master script can be run directly...
+#source(file.path(script_path,"master_script_temp_07232013.R")) #Master script can be run directly...
 
 #CALLED FROM MASTER SCRIPT:
 
@@ -79,8 +79,8 @@ met_stations_outfiles_obj_file<-"/data/project/layers/commons/data_workflow/outp
 
 
 var<-"TMAX" # variable being interpolated
-out_prefix<-"_365d_gam_day_mult_lst_comb3_07202013"                #User defined output prefix
-out_suffix<-"_OR_07202013"                                       #Regional suffix
+out_prefix<-"_365d_gam_day_mults15_lst_comb3_07232013"                #User defined output prefix
+out_suffix<-"_OR_07232013"                                       #Regional suffix
 out_suffix_modis <-"_05302013"                       #pattern to find tiles produced previously     
 
 #interpolation_method<-c("gam_fusion","gam_CAI","gam_daily") #other otpions to be added later
@@ -236,7 +236,7 @@ names(list_param_data_prep) <- c("infile_monthly","infile_daily","infile_locs","
 #Set additional parameters
 #Input for sampling function...
 seed_number<- 100  #if seed zero then no seed?     
-nb_sample<-15           #number of time random sampling must be repeated for every hold out proportion
+nb_sample<-10           #number of time random sampling must be repeated for every hold out proportion
 step<-0.1         
 constant<-0             #if value 1 then use the same samples as date one for the all set of dates
 prop_minmax<-c(0.1,0.7)  #if prop_min=prop_max and step=0 then predicitons are done for the number of dates...
