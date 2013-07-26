@@ -13,7 +13,7 @@ library(splancs)
 
 ## get % cloudy
 mod09=raster("data/MOD09_2009.tif")
-names(mod09)="MOD09CF"
+names(mod09)="C5MOD09CF"
 NAvalue(mod09)=0
 
 mod35c5=raster("data/MOD35_2009.tif")
@@ -25,14 +25,14 @@ if(!file.exists("data/MOD35C6_2009.tif")){
   system("/usr/local/gdal-1.10.0/bin/gdalbuildvrt  -a_srs '+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs' -sd 1 -b 1 data/MOD35C6.vrt `find /home/adamw/acrobates/adamw/projects/interp/data/modis/mod35/summary/ -name '*h[1]*_mean.nc'` ")
   system("align.sh data/MOD35C6.vrt data/MOD09_2009.tif data/MOD35C6_2009.tif")
 }
-mod35c6=raster("data/MOD35C6_2009.tif")
+mod35c6=raster("data/MOD35C6_2009_v1.tif")
 names(mod35c6)="C6MOD35CF"
 NAvalue(mod35c6)=255
 
 ## landcover
 if(!file.exists("data/MCD12Q1_IGBP_2009_051_wgs84_1km.tif")){
   system(paste("/usr/local/gdal-1.10.0/bin/gdalwarp -tr 0.008983153 0.008983153 -r mode -ot Byte -co \"COMPRESS=LZW\"",
-               " /mnt/data/jetzlab/Data/environ/global/MODIS/MCD12Q1/051/MCD12Q1_051_2009.tif ",
+               " /mnt/data/jetzlab/Data/environ/global/MODIS/MCD12Q1/051/MCD12Q1_051_2009_wgs84.tif ",
                " -t_srs \"+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs\" ",
                " -te -180.0044166 -60.0074610 180.0044166 90.0022083 ",
                "data/MCD12Q1_IGBP_2009_051_wgs84_1km.tif -overwrite ",sep=""))}
@@ -65,7 +65,7 @@ if(!file.exists("data/MOD17.tif"))
 system("align.sh ~/acrobates/adamw/projects/interp/data/modis/MOD17/MOD17A3_Science_NPP_mean_00_12.tif data/MOD09_2009.tif data/MOD17.tif")
 mod17=raster("data/MOD17.tif",format="GTiff")
 NAvalue(mod17)=65535
-names(mod17)="MOD17"
+names(mod17)="MOD17_unscaled"
 
 if(!file.exists("data/MOD17qc.tif"))
   system("align.sh ~/acrobates/adamw/projects/interp/data/modis/MOD17/MOD17A3_Science_NPP_Qc_mean_00_12.tif data/MOD09_2009.tif data/MOD17qc.tif")
@@ -77,18 +77,12 @@ names(mod17qc)="MOD17CF"
 if(!file.exists("data/MOD11_2009.tif"))
   system("align.sh ~/acrobates/adamw/projects/interp/data/modis/mod11/2009/MOD11_LST_2009.tif data/MOD09_2009.tif data/MOD11_2009.tif")
 mod11=raster("data/MOD11_2009.tif",format="GTiff")
-names(mod11)="MOD11"
+names(mod11)="MOD11_unscaled"
 NAvalue(mod11)=0
 if(!file.exists("data/MOD11qc_2009.tif"))
   system("align.sh ~/acrobates/adamw/projects/interp/data/modis/mod11/2009/MOD11_Pmiss_2009.tif data/MOD09_2009.tif data/MOD11qc_2009.tif")
 mod11qc=raster("data/MOD11qc_2009.tif",format="GTiff")
 names(mod11qc)="MOD11CF"
-
-
-### Create some summary objects for plotting
-#difm=v6m-v5m
-#v5v6compare=stack(v5m,v6m,difm)
-#names(v5v6compare)=c("Collection 5","Collection 6","Difference (C6-C5)")
 
 ### Processing path
 if(!file.exists("data/MOD35pp.tif"))
@@ -115,8 +109,6 @@ cols=rainbow(n)
 bgyr=colorRampPalette(c("blue","green","yellow","red"))
 cols=bgyr(n)
 
-#levelplot(lulcf,margin=F,layers="LULC")
-
 
 ### Transects
 r1=Lines(list(
@@ -134,11 +126,11 @@ r3=Lines(list(
                 73.943,27.419,
                 74.369,26.877
                 ),ncol=2,byrow=T))),"India")
-r4=Lines(list(
-  Line(matrix(c(
-                -5.164,42.270,
-                -4.948,42.162
-                ),ncol=2,byrow=T))),"Spain")
+#r4=Lines(list(
+#  Line(matrix(c(
+#                -5.164,42.270,
+#                -4.948,42.162
+#                ),ncol=2,byrow=T))),"Spain")
 
 r5=Lines(list(
   Line(matrix(c(
@@ -146,11 +138,11 @@ r5=Lines(list(
                 33.802,12.894
                 ),ncol=2,byrow=T))),"Sudan")
 
-r6=Lines(list(
-  Line(matrix(c(
-                -63.353,-10.746,
-                -63.376,-9.310
-                ),ncol=2,byrow=T))),"Brazil")
+#r6=Lines(list(
+#  Line(matrix(c(
+#                -63.353,-10.746,
+#                -63.376,-9.310
+#                ),ncol=2,byrow=T))),"Brazil")
 
 
 trans=SpatialLines(list(r1,r2,r3,r5),CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs "))
@@ -179,11 +171,11 @@ trd1=lapply(1:length(transb),function(x) {
   td=crop(mod11,transb[x])
   tdd=lapply(list(mod35c5,mod35c6,mod09,mod17,mod17qc,mod11,mod11qc,lulc,pp),function(l) resample(crop(l,transb[x]),td,method="ngb"))
   ## normalize MOD11 and MOD17
-  for(j in which(do.call(c,lapply(tdd,function(i) names(i)))%in%c("MOD11","MOD17"))){
+  for(j in which(do.call(c,lapply(tdd,function(i) names(i)))%in%c("MOD11_unscaled","MOD17_unscaled"))){
     trange=cellStats(tdd[[j]],range)
     tscaled=100*(tdd[[j]]-trange[1])/(trange[2]-trange[1])
     tscaled@history=list(range=trange)
-    names(tscaled)=paste(names(tdd[[j]]),"scaled",collapse="_",sep="_")
+    names(tscaled)=sub("_unscaled","",names(tdd[[j]]))
     tdd=c(tdd,tscaled)
   }
   return(brick(tdd))
@@ -218,41 +210,40 @@ transd$type=ifelse(grepl("MOD35|MOD09|CF",transd$variable),"CF","Data")
 
 
 ## comparison of % cloudy days
-dif_c5_09=mod35c5-mod09
+if(!file.exists("data/dif_c5_09.tif"))
+  overlay(mod35c5,mod09,fun=function(x,y) {return(x-y)},file="data/dif_c5_09.tif",format="GTiff",options=c("COMPRESS=LZW","ZLEVEL=9"),overwrite=T)
+dif_c5_09=raster("data/dif_c5_09.tif",format="GTiff")
+
 #dif_c6_09=mod35c6-mod09
 #dif_c5_c6=mod35c5-mod35c6
 
-## exploring various ways to compare cloud products
-t1=trd1[[1]]
-dif_p=calc(trd1[[1]], function(x) (x[1]-x[3])/(1-x[1]))
-edge=calc(edge(subset(t1,"MCD12Q1"),classes=T,type="inner"),function(x) ifelse(x==1,1,NA))
-edgeb=buffer(edge,width=5000)
-edgeb=calc(edgeb,function(x) ifelse(is.na(x),0,1))
+## exploring various ways to compare cloud products along landcover or processing path edges
+#t1=trd1[[1]]
+#dif_p=calc(trd1[[1]], function(x) (x[1]-x[3])/(1-x[1]))
+#edge=calc(edge(subset(t1,"MCD12Q1"),classes=T,type="inner"),function(x) ifelse(x==1,1,NA))
+#edgeb=buffer(edge,width=5000)
+#edgeb=calc(edgeb,function(x) ifelse(is.na(x),0,1))
+#names(edge)="edge"
+#names(edgeb)="edgeb"
+#td1=as.data.frame(stack(t1,edge,edgeb))
+#cor(td1$MOD17,td1$C6MOD35,use="complete",method="spearman")
+#cor(td1$MOD17[td1$edgeb==1],td1$C5MOD35[td1$edgeb==1],use="complete",method="spearman")
 
-names(edge)="edge"
-names(edgeb)="edgeb"
+### Correlations
+#trdw=cast(trd,trans+x+y~variable,value="value")
+#cor(trdw$MOD17,trdw$C5MOD35,use="complete",method="spearman")
 
-td1=as.data.frame(stack(t1,edge,edgeb))
+#Across all pixels in the four regions analyzed in Figure 3 there is a much larger correlation between mean NPP and the C5 MOD35 CF (Spearman’s ρ = -0.61, n=58,756) than the C6 MOD35 CF (ρ = 0.00, n=58,756) or MOD09 (ρ = -0.07, n=58,756) products.  
+#by(trdw,trdw$trans,function(x) cor(as.data.frame(na.omit(x[,c("C5MOD35CF","C6MOD35CF","C5MOD09CF","MOD17","MOD11")])),use="complete",method="spearman"))
 
-cor(td1$MOD17,td1$C5MOD35,use="complete",method="spearman")
-cor(td1$MOD17[td1$edgeb==1],td1$C5MOD35[td1$edgeb==1],use="complete",method="spearman")
-round(cor(td1,use="complete",method="spearman"),2)
-## tests
-cor.test(td1$MOD17,td1$C5MOD35,use="complete",method="spearman",alternative="two.sided")
-cor.test(td1$MOD17,td1$C6MOD35,use="complete",method="spearman",alternative="two.sided")
-cor.test(td1$MOD17,td1$C5MOD35,use="complete",method="spearman",alternative="two.sided")
 
-cor.test(
-splom(t1)
-plot(mod17,mod17qc)
-xyplot(MOD17~C5MOD35CF|edgeb,data=td1)
-bwplot(MCD12Q1~C5MOD35CF|edgeb,data=td1)
+## table of correlations
+#trdw_cor=as.data.frame(na.omit(trdw[,c("C5MOD35CF","C6MOD35CF","C5MOD09CF","MOD17","MOD11")]))
+#nrow(trdw_cor)
+#round(cor(trdw_cor,method="spearman"),2)
 
-plot(dif_p)
 
-#rondonia=trd[trd$trans=="Brazil",]
-#trd=trd[trd$trans!="Brazil",]
-
+## set up some graphing parameters
 at=seq(0,100,leng=100)
 bgyr=colorRampPalette(c("purple","blue","green","yellow","orange","red","red"))
 bgrayr=colorRampPalette(c("purple","blue","grey","red","red"))
@@ -265,16 +256,13 @@ coast=map2SpatialLines(map("world", interior=FALSE, plot=FALSE),proj4string=CRS(
 g1=levelplot(stack(mod35c5,mod09),xlab=" ",scales=list(x=list(draw=F),y=list(alternating=1)),col.regions=cols,at=at)+layer(sp.polygons(bbs[1:4],lwd=2))+layer(sp.lines(coast,lwd=.5))
 
 g2=levelplot(dif_c5_09,col.regions=bgrayr(100),at=seq(-70,70,len=100),margin=F,ylab=" ",colorkey=list("right"))+layer(sp.polygons(bbs[1:4],lwd=2))+layer(sp.lines(coast,lwd=.5))
-g2$strip=strip.custom(var.name="Difference (C5MOD35-MOD09)",style=1,strip.names=T,strip.levels=F)  #update strip text
-bg <- trellis.par.get("panel.background")
-bg$col <- "white"
-trellis.par.set("panel.background",bg)
-g3=histogram(dif_c5_09,col="black",border=NA,scales=list(x=list(at=c(-50,0,50)),y=list(draw=F),cex=1))+layer(panel.abline(v=0,col="red",lwd=2))
+g2$strip=strip.custom(var.name="Difference (C5MOD35-C5MOD09)",style=1,strip.names=T,strip.levels=F)  #update strip text
+#g3=histogram(dif_c5_09,col="black",border=NA,scales=list(x=list(at=c(-50,0,50)),y=list(draw=F),cex=1))+layer(panel.abline(v=0,col="red",lwd=2))
 
 ### regional plots
-p1=useOuterStrips(levelplot(value~x*y|variable+trans,data=trd[!trd$variable%in%c("MCD12Q1","MOD35pp"),],asp=1,scales=list(draw=F,rot=0,relation="free"),
+p1=useOuterStrips(levelplot(value~x*y|variable+trans,data=trd[!trd$variable%in%c("MOD17_unscaled","MOD11_unscaled","MCD12Q1","MOD35pp"),],asp=1,scales=list(draw=F,rot=0,relation="free"),
                                        at=at,col.regions=cols,maxpixels=7e6,
-                                       ylab="Latitude",xlab="Longitude"),strip = strip.custom(par.strip.text=list(cex=.75)))+layer(sp.lines(trans,lwd=2))
+                                       ylab="Latitude",xlab="Longitude"),strip = strip.custom(par.strip.text=list(cex=.7)))+layer(sp.lines(trans,lwd=2))
 
 p2=useOuterStrips(
   levelplot(value~x*y|variable+trans,data=trd[trd$variable%in%c("MCD12Q1"),],
@@ -284,7 +272,7 @@ p2=useOuterStrips(
               right=list(fun=draw.key(list(columns=1,#title="MCD12Q1 \n IGBP Land \n Cover",
                            rectangles=list(col=IGBP$col,size=1),
                            text=list(as.character(IGBP$ID),at=IGBP$ID-.5))))),
-            ylab="",xlab=" "),strip = strip.custom(par.strip.text=list(cex=.75)),strip.left=F)+layer(sp.lines(trans,lwd=2))
+            ylab="",xlab=" "),strip = strip.custom(par.strip.text=list(cex=.7)),strip.left=F)+layer(sp.lines(trans,lwd=2))
 p3=useOuterStrips(
   levelplot(value~x*y|variable+trans,data=trd[trd$variable%in%c("MOD35pp"),],
             asp=1,scales=list(draw=F,rot=0,relation="free"),colorkey=F,
@@ -293,14 +281,14 @@ p3=useOuterStrips(
               right=list(fun=draw.key(list(columns=1,#title="MOD35 \n Processing \n Path",
                            rectangles=list(col=c("blue","cyan","tan","darkgreen"),size=1),
                            text=list(c("Water","Coast","Desert","Land")))))),
-            ylab="",xlab=" "),strip = strip.custom(par.strip.text=list(cex=.75)),strip.left=F)+layer(sp.lines(trans,lwd=2))
+            ylab="",xlab=" "),strip = strip.custom(par.strip.text=list(cex=.7)),strip.left=F)+layer(sp.lines(trans,lwd=2))
 
 ## transects
 p4=xyplot(value~dist|transect,groups=variable,type=c("smooth","p"),
        data=transd,panel=function(...,subscripts=subscripts) {
          td=transd[subscripts,]
          ## mod09
-         imod09=td$variable=="MOD09CF"
+         imod09=td$variable=="C5MOD09CF"
          panel.xyplot(td$dist[imod09],td$value[imod09],type=c("p","smooth"),span=0.2,subscripts=1:sum(imod09),col="red",pch=16,cex=.25)
          ## mod35C5
          imod35=td$variable=="C5MOD35CF"
@@ -323,41 +311,36 @@ p4=xyplot(value~dist|transect,groups=variable,type=c("smooth","p"),
          panel.xyplot(td$dist[imod11qc],td$value[imod11qc],type=c("p","smooth"),npoints=100,span=qcspan,subscripts=1:sum(imod11qc),col="orange",pch=16,cex=.25)
          ## land
          path=td[td$variable=="MOD35pp",]
-         panel.segments(path$dist,-5,c(path$dist[-1],max(path$dist,na.rm=T)),-5,col=c("blue","cyan","tan","darkgreen")[path$value+1],subscripts=1:nrow(path),lwd=15,type="l")
+         panel.segments(path$dist,-10,c(path$dist[-1],max(path$dist,na.rm=T)),-10,col=c("blue","cyan","tan","darkgreen")[path$value+1],subscripts=1:nrow(path),lwd=10,type="l")
          land=td[td$variable=="MCD12Q1",]
-         panel.segments(land$dist,-10,c(land$dist[-1],max(land$dist,na.rm=T)),-10,col=IGBP$col[land$value+1],subscripts=1:nrow(land),lwd=15,type="l")
+         panel.segments(land$dist,-20,c(land$dist[-1],max(land$dist,na.rm=T)),-20,col=IGBP$col[land$value+1],subscripts=1:nrow(land),lwd=10,type="l")
         },subscripts=T,par.settings = list(grid.pars = list(lineend = "butt")),
        scales=list(
          x=list(alternating=1,relation="free"),#, lim=c(0,70)),
-         y=list(at=c(-10,-5,seq(0,100,len=5)),
-           labels=c("IGBP","MOD35",seq(0,100,len=5)),
-           lim=c(-15,100))),
+         y=list(at=c(-18,-10,seq(0,100,len=5)),
+           labels=c("MCD12Q1 IGBP","MOD35 path",seq(0,100,len=5)),
+           lim=c(-25,100)),
+         alternating=F),
        xlab="Distance Along Transect (km)", ylab="% Missing Data / % of Maximum Value",
        legend=list(
          bottom=list(fun=draw.key(list( rep=FALSE,columns=1,title=" ",
-                      ##                   text=list(c("MOD09 % Cloudy","C5 MOD35 % Cloudy","C6 MOD35 % Cloudy","MOD17 % Missing","MOD17 (scaled)","MOD11 % Missing","MOD11 (scaled)")),
-                      lines=list(type=c("b","b","b","b","b","l","b","l"),pch=16,cex=.5,lty=c(0,1,1,1,1,5,1,5),col=c("transparent","red","blue","black","darkgreen","darkgreen","orange","orange")),
-                       text=list(c("MODIS Products","MOD09 % Cloudy","C5 MOD35 % Cloudy","C6 MOD35 % Cloudy","MOD17 % Missing","MOD17 (scaled)","MOD11 % Missing","MOD11 (scaled)")),
+                      lines=list(type=c("b","b","b","b","b","l","b","l"),pch=16,cex=.5,
+                        lty=c(0,1,1,1,1,5,1,5),
+                        col=c("transparent","red","blue","black","darkgreen","darkgreen","orange","orange")),
+                       text=list(
+                         c("MODIS Products","C5 MOD09 % Cloudy","C5 MOD35 % Cloudy","C6 MOD35 % Cloudy","MOD17 % Missing","MOD17 (scaled)","MOD11 % Missing","MOD11 (scaled)")),
                        rectangles=list(border=NA,col=c(NA,"tan","darkgreen")),
                        text=list(c("C5 MOD35 Processing Path","Desert","Land")),
-                      rectangles=list(border=NA,col=c(NA,IGBP$col[sort(unique(transd$value[transd$variable=="MCD12Q1"]+1))])),
-                      text=list(c("MCD12Q1 IGBP Land Cover",IGBP$class[sort(unique(transd$value[transd$variable=="MCD12Q1"]+1))])))))),
- strip = strip.custom(par.strip.text=list(cex=.75)))
-#print(p4)
+                       rectangles=list(border=NA,col=c(NA,IGBP$col[sort(unique(transd$value[transd$variable=="MCD12Q1"]+1))])),
+                       text=list(c("MCD12Q1 IGBP Land Cover",IGBP$class[sort(unique(transd$value[transd$variable=="MCD12Q1"]+1))])))))),
+  strip = strip.custom(par.strip.text=list(cex=.75)))
+print(p4)
 
-#trdw=cast(trd,trans+x+y~variable,value="value")
-#transdw=cast(transd,transect+dist~variable,value="value")
-#xyplot(MOD11CF~C5MOD35CF|transect,groups=MCD12Q1,data=transdw,pch=16,cex=1,scales=list(relation="free"))
-#xyplot(MOD17~C5MOD35CF|trans,groups=MCD12Q1,data=trdw,pch=16,cex=1,scales=list(relation="free"))
-
-#p5=levelplot(value~x*y|variable,data=rondonia,asp=1,scales=list(draw=F,rot=0,relation="free"),colorkey=T)#,
-#print(p5)
 
 
 CairoPDF("output/mod35compare.pdf",width=11,height=7)
 #CairoPNG("output/mod35compare_%d.png",units="in", width=11,height=8.5,pointsize=4000,dpi=1200,antialias="subpixel")
 ### Global Comparison
-print(g1)
 print(g1,position=c(0,.35,1,1),more=T)
 print(g2,position=c(0,0,1,0.415),more=F)
 #print(g3,position=c(0.31,0.06,.42,0.27),more=F)
@@ -393,102 +376,24 @@ cast(td2,variable~.,value="value",fun=msd)
 td[td$transect=="Venezuela",]
 
 
-
-
-## scatterplot of MOD35 vs MOD09
-trdl=cast(trans+x+y~variable,value="value",data=trd)
-xyplot(MOD35C5qc~MOD09qc|trans+as.factor(MOD35pp),pch=16,cex=.2,data=trdl,auto.key=T)+layer(panel.abline(0,1))
-
-
-### LANDCOVER
-levelplot(lulc,col.regions=IGBP$col,scales=list(cex=2),colorkey=list(space="right",at=0:17,labels=list(at=seq(0.5,16.5,by=1),labels=levels(lulc)[[1]]$class,cex=2)),margin=F)
-
-levelplot(mcompare,col.regions=cols,at=at,margin=F,sub="Frequency of MOD35 Clouds in March")
-#levelplot(dif,col.regions=bgyr(20),margin=F)
-levelplot(mdiff,col.regions=bgyr(100),at=seq(mdiff@data@min,mdiff@data@max,len=100),margin=F)
-
-
-boxplot(as.matrix(subset(dif,subset=1))~forest,varwidth=T,notch=T);abline(h=0)
-
-
-levelplot(modprod,main="Missing Data (%) in MOD17 (NPP) and MOD43 (BRDF Reflectance)",
-          sub="Tile H11v08 (Venezuela)",col.regions=cols,at=at)
-
-
-
-
-levelplot(modprod,main="Missing Data (%) in MOD17 (NPP) and MOD43 (BRDF Reflectance)",
-          sub="Tile H11v08 (Venezuela)",col.regions=cols,at=at,
-          xlim=c(-7300000,-6670000),ylim=c(0,600000))
-
-levelplot(v5m,main="Missing Data (%) in MOD17 (NPP) and MOD43 (BRDF Reflectance)",
-          sub="Tile H11v08 (Venezuela)",col.regions=cols,at=at,
-          xlim=c(-7200000,-6670000),ylim=c(0,400000),margin=F)
-
-
-levelplot(subset(v5v6compare,1:2),main="Proportion Cloudy Days (%) in Collection 5 and 6 MOD35",
-          sub="Tile H11v08 (Venezuela)",col.regions=cols,at=at,
-          margin=F)
-
-levelplot(subset(v5v6compare,1:2),main="Proportion Cloudy Days (%) in Collection 5 and 6 MOD35",
-          sub="Tile H11v08 (Venezuela)",col.regions=cols,at=at,
-          xlim=c(-7200000,-6670000),ylim=c(0,400000),margin=F)
-
-levelplot(subset(v5v6compare,1:2),main="Proportion Cloudy Days (%) in Collection 5 and 6 MOD35",
-          sub="Tile H11v08 (Venezuela)",col.regions=cols,at=at,
-          xlim=c(-7500000,-7200000),ylim=c(700000,1000000),margin=F)
-
-
-dev.off()
-
-### smoothing plots
-## explore smoothed version
-td=subset(v6,m)
-## build weight matrix
-s=3
-w=matrix(1/(s*s),nrow=s,ncol=s)
-#w[s-1,s-1]=4/12; w
-td2=focal(td,w=w)
-td3=stack(td,td2)
-
-levelplot(td3,col.regions=cols,at=at,margin=F)
-
-dev.off()
-plot(stack(difm,lulc))
-
-### ROI
-tile_ll=projectExtent(v6, "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
-
-62,59
-0,3
-
-
-
-#### export KML timeseries
+#### export KML
 library(plotKML)
-tile="h11v08"
-file=paste("summary/MOD35_",tile,".nc",sep="")
-system(paste("gdalwarp -overwrite -multi -ot INT16 -r cubicspline -srcnodata 255 -dstnodata 255 -s_srs '+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs' -t_srs 'EPSG:4326' NETCDF:",file,":PCloud  MOD35_",tile,".tif",sep=""))
 
-v6sp=brick(paste("MOD35_",tile,".tif",sep=""))
-v6sp=readAll(v6sp)
+kml_open("output/modiscloud.kml")
 
-## wasn't working with line below, perhaps Z should just be text? not date?
-v6sp=setZ(v6sp,as.Date(paste("2011-",1:12,"-15",sep="")))
-names(v6sp)=month.name
+readAll(mod35c5)
 
-kml_open("output/mod35.kml")
-
-
-kml_layer.RasterBrick(v6sp,
-     plot.legend = TRUE, dtime = "", tz = "GMT",
-    z.lim = c(0,100),colour_scale = get("colour_scale_numeric", envir = plotKML.opts))
+kml_layer.Raster(mod35c5,
+     plot.legend = TRUE,raster_name="Collection 5 MOD35 Cloud Frequency",
+    z.lim = c(0,100),colour_scale = get("colour_scale_numeric", envir = plotKML.opts),
 #    home_url = get("home_url", envir = plotKML.opts),
 #    metadata = NULL, html.table = NULL,
-#    altitudeMode = "clampToGround", balloon = FALSE,
+    altitudeMode = "clampToGround", balloon = FALSE
 )
+
+system(paste("gdal_translate -of KMLSUPEROVERLAY ",mod35c5@file@name," output/mod35c5.kmz -co FORMAT=JPEG"))
 
 logo = "http://static.tumblr.com/t0afs9f/KWTm94tpm/yale_logo.png"
 kml_screen(image.file = logo, position = "UL", sname = "YALE logo",size=c(.1,.1))
-kml_close("mod35.kml")
-kml_compress("mod35.kml",files=c(paste(month.name,".png",sep=""),"obj_legend.png"),zip="/usr/bin/zip")
+kml_close("modiscloud.kml")
+kml_compress("modiscloud.kml",files=c(paste(month.name,".png",sep=""),"obj_legend.png"),zip="/usr/bin/zip")
