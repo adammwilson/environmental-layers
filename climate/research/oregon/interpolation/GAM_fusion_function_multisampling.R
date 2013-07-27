@@ -248,26 +248,53 @@ runClim_KGFusion<-function(j,list_param){
   #### STEP3:  NOW FIT AND PREDICT  MODEL
   
   list_formulas<-lapply(list_models,as.formula,env=.GlobalEnv) #mulitple arguments passed to lapply!!
-  
-  mod_list<-fit_models(list_formulas,data_month) #only gam at this stage
-  cname<-paste("mod",1:length(mod_list),sep="") #change to more meaningful name?
-  names(mod_list)<-cname
+  cname<-paste("mod",1:length(list_formulas),sep="") #change to more meaningful name?
   
   #Now generate file names for the predictions...
-  list_out_filename<-vector("list",length(mod_list))
+  list_out_filename<-vector("list",length(list_formulas))
   names(list_out_filename)<-cname  
   
   for (k in 1:length(list_out_filename)){
     #j indicate which month is predicted, var indicates TMIN or TMAX
     data_name<-paste(var,"_bias_LST_month_",j,"_",cname[k],"_",prop_month,
                      "_",run_samp,sep="")
-    raster_name<-file.path(out_path,paste("fusion_",data_name,out_prefix,".tif", sep=""))
+    raster_name<-file.path(out_path,paste("fusion_",interpolation_method,"_",data_name,out_prefix,".tif", sep=""))
     list_out_filename[[k]]<-raster_name
   }
-
-  #now predict values for raster image...by providing fitted model list, raster brick and list of output file names
-  rast_bias_list<-predict_raster_model(mod_list,s_raster,list_out_filename)
-  names(rast_bias_list)<-cname
+  
+  ## Select the relevant method...
+  
+  if (interpolation_method=="gam_fusion"){
+    
+    #First fitting
+    mod_list<-fit_models(list_formulas,data_month) #only gam at this stage
+    names(mod_list)<-cname
+  
+    #Second predict values for raster image...by providing fitted model list, raster brick and list of output file names
+    rast_bias_list<-predict_raster_model(mod_list,s_raster,list_out_filename)
+    names(rast_bias_list)<-cname
+    
+  }
+  
+  ## need to change to use combined gwr autokrige function
+  if (interpolation_method=="kriging_fusion"){
+    method_interp <- "kriging"
+    month_prediction_obj<-predict_auto_krige_raster_model(list_formulas,s_raster,data_month,list_out_filename)
+    #month_prediction_obj<-predict_autokrige_gwr_raster_model(method_interp,list_formulas,s_raster,data_s,list_out_filename)
+    
+    mod_list <-month_prediction_obj$list_fitted_models
+    rast_bias_list <-month_prediction_obj$list_rast_pred
+    names(rast_bias_list)<-cname
+  }
+  
+  if (interpolation_method=="gwr_fusion"){
+    method_interp <- "gwr"
+    day_prediction_obj<-predict_autokrige_gwr_raster_model(method_interp,list_formulas,s_raster,data_s,list_out_filename)
+    mod_list <-day_prediction_obj$list_fitted_models
+    rast_day_list <-day_prediction_obj$list_rast_pred
+    names(rast_day_list)<-cname
+  }
+  
   #Some modles will not be predicted...remove them
   rast_bias_list<-rast_bias_list[!sapply(rast_bias_list,is.null)] #remove NULL elements in list
 
@@ -278,7 +305,7 @@ runClim_KGFusion<-function(j,list_param){
     clim_fus_rast<-LST-subset(mod_rast,k)
     data_name<-paste(var,"_clim_LST_month_",j,"_",names(rast_clim_list)[k],"_",prop_month,
                      "_",run_samp,sep="")
-    raster_name<-file.path(out_path,paste("fusion_",data_name,out_prefix,".tif", sep=""))
+    raster_name<-file.path(out_path,paste("fusion_",interpolation_method,"_",data_name,out_prefix,".tif", sep=""))
     rast_clim_list[[k]]<-raster_name
     writeRaster(clim_fus_rast, filename=raster_name,overwrite=TRUE)  #Wri
   }
