@@ -8,7 +8,7 @@
 # 5)runGAMFusion <- function(i,list_param) : daily step for fusion method, perform daily prediction
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 05/07/2013                                                                                 
+#DATE: 07/29/2013                                                                                 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363--   
 
 ##Comments and TODO:
@@ -60,6 +60,7 @@ fit_models<-function(list_formulas,data_training){
 ####
 #TODO:
 #Add log file and calculate time and sizes for processes-outputs
+#Can combine runClim_KGFusion and runClim_KGCAI
 runClim_KGCAI <-function(j,list_param){
 
   #Make this a function with multiple argument that can be used by mcmapply??
@@ -105,9 +106,6 @@ runClim_KGCAI <-function(j,list_param){
   LST_name<-lst_avg[j] # name of LST month to be matched
   data_month$LST<-data_month[[LST_name]]
   
-  #Create formulas object from list of characters...
-  list_formulas<-lapply(list_models,as.formula,env=.GlobalEnv) #mulitple arguments passed to lapply!!  
-
   #TMax to model...
   if (var=="TMAX"){   
     data_month$y_var<-data_month$TMax #Adding TMax as the variable modeled
@@ -116,8 +114,12 @@ runClim_KGCAI <-function(j,list_param){
     data_month$y_var<-data_month$TMin #Adding TMin as the variable modeled
   }
   #Fit gam models using data and list of formulas
-  mod_list<-fit_models(list_formulas,data_month) #only gam at this stage
-  cname<-paste("mod",1:length(mod_list),sep="") #change to more meaningful name?
+  
+  list_formulas<-lapply(list_models,as.formula,env=.GlobalEnv) #mulitple arguments passed to lapply!!
+  cname<-paste("mod",1:length(list_formulas),sep="") #change to more meaningful name?
+  
+  #mod_list<-fit_models(list_formulas,data_month) #only gam at this stage
+  #cname<-paste("mod",1:length(mod_list),sep="") #change to more meaningful name?
   names(mod_list)<-cname
   #Adding layer LST to the raster stack  
   
@@ -139,10 +141,39 @@ runClim_KGCAI <-function(j,list_param){
     list_out_filename[[k]]<-raster_name
   }
   
-  #now predict values for raster image...
-  rast_clim_list<-predict_raster_model(mod_list,s_raster,list_out_filename)
-  names(rast_clim_list)<-cname
-  #Some models will not be predicted because of the lack of training data...remove empty string from list of models
+  ## Select the relevant method...
+  
+  if (interpolation_method=="gam_CAI"){
+    
+    #First fitting
+    mod_list<-fit_models(list_formulas,data_month) #only gam at this stage
+    names(mod_list)<-cname
+    
+    #Second predict values for raster image...by providing fitted model list, raster brick and list of output file names
+    #now predict values for raster image...
+    rast_clim_list<-predict_raster_model(mod_list,s_raster,list_out_filename)
+    names(rast_clim_list)<-cname
+    #Some models will not be predicted because of the lack of training data...remove empty string from list of models
+        
+  }
+  
+  
+  if (interpolation_method %in% c("kriging_CAI","gwr_CAI")){
+    
+    if(interpolation_method=="kriging_CAI"){
+      method_interp <- "kriging"
+    }else{
+      method_interp <- "gwr"
+    }
+    #Call function to fit and predict gwr and/or kriging
+    #month_prediction_obj<-predict_auto_krige_raster_model(list_formulas,s_raster,data_month,list_out_filename)
+    month_prediction_obj<-predict_autokrige_gwr_raster_model(method_interp,list_formulas,s_raster,data_month,list_out_filename)
+    
+    mod_list <-month_prediction_obj$list_fitted_models
+    rast_clim_list <-month_prediction_obj$list_rast_pred
+    names(rast_clim_list)<-cname
+  }
+  
   rast_clim_list<-rast_clim_list[!sapply(rast_clim_list,is.null)] #remove NULL elements in list
   
   #Adding Kriging for Climatology options
@@ -154,14 +185,9 @@ runClim_KGCAI <-function(j,list_param){
   model_name<-"mod_kr"
   
   clim_rast<-interpolate(LST,fitclim) #interpolation using function from raster package
-  #Saving kriged surface in raster images
-  #data_name<-paste("clim_month_",j,"_",model_name,"_",prop_month,
-  #                 "_",run_samp,sep="")
-  #raster_name_clim<-paste("fusion_",data_name,out_prefix,".tif", sep="")
-  #writeRaster(clim_rast, filename=raster_name_clim,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
   
-  #now climatology layer
-  #clim_rast<-LST-bias_rast
+  #Write out modeled layers
+  
   data_name<-paste(var,"_clim_month_",j,"_",model_name,"_",prop_month,
                    "_",run_samp,sep="")
   raster_name_clim<-file.path(out_path,paste("CAI_",data_name,out_prefix,".tif", sep=""))
@@ -276,23 +302,21 @@ runClim_KGFusion<-function(j,list_param){
     
   }
   
-  ## need to change to use combined gwr autokrige function
-  if (interpolation_method=="kriging_fusion"){
-    method_interp <- "kriging"
-    month_prediction_obj<-predict_auto_krige_raster_model(list_formulas,s_raster,data_month,list_out_filename)
-    #month_prediction_obj<-predict_autokrige_gwr_raster_model(method_interp,list_formulas,s_raster,data_s,list_out_filename)
+
+  if (interpolation_method %in% c("kriging_fusion","gwr_fusion")){
+    
+    if(interpolation_method=="kriging_fusion"){
+      method_interp <- "kriging"
+    }else{
+      method_interp <- "gwr"
+    }
+    #Call funciton to fit and predict gwr and/or kriging
+    #month_prediction_obj<-predict_auto_krige_raster_model(list_formulas,s_raster,data_month,list_out_filename)
+    month_prediction_obj<-predict_autokrige_gwr_raster_model(method_interp,list_formulas,s_raster,data_month,list_out_filename)
     
     mod_list <-month_prediction_obj$list_fitted_models
     rast_bias_list <-month_prediction_obj$list_rast_pred
     names(rast_bias_list)<-cname
-  }
-  
-  if (interpolation_method=="gwr_fusion"){
-    method_interp <- "gwr"
-    day_prediction_obj<-predict_autokrige_gwr_raster_model(method_interp,list_formulas,s_raster,data_s,list_out_filename)
-    mod_list <-day_prediction_obj$list_fitted_models
-    rast_day_list <-day_prediction_obj$list_rast_pred
-    names(rast_day_list)<-cname
   }
   
   #Some modles will not be predicted...remove them
@@ -347,7 +371,6 @@ runClim_KGFusion<-function(j,list_param){
     rast_clim_list[[model_name]]<-NULL
   }
 
-  
   #### STEP 5: Prepare object and return
   
   clim_obj<-list(rast_bias_list,rast_clim_list,data_month,mod_list,list_formulas)
