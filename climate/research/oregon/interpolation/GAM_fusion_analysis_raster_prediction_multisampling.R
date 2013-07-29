@@ -8,17 +8,15 @@
 #2)Constant sampling: use the same sample over the runs
 #3)over dates: run over for example 365 dates without mulitsampling
 #4)use seed number: use seed if random samples must be repeatable
-#5)possibilty of running GAM+FUSION or GAM+CAI and other options added
-#The interpolation is done first at the monthly time scale then delta surfaces are added.
+#5)possibilty of running single and multiple time scale methods:
+   # gam_daily, kriging_daily,gwr_daily,gam_CAI,gam_fusion,kriging_fusion,gwr_fusion and other options added.
+#For multiple time scale methods, the interpolation is done first at the monthly time scale then delta surfaces are added.
 #AUTHOR: Benoit Parmentier                                                                        
-#DATE: 07/26/2013                                                                                 
+#DATE: 07/30/2013                                                                                 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#568--     
 #
 # TO DO:
-# 1) modify to make it general for any method i.e. make call to method e.g. gam_fus, gam_cai etc.
-# 2) simplify and bundle validation steps, make it general--method_mod_validation
-# 3) solve issues with log file recordings
-# 4) output location folder on the fly???
+#Add methods to for CAI
 
 ###################################################################################################
 
@@ -27,9 +25,9 @@ raster_prediction_fun <-function(list_param_raster_prediction){
   ##Function to predict temperature interpolation with 21 input parameters
   #9 parameters used in the data preparation stage and input in the current script
   #1)list_param_data_prep: used in earlier code for the query from the database and extraction for raster brick
-  #2)infile_monthly:
-  #3)infile_daily
-  #4)infile_locs:
+  #2)infile_monthly: monthly averages with covariates for GHCND stations obtained after query
+  #3)infile_daily: daily GHCND stations with covariates, obtained after query
+  #4)infile_locs: vector file with station locations for the processing/study area (ESRI shapefile)
   #5)infile_covariates: raster covariate brick, tif file
   #6)covar_names: covar_names #remove at a later stage...
   #7)var: variable being interpolated-TMIN or TMAX
@@ -197,7 +195,7 @@ raster_prediction_fun <-function(list_param_raster_prediction){
     clim_yearlist<-list_tmp
   }
   
-  
+  #to be added gwr_CAI and kriging_CAI
   if (interpolation_method=="gam_CAI"){
     list_param_runClim_KGCAI<-list(j,s_raster,covar_names,lst_avg,list_models,dst,var,y_var_name, out_prefix,out_path)
     names(list_param_runClim_KGCAI)<-c("list_index","covar_rast","covar_names","lst_avg","list_models","dst","var","y_var_name","out_prefix","out_path")
@@ -230,7 +228,8 @@ raster_prediction_fun <-function(list_param_raster_prediction){
       file=log_fname,sep="\n")
   
   #TODO : Same call for all functions!!! Replace by one "if" for all multi time scale methods...
-  if (interpolation_method %in% c("gam_CAI","gam_fusion","kriging_fusion")){
+  #The methods could be defined earlier as constant??
+  if (interpolation_method %in% c("gam_CAI","gam_fusion","kriging_fusion","gwr_fusion")){
     #input a list:note that ghcn.subsets is not sampling_obj$data_day_ghcn
     i<-1
     list_param_run_prediction_daily_deviation <-list(i,clim_yearlist,sampling_obj,dst,var,y_var_name, interpolation_method,out_prefix,out_path)
