@@ -8,7 +8,7 @@
 # 5)runGAMFusion <- function(i,list_param) : daily step for fusion method, perform daily prediction
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 07/29/2013                                                                                 
+#DATE: 07/30/2013                                                                                 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363--   
 
 ##Comments and TODO:
@@ -97,8 +97,8 @@ runClim_KGCAI <-function(j,list_param){
   out_path<-list_param$out_path
   
   #Model and response variable can be changed without affecting the script
-  prop_month<-0 #proportion retained for validation
-  run_samp<-1
+  prop_month<-0 #proportion retained for validation...
+  run_samp<-1 #sample number, can be introduced later...
   
   #### STEP 2: PREPARE DATA
     
@@ -106,7 +106,7 @@ runClim_KGCAI <-function(j,list_param){
   LST_name<-lst_avg[j] # name of LST month to be matched
   data_month$LST<-data_month[[LST_name]]
   
-  #TMax to model...
+  #TMax to model..., add precip later
   if (var=="TMAX"){   
     data_month$y_var<-data_month$TMax #Adding TMax as the variable modeled
   }
@@ -120,7 +120,7 @@ runClim_KGCAI <-function(j,list_param){
   
   #mod_list<-fit_models(list_formulas,data_month) #only gam at this stage
   #cname<-paste("mod",1:length(mod_list),sep="") #change to more meaningful name?
-  names(mod_list)<-cname
+  
   #Adding layer LST to the raster stack  
   
   pos<-match("LST",names(s_raster)) #Find the position of the layer with name "LST", if not present pos=NA
@@ -130,7 +130,7 @@ runClim_KGCAI <-function(j,list_param){
   s_raster<-addLayer(s_raster,LST)            #Adding current month
   
   #Now generate file names for the predictions...
-  list_out_filename<-vector("list",length(mod_list))
+  list_out_filename<-vector("list",length(list_formulas))
   names(list_out_filename)<-cname  
   
   for (k in 1:length(list_out_filename)){

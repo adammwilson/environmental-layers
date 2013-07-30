@@ -195,8 +195,7 @@ raster_prediction_fun <-function(list_param_raster_prediction){
     clim_yearlist<-list_tmp
   }
   
-  #to be added gwr_CAI and kriging_CAI
-  if (interpolation_method=="gam_CAI"){
+  if (interpolation_method %in% c("gam_CAI","kriging_CAI", "gwr_CAI")){
     list_param_runClim_KGCAI<-list(j,s_raster,covar_names,lst_avg,list_models,dst,var,y_var_name, out_prefix,out_path)
     names(list_param_runClim_KGCAI)<-c("list_index","covar_rast","covar_names","lst_avg","list_models","dst","var","y_var_name","out_prefix","out_path")
     clim_method_mod_obj<-mclapply(1:12, list_param=list_param_runClim_KGCAI, runClim_KGCAI,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
@@ -229,7 +228,7 @@ raster_prediction_fun <-function(list_param_raster_prediction){
   
   #TODO : Same call for all functions!!! Replace by one "if" for all multi time scale methods...
   #The methods could be defined earlier as constant??
-  if (interpolation_method %in% c("gam_CAI","gam_fusion","kriging_fusion","gwr_fusion")){
+  if (interpolation_method %in% c("gam_CAI","kriging_CAI","gwr_CAI","gam_fusion","kriging_fusion","gwr_fusion")){
     #input a list:note that ghcn.subsets is not sampling_obj$data_day_ghcn
     i<-1
     list_param_run_prediction_daily_deviation <-list(i,clim_yearlist,sampling_obj,dst,var,y_var_name, interpolation_method,out_prefix,out_path)
@@ -337,7 +336,7 @@ raster_prediction_fun <-function(list_param_raster_prediction){
   ################### PREPARE RETURN OBJECT ###############
   #Will add more information to be returned
   
-  if (interpolation_method %in% c("gam_CAI","gam_fusion","kriging_fusion","gwr_fusion")){
+  if (interpolation_method %in% c("gam_CAI","kriging_CAI","gwr_CAI","gam_fusion","kriging_fusion","gwr_fusion")){
     raster_prediction_obj<-list(clim_method_mod_obj,method_mod_obj,validation_mod_obj,tb_diagnostic_v,
                                 summary_metrics_v,summary_month_metrics_v)
     names(raster_prediction_obj)<-c("clim_method_mod_obj","method_mod_obj","validation_mod_obj","tb_diagnostic_v",
