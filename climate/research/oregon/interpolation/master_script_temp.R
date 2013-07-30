@@ -10,7 +10,7 @@
 #STAGE 5: Output analyses: assessment of results for specific dates...
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 07/29/2013                                                                                 
+#DATE: 07/30/2013                                                                                 
 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363, TASK$568--   
 
@@ -58,14 +58,14 @@ grass_setting_script <- file.path(script_path,"grass-setup.R") #Set up system sh
 #source(file.path(script_path,"download_and_produce_MODIS_LST_climatology_06112013.R"))
 source(file.path(script_path,"covariates_production_temperatures_07172013.R"))
 source(file.path(script_path,"Database_stations_covariates_processing_function_06112013.R"))
-source(file.path(script_path,"GAM_fusion_analysis_raster_prediction_multisampling_07292013.R"))
+source(file.path(script_path,"GAM_fusion_analysis_raster_prediction_multisampling_07302013.R"))
 source(file.path(script_path,"results_interpolation_date_output_analyses_06112013.R"))
 #source(file.path(script_path,"results_covariates_database_stations_output_analyses_04012013.R")) #to be completed
 
 #FUNCTIONS CALLED FROM GAM ANALYSIS RASTER PREDICTION ARE FOUND IN...
 
 source(file.path(script_path,"sampling_script_functions_03122013.R"))
-source(file.path(script_path,"GAM_fusion_function_multisampling_07292013.R")) #Include GAM_CAI
+source(file.path(script_path,"GAM_fusion_function_multisampling_07302013.R")) #Include GAM_CAI
 source(file.path(script_path,"interpolation_method_day_function_multisampling_07052013.R")) #Include GAM_day
 source(file.path(script_path,"GAM_fusion_function_multisampling_validation_metrics_05062013.R"))
 
@@ -78,15 +78,16 @@ covar_obj_file<-"/data/project/layers/commons/data_workflow/output_data_365d_gam
 met_stations_outfiles_obj_file<-"/data/project/layers/commons/data_workflow/output_data_365d_gam_fus_lst_test_run_07172013/met_stations_outfiles_obj_gam_fusion__365d_gam_fus_lst_test_run_07172013.RData"
 
 var<-"TMAX" # variable being interpolated
-out_prefix<-"_365d_gwr_fus_lst_comb3_07292013"                #User defined output prefix
-out_suffix<-"_OR_07292013"                                       #Regional suffix
+out_prefix<-"_365d_gwr_cai_lst_comb3_07302013"                #User defined output prefix
+out_suffix<-"_OR_07302013"                                       #Regional suffix
 out_suffix_modis <-"_05302013"                       #pattern to find tiles produced previously     
 
 #interpolation_method<-c("gam_fusion","gam_CAI","gam_daily") #other otpions to be added later
 #interpolation_method<-c("gam_CAI") #other otpions to be added later
 #interpolation_method<-c("gam_fusion") #other otpions to be added later
 #interpolation_method<-c("kriging_fusion") #other otpions to be added later
-interpolation_method<-c("gwr_fusion") #other otpions to be added later
+#interpolation_method<-c("gwr_fusion") #other otpions to be added later
+interpolation_method<-c("gwr_CAI") #other otpions to be added later
 
 #interpolation_method<-c("gam_daily") #other otpions to be added later
 #interpolation_method<-c("kriging_daily") #other otpions to be added later
