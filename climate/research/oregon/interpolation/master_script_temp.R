@@ -10,7 +10,7 @@
 #STAGE 5: Output analyses: assessment of results for specific dates...
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 07/30/2013                                                                                 
+#DATE: 07/31/2013                                                                                 
 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363, TASK$568--   
 
@@ -78,8 +78,8 @@ covar_obj_file<-"/data/project/layers/commons/data_workflow/output_data_365d_gam
 met_stations_outfiles_obj_file<-"/data/project/layers/commons/data_workflow/output_data_365d_gam_fus_lst_test_run_07172013/met_stations_outfiles_obj_gam_fusion__365d_gam_fus_lst_test_run_07172013.RData"
 
 var<-"TMAX" # variable being interpolated
-out_prefix<-"_365d_gwr_cai_lst_comb3_07302013"                #User defined output prefix
-out_suffix<-"_OR_07302013"                                       #Regional suffix
+out_prefix<-"_365d_kriging_cai_lst_comb3_07312013"                #User defined output prefix
+out_suffix<-"_OR_07312013"                                       #Regional suffix
 out_suffix_modis <-"_05302013"                       #pattern to find tiles produced previously     
 
 #interpolation_method<-c("gam_fusion","gam_CAI","gam_daily") #other otpions to be added later
@@ -87,7 +87,8 @@ out_suffix_modis <-"_05302013"                       #pattern to find tiles prod
 #interpolation_method<-c("gam_fusion") #other otpions to be added later
 #interpolation_method<-c("kriging_fusion") #other otpions to be added later
 #interpolation_method<-c("gwr_fusion") #other otpions to be added later
-interpolation_method<-c("gwr_CAI") #other otpions to be added later
+#interpolation_method<-c("gwr_CAI") #other otpions to be added later
+interpolation_method<-c("kriging_CAI") 
 
 #interpolation_method<-c("gam_daily") #other otpions to be added later
 #interpolation_method<-c("kriging_daily") #other otpions to be added later
