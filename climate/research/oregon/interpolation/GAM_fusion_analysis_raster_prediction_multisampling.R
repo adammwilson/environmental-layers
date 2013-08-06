@@ -311,13 +311,18 @@ raster_prediction_fun <-function(list_param_raster_prediction){
   
   #################### ASSESSMENT OF PREDICTIONS: PLOTS OF ACCURACY METRICS ###########
   
-  ##Create data.frame with valiation metrics for a full year
-  tb_diagnostic_v<-extract_from_list_obj(validation_mod_obj,"metrics_v")
+  ##Create data.frame with validation and fit metrics for a full year/full numbe of runs
+  tb_diagnostic_v<-extract_from_list_obj(validation_mod_obj,"metrics_v") 
+  #tb_diagnostic_v contains accuracy metrics for models sample and proportion for every run...if full year then 365 rows maximum
   rownames(tb_diagnostic_v)<-NULL #remove row names
+  tb_diagnostic_v$method_interp <- interpolation_method
+  tb_diagnostic_s<-extract_from_list_obj(validation_mod_obj,"metrics_s")
+  rownames(tb_diagnostic_s)<-NULL #remove row names
+  tb_diagnostic_s$method_interp <- interpolation_method #add type of interpolation...out_prefix too??
   
   #Call functions to create plots of metrics for validation dataset
   metric_names<-c("rmse","mae","me","r","m50")
-  summary_metrics_v<- boxplot_from_tb(tb_diagnostic_v,metric_names,out_prefix,out_path)
+  summary_metrics_v<- boxplot_from_tb(tb_diagnostic_v,metric_names,out_prefix,out_path) #if adding for fit need to change outprefix
   names(summary_metrics_v)<-c("avg","median")
   summary_month_metrics_v<- boxplot_month_from_tb(tb_diagnostic_v,metric_names,out_prefix,out_path)
   
@@ -338,9 +343,9 @@ raster_prediction_fun <-function(list_param_raster_prediction){
   
   if (interpolation_method %in% c("gam_CAI","kriging_CAI","gwr_CAI","gam_fusion","kriging_fusion","gwr_fusion")){
     raster_prediction_obj<-list(clim_method_mod_obj,method_mod_obj,validation_mod_obj,tb_diagnostic_v,
-                                summary_metrics_v,summary_month_metrics_v)
+                                tb_diagnostic_s,summary_metrics_v,summary_month_metrics_v)
     names(raster_prediction_obj)<-c("clim_method_mod_obj","method_mod_obj","validation_mod_obj","tb_diagnostic_v",
-                                    "summary_metrics_v","summary_month_metrics_v")  
+                                    "tb_diagnostic_s","summary_metrics_v","summary_month_metrics_v")  
     save(raster_prediction_obj,file= file.path(out_path,paste("raster_prediction_obj_",interpolation_method,"_", y_var_name,out_prefix,".RData",sep="")))
     
   }
@@ -348,9 +353,9 @@ raster_prediction_fun <-function(list_param_raster_prediction){
   #use %in% instead of "|" operator
   if (interpolation_method=="gam_daily" | interpolation_method=="kriging_daily" | interpolation_method=="gwr_daily"){
     raster_prediction_obj<-list(method_mod_obj,validation_mod_obj,tb_diagnostic_v,
-                                summary_metrics_v,summary_month_metrics_v)
+                                tb_diagnostic_s,summary_metrics_v,summary_month_metrics_v)
     names(raster_prediction_obj)<-c("method_mod_obj","validation_mod_obj","tb_diagnostic_v",
-                                    "summary_metrics_v","summary_month_metrics_v")  
+                                    "tb_diagnostic_s","summary_metrics_v","summary_month_metrics_v")  
     save(raster_prediction_obj,file= file.path(out_path,paste("raster_prediction_obj_",interpolation_method,"_", y_var_name,out_prefix,".RData",sep="")))
     
   }
