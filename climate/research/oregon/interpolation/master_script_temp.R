@@ -10,7 +10,7 @@
 #STAGE 5: Output analyses: assessment of results for specific dates...
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 08/05/2013                                                                                 
+#DATE: 08/06/2013                                                                                 
 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363, TASK$568--   
 
@@ -67,19 +67,21 @@ source(file.path(script_path,"results_interpolation_date_output_analyses_0805201
 source(file.path(script_path,"sampling_script_functions_03122013.R"))
 source(file.path(script_path,"GAM_fusion_function_multisampling_07302013.R")) #Include GAM_CAI
 source(file.path(script_path,"interpolation_method_day_function_multisampling_07052013.R")) #Include GAM_day
-source(file.path(script_path,"GAM_fusion_function_multisampling_validation_metrics_05062013.R"))
+source(file.path(script_path,"GAM_fusion_function_multisampling_validation_metrics_08062013.R"))
 
 #stages_to_run<-c(1,2,3,4,5) #May decide on antoher strategy later on...
 #stages_to_run<-c(0,2,3,4,5) #May decide on antoher strategy later on...
 stages_to_run<-c(0,2,3,4,5) #MRun only raster fitting, prediction and assessemnt (providing lst averages, covar brick and met stations)
 #If stage 2 is skipped then use previous covar object
 covar_obj_file<-"/data/project/layers/commons/data_workflow/output_data_365d_gam_fus_lst_test_run_07172013/covar_obj__365d_gam_fus_lst_test_run_07172013.RData"
+covar_obj_file<-"covar_obj__365d_kriging_daily_mults10_lst_comb3_08062013.RData"
 #If stage 3 is skipped then use previous met_stations object
 met_stations_outfiles_obj_file<-"/data/project/layers/commons/data_workflow/output_data_365d_gam_fus_lst_test_run_07172013/met_stations_outfiles_obj_gam_fusion__365d_gam_fus_lst_test_run_07172013.RData"
 
+met_stations_outfiles_obj_file<-"met_stations_outfiles_obj_kriging_daily__365d_kriging_daily_mults10_lst_comb3_08062013.RData"
 var<-"TMAX" # variable being interpolated
-out_prefix<-"_365d_kriging_cai_lst_comb3_08052013"                #User defined output prefix
-out_suffix<-"_OR_08052013"                                       #Regional suffix
+out_prefix<-"_365d_kriging_daily_mults10_lst_comb3_08062013"                #User defined output prefix
+out_suffix<-"_OR_08062013"                                       #Regional suffix
 out_suffix_modis <-"_05302013"                       #pattern to find tiles produced previously     
 
 #interpolation_method<-c("gam_fusion","gam_CAI","gam_daily") #other otpions to be added later
@@ -88,10 +90,10 @@ out_suffix_modis <-"_05302013"                       #pattern to find tiles prod
 #interpolation_method<-c("kriging_fusion") #other otpions to be added later
 #interpolation_method<-c("gwr_fusion") #other otpions to be added later
 #interpolation_method<-c("gwr_CAI") #other otpions to be added later
-interpolation_method<-c("kriging_CAI") 
+#interpolation_method<-c("kriging_CAI") 
 
 #interpolation_method<-c("gam_daily") #other otpions to be added later
-#interpolation_method<-c("kriging_daily") #other otpions to be added later
+interpolation_method<-c("kriging_daily") #other otpions to be added later
 #interpolation_method<-c("gwr_daily") #other otpions to be added later
 
 out_path<-"/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/output_data"
@@ -241,13 +243,13 @@ names(list_param_data_prep) <- c("infile_monthly","infile_daily","infile_locs","
 #Set additional parameters
 #Input for sampling function...
 seed_number<- 100  #if seed zero then no seed?     
-nb_sample<-1           #number of time random sampling must be repeated for every hold out proportion
-step<-0         
+nb_sample<-10           #number of time random sampling must be repeated for every hold out proportion
+step<-0.1         
 constant<-0             #if value 1 then use the same samples as date one for the all set of dates
-prop_minmax<-c(0.3,0.3)  #if prop_min=prop_max and step=0 then predicitons are done for the number of dates...
+prop_minmax<-c(0.1,0.7)  #if prop_min=prop_max and step=0 then predicitons are done for the number of dates...
 #dates_selected<-c("20100101","20100102","20100103","20100901") # Note that the dates set must have a specific format: yyymmdd
-#dates_selected<-c("20100101","20100102","20100301","20100302","20100501","20100502","20100701","20100702","20100901","20100902","20101101","20101102")
-dates_selected<-"" # if empty string then predict for the full year specified earlier
+dates_selected<-c("20100101","20100102","20100301","20100302","20100501","20100502","20100701","20100702","20100901","20100902","20101101","20101102")
+#dates_selected<-"" # if empty string then predict for the full year specified earlier
 screen_data_training<-FALSE #screen training data for NA and use same input training for all models fitted
 
 #Models to run...this can be changed for each run
@@ -264,15 +266,17 @@ screen_data_training<-FALSE #screen training data for NA and use same input trai
 #               "y_var ~ s(lat,lon) + s(elev_s) + s(LST) + ti(LST,LC1)",
 #               "y_var ~ s(lat,lon) + s(elev_s) + s(LST) + ti(LST,CANHGHT)")
 
-list_models<-c("y_var ~ lat*lon + elev_s",
-              "y_var ~ lat*lon + elev_s + N_w",
-              "y_var ~ lat*lon + elev_s + E_w",
-              "y_var ~ lat*lon + elev_s + LST",
-              "y_var ~ lat*lon + elev_s + DISTOC",
-              "y_var ~ lat*lon + elev_s + LC1",
-              "y_var ~ lat*lon + elev_s + CANHGHT",
-              "y_var ~ lat*lon + elev_s + LST + I(LST*LC1)",
-              "y_var ~ lat*lon + elev_s + LST + I(LST*CANHGHT)")
+list_models<-c("y_var ~ lat*lon + elev_s")
+
+#list_models<-c("y_var ~ lat*lon + elev_s",
+#              "y_var ~ lat*lon + elev_s + N_w",
+#              "y_var ~ lat*lon + elev_s + E_w",
+#              "y_var ~ lat*lon + elev_s + LST",
+#              "y_var ~ lat*lon + elev_s + DISTOC",
+#              "y_var ~ lat*lon + elev_s + LC1",
+#             "y_var ~ lat*lon + elev_s + CANHGHT",
+#              "y_var ~ lat*lon + elev_s + LST + I(LST*LC1)",
+#              "y_var ~ lat*lon + elev_s + LST + I(LST*CANHGHT)")
 
 #Default name of LST avg to be matched               
 lst_avg<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_09","mm_10","mm_11","mm_12")  
@@ -292,8 +296,6 @@ raster_prediction_obj <-raster_prediction_fun(list_param_raster_prediction)
 ############## STAGE 5: OUTPUT ANALYSES ##################
 
 date_selected_results<-c("20100101") 
-covar_obj<-load_obj("covar_obj__365d_kriging_cai_lst_comb3_07312013.RData")
-raster_prediction_obj <- load_obj("raster_prediction_obj_kriging_CAI_dailyTmax_365d_kriging_cai_lst_comb3_07312013.RData")
 list_param_results_analyses<-list(out_path,script_path,raster_prediction_obj,interpolation_method,
                                   covar_obj,date_selected_results,var,out_prefix)
 names(list_param_results_analyses)<-c("out_path","script_path","raster_prediction_obj","interpolation_method",
