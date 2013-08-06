@@ -161,8 +161,14 @@ boxplot_from_tb <-function(tb_diagnostic,metric_names,out_prefix,out_path){
   names(tb_mod_list)<-mod_names
   #mod_metrics<-do.call(cbind,tb_mod_list)
   #debug here
-  mod_metrics<-do.call(cbindX,tb_mod_list)
+  if(length(tb_mod_list)>1){
+    mod_metrics<-do.call(cbindX,tb_mod_list) #column bind the list??
+  }else{
+    mod_metrics<-tb_mod_list[[1]]
+  }
+  
   test_names<-lapply(1:length(mod_names),function(k) paste(names(tb_mod_list[[1]]),mod_names[k],sep="_"))
+  #test names are used when plotting the boxplot for the different models
   names(mod_metrics)<-unlist(test_names)
   rows_total<-lapply(tb_mod_list,nrow)
   for (j in 1:length(metric_names)){
