@@ -10,7 +10,7 @@
 #STAGE 5: Output analyses: assessment of results for specific dates...
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 08/06/2013                                                                                 
+#DATE: 08/07/2013                                                                                 
 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363, TASK$568--   
 
@@ -58,7 +58,7 @@ grass_setting_script <- file.path(script_path,"grass-setup.R") #Set up system sh
 #source(file.path(script_path,"download_and_produce_MODIS_LST_climatology_06112013.R"))
 source(file.path(script_path,"covariates_production_temperatures_08052013.R"))
 source(file.path(script_path,"Database_stations_covariates_processing_function_06112013.R"))
-source(file.path(script_path,"GAM_fusion_analysis_raster_prediction_multisampling_07302013.R"))
+source(file.path(script_path,"GAM_fusion_analysis_raster_prediction_multisampling_08062013.R"))
 source(file.path(script_path,"results_interpolation_date_output_analyses_08052013.R"))
 #source(file.path(script_path,"results_covariates_database_stations_output_analyses_04012013.R")) #to be completed
 
@@ -74,14 +74,14 @@ source(file.path(script_path,"GAM_fusion_function_multisampling_validation_metri
 stages_to_run<-c(0,2,3,4,5) #MRun only raster fitting, prediction and assessemnt (providing lst averages, covar brick and met stations)
 #If stage 2 is skipped then use previous covar object
 covar_obj_file<-"/data/project/layers/commons/data_workflow/output_data_365d_gam_fus_lst_test_run_07172013/covar_obj__365d_gam_fus_lst_test_run_07172013.RData"
-covar_obj_file<-"covar_obj__365d_kriging_daily_mults10_lst_comb3_08062013.RData"
+#covar_obj_file<-"covar_obj__365d_kriging_daily_mults10_lst_comb3_08062013.RData"
 #If stage 3 is skipped then use previous met_stations object
 met_stations_outfiles_obj_file<-"/data/project/layers/commons/data_workflow/output_data_365d_gam_fus_lst_test_run_07172013/met_stations_outfiles_obj_gam_fusion__365d_gam_fus_lst_test_run_07172013.RData"
+#met_stations_outfiles_obj_file<-"met_stations_outfiles_obj_kriging_daily__365d_kriging_daily_mults10_lst_comb3_08062013.RData"
 
-met_stations_outfiles_obj_file<-"met_stations_outfiles_obj_kriging_daily__365d_kriging_daily_mults10_lst_comb3_08062013.RData"
 var<-"TMAX" # variable being interpolated
-out_prefix<-"_365d_kriging_daily_mults10_lst_comb3_08062013"                #User defined output prefix
-out_suffix<-"_OR_08062013"                                       #Regional suffix
+out_prefix<-"_365d_gwr_daily_mults10_lst_comb3_08072013"                #User defined output prefix
+out_suffix<-"_OR_08072013"                                       #Regional suffix
 out_suffix_modis <-"_05302013"                       #pattern to find tiles produced previously     
 
 #interpolation_method<-c("gam_fusion","gam_CAI","gam_daily") #other otpions to be added later
@@ -92,8 +92,8 @@ out_suffix_modis <-"_05302013"                       #pattern to find tiles prod
 #interpolation_method<-c("gwr_CAI") #other otpions to be added later
 #interpolation_method<-c("kriging_CAI") 
 
-#interpolation_method<-c("gam_daily") #other otpions to be added later
-interpolation_method<-c("kriging_daily") #other otpions to be added later
+interpolation_method<-c("gwr_daily") #other otpions to be added later
+#interpolation_method<-c("kriging_daily") #other otpions to be added later
 #interpolation_method<-c("gwr_daily") #other otpions to be added later
 
 out_path<-"/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/output_data"
