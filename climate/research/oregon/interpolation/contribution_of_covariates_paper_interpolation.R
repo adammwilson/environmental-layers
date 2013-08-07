@@ -4,7 +4,7 @@
 # interpolation code.
 #Figures and data for the contribution of covariate paper are also produced.
 #AUTHOR: Benoit Parmentier                                                                      #
-#DATE: 08/02/2013            
+#DATE: 08/05/2013            
 #Version: 1
 #PROJECT: Environmental Layers project                                       #
 #################################################################################################
@@ -25,6 +25,7 @@ library(maptools)
 library(maps)
 library(reshape)
 library(plotrix)
+library(plyr)
 
 #### FUNCTION USED IN SCRIPT
 
@@ -58,6 +59,197 @@ calc_stat_from_raster_prediction_obj <-function(raster_prediction_obj,stat){
   return(stat_tb)
 }
 
+## Produce data.frame with residuals for models and distance to closest fitting station
+calc_dist_ref_data_point <- function(i,list_param){
+  #This function creates a list of data.frame containing the distance to teh closest
+  # reference point (e.g. fitting station) for a give data frame. 
+  #Inputs:
+  #data_s: given data.frame from wich distance is computed
+  #data_v: reference data.frame, destination, often the fitting points used in analyses
+  #i: index variable to operate on list
+  #names_var: 
+  #Outputs:
+  #list_dstspat_er
+  
+  #Parsing input arguments
+  data_s<-list_param$data_s[[i]]
+  data_v<-list_param$data_v[[i]]
+  
+  names_var<-list_param$names_var
+  
+  ######
+  
+  names_var<-intersect(names_var,names(data_v)) #there may be missing columns
+  #use columns that exists
+  
+  d_s_v<-matrix(0,nrow(data_v),nrow(data_s))
+  for(k in 1:nrow(data_s)){
+    pt<-data_s[k,]
+    d_pt<-(spDistsN1(data_v,pt,longlat=FALSE))/1000  #Distance to station k in km
+    d_s_v[,k]<-d_pt
+  }
+  
+  #Create data.frame with position, ID, dst and residuals...
+  
+  pos<-vector("numeric",nrow(data_v))
+  y<-vector("numeric",nrow(data_v))
+  dst<-vector("numeric",nrow(data_v))
+  
+  for (k in 1:nrow(data_v)){
+    pos[k]<-match(min(d_s_v[k,]),d_s_v[k,])
+    dst[k]<-min(d_s_v[k,]) 
+  }
+  
+  dstspat_er<-as.data.frame(cbind(v_id=as.vector(data_v$id),s_id=as.vector(data_s$id[pos]),
+                                  pos=pos, lat=data_v$lat, lon=data_v$lon, x=data_v$x,y=data_v$y,
+                                  dst=dst,
+                                  as.data.frame(data_v[,names_var])))
+  
+  return(dstspat_er)  
+}  
+
+### Main function to call to obtain distance to closest fitting stations for valiation dataset
+distance_to_closest_fitting_station<-function(raster_prediction_obj,names_mod,dist_classes=c(0)){
+  #This function computes the distance between training and testing points and returns and data frame
+  #with distance,residuals, ID of training and testing points
+  #Input: raster_prediction_obj, names of residuals models to return, distance classes
+  #Output: data frame
+  
+  #Functions used in the script
+  
+  mae_fun<-function(x){mean(abs(x))} #Mean Absolute Error give a residuals vector
+  sd_abs_fun<-function(x){sd(abs(x))} #sd Absolute Error give a residuals vector
+  
+  ##BEGIN
+  
+  ##### PART I: generate data.frame with residuals in term of distance to closest fitting station
+  
+  #return list of training and testing data frames
+  list_data_s <- extract_list_from_list_obj(raster_prediction_obj$validation_mod_obj,"data_s") #training
+  list_data_v <- extract_list_from_list_obj(raster_prediction_obj$validation_mod_obj,"data_v") #testing (validation)
+  
+  i<-1
+  names_var<-c(names_mod,"dates")
+  list_param_dst<-list(i,list_data_s,list_data_v,names_mod)
+  names(list_param_dst) <- c("index","data_s","data_v","names_var")
+  
+  #call function "calc_dist_ref_data_point" over 365 dates
+  #note that this function depends on other functions !!! see script
+  
+  list_dstspat_er <-lapply(1:length(list_data_v),FUN=calc_dist_ref_data_point,list_param=list_param_dst)
+  #now assemble in one data.frame
+  dstspat_dat<-do.call(rbind.fill,list_dstspat_er)
+
+  ########### PART II: generate distance classes and summary statistics
+  
+  if (length(dist_classes)==1){
+    range_val<-range(dstspat_dat$dst)
+    max_val<-round_any(range_val[2],10, f=ceiling) #round max value to nearest 10 (from plyr package)
+    min_val<-0
+    limit_val<-seq(min_val,max_val, by=10)
+  }else{
+    limit_val<-dist_classes
+  }
+ 
+  dstspat_dat$dst_cat1 <- cut(dstspat_dat$dst,include.lowest=TRUE,breaks=limit_val)
+  
+  names_var <- intersect(names_mod,names(dstspat_dat))
+  t<-melt(dstspat_dat,
+          measure=names_var, 
+          id=c("dst_cat1"),
+          na.rm=T)
+  
+  mae_tb<-cast(t,dst_cat1~variable,mae_fun)
+  sd_abs_tb<-cast(t,dst_cat1~variable,sd_abs_fun)
+  
+  avg_tb<-cast(t,dst_cat1~variable,mean)
+  sd_tb<-cast(t,dst_cat1~variable,sd)
+  n_tb<-cast(t,dst_cat1~variable,length)
+  #n_NA<-cast(t,dst_cat1~variable,is.na)
+  
+  #### prepare returning object
+  dstspat_obj<-list(dstspat_dat,mae_tb,sd_abs_tb,avg_tb,sd_tb,n_tb)
+  names(dstspat_obj) <-c("dstspat_dat","mae_tb","sd_abs_tb","avg_tb","sd_tb","n_tb")
+  
+  return(dstspat_obj)
+  
+}
+
+# create plot of accury in term of distance to closest fitting station
+plot_dst_spat_fun<-function(stat_tb,names_var,cat_val){
+  
+  range_y<-range(as.vector(unlist(stat_tb[,names_var])),na.rm=T) #flatten data.frame
+  col_t<-rainbow(length(names_var))
+  pch_t<- 1:length(names_var)
+  plot(stat_tb[,names_var[1]], ylim=range_y,pch=pch_t[1],col=col_t[1],type="b",
+       yla="MAE (in degree C)",xlab="",xaxt="n")
+  #points((stat_tb[,names_var[k]], ylim=range_y,pch=pch_t[1],col=col_t[1]),type="p")
+  for (k in 2:length(names_var)){
+    lines(stat_tb[,names_var[k]], ylim=range_y,pch=pch_t[k],col=col_t[k],type="b",
+          xlab="",axes=F)
+    #points((stat_tb[,names_var[k]], ylim=range_y,pch=pch_t[k],col=col_t[k]),type="p")
+  }
+  legend("topleft",legend=names_var, 
+         cex=1.2, pch=pch_t,col=col_t,lty=1,bty="n")
+  axis(1,at=1:length(stat_tb[,1]),labels=stat_tb[,1])
+}
+
+plot_dst_MAE <-function(list_param){
+  #
+  #list_dist_obj: list of dist object 
+  #col_t: list of color for each 
+  #pch_t: symbol for line
+  #legend_text: text for line and symbol
+  #mod_name: selected models
+  #
+  ## BEGIN ##
+  
+  list_dist_obj<-list_param$list_dist_obj
+  col_t<-list_param$col_t 
+  pch_t<- list_param$pch_t 
+  legend_text <- list_param$legend_text
+  list_mod_name<-list_param$mod_name
+  
+  for (i in 1:length(list_dist_obj)){
+    
+    l<-list_dist_obj[[i]]
+    mae_tb<-l$mae_tb
+    n_tb<-l$n_tb
+    sd_abs_tb<-l$sd_abs_tb
+    
+    mod_name<-list_mod_name[i]
+    xlab_text<-"distance to fitting station"
+    
+    n <- unlist(n_tb[1:13,c(mod_name)])
+    y <- unlist(mae_tb[1:13,c(mod_name)])
+    
+    x<- 1:length(y)
+    y_sd <- unlist(sd_abs_tb[1:12,c(mod_name)])
+    
+    ciw <-y_sd
+    #ciw2   <- qt(0.975, n) * y_sd2 / sqrt(n)
+    
+    #plotCI(y=y, x=x, uiw=ciw, col="red", main=paste(" MAE for ",mod_name,sep=""), barcol="blue", lwd=1,
+    #       ylab="RMSE (C)", xlab=xlab_text)
+    
+    ciw   <- qt(0.975, n) * y_sd / sqrt(n)
+    
+    if(i==1){
+      plotCI(y=y, x=x, uiw=ciw, col=col_t[i], main=paste(" Comparison of MAE in ",mod_name,sep=""), barcol="blue", lwd=1,
+             ylab="RMSE (C)", xlab=xlab_text)
+      lines(y~x, col=col_t[i])
+      
+    }else{
+      lines(y~x, col=col_t[i])
+    }
+    
+  }
+  legend("topleft",legend=legend_text, 
+         cex=1.2, pch=pch_t,col=col_t,lty=1,bty="n")
+  #axis(1,at=1:length(stat_tb[,1]),labels=stat_tb[,1])
+  
+}
+
 #### Parameters and constants  
 
 
@@ -74,9 +266,9 @@ in_dir3 <-"/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_0314
 in_dir4 <-"/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/output_data_365d_gwr_day_lst_comb3_part1_07122013"
 #multisampling results (gam)
 in_dir5<- "/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/output_data_365d_gam_day_mults15_lst_comb3_07232013"
-#in_dir<-"/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/output_data_365d_gam_day_mult_lst_comb3_07202013"
+in_dir6<- "/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/output_data_365d_kriging_daily_mults10_lst_comb3_08062013"
+in_dir7<- "/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/output_data_365d_gwr_daily_mults10_lst_comb3_08072013"
 
-in_dir <- in_dir1
 out_dir<-"/home/parmentier/Data/IPLANT_project/paper_analyses_tables_fig_08032013"
 setwd(out_dir)
 
@@ -93,8 +285,11 @@ raster_obj_file_2 <- "raster_prediction_obj_gam_daily_dailyTmax_365d_gam_day_lst
 
 raster_obj_file_3 <- "raster_prediction_obj_kriging_daily_dailyTmax_365d_kriging_day_lst_comb3_07112013.RData"
 raster_obj_file_4 <- "raster_prediction_obj_gwr_daily_dailyTmax_365d_gwr_day_lst_comb3_part1_07122013.RData"
-raster_obj_file_5 <- "raster_prediction_obj_gam_daily_dailyTmax_365d_gam_day_mult_lst_comb3_07202013.RData"
-
+#multisampling using baseline lat,lon + elev
+raster_obj_file_5 <- "raster_prediction_obj_gam_daily_dailyTmax_365d_gam_day_mults15_lst_comb3_07232013.RData"
+raster_obj_file_6 <- "kriging_daily_validation_mod_obj_dailyTmax_365d_kriging_daily_mults10_lst_comb3_08062013.RData"
+raster_obj_file_7 <- ""
+  
 #Load objects containing training, testing, models objects 
 
 covar_obj <-load_obj(file.path(in_dir1,covar_obj_file1))
@@ -105,10 +300,13 @@ covar_names<- covar_obj$covar_names
 s_raster <- brick(file.path(in_dir1,infile_covariates))
 names(s_raster)<-covar_names
 
-raster_prediction_obj_1 <-load_obj(file.path(in_dir1,raster_obj_file_1))
-raster_prediction_obj_2 <-load_obj(file.path(in_dir2,raster_obj_file_2))
+raster_prediction_obj_1 <-load_obj(file.path(in_dir1,raster_obj_file_1)) #comb3
+raster_prediction_obj_2 <-load_obj(file.path(in_dir2,raster_obj_file_2)) #comb4
 raster_prediction_obj_3 <-load_obj(file.path(in_dir3,raster_obj_file_3))
-raster_prediction_obj_4 <-load_obj(file.path(in_dir4,raster_obj_file_4))
+raster_prediction_obj_4 <-load_obj(file.path(in_dir4,raster_obj_file_4)) 
+raster_prediction_obj_5 <-load_obj(file.path(in_dir5,raster_obj_file_5)) #gam daily multisampling 10 to 70%
+raster_prediction_obj_6 <-load_obj(file.path(in_dir6,raster_obj_file_6)) #kriging daily multisampling 
+#raster_prediction_obj_7 <-load_obj(file.path(in_dir7,raster_obj_file_7)) #kriging daily multisampling 
 
 names(raster_prediction_obj_1) #list of two objects
 
@@ -118,7 +316,7 @@ names(raster_prediction_obj_1) #list of two objects
 raster_prediction_obj_1$method_mod_obj[[1]]$formulas
 raster_prediction_obj_2$method_mod_obj[[1]]$formulas
 
-#baseline 1:
+###baseline 2: s(lat,lon) + s(elev)
 
 summary_metrics_v1<-raster_prediction_obj_1$summary_metrics_v
 summary_metrics_v2<-raster_prediction_obj_2$summary_metrics_v
@@ -126,7 +324,7 @@ summary_metrics_v2<-raster_prediction_obj_2$summary_metrics_v
 table_data1 <-summary_metrics_v1$avg[,c("mae","rmse","me","r")]
 table_data2 <-summary_metrics_v2$avg[,c("mae","rmse","me","r")]
 
-model_col<-c("Baseline","Northing","Easting","LST","DISTOC","Forest","CANHEIGHT","LST*Forest") # removed ,"LST*CANHEIGHT")
+model_col<-c("Baseline2","Northness","Eastness","LST","DISTOC","Forest","CANHEIGHT","LST*Forest") # removed ,"LST*CANHEIGHT")
 names_table_col<-c("DiffMAE","DiffRMSE","DiffME","Diffr","Model")
 
 df1<- as.data.frame(sapply(table_data1,FUN=function(x) x-x[1]))
@@ -135,17 +333,19 @@ df1$Model <-model_col
 names(df1)<- names_table_col
 df1
 
-model_col<-c("Baseline","Elevation","Northing","Easting","LST","DISTOC","Forest","CANHEIGHT") #,"LST*Forest") # removed ,"LST*CANHEIGHT")
+###baseline 1: s(lat,lon) 
+
+model_col<-c("Baseline1","Elevation","Northing","Easting","LST","DISTOC","Forest","CANHEIGHT") #,"LST*Forest") # removed ,"LST*CANHEIGHT")
 df2<- as.data.frame(sapply(table_data2,FUN=function(x) x-x[1]))
 df2<- round(df2,digit=3) #roundto three digits teh differences
 df2$Model <-model_col
 names(df2)<- names_table_col
 df2
 
-file_name<-paste("table3a_paper","_",out_prefix,".txt",sep="")
+file_name<-paste("table3b_baseline2_paper","_",out_prefix,".txt",sep="")
 write.table(df1,file=file_name,sep=",")
 
-file_name<-paste("table3b_paper","_",out_prefix,".txt",sep="")
+file_name<-paste("table3a_baseline1_paper","_",out_prefix,".txt",sep="")
 write.table(df2,file=file_name,sep=",")
 
 ##Table 4: Interpolation methods comparison
@@ -157,7 +357,6 @@ tb3 <-raster_prediction_obj_3$tb_diagnostic_v  #Kriging methods
 tb4 <-raster_prediction_obj_4$tb_diagnostic_v  #Kriging methods
 
 names_mod<-c("mod1","mod2","mod3","mod4","mod5","mod6","mod7","mod8","mod9")
-
 
 sd1 <- calc_stat_from_raster_prediction_obj(raster_prediction_obj_1,"sd")
 sd2 <- calc_stat_from_raster_prediction_obj(raster_prediction_obj_2,"sd")
@@ -188,7 +387,7 @@ table
 file_name<-paste("table4_avg_paper","_",out_prefix,".txt",sep="")
 write.table(table,file=file_name,sep=",")
 
-file_name<-paste("table34_sd_paper","_",out_prefix,".txt",sep="")
+file_name<-paste("table4_sd_paper","_",out_prefix,".txt",sep="")
 write.table(table_sd,file=file_name,sep=",")
 
 #for(i in nrow(table))
@@ -208,17 +407,196 @@ write.table(table_sd,file=file_name,sep=",")
 
 ### Figure 1
 
+### Figure 2: 
 
-### Figure 2
+#not generated in R
 
-# ANALYSES 1: ACCURACY IN TERMS OF DISTANCE TO CLOSEST STATIONS...
-#?? for all models gam or only interpolation methods??
+### Figure 3
 
-tb1<- raster_prediction_obj_1$tb_diagnostic_v
-
-names(raster_prediction_obj$validation_mod_obj[[1]])
-
-list_data_s <- extract_list_from_list_obj(raster_prediction_obj$validation_mod_obj,"data_s")
-list_data_v <- extract_list_from_list_obj(raster_prediction_obj$validation_mod_obj,"data_v")
+#Analysis accuracy in term of distance to closest station
+#Assign model's names
 
 names_mod <- paste("res_mod",1:9,sep="")
+names(raster_prediction_obj_1$validation_mod_obj[[1]])
+limit_val<-seq(0,150, by=10)
+
+l1 <- distance_to_closest_fitting_station(raster_prediction_obj_1,names_mod,dist_classes=limit_val)
+l3 <- distance_to_closest_fitting_station(raster_prediction_obj_3,names_mod,dist_classes=limit_val)
+l4 <- distance_to_closest_fitting_station(raster_prediction_obj_4,names_mod,dist_classes=limit_val)
+
+list_dist_obj<-list(l1,l3,l4)
+col_t<-c("red","blue","black")
+pch_t<- 1:length(col_t)
+legend_text <- c("GAM","Kriging","GWR")
+mod_name<-c("res_mod1","res_mod1","res_mod1")#selected models
+
+#png_names<- 
+#png(file.path(out_path,paste("clim_surface_",y_var_name,"_",sampling_dat$date[i],"_",sampling_dat$prop[i],
+#                             "_",sampling_dat$run_samp[i],out_prefix,".png", sep="")))
+
+list_param_plot<-list(list_dist_obj,col_t,pch_t,legend_text,mod_name)
+names(list_param_plot)<-c("list_dist_obj","col_t","pch_t","legend_text","mod_name")
+
+#debug(plot_dst_MAE)
+plot_dst_MAE(list_param_plot)
+
+
+#Figure 4. RMSE and MAE, mulitisampling and hold out for FSS and GAM.
+
+#Using baseline 2: lat,lon and elev
+
+#Use run of 7 hold out proportions, 10 to 70% with 10 random samples and 12 dates...
+#Use gam_day method
+#Use comb3 i.e. using baseline s(lat,lon)+s(elev)
+
+#read in relevant data:
+
+tb5 <-raster_prediction_obj_5$tb_diagnostic_v  #gam dailycontains the accuracy metrics for each run...
+tb6 <-raster_prediction_obj_6$tb_diagnostic_v  #Kriging daily methods
+#tb7 <-raster_prediction_obj_7$tb_diagnostic_v  #gwr daily methods
+
+#names_mod<-c("mod1","mod2","mod3","mod4","mod5","mod6","mod7","mod8","mod9")
+names_mod<-c("mod1")
+
+calc_stat_prop_tb <-function(names_mod,raster_prediction_obj){
+  #add for testing??
+  tb <-raster_prediction_obj$tb_diagnostic_v 
+  t<-melt(subset(tb5,pred_mod==names_mod),
+          measure=c("mae","rmse","r","m50"), 
+          id=c("pred_mod","prop"),
+          na.rm=T)
+  
+  avg_tb<-cast(t,pred_mod+prop~variable,mean)
+  sd_tb<-cast(t,pred_mod+prop~variable,sd)
+  n_tb<-cast(t,pred_mod+prop~variable,length)
+  #n_NA<-cast(t,dst_cat1~variable,is.na)
+  
+  #### prepare returning object
+  prop_obj<-list(tb,mae_tb,avg_tb,sd_tb,n_tb)
+  names(prop_obj) <-c("tb","avg_tb","sd_tb","n_tb")
+  #names(prop_obj) <-c("tb_v","tb_s","avg_tb_v","sd_tb_v","n_tb_s","avg_tb_s","sd_tb_s","n_tb_s")
+}
+
+
+#tbp<- subset(tb,prop!=70) #remove 70% hold out because it is only predicted for mod1 (baseline)
+#tp<-melt(tbp,
+#         measure=c("mae","rmse","r","m50"), 
+#         id=c("pred_mod","prop"),
+#         na.rm=T)
+
+avg_tp<-cast(tp,pred_mod~variable,mean)
+
+avg_tb<-cast(t5,pred_mod+prop~variable,mean)
+sd_tb<-cast(t,pred_mod+prop~variable,sd)
+
+n_tb<-cast(t,pred_mod+prop~variable,length)
+
+xyplot(avg_tb$rmse~avg_tb$prop,type="b",group=pred_mod,
+       data=avg_tb,
+       pch=1:length(avg_tb$pred_mod),
+       par.settings=list(superpose.symbol = list(
+         pch=1:length(avg_tb$pred_mod))),
+       auto.key=list(columns=5))
+
+mod_name<-"mod1"
+mod_name<-"mod4"
+xlab_text<-"proportion of hold out"
+
+n <- unlist(subset(n_tb,pred_mod==mod_name,select=c(rmse)))
+y <- unlist(subset(avg_tb,pred_mod==mod_name,select=c(rmse)))
+
+x<- 1:length(y)
+y_sd <- unlist(subset(sd_tb,pred_mod==mod_name,select=c(rmse)))
+
+ciw <-y_sd
+#ciw2   <- qt(0.975, n) * y_sd2 / sqrt(n)
+
+plotCI(y=y, x=x, uiw=ciw, col="red", main=paste(" Mean and Std_dev RMSE for ",mod_name,sep=""), barcol="blue", lwd=1,
+       ylab="RMSE (C)", xlab=xlab_text)
+
+ciw   <- qt(0.975, n) * y_sd / sqrt(n)
+
+plotCI(y=y, x=x, uiw=ciw, col="red", main=paste(" Mean and CI RMSE for ",mod_name,sep=""), barcol="blue", lwd=1,
+       ylab="RMSE (C)", xlab=xlab_text)
+
+n=150
+ciw   <- qt(0.975, n) * y_sd / sqrt(n)
+ciw2   <- qt(0.975, n) * y_sd2 / sqrt(n)
+
+plot_dst_MAE <-function(list_param){
+  #
+  #list_dist_obj: list of dist object 
+  #col_t: list of color for each 
+  #pch_t: symbol for line
+  #legend_text: text for line and symbol
+  #mod_name: selected models
+  #
+  ## BEGIN ##
+  
+  list_dist_obj<-list_param$list_dist_obj
+  col_t<-list_param$col_t 
+  pch_t<- list_param$pch_t 
+  legend_text <- list_param$legend_text
+  list_mod_name<-list_param$mod_name
+  
+  for (i in 1:length(list_dist_obj)){
+    
+    l<-list_dist_obj[[i]]
+    mae_tb<-l$mae_tb
+    n_tb<-l$n_tb
+    sd_abs_tb<-l$sd_abs_tb
+    
+    mod_name<-list_mod_name[i]
+    xlab_text<-"distance to fitting station"
+    
+    n <- unlist(n_tb[1:13,c(mod_name)])
+    y <- unlist(mae_tb[1:13,c(mod_name)])
+    
+    x<- 1:length(y)
+    y_sd <- unlist(sd_abs_tb[1:12,c(mod_name)])
+    
+    ciw <-y_sd
+    #ciw2   <- qt(0.975, n) * y_sd2 / sqrt(n)
+    
+    #plotCI(y=y, x=x, uiw=ciw, col="red", main=paste(" MAE for ",mod_name,sep=""), barcol="blue", lwd=1,
+    #       ylab="RMSE (C)", xlab=xlab_text)
+    
+    ciw   <- qt(0.975, n) * y_sd / sqrt(n)
+    
+    if(i==1){
+      plotCI(y=y, x=x, uiw=ciw, col=col_t[i], main=paste(" Comparison of MAE in ",mod_name,sep=""), barcol="blue", lwd=1,
+             ylab="RMSE (C)", xlab=xlab_text)
+      lines(y~x, col=col_t[i])
+      
+    }else{
+      lines(y~x, col=col_t[i])
+    }
+    
+  }
+  legend("topleft",legend=legend_text, 
+         cex=1.2, pch=pch_t,col=col_t,lty=1,bty="n")
+  #axis(1,at=1:length(stat_tb[,1]),labels=stat_tb[,1])
+  
+}
+
+################### END OF SCRIPT ###################
+
+# create plot of accury in term of distance to closest fitting station
+plot_dst_spat_fun<-function(stat_tb,names_var,cat_val){
+  
+  range_y<-range(as.vector(unlist(stat_tb[,names_var])),na.rm=T) #flatten data.frame
+  col_t<-rainbow(length(names_var))
+  pch_t<- 1:length(names_var)
+  plot(stat_tb[,names_var[1]], ylim=range_y,pch=pch_t[1],col=col_t[1],type="b",
+       ylab="MAE (in degree C)",xlab="",xaxt="n")
+  #points((stat_tb[,names_var[k]], ylim=range_y,pch=pch_t[1],col=col_t[1]),type="p")
+  for (k in 2:length(names_var)){
+    lines(stat_tb[,names_var[k]], ylim=range_y,pch=pch_t[k],col=col_t[k],type="b",
+          xlab="",axes=F)
+    #points((stat_tb[,names_var[k]], ylim=range_y,pch=pch_t[k],col=col_t[k]),type="p")
+  }
+  legend("topleft",legend=names_var, 
+         cex=1.2, pch=pch_t,col=col_t,lty=1,bty="n")
+  axis(1,at=1:length(stat_tb[,1]),labels=stat_tb[,1])
+}
+
