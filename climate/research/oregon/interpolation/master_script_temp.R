@@ -10,7 +10,7 @@
 #STAGE 5: Output analyses: assessment of results for specific dates...
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 08/07/2013                                                                                 
+#DATE: 08/08/2013                                                                                 
 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363, TASK$568--   
 
@@ -80,8 +80,8 @@ met_stations_outfiles_obj_file<-"/data/project/layers/commons/data_workflow/outp
 #met_stations_outfiles_obj_file<-"met_stations_outfiles_obj_kriging_daily__365d_kriging_daily_mults10_lst_comb3_08062013.RData"
 
 var<-"TMAX" # variable being interpolated
-out_prefix<-"_365d_gwr_daily_mults10_lst_comb3_08072013"                #User defined output prefix
-out_suffix<-"_OR_08072013"                                       #Regional suffix
+out_prefix<-"_365d_gam_daily_mults10_lst_comb3_08082013"                #User defined output prefix
+out_suffix<-"_OR_08082013"                                       #Regional suffix
 out_suffix_modis <-"_05302013"                       #pattern to find tiles produced previously     
 
 #interpolation_method<-c("gam_fusion","gam_CAI","gam_daily") #other otpions to be added later
@@ -92,7 +92,7 @@ out_suffix_modis <-"_05302013"                       #pattern to find tiles prod
 #interpolation_method<-c("gwr_CAI") #other otpions to be added later
 #interpolation_method<-c("kriging_CAI") 
 
-interpolation_method<-c("gwr_daily") #other otpions to be added later
+interpolation_method<-c("gam_daily") #other otpions to be added later
 #interpolation_method<-c("kriging_daily") #other otpions to be added later
 #interpolation_method<-c("gwr_daily") #other otpions to be added later
 
@@ -266,7 +266,9 @@ screen_data_training<-FALSE #screen training data for NA and use same input trai
 #               "y_var ~ s(lat,lon) + s(elev_s) + s(LST) + ti(LST,LC1)",
 #               "y_var ~ s(lat,lon) + s(elev_s) + s(LST) + ti(LST,CANHGHT)")
 
-list_models<-c("y_var ~ lat*lon + elev_s")
+#list_models<-c("y_var ~ lat*lon + elev_s")
+
+list_models<-c("y_var ~ s(lat,lon) + s(elev_s)")
 
 #list_models<-c("y_var ~ lat*lon + elev_s",
 #              "y_var ~ lat*lon + elev_s + N_w",
