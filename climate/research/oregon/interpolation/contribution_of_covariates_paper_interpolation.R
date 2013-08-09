@@ -47,6 +47,17 @@ extract_list_from_list_obj<-function(obj_list,list_name){
   return(list_tmp) #this is  a data.frame
 }
 
+#This extract a data.frame object from raster prediction obj and combine them in one data.frame 
+extract_from_list_obj<-function(obj_list,list_name){
+  list_tmp<-vector("list",length(obj_list))
+  for (i in 1:length(obj_list)){
+    tmp<-obj_list[[i]][[list_name]] #double bracket to return data.frame
+    list_tmp[[i]]<-tmp
+  }
+  tb_list_tmp<-do.call(rbind,list_tmp) #long rownames
+  return(tb_list_tmp) #this is  a data.frame
+}
+
 calc_stat_from_raster_prediction_obj <-function(raster_prediction_obj,stat){
   tb <-raster_prediction_obj$tb_diagnostic_v  #Kriging methods
   
@@ -250,6 +261,91 @@ plot_dst_MAE <-function(list_param){
   
 }
 
+calc_stat_prop_tb <-function(names_mod,raster_prediction_obj,testing=TRUE){
+  
+  #add for testing??
+  if (testing==TRUE){
+    tb <-raster_prediction_obj$tb_diagnostic_v #use testing accuracy information
+  }else{
+    tb <-raster_prediction_obj$tb_diagnostic_s #use training accuracy information
+  }
+  
+  t<-melt(subset(tb,pred_mod==names_mod),
+          measure=c("mae","rmse","r","m50"), 
+          id=c("pred_mod","prop"),
+          na.rm=T)
+  
+  avg_tb<-cast(t,pred_mod+prop~variable,mean)
+  sd_tb<-cast(t,pred_mod+prop~variable,sd)
+  n_tb<-cast(t,pred_mod+prop~variable,length)
+  #n_NA<-cast(t,dst_cat1~variable,is.na)
+  
+  #### prepare returning object
+  prop_obj<-list(tb,avg_tb,sd_tb,n_tb)
+  names(prop_obj) <-c("tb","avg_tb","sd_tb","n_tb")
+  
+  return(prop_obj)
+}
+
+#ploting 
+plot_prop_metrics <-function(list_param){
+  #
+  #list_dist_obj: list of dist object 
+  #col_t: list of color for each 
+  #pch_t: symbol for line
+  #legend_text: text for line and symbol
+  #mod_name: selected models
+  #
+  ## BEGIN ##
+  
+  list_obj<-list_param$list_prop_obj
+  col_t <-list_param$col_t 
+  pch_t <- list_param$pch_t 
+  legend_text <- list_param$legend_text
+  list_mod_name<-list_param$mod_name
+  metric_name<-list_param$metric_name
+  
+  for (i in 1:length(list_obj)){
+    
+    l<-list_obj[[i]]
+    mod_name<-list_mod_name[i]
+    avg_tb<-subset(l$avg_tb,pred_mod==mod_name,select=metric_name) #selecte relevant accuarcy metric
+    n_tb<-subset(l$n_tb,pred_mod==mod_name,select=metric_name) 
+    sd_tb<-subset(l$sd_tb,pred_mod==mod_name,select=metric_name) #l$sd_abs_tb[,metric_name]
+    
+    xlab_text<-"holdout proportion"
+    
+    no <- unlist(as.data.frame(n_tb))
+    y <- unlist(as.data.frame(avg_tb))
+    
+    x<- l$avg_tb$prop
+    y_sd <- unlist(as.data.frame(sd_tb)) #sd_tb
+    
+    ciw <-y_sd
+    #ciw2   <- qt(0.975, n) * y_sd2 / sqrt(n)
+    
+    #plotCI(y=y, x=x, uiw=ciw, col="red", main=paste(" MAE for ",mod_name,sep=""), barcol="blue", lwd=1,
+    #       ylab="RMSE (C)", xlab=xlab_text)
+    
+    ciw   <- qt(0.975, no) * y_sd / sqrt(no)
+    
+    if(i==1){
+      plotCI(y=y, x=x, uiw=ciw, col=col_t[i], main=paste(" Comparison of ",metric_name," in ",mod_name,sep=""), barcol="blue", lwd=1,
+             ylab="RMSE (C)", xlab=xlab_text)
+      lines(y~x, col=col_t[i])
+      
+    }else{
+      lines(y~x, col=col_t[i])
+    }
+    
+  }
+  legend("topleft",legend=legend_text, 
+         cex=1.2, pch=pch_t,col=col_t,lty=1,bty="n")
+  #axis(1,at=1:length(stat_tb[,1]),labels=stat_tb[,1])
+  
+}
+
+##############################
 #### Parameters and constants  
 
 
@@ -265,7 +361,7 @@ in_dir3 <-"/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_0314
 #gwr results:
 in_dir4 <-"/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/output_data_365d_gwr_day_lst_comb3_part1_07122013"
 #multisampling results (gam)
-in_dir5<- "/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/output_data_365d_gam_day_mults15_lst_comb3_07232013"
+in_dir5<- "/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/output_data_365d_gam_daily_mults10_lst_comb3_08082013"
 in_dir6<- "/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/output_data_365d_kriging_daily_mults10_lst_comb3_08062013"
 in_dir7<- "/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/output_data_365d_gwr_daily_mults10_lst_comb3_08072013"
 
@@ -286,10 +382,11 @@ raster_obj_file_2 <- "raster_prediction_obj_gam_daily_dailyTmax_365d_gam_day_lst
 raster_obj_file_3 <- "raster_prediction_obj_kriging_daily_dailyTmax_365d_kriging_day_lst_comb3_07112013.RData"
 raster_obj_file_4 <- "raster_prediction_obj_gwr_daily_dailyTmax_365d_gwr_day_lst_comb3_part1_07122013.RData"
 #multisampling using baseline lat,lon + elev
-raster_obj_file_5 <- "raster_prediction_obj_gam_daily_dailyTmax_365d_gam_day_mults15_lst_comb3_07232013.RData"
-raster_obj_file_6 <- "kriging_daily_validation_mod_obj_dailyTmax_365d_kriging_daily_mults10_lst_comb3_08062013.RData"
-raster_obj_file_7 <- ""
-  
+raster_obj_file_5 <- "raster_prediction_obj_gam_daily_dailyTmax_365d_gam_daily_mults10_lst_comb3_08082013.RData"
+raster_obj_file_6 <- "raster_prediction_obj_kriging_daily_dailyTmax_365d_kriging_daily_mults10_lst_comb3_08062013.RData"
+raster_obj_file_7 <- "raster_prediction_obj_gwr_daily_dailyTmax_365d_gwr_daily_mults10_lst_comb3_08072013.RData"
+#raster_prediction_obj_gam_daily_dailyTmax_365d_gam_daily_mults10_lst_comb3_08082013.RData
+
 #Load objects containing training, testing, models objects 
 
 covar_obj <-load_obj(file.path(in_dir1,covar_obj_file1))
@@ -306,7 +403,7 @@ raster_prediction_obj_3 <-load_obj(file.path(in_dir3,raster_obj_file_3))
 raster_prediction_obj_4 <-load_obj(file.path(in_dir4,raster_obj_file_4)) 
 raster_prediction_obj_5 <-load_obj(file.path(in_dir5,raster_obj_file_5)) #gam daily multisampling 10 to 70%
 raster_prediction_obj_6 <-load_obj(file.path(in_dir6,raster_obj_file_6)) #kriging daily multisampling 
-#raster_prediction_obj_7 <-load_obj(file.path(in_dir7,raster_obj_file_7)) #kriging daily multisampling 
+raster_prediction_obj_7 <-load_obj(file.path(in_dir7,raster_obj_file_7)) #kriging daily multisampling 
 
 names(raster_prediction_obj_1) #list of two objects
 
@@ -396,8 +493,8 @@ write.table(table_sd,file=file_name,sep=",")
 #element<-paste(mean_val,"+-",sd_val,sep="")
 #table__paper[i,j]<-element
 
-#########################
-####### Now create figures ###
+####################################
+####### Now create figures #############
 
 #figure 1: study area
 #figure 2: methodological worklfow
@@ -411,7 +508,8 @@ write.table(table_sd,file=file_name,sep=",")
 
 #not generated in R
 
-### Figure 3
+################################################
+################### Figure 3
 
 #Analysis accuracy in term of distance to closest station
 #Assign model's names
@@ -440,8 +538,8 @@ names(list_param_plot)<-c("list_dist_obj","col_t","pch_t","legend_text","mod_nam
 #debug(plot_dst_MAE)
 plot_dst_MAE(list_param_plot)
 
-
-#Figure 4. RMSE and MAE, mulitisampling and hold out for FSS and GAM.
+####################################################
+#########Figure 4. RMSE and MAE, mulitisampling and hold out for FSS and GAM.
 
 #Using baseline 2: lat,lon and elev
 
@@ -449,81 +547,160 @@ plot_dst_MAE(list_param_plot)
 #Use gam_day method
 #Use comb3 i.e. using baseline s(lat,lon)+s(elev)
 
+#names_mod<-c("mod1","mod2","mod3","mod4","mod5","mod6","mod7","mod8","mod9")
+names_mod<-c("mod1")
+
+debug(calc_stat_prop_tb)
+prop_obj_gam<-calc_stat_prop_tb(names_mod,raster_prediction_obj_5)
+prop_obj_kriging<-calc_stat_prop_tb(names_mod,raster_prediction_obj_6)
+prop_obj_gwr<-calc_stat_prop_tb(names_mod,raster_prediction_obj_7)
+
+list_prop_obj<-list(prop_obj_gam,prop_obj_kriging,prop_obj_gwr)
+col_t<-c("red","blue","black")
+pch_t<- 1:length(col_t)
+legend_text <- c("GAM","Kriging","GWR")
+mod_name<-c("mod1","mod1","mod1")#selected models
+metric_name<-"rmse"
+#png_names<- 
+#png(file.path(out_path,paste("clim_surface_",y_var_name,"_",sampling_dat$date[i],"_",sampling_dat$prop[i],
+#                             "_",sampling_dat$run_samp[i],out_prefix,".png", sep="")))
+
+list_param_plot<-list(list_prop_obj,col_t,pch_t,legend_text,mod_name,metric_name)
+names(list_param_plot)<-c("list_prop_obj","col_t","pch_t","legend_text","mod_name","metric_name")
+#debug(plot_prop_metrics)
+plot_prop_metrics(list_param_plot)
+
+####################################################
+#########Figure 5. Overtraining tendency
+
 #read in relevant data:
 
 tb5 <-raster_prediction_obj_5$tb_diagnostic_v  #gam dailycontains the accuracy metrics for each run...
 tb6 <-raster_prediction_obj_6$tb_diagnostic_v  #Kriging daily methods
-#tb7 <-raster_prediction_obj_7$tb_diagnostic_v  #gwr daily methods
+tb7 <-raster_prediction_obj_7$tb_diagnostic_v  #gwr daily methods
 
-#names_mod<-c("mod1","mod2","mod3","mod4","mod5","mod6","mod7","mod8","mod9")
-names_mod<-c("mod1")
+prop_obj_gam_s<-calc_stat_prop_tb(names_mod,raster_prediction_o  bj_5,testing=FALSE)
+prop_obj_kriging_s<-calc_stat_prop_tb(names_mod,raster_prediction_obj_6,testing=FALSE)
+prop_obj_gwr_s<-calc_stat_prop_tb(names_mod,raster_prediction_obj_7,testing=FALSE)
 
-calc_stat_prop_tb <-function(names_mod,raster_prediction_obj){
-  #add for testing??
-  tb <-raster_prediction_obj$tb_diagnostic_v 
-  t<-melt(subset(tb5,pred_mod==names_mod),
-          measure=c("mae","rmse","r","m50"), 
-          id=c("pred_mod","prop"),
-          na.rm=T)
-  
-  avg_tb<-cast(t,pred_mod+prop~variable,mean)
-  sd_tb<-cast(t,pred_mod+prop~variable,sd)
-  n_tb<-cast(t,pred_mod+prop~variable,length)
-  #n_NA<-cast(t,dst_cat1~variable,is.na)
-  
-  #### prepare returning object
-  prop_obj<-list(tb,mae_tb,avg_tb,sd_tb,n_tb)
-  names(prop_obj) <-c("tb","avg_tb","sd_tb","n_tb")
-  #names(prop_obj) <-c("tb_v","tb_s","avg_tb_v","sd_tb_v","n_tb_s","avg_tb_s","sd_tb_s","n_tb_s")
+prop_obj_gam$avg_tb - prop_obj_gam_s$avg_tb
+plot(prop_obj_gam_s$avg_tb$rmse ~ prop_obj_gam_s$avg_tb$prop, type="b",)
+
+y_range<-range(prop_obj_gam$avg_tb$rmse,prop_obj_gam_s$avg_tb$rmse)
+plot(prop_obj_gam$avg_tb$rmse ~ prop_obj_gam$avg_tb$prop, type="b",ylim=y_range)
+lines(prop_obj_gam_s$avg_tb$rmse ~ prop_obj_gam_s$avg_tb$prop, type="b",ylim=y_range,col=c("red"))
+lines(prop_obj_gam$avg_tb$rmse ~ prop_obj_gam$avg_tb$prop, type="b",ylim=y_range,col=c("red"),lty=2)
+lines(prop_obj_gwr_s$avg_tb$rmse ~ prop_obj_gwr_s$avg_tb$prop, type="b",ylim=y_range,col=c("black"))
+lines(prop_obj_gwr$avg_tb$rmse ~ prop_obj_gam$avg_tb$prop, type="b",ylim=y_range,col=c("black"),lty=2)
+
+y_range<-range(prop_obj_kriging$avg_tb$rmse,prop_obj_kriging_s$avg_tb$rmse)
+plot(prop_obj_kriging$avg_tb$rmse ~ prop_obj_kriging$avg_tb$prop, type="b",ylim=y_range,col=c("blue"),lty=2)
+lines(prop_obj_kriging_s$avg_tb$rmse ~ prop_obj_kriging_s$avg_tb$prop, type="b",ylim=y_range,col=c("blue"))
+
+## Calculate average difference for RMSE for all three methods
+#read in relevant data:
+tb1_s<-extract_from_list_obj(raster_prediction_obj_1$validation_mod_obj,"metrics_s")
+rownames(tb1_s)<-NULL #remove row names
+tb1_s$method_interp <- "gam_daily" #add type of interpolation...out_prefix too??
+
+tb3_s<-extract_from_list_obj(raster_prediction_obj_4$validation_mod_obj,"metrics_s")
+rownames(tb1_s)<-NULL #remove row names
+tb3_s$method_interp <- "kriging_daily" #add type of interpolation...out_prefix too??
+
+tb4_s<-extract_from_list_obj(raster_prediction_obj_3$validation_mod_obj,"metrics_s")
+rownames(tb4_s)<-NULL #remove row names
+tb4_s$method_interp <- "gwr_daily" #add type of interpolation...out_prefix too??
+
+#tb1_s <-raster_prediction_obj_1$tb_diagnostic_s  #gam dailycontains the accuracy metrics for each run...
+#tb3_s <-raster_prediction_obj_3$tb_diagnostic_s  #Kriging daily methods
+#tb4_s <-raster_prediction_obj_4$tb_diagnostic_s  #gwr daily methods
+
+tb1 <-raster_prediction_obj_1$tb_diagnostic_v  #gam dailycontains the accuracy metrics for each run...
+tb3 <-raster_prediction_obj_3$tb_diagnostic_v  #Kriging daily methods
+tb4 <-raster_prediction_obj_4$tb_diagnostic_v  #gwr daily methods
+
+diff_df<-function(tb_s,tb_v,list_metric_names){
+  tb_diff<-vector("list", length(list_metric_names))
+  for (i in 1:length(list_metric_names)){
+    metric_name<-list_metric_names[i]
+    tb_diff[[i]] <-tb_s[,c(metric_name)] - tb_v[,c(metric_name)]
+  }
+  names(tb_diff)<-list_metric_names
+  tb_diff<-as.data.frame(do.call(cbind,tb_diff))
+  return(tb_diff)
 }
 
 
-#tbp<- subset(tb,prop!=70) #remove 70% hold out because it is only predicted for mod1 (baseline)
-#tp<-melt(tbp,
-#         measure=c("mae","rmse","r","m50"), 
-#         id=c("pred_mod","prop"),
-#         na.rm=T)
+#debug(diff_df)
+diff_tb1 <-diff_df(tb1_s[tb1_s$pred_mod=="mod1",],tb1[tb1$pred_mod=="mod1",],c("mae","rmse")) #select differences for mod1
+diff_tb3 <-diff_df(tb3_s[tb3_s$pred_mod=="mod1",],tb3[tb3$pred_mod=="mod1",],c("mae","rmse"))
+diff_tb4 <-diff_df(tb4_s[tb4_s$pred_mod=="mod1",],tb4[tb4$pred_mod=="mod1",],c("mae","rmse"))
 
-avg_tp<-cast(tp,pred_mod~variable,mean)
+x<-data.frame(gam=diff_tb1$mae,gwr=diff_tb3$mae,kriging=diff_tb4$mae)
 
-avg_tb<-cast(t5,pred_mod+prop~variable,mean)
-sd_tb<-cast(t,pred_mod+prop~variable,sd)
+boxplot(x) #plot differences in training and testing accuracies for three methods
 
-n_tb<-cast(t,pred_mod+prop~variable,length)
+mae_tmp<- data.frame(gam=tb1[tb1$pred_mod=="mod1",c("mae")],
+                     kriging=tb3[tb3$pred_mod=="mod1",c("mae")],
+                     gwr=tb4[tb4$pred_mod=="mod1",c("mae")])
 
-xyplot(avg_tb$rmse~avg_tb$prop,type="b",group=pred_mod,
-       data=avg_tb,
-       pch=1:length(avg_tb$pred_mod),
-       par.settings=list(superpose.symbol = list(
-         pch=1:length(avg_tb$pred_mod))),
-       auto.key=list(columns=5))
+plot(mae_tmp$gam,col=c("red"),type="b")
+lines(mae_tmp$kriging,col=c("blue"),type="b")
+lines(mae_tmp$gwr,col=c("black"),type="b")
+legend("topleft",legend=legend_text, 
+       cex=1.2, pch=pch_t,col=col_t,lty=1,bty="n")
 
-mod_name<-"mod1"
-mod_name<-"mod4"
-xlab_text<-"proportion of hold out"
+max(mae_tmp$gam)
 
-n <- unlist(subset(n_tb,pred_mod==mod_name,select=c(rmse)))
-y <- unlist(subset(avg_tb,pred_mod==mod_name,select=c(rmse)))
+x2<-tb1[tb1$pred_mod=="mod1",c("mae","date")]
+arrange(x2,desc(mae))
 
-x<- 1:length(y)
-y_sd <- unlist(subset(sd_tb,pred_mod==mod_name,select=c(rmse)))
 
-ciw <-y_sd
-#ciw2   <- qt(0.975, n) * y_sd2 / sqrt(n)
+pmax(x2$mae,x2$date)
 
-plotCI(y=y, x=x, uiw=ciw, col="red", main=paste(" Mean and Std_dev RMSE for ",mod_name,sep=""), barcol="blue", lwd=1,
-       ylab="RMSE (C)", xlab=xlab_text)
+kriging=tb3[tb3$pred_mod=="mod1",c("mae")],
+                     gwr=tb4[tb4$pred_mod=="mod1",c("mae")])
 
-ciw   <- qt(0.975, n) * y_sd / sqrt(n)
+##### MONTHLY AVERAGES
 
-plotCI(y=y, x=x, uiw=ciw, col="red", main=paste(" Mean and CI RMSE for ",mod_name,sep=""), barcol="blue", lwd=1,
-       ylab="RMSE (C)", xlab=xlab_text)
+tb1_month<-raster_prediction_obj_1$summary_month_metrics_v[[1]] #note that this is for model1
+tb3_month<-raster_prediction_obj_3$summary_month_metrics_v[[1]]
+tb4_month<- raster_prediction_obj_4$summary_month_metrics_v[[1]]
 
-n=150
-ciw   <- qt(0.975, n) * y_sd / sqrt(n)
-ciw2   <- qt(0.975, n) * y_sd2 / sqrt(n)
+y_range<-range(tb1_month$mae,tb3_month$mae,tb4_month$mae)
+plot(1:12,tb1_month$mae,col=c("red"),type="b",ylim=y_range)
+lines(1:12,tb3_month$mae,col=c("blue"),type="b")
+lines(1:12,tb4_month$mae,col=c("black"),type="b")
 
-plot_dst_MAE <-function(list_param){
+date<-strptime(tb1$date, "%Y%m%d")   # interpolation date being processed
+month<-strftime(date, "%m")          # current month of the date being processed
+
+tb1$month<-month
+x3<-tb1[tb1$pred_mod=="mod1",]
+
+(plot(x3[month=="01",c("mae")]))
+median(x3[x3$month=="03",c("mae")],na.rm=T)
+mean(x3[x3$month=="03",c("mae")],na.rm=T)
+
+plot_dst_spat_fun<-function(stat_tb,names_var,cat_val){
+  
+  range_y<-range(as.vector(unlist(stat_tb[,names_var])),na.rm=T) #flatten data.frame
+  col_t<-rainbow(length(names_var))
+  pch_t<- 1:length(names_var)
+  plot(stat_tb[,names_var[1]], ylim=range_y,pch=pch_t[1],col=col_t[1],type="b",
+       yla="MAE (in degree C)",xlab="",xaxt="n")
+  #points((stat_tb[,names_var[k]], ylim=range_y,pch=pch_t[1],col=col_t[1]),type="p")
+  for (k in 2:length(names_var)){
+    lines(stat_tb[,names_var[k]], ylim=range_y,pch=pch_t[k],col=col_t[k],type="b",
+          xlab="",axes=F)
+    #points((stat_tb[,names_var[k]], ylim=range_y,pch=pch_t[k],col=col_t[k]),type="p")
+  }
+  legend("topleft",legend=names_var, 
+         cex=1.2, pch=pch_t,col=col_t,lty=1,bty="n")
+  axis(1,at=1:length(stat_tb[,1]),labels=stat_tb[,1])
+}
+
+plot_prop_metrics <-function(list_param){
   #
   #list_dist_obj: list of dist object 
   #col_t: list of color for each 
@@ -533,27 +710,28 @@ plot_dst_MAE <-function(list_param){
   #
   ## BEGIN ##
   
-  list_dist_obj<-list_param$list_dist_obj
-  col_t<-list_param$col_t 
-  pch_t<- list_param$pch_t 
+  list_obj<-list_param$list_prop_obj
+  col_t <-list_param$col_t 
+  pch_t <- list_param$pch_t 
   legend_text <- list_param$legend_text
   list_mod_name<-list_param$mod_name
+  metric_name<-list_param$metric_name
   
-  for (i in 1:length(list_dist_obj)){
+  for (i in 1:length(list_obj)){
     
-    l<-list_dist_obj[[i]]
-    mae_tb<-l$mae_tb
-    n_tb<-l$n_tb
-    sd_abs_tb<-l$sd_abs_tb
-    
+    l<-list_obj[[i]]
     mod_name<-list_mod_name[i]
-    xlab_text<-"distance to fitting station"
+    avg_tb<-subset(l$avg_tb,pred_mod==mod_name,select=metric_name) #selecte relevant accuarcy metric
+    n_tb<-subset(l$n_tb,pred_mod==mod_name,select=metric_name) 
+    sd_tb<-subset(l$sd_tb,pred_mod==mod_name,select=metric_name) #l$sd_abs_tb[,metric_name]
     
-    n <- unlist(n_tb[1:13,c(mod_name)])
-    y <- unlist(mae_tb[1:13,c(mod_name)])
+    xlab_text<-"holdout proportion"
     
-    x<- 1:length(y)
-    y_sd <- unlist(sd_abs_tb[1:12,c(mod_name)])
+    no <- unlist(as.data.frame(n_tb))
+    y <- unlist(as.data.frame(avg_tb))
+    
+    x<- l$avg_tb$prop
+    y_sd <- unlist(as.data.frame(sd_tb)) #sd_tb
     
     ciw <-y_sd
     #ciw2   <- qt(0.975, n) * y_sd2 / sqrt(n)
@@ -561,10 +739,10 @@ plot_dst_MAE <-function(list_param){
     #plotCI(y=y, x=x, uiw=ciw, col="red", main=paste(" MAE for ",mod_name,sep=""), barcol="blue", lwd=1,
     #       ylab="RMSE (C)", xlab=xlab_text)
     
-    ciw   <- qt(0.975, n) * y_sd / sqrt(n)
+    ciw   <- qt(0.975, no) * y_sd / sqrt(no)
     
     if(i==1){
-      plotCI(y=y, x=x, uiw=ciw, col=col_t[i], main=paste(" Comparison of MAE in ",mod_name,sep=""), barcol="blue", lwd=1,
+      plotCI(y=y, x=x, uiw=ciw, col=col_t[i], main=paste(" Comparison of ",metric_name," in ",mod_name,sep=""), barcol="blue", lwd=1,
              ylab="RMSE (C)", xlab=xlab_text)
       lines(y~x, col=col_t[i])
       
@@ -579,24 +757,7 @@ plot_dst_MAE <-function(list_param){
   
 }
 
+
 ################### END OF SCRIPT ###################
 
-# create plot of accury in term of distance to closest fitting station
-plot_dst_spat_fun<-function(stat_tb,names_var,cat_val){
-  
-  range_y<-range(as.vector(unlist(stat_tb[,names_var])),na.rm=T) #flatten data.frame
-  col_t<-rainbow(length(names_var))
-  pch_t<- 1:length(names_var)
-  plot(stat_tb[,names_var[1]], ylim=range_y,pch=pch_t[1],col=col_t[1],type="b",
-       ylab="MAE (in degree C)",xlab="",xaxt="n")
-  #points((stat_tb[,names_var[k]], ylim=range_y,pch=pch_t[1],col=col_t[1]),type="p")
-  for (k in 2:length(names_var)){
-    lines(stat_tb[,names_var[k]], ylim=range_y,pch=pch_t[k],col=col_t[k],type="b",
-          xlab="",axes=F)
-    #points((stat_tb[,names_var[k]], ylim=range_y,pch=pch_t[k],col=col_t[k]),type="p")
-  }
-  legend("topleft",legend=names_var, 
-         cex=1.2, pch=pch_t,col=col_t,lty=1,bty="n")
-  axis(1,at=1:length(stat_tb[,1]),labels=stat_tb[,1])
-}
 
