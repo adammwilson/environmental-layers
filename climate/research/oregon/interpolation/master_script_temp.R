@@ -10,7 +10,7 @@
 #STAGE 5: Output analyses: assessment of results for specific dates...
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 08/08/2013                                                                                 
+#DATE: 08/12/2013                                                                                 
 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363, TASK$568--   
 
@@ -48,7 +48,7 @@ script_path<-"/data/project/layers/commons/data_workflow/env_layers_scripts/"
 
 ##SCRIPT USED FOR THE PREDICTIONS: Source or list all scripts here to avoid confusion on versions being run!!!!
 
-#source(file.path(script_path,"master_script_temp_08052013.R")) #Master script can be run directly...
+#source(file.path(script_path,"master_script_temp_08122013.R")) #Master script can be run directly...
 
 #CALLED FROM MASTER SCRIPT:
 
@@ -80,19 +80,19 @@ met_stations_outfiles_obj_file<-"/data/project/layers/commons/data_workflow/outp
 #met_stations_outfiles_obj_file<-"met_stations_outfiles_obj_kriging_daily__365d_kriging_daily_mults10_lst_comb3_08062013.RData"
 
 var<-"TMAX" # variable being interpolated
-out_prefix<-"_365d_gam_daily_mults10_lst_comb3_08082013"                #User defined output prefix
-out_suffix<-"_OR_08082013"                                       #Regional suffix
+out_prefix<-"_365d_gam_fus_lst_comb3_08122013"                #User defined output prefix
+out_suffix<-"_OR_08122013"                                       #Regional suffix
 out_suffix_modis <-"_05302013"                       #pattern to find tiles produced previously     
 
 #interpolation_method<-c("gam_fusion","gam_CAI","gam_daily") #other otpions to be added later
 #interpolation_method<-c("gam_CAI") #other otpions to be added later
-#interpolation_method<-c("gam_fusion") #other otpions to be added later
+interpolation_method<-c("gam_fusion") #other otpions to be added later
 #interpolation_method<-c("kriging_fusion") #other otpions to be added later
 #interpolation_method<-c("gwr_fusion") #other otpions to be added later
 #interpolation_method<-c("gwr_CAI") #other otpions to be added later
 #interpolation_method<-c("kriging_CAI") 
 
-interpolation_method<-c("gam_daily") #other otpions to be added later
+#interpolation_method<-c("gam_daily") #other otpions to be added later
 #interpolation_method<-c("kriging_daily") #other otpions to be added later
 #interpolation_method<-c("gwr_daily") #other otpions to be added later
 
@@ -243,32 +243,32 @@ names(list_param_data_prep) <- c("infile_monthly","infile_daily","infile_locs","
 #Set additional parameters
 #Input for sampling function...
 seed_number<- 100  #if seed zero then no seed?     
-nb_sample<-10           #number of time random sampling must be repeated for every hold out proportion
-step<-0.1         
+nb_sample<-1           #number of time random sampling must be repeated for every hold out proportion
+step<-0         
 constant<-0             #if value 1 then use the same samples as date one for the all set of dates
-prop_minmax<-c(0.1,0.7)  #if prop_min=prop_max and step=0 then predicitons are done for the number of dates...
+prop_minmax<-c(0.3,0.3)  #if prop_min=prop_max and step=0 then predictions are done for the number of dates...
 #dates_selected<-c("20100101","20100102","20100103","20100901") # Note that the dates set must have a specific format: yyymmdd
-dates_selected<-c("20100101","20100102","20100301","20100302","20100501","20100502","20100701","20100702","20100901","20100902","20101101","20101102")
-#dates_selected<-"" # if empty string then predict for the full year specified earlier
+#dates_selected<-c("20100101","20100102","20100301","20100302","20100501","20100502","20100701","20100702","20100901","20100902","20101101","20101102")
+dates_selected<-"" # if empty string then predict for the full year specified earlier
 screen_data_training<-FALSE #screen training data for NA and use same input training for all models fitted
 
 #Models to run...this can be changed for each run
 #LC1: Evergreen/deciduous needleleaf trees
 
 #Combination 3: for paper baseline=s(lat,lon)+s(elev)
-# list_models<-c("y_var ~ s(lat,lon) + s(elev_s)",
-#               "y_var ~ s(lat,lon) + s(elev_s) + s(N_w)",
-#               "y_var ~ s(lat,lon) + s(elev_s) + s(E_w)",
-#               "y_var ~ s(lat,lon) + s(elev_s) + s(LST)",
-#               "y_var ~ s(lat,lon) + s(elev_s) + s(DISTOC)",
-#               "y_var ~ s(lat,lon) + s(elev_s) + s(LC1)",
-#               "y_var ~ s(lat,lon) + s(elev_s) + s(CANHGHT)",
-#               "y_var ~ s(lat,lon) + s(elev_s) + s(LST) + ti(LST,LC1)",
-#               "y_var ~ s(lat,lon) + s(elev_s) + s(LST) + ti(LST,CANHGHT)")
+list_models<-c("y_var ~ s(lat,lon) + s(elev_s)",
+              "y_var ~ s(lat,lon) + s(elev_s) + s(N_w)",
+              "y_var ~ s(lat,lon) + s(elev_s) + s(E_w)",
+              "y_var ~ s(lat,lon) + s(elev_s) + s(LST)",
+              "y_var ~ s(lat,lon) + s(elev_s) + s(DISTOC)",
+              "y_var ~ s(lat,lon) + s(elev_s) + s(LC1)",
+              "y_var ~ s(lat,lon) + s(elev_s) + s(CANHGHT)",
+              "y_var ~ s(lat,lon) + s(elev_s) + s(LST) + ti(LST,LC1)",
+              "y_var ~ s(lat,lon) + s(elev_s) + s(LST) + ti(LST,CANHGHT)")
 
 #list_models<-c("y_var ~ lat*lon + elev_s")
 
-list_models<-c("y_var ~ s(lat,lon) + s(elev_s)")
+#list_models<-c("y_var ~ s(lat,lon) + s(elev_s)")
 
 #list_models<-c("y_var ~ lat*lon + elev_s",
 #              "y_var ~ lat*lon + elev_s + N_w",
