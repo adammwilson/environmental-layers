@@ -80,13 +80,13 @@ met_stations_outfiles_obj_file<-"/data/project/layers/commons/data_workflow/outp
 #met_stations_outfiles_obj_file<-"met_stations_outfiles_obj_kriging_daily__365d_kriging_daily_mults10_lst_comb3_08062013.RData"
 
 var<-"TMAX" # variable being interpolated
-out_prefix<-"_365d_gam_fus_lst_comb3_08122013"                #User defined output prefix
+out_prefix<-"_365d_gam_cai_lst_comb3_08122013"                #User defined output prefix
 out_suffix<-"_OR_08122013"                                       #Regional suffix
 out_suffix_modis <-"_05302013"                       #pattern to find tiles produced previously     
 
 #interpolation_method<-c("gam_fusion","gam_CAI","gam_daily") #other otpions to be added later
-#interpolation_method<-c("gam_CAI") #other otpions to be added later
-interpolation_method<-c("gam_fusion") #other otpions to be added later
+interpolation_method<-c("gam_CAI") #other otpions to be added later
+#interpolation_method<-c("gam_fusion") #other otpions to be added later
 #interpolation_method<-c("kriging_fusion") #other otpions to be added later
 #interpolation_method<-c("gwr_fusion") #other otpions to be added later
 #interpolation_method<-c("gwr_CAI") #other otpions to be added later
