@@ -4,7 +4,7 @@
 # interpolation code.
 #Figures and data for the contribution of covariate paper are also produced.
 #AUTHOR: Benoit Parmentier                                                                      #
-#DATE: 08/05/2013            
+#DATE: 08/13/2013            
 #Version: 1
 #PROJECT: Environmental Layers project                                       #
 #################################################################################################
@@ -49,12 +49,17 @@ extract_list_from_list_obj<-function(obj_list,list_name){
 
 #This extract a data.frame object from raster prediction obj and combine them in one data.frame 
 extract_from_list_obj<-function(obj_list,list_name){
+  #extract object from list of list. This useful for raster_prediction_obj
+  library(ply)
+  
   list_tmp<-vector("list",length(obj_list))
   for (i in 1:length(obj_list)){
     tmp<-obj_list[[i]][[list_name]] #double bracket to return data.frame
     list_tmp[[i]]<-tmp
   }
-  tb_list_tmp<-do.call(rbind,list_tmp) #long rownames
+  tb_list_tmp<-do.call(rbind.fill,list_tmp) #long rownames
+  #tb_list_tmp<-do.call(rbind,list_tmp) #long rownames
+  
   return(tb_list_tmp) #this is  a data.frame
 }
 
@@ -345,6 +350,171 @@ plot_prop_metrics <-function(list_param){
   
 }
 
+plot_dst_spat_fun<-function(stat_tb,names_var,cat_val){
+  
+  range_y<-range(as.vector(unlist(stat_tb[,names_var])),na.rm=T) #flatten data.frame
+  col_t<-rainbow(length(names_var))
+  pch_t<- 1:length(names_var)
+  plot(stat_tb[,names_var[1]], ylim=range_y,pch=pch_t[1],col=col_t[1],type="b",
+       yla="MAE (in degree C)",xlab="",xaxt="n")
+  #points((stat_tb[,names_var[k]], ylim=range_y,pch=pch_t[1],col=col_t[1]),type="p")
+  for (k in 2:length(names_var)){
+    lines(stat_tb[,names_var[k]], ylim=range_y,pch=pch_t[k],col=col_t[k],type="b",
+          xlab="",axes=F)
+    #points((stat_tb[,names_var[k]], ylim=range_y,pch=pch_t[k],col=col_t[k]),type="p")
+  }
+  legend("topleft",legend=names_var, 
+         cex=1.2, pch=pch_t,col=col_t,lty=1,bty="n")
+  axis(1,at=1:length(stat_tb[,1]),labels=stat_tb[,1])
+}
+
+plot_prop_metrics <-function(list_param){
+  #
+  #list_dist_obj: list of dist object 
+  #col_t: list of color for each 
+  #pch_t: symbol for line
+  #legend_text: text for line and symbol
+  #mod_name: selected models
+  #
+  ## BEGIN ##
+  
+  list_obj<-list_param$list_prop_obj
+  col_t <-list_param$col_t 
+  pch_t <- list_param$pch_t 
+  legend_text <- list_param$legend_text
+  list_mod_name<-list_param$mod_name
+  metric_name<-list_param$metric_name
+  
+  for (i in 1:length(list_obj)){
+    
+    l<-list_obj[[i]]
+    mod_name<-list_mod_name[i]
+    avg_tb<-subset(l$avg_tb,pred_mod==mod_name,select=metric_name) #selecte relevant accuarcy metric
+    n_tb<-subset(l$n_tb,pred_mod==mod_name,select=metric_name) 
+    sd_tb<-subset(l$sd_tb,pred_mod==mod_name,select=metric_name) #l$sd_abs_tb[,metric_name]
+    
+    xlab_text<-"holdout proportion"
+    
+    no <- unlist(as.data.frame(n_tb))
+    y <- unlist(as.data.frame(avg_tb))
+    
+    x<- l$avg_tb$prop
+    y_sd <- unlist(as.data.frame(sd_tb)) #sd_tb
+    
+    ciw <-y_sd
+    #ciw2   <- qt(0.975, n) * y_sd2 / sqrt(n)
+    
+    #plotCI(y=y, x=x, uiw=ciw, col="red", main=paste(" MAE for ",mod_name,sep=""), barcol="blue", lwd=1,
+    #       ylab="RMSE (C)", xlab=xlab_text)
+    
+    ciw   <- qt(0.975, no) * y_sd / sqrt(no)
+    
+    if(i==1){
+      plotCI(y=y, x=x, uiw=ciw, col=col_t[i], main=paste(" Comparison of ",metric_name," in ",mod_name,sep=""), barcol="blue", lwd=1,
+             ylab="RMSE (C)", xlab=xlab_text)
+      lines(y~x, col=col_t[i])
+      
+    }else{
+      lines(y~x, col=col_t[i])
+    }
+    
+  }
+  legend("topleft",legend=legend_text, 
+         cex=1.2, pch=pch_t,col=col_t,lty=1,bty="n")
+  #axis(1,at=1:length(stat_tb[,1]),labels=stat_tb[,1])
+  
+}
+
+create_s_and_p_table_term_models <-function(i,list_myModels){
+  #Purpose:
+  #Function to extract smooth term  table,parameter table and AIC from a list of models.
+  #Originally created to processed GAM models run over a full year.
+  #Inputs: 
+  #1) list_myModels: list of fitted GAM models
+  #2) i: index of list to run with lapply or mcapply
+  #Outputs: list of 
+  #1)s.table.term
+  #2)p.table.term
+  #3)AIC list
+  #Authors: Benoit Parmentier
+  #date: 08/142013
+  
+  ### Functions used in the scritp:
+  
+  #Remove models that were not fitted from the list
+  #All modesl that are "try-error" are removed
+  remove_errors_list<-function(list_items){
+    #This function removes "error" items in a list
+    list_tmp<-list_items
+    for(i in 1:length(list_items)){
+      
+      if(inherits(list_items[[i]],"try-error")){
+        list_tmp[[i]]<-0
+      }else{
+        list_tmp[[i]]<-1
+      }
+    }
+    cnames<-names(list_tmp[list_tmp>0])
+    x<-list_items[match(cnames,names(list_items))]
+    return(x)
+  }
+  
+  #turn term from list into data.frame
+  name_col<-function(i,x){
+    x_mat<-x[[i]]
+    x_df<-as.data.frame(x_mat)
+    x_df$mod_name<-rep(names(x)[i],nrow(x_df))
+    x_df$term_name <-row.names(x_df)
+    return(x_df)
+  }
+  
+  ##BEGIN ###
+  
+  myModels <- list_myModels[[i]]
+  myModels<-remove_errors_list(myModels)
+  #could add AIC, GCV to the table as well as ME, RMSE...+dates...
+  
+  summary_list <- lapply(myModels, summary)
+  s.table_list <- lapply(summary_list, `[[`, 's.table')
+  p.table_list <- lapply(summary_list, `[[`, 'p.table')
+  AIC_list <- lapply(myModels, AIC)
+  
+  #now put in one table
+  
+  s.table_list2<-lapply(1:length(myModels),name_col,s.table_list)
+  p.table_list2<-lapply(1:length(myModels),name_col,p.table_list)
+  s.table_term <-do.call(rbind,s.table_list2)
+  p.table_term <-do.call(rbind,p.table_list2)
+  
+  #Now get AIC
+  AIC_list2<-lapply(1:length(myModels),name_col,AIC_list)
+  AIC_models <- do.call(rbind,AIC_list2)
+  names(AIC_models)[1]<-"AIC"
+  
+  #Set up return object
+  
+  s_p_table_term_obj<-list(s.table_term,p.table_term,AIC_models)
+  names(s_p_table_term_obj) <-c("s.table_term","p.table_term","AIC_models")
+  return(s_p_table_term_obj)
+  
+}
+
+convert_spdf_to_df_from_list <-function(obj_list,list_name){
+  #extract object from list of list. This useful for raster_prediction_obj
+  #output: data.frame formed by rbinding sp data.frame in the list
+  library(plyr)
+  
+  list_tmp<-vector("list",length(obj_list))
+  for (i in 1:length(obj_list)){
+    #tmp<-obj_list[[i]][[list_name]] #double bracket to return data.frame
+    list_tmp[[i]]<-as.data.frame(obj_list[[i]])
+  }
+  tb_list_tmp<-do.call(rbind.fill,list_tmp) #long rownames
+  #tb_list_tmp<-do.call(rbind,list_tmp) #long rownames
+  
+  return(tb_list_tmp) #this is  a data.frame
+}
+
 ##############################
 #### Parameters and constants  
 
@@ -374,6 +544,7 @@ out_prefix<-"analyses_08032013"
 
 method_interpolation <- "gam_daily"
 covar_obj_file1 <- "covar_obj__365d_gam_day_lst_comb3_07092013.RData"
+met_obj_file_1 <- "met_stations_outfiles_obj_gam_daily__365d_gam_day_lst_comb3_07092013.RData"
 
 #raster_prediciton object for baseline 1 () s(lat,lon) + s(elev)) and baseline 2 (slat,lon))
 raster_obj_file_1 <- "raster_prediction_obj_gam_daily_dailyTmax_365d_gam_day_lst_comb3_07092013.RData" 
@@ -501,6 +672,7 @@ write.table(table_sd,file=file_name,sep=",")
 #figure 3:Figure 3. MAE/RMSE and distance to closest fitting station.
 #Figure 4. RMSE and MAE, mulitisampling and hold out for FSS and GAM.
 #Figure 5. Overtraining tendency
+#Figure 6: Spatial pattern of prediction for one day
 
 ### Figure 1
 
@@ -630,7 +802,6 @@ diff_df<-function(tb_s,tb_v,list_metric_names){
   return(tb_diff)
 }
 
-
 #debug(diff_df)
 diff_tb1 <-diff_df(tb1_s[tb1_s$pred_mod=="mod1",],tb1[tb1$pred_mod=="mod1",],c("mae","rmse")) #select differences for mod1
 diff_tb3 <-diff_df(tb3_s[tb3_s$pred_mod=="mod1",],tb3[tb3$pred_mod=="mod1",],c("mae","rmse"))
@@ -654,9 +825,6 @@ max(mae_tmp$gam)
 
 x2<-tb1[tb1$pred_mod=="mod1",c("mae","date")]
 arrange(x2,desc(mae))
-
-
-pmax(x2$mae,x2$date)
 
 kriging=tb3[tb3$pred_mod=="mod1",c("mae")],
                      gwr=tb4[tb4$pred_mod=="mod1",c("mae")])
@@ -682,80 +850,242 @@ x3<-tb1[tb1$pred_mod=="mod1",]
 median(x3[x3$month=="03",c("mae")],na.rm=T)
 mean(x3[x3$month=="03",c("mae")],na.rm=T)
 
-plot_dst_spat_fun<-function(stat_tb,names_var,cat_val){
-  
-  range_y<-range(as.vector(unlist(stat_tb[,names_var])),na.rm=T) #flatten data.frame
-  col_t<-rainbow(length(names_var))
-  pch_t<- 1:length(names_var)
-  plot(stat_tb[,names_var[1]], ylim=range_y,pch=pch_t[1],col=col_t[1],type="b",
-       yla="MAE (in degree C)",xlab="",xaxt="n")
-  #points((stat_tb[,names_var[k]], ylim=range_y,pch=pch_t[1],col=col_t[1]),type="p")
-  for (k in 2:length(names_var)){
-    lines(stat_tb[,names_var[k]], ylim=range_y,pch=pch_t[k],col=col_t[k],type="b",
-          xlab="",axes=F)
-    #points((stat_tb[,names_var[k]], ylim=range_y,pch=pch_t[k],col=col_t[k]),type="p")
-  }
-  legend("topleft",legend=names_var, 
-         cex=1.2, pch=pch_t,col=col_t,lty=1,bty="n")
-  axis(1,at=1:length(stat_tb[,1]),labels=stat_tb[,1])
-}
 
-plot_prop_metrics <-function(list_param){
-  #
-  #list_dist_obj: list of dist object 
-  #col_t: list of color for each 
-  #pch_t: symbol for line
-  #legend_text: text for line and symbol
-  #mod_name: selected models
-  #
-  ## BEGIN ##
-  
-  list_obj<-list_param$list_prop_obj
-  col_t <-list_param$col_t 
-  pch_t <- list_param$pch_t 
-  legend_text <- list_param$legend_text
-  list_mod_name<-list_param$mod_name
-  metric_name<-list_param$metric_name
-  
-  for (i in 1:length(list_obj)){
-    
-    l<-list_obj[[i]]
-    mod_name<-list_mod_name[i]
-    avg_tb<-subset(l$avg_tb,pred_mod==mod_name,select=metric_name) #selecte relevant accuarcy metric
-    n_tb<-subset(l$n_tb,pred_mod==mod_name,select=metric_name) 
-    sd_tb<-subset(l$sd_tb,pred_mod==mod_name,select=metric_name) #l$sd_abs_tb[,metric_name]
-    
-    xlab_text<-"holdout proportion"
-    
-    no <- unlist(as.data.frame(n_tb))
-    y <- unlist(as.data.frame(avg_tb))
-    
-    x<- l$avg_tb$prop
-    y_sd <- unlist(as.data.frame(sd_tb)) #sd_tb
-    
-    ciw <-y_sd
-    #ciw2   <- qt(0.975, n) * y_sd2 / sqrt(n)
-    
-    #plotCI(y=y, x=x, uiw=ciw, col="red", main=paste(" MAE for ",mod_name,sep=""), barcol="blue", lwd=1,
-    #       ylab="RMSE (C)", xlab=xlab_text)
-    
-    ciw   <- qt(0.975, no) * y_sd / sqrt(no)
-    
-    if(i==1){
-      plotCI(y=y, x=x, uiw=ciw, col=col_t[i], main=paste(" Comparison of ",metric_name," in ",mod_name,sep=""), barcol="blue", lwd=1,
-             ylab="RMSE (C)", xlab=xlab_text)
-      lines(y~x, col=col_t[i])
-      
-    }else{
-      lines(y~x, col=col_t[i])
-    }
-    
-  }
-  legend("topleft",legend=legend_text, 
-         cex=1.2, pch=pch_t,col=col_t,lty=1,bty="n")
-  #axis(1,at=1:length(stat_tb[,1]),labels=stat_tb[,1])
-  
+####### FIGURE 6 ######
+
+y_var_name <-"dailyTmax"
+index<-244 #index corresponding to January 1
+
+lf1 <- raster_prediction_obj_1$method_mod_obj[[index]][[y_var_name]]
+lf3 <- raster_prediction_obj_3$method_mod_obj[[index]][[y_var_name]]
+lf4 <- raster_prediction_obj_4$method_mod_obj[[index]][[y_var_name]]
+
+date_selected <- "20109101"
+methods_names <-c("gam","kriging","gwr")
+names_layers<-methods_names
+lf <-list(lf1$mod1,lf3$mod1,lf4$mod1)
+#lf <-lf[[1]]
+
+pred_temp_s <-stack(lf)
+#predictions<-mask(predictions,mask_rast)
+names(pred_temp_s)<-names_layers
+s.range <- c(min(minValue(pred_temp_s)), max(maxValue(pred_temp_s)))
+#s.range <- s.range+c(5,-5)
+col.breaks <- pretty(s.range, n=200)
+lab.breaks <- pretty(s.range, n=100)
+temp.colors <- colorRampPalette(c('blue', 'white', 'red'))
+max_val<-s.range[2]
+min_val <-s.range[1]
+#max_val<- -10
+min_val <- 0
+layout_m<-c(1,3) #one row two columns
+
+png(paste("spatial_pattern_tmax_prediction_levelplot_",date_selected,out_prefix,".png", sep=""),
+    height=480*layout_m[1],width=480*layout_m[2])
+
+levelplot(pred_temp_s,main="Interpolated Surfaces Method Comparison", ylab=NULL,xlab=NULL,
+          par.settings = list(axis.text = list(font = 2, cex = 1.3),layout=layout_m,
+                              par.main.text=list(font=2,cex=2),strip.background=list(col="white")),par.strip.text=list(font=2,cex=1.5),
+          names.attr=names_layers,col.regions=temp.colors,at=seq(max_val,min_val,by=0.01))
+#col.regions=temp.colors(25))
+dev.off()
+
+## FIGURE COMPARISON OF  MODELS COVARRIATES
+
+lf1 <- raster_prediction_obj_1$method_mod_obj[[index]][[y_var_name]]
+lf1 #contains the models for gam
+
+pred_temp_s <-stack(lf1$mod1,lf1$mod4)
+date_selected <- "20109101"
+#names_layers <-c("mod1=s(lat,long)+s(elev)","mod4=s(lat,long)+s(LST)","diff=mod1-mod4")
+names_layers <-c("mod1=s(lat,long)+s(elev)","mod4=s(lat,long)+s(LST)")
+names(pred_temp_s)<-names_layers
+s.range <- c(min(minValue(pred_temp_s)), max(maxValue(pred_temp_s)))
+#s.range <- s.range+c(5,-5)
+col.breaks <- pretty(s.range, n=200)
+lab.breaks <- pretty(s.range, n=100)
+temp.colors <- colorRampPalette(c('blue', 'white', 'red'))
+max_val<-s.range[2]
+min_val <-s.range[1]
+#max_val<- -10
+min_val <- 0
+layout_m<-c(1,2) #one row two columns
+
+png(paste("spatial_pattern_tmax_prediction_models_gam_levelplot_",date_selected,out_prefix,".png", sep=""),
+    height=480*layout_m[1],width=480*layout_m[2])
+
+levelplot(pred_temp_s,main="Interpolated Surfaces Model Comparison", ylab=NULL,xlab=NULL,
+          par.settings = list(axis.text = list(font = 2, cex = 1.3),layout=layout_m,
+                              par.main.text=list(font=2,cex=2),strip.background=list(col="white")),par.strip.text=list(font=2,cex=1.5),
+          names.attr=names_layers,col.regions=temp.colors,at=seq(max_val,min_val,by=0.01))
+#col.regions=temp.colors(25))
+dev.off()
+
+diff<-raster(lf1$mod1)-raster(lf1$mod4)
+names_layers <- c("difference=mod1-mod4")
+names(diff) <- names_layers
+plot(diff,col=temp.colors(100),main=names_layers)
+#levelplot(diff,main="Interpolated Surfaces Model Comparison", ylab=NULL,xlab=NULL,
+#          par.settings = list(axis.text = list(font = 2, cex = 1.3),layout=c(1,1),
+#                              par.main.text=list(font=2,cex=2),strip.background=list(col="white")),par.strip.text=list(font=2,cex=1.5),
+#          names.attr=names_layers,col.regions=temp.colors)
+
+######## NOW GET A ACCUURAY BY STATIONS
+
+list_data_v<-extract_list_from_list_obj(raster_prediction_obj_1$validation_mod_obj,"data_v")
+data_v_test <- list_data_v[[1]]
+
+#Convert sp data.frame and combined them in one unique df, see function define earlier
+data_v_combined <-convert_spdf_to_df_from_list(list_data_v) #long rownames
+names_var<-c("res_mod1","res_mod2","res_mod3","res_mod4","res_mod5","res_mod6","res_mod7","res_mod8")
+t<-melt(data_v_combined,
+        measure=names_var, 
+        id=c("id"),
+        na.rm=T)
+
+mae_fun<-function(x){mean(abs(x))} #Mean Absolute Error give a residuals vector
+sd_abs_fun<-function(x){sd(abs(x))} #sd Absolute Error give a residuals vector
+
+mae_tb<-cast(t,id~variable,mae_fun) #join to station location...
+
+sd_abs_tb<-cast(t,dst_cat1~variable,sd_abs_fun)
+
+#avg_tb<-cast(t,dst_cat1~variable,mean)
+#sd_tb<-cast(t,dst_cat1~variable,sd)
+#n_tb<-cast(t,dst_cat1~variable,length)
+
+met_obj <-load_obj(file.path(in_dir1,met_obj_file_1))
+stat_loc<-readOGR(dsn=dirname(met_obj$loc_stations),layer=sub(".shp","",basename(met_obj$loc_stations)))
+
+data_v_mae <-merge(mae_tb,stat_loc,by.x=c("id"),by.y=c("STAT_ID"))
+hist(data_v_mae$res_mod1)
+mean(data_v_mae$res_mod1)
+
+coords<- data_v_mae[c('longitude','latitude')]              #Define coordinates in a data frame
+CRS_interp<-proj4string(data_v_test)
+coordinates(data_v_mae)<-coords                      #Assign coordinates to the data frame
+proj4string(data_v_mae)<- proj4string(stat_loc)                #Assign coordinates reference system in PROJ4 format
+data_v_mae<-spTransform(data_v_mae,CRS(CRS_interp))     #Project from WGS84 to new coord. system
+
+p<-bubble(data_v_mae,"res_mod1",maxsize=4,col=c("red"),fill=FALSE)
+#p<-bubble(data_v_mae,"res_mod1",maxsize=4,col=c("red"),fill=FALSE,key.entries=c(1,1.5,2,2.5,3,3.5,4,4.5))
+
+p
+
+infile_reg_outline <- "/data/project/layers/commons/data_workflow/inputs/region_outlines_ref_files/OR83M_state_outline.shp"  #input region outline defined by polygon: Oregon
+reg_outline <- readOGR(dsn=dirname(infile_reg_outline),layer=sub(".shp","",basename(infile_reg_outline)))
+
+p + layer(sp.polygons(reg_outline,lwd=0.9,col="darkgray"))
+
+p4<-bubble(data_v_mae,"res_mod4",maxsize=4,col=c("red"),fill=FALSE)
+p4 + layer(sp.polygons(reg_outline,lwd=0.9,col="darkgray"))
+
+col_t <- colorRampPalette(c('blue', 'white', 'red'))
+
+p_elev <-levelplot(subset(s_raster,"elev_s"),margin=FALSE)
+p4 <-bubble(data_v_mae[data_v_mae$res_mod4>2.134,],"res_mod4",maxsize=4,col=c("blue"),fill=FALSE)
+p_elev + p4 + layer(sp.polygons(reg_outline,lwd=0.9,col="green"))
+title("mod4")
+
+p_elev <-levelplot(subset(s_raster,"elev_s"))
+p1 <-bubble(data_v_mae[data_v_mae$res_mod1>2.109,],"res_mod1",maxsize=4,col=c("blue"),fill=FALSE)
+p_elev + p1 + layer(sp.polygons(reg_outline,lwd=0.9,col="green"))
+#bubble(data_v_mae,"res_mod1")
+#p<-spplot(data_v_mae,"res_mod1",maxsize=4,col=c("red"))
+#p
+#stations that are outliers in one but not the other...
+id_setdiff<-setdiff(data_v_mae[data_v_mae$res_mod1>2.109,]$id,data_v_mae[data_v_mae$res_mod4>2.134,]$id)
+
+data_id_setdiff <- data_v_mae[data_v_mae$id %in% id_setdiff,]
+
+p_elev +layer(sp.polygons(reg_outline,lwd=0.9,col="green")) + layer(sp.points(data_id_setdiff,pch=4,cex=2,col="pink"))
+
+#### ls()
+
+#Now get p values and other things...
+
+###baseline 2: s(lat,lon) + s(elev)
+
+tb1_s
+names_var <- c("mae","rmse","me","r")
+#id_var <- 
+t<-melt(tb1_s,
+        measure=names_var, 
+        id=c("pred_mod"),
+        na.rm=T)
+
+summary_metrics_s1$avg <-cast(t,pred_mod~variable,mean)
+#sd_abs_tb<-cast(t,dst_cat1~variable,sd_abs_fun)
+
+#summary_metrics_s1<-raster_prediction_obj_1$summary_metrics_s
+#summary_metrics_s2<-raster_prediction_obj_2$summary_metrics_v
+
+table_data1 <-summary_metrics_s1$avg[,c("mae","rmse","me","r")]
+#table_data2 <-summary_metrics_v2$avg[,c("mae","rmse","me","r")]
+
+model_col<-c("Baseline2","Northness","Eastness","LST","DISTOC","Forest","CANHEIGHT","LST*Forest") # removed ,"LST*CANHEIGHT")
+names_table_col<-c("DiffMAE","DiffRMSE","DiffME","Diffr","Model")
+
+df1<- as.data.frame(sapply(table_data1,FUN=function(x) x-x[1]))
+df1<- round(df1,digit=3) #roundto three digits teh differences
+df1$Model <-model_col
+names(df1)<- names_table_col
+df1
+
+list_myModels <- extract_list_from_list_obj(raster_prediction_obj_1$method_mod_obj,"mod")
+
+#for (i in 1:length(list_myModels)){
+#  i<-1
+
+
+list_models_info <-lapply(1:length(list_myModels),FUN=create_s_and_p_table_term_models,list_myModels)
+#raster_prediction_obj_1$method_mod_obj[[i]]$sampling_dat$date
+dates<-(extract_from_list_obj(raster_prediction_obj_1$method_mod_obj,"sampling_dat"))$date #get vector of dates
+names(list_models_info)<-dates
+
+#Add dates to the data.frame??
+
+s.table_term_tb <-extract_from_list_obj(list_models_info,"s.table_term")
+s.table_term_tb_t <-extract_list_from_list_obj(list_models_info,"s.table_term")
+
+max_val<-round_any(range_val[2],10, f=ceiling) #round max value to nearest 10 (from plyr package)
+min_val<-0
+limit_val<-seq(min_val,max_val, by=10)
+}else{
+  limit_val<-dist_classes
 }
+threshold_val<-c(0.01,0.05,0.1)
+s.table_term_tb$p_val_rec1 <- s.table_term_tb[["p-value"]] < threshold_val[1]
+s.table_term_tb$p_val_rec2 <- s.table_term_tb[["p-value"]] < threshold_val[2]
+s.table_term_tb$p_val_rec3 <- s.table_term_tb[["p-value"]] < threshold_val[3]
+
+#dstspat_dat$dst_cat1 <- cut(dstspat_dat$dst,include.lowest=TRUE,breaks=limit_val)
+
+#test<-do.call(rbind,s.table_term_tb_t)
+#cut
+s.table_term_tb
+names_var <- c("p-value")
+#id_var <- 
+t<-melt(s.table_term_tb,
+        measure=names_var, 
+        id=c("mod_name","term_name"),
+        na.rm=T)
+
+summary_s.table_term <- cast(t,term_name+mod_name~variable,median)
+summary_s.table_term
+
+names_var <- c("p_val_rec1","p_val_rec2","p_val_rec3")
+t2<-melt(s.table_term_tb,
+        measure=names_var, 
+        id=c("mod_name","term_name"),
+        na.rm=T)
+
+summary_s.table_term2 <- cast(t2,term_name+mod_name~variable,sum)
+summary_s.table_term2
+
+#Now combine tables and drop duplicate columns the combined table can be modified for the paper...
+s.table_summary_tb <- cbind(summary_s.table_term,summary_s.table_term2[,-c("term_name","mod_name")]) 
+
 
 
 ################### END OF SCRIPT ###################
