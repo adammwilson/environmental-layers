@@ -59,8 +59,8 @@ if(platform=="pleiades"){
   datadir=paste("/nobackupp4/datapool/modis/MOD35_L2.006/",year,"/",doy,"/",sep="")
   ## path to some executables
   ncopath="/nasa/sles11/nco/4.0.8/gcc/mpt/bin/"
-#  swtifpath="/nobackupp1/awilso10/software/heg/bin/swtif"
-  swtifpath="/nobackupp4/pvotava/software/heg/2.12/bin/swtif"
+  swtifpath="/nobackupp1/awilso10/software/heg/bin/swtif_2.12"
+#  swtifpath="/nobackupp4/pvotava/software/heg/2.12/bin/swtif"
   ## path to swath database
   db="/nobackupp4/pvotava/DB/export/swath_geo.sql.sqlite3.db"
   ## specify working directory
