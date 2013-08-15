@@ -80,8 +80,8 @@ met_stations_outfiles_obj_file<-"/data/project/layers/commons/data_workflow/outp
 #met_stations_outfiles_obj_file<-"met_stations_outfiles_obj_kriging_daily__365d_kriging_daily_mults10_lst_comb3_08062013.RData"
 
 var<-"TMAX" # variable being interpolated
-out_prefix<-"_365d_gam_day_lst_comb3_08132013"                #User defined output prefix
-out_suffix<-"_OR_08132013"                                       #Regional suffix
+out_prefix<-"_365d_gam_day_lst_comb4_08152013"                #User defined output prefix
+out_suffix<-"_OR_08152013"                                       #Regional suffix
 out_suffix_modis <-"_05302013"                       #pattern to find tiles produced previously     
 
 #interpolation_method<-c("gam_fusion","gam_CAI","gam_daily") #other otpions to be added later
@@ -256,15 +256,27 @@ screen_data_training<-FALSE #screen training data for NA and use same input trai
 #LC1: Evergreen/deciduous needleleaf trees
 
 #Combination 3: for paper baseline=s(lat,lon)+s(elev)
-list_models<-c("y_var ~ s(lat,lon) + s(elev_s)",
-               "y_var ~ s(lat,lon) + s(elev_s) + s(N_w)",
-               "y_var ~ s(lat,lon) + s(elev_s) + s(E_w)",
-               "y_var ~ s(lat,lon) + s(elev_s) + s(LST)",
-               "y_var ~ s(lat,lon) + s(elev_s) + s(DISTOC)",
-               "y_var ~ s(lat,lon) + s(elev_s) + s(LC1)",
-               "y_var ~ s(lat,lon) + s(elev_s) + s(CANHGHT)",
-               "y_var ~ s(lat,lon) + s(elev_s) + s(LST) + ti(LST,LC1)",
-               "y_var ~ s(lat,lon) + s(elev_s) + s(LST) + ti(LST,CANHGHT)")
+# list_models<-c("y_var ~ s(lat,lon) + s(elev_s)",
+#                "y_var ~ s(lat,lon) + s(elev_s) + s(N_w)",
+#                "y_var ~ s(lat,lon) + s(elev_s) + s(E_w)",
+#                "y_var ~ s(lat,lon) + s(elev_s) + s(LST)",
+#                "y_var ~ s(lat,lon) + s(elev_s) + s(DISTOC)",
+#                "y_var ~ s(lat,lon) + s(elev_s) + s(LC1)",
+#                "y_var ~ s(lat,lon) + s(elev_s) + s(CANHGHT)",
+#                "y_var ~ s(lat,lon) + s(elev_s) + s(LST) + ti(LST,LC1)",
+#                "y_var ~ s(lat,lon) + s(elev_s) + s(LST) + ti(LST,CANHGHT)")
+
+#Combination 4: for paper baseline=s(lat,lon)
+list_models<-c("y_var ~ s(lat,lon)",
+               "y_var ~ s(lat,lon) + s(elev_s)",
+               "y_var ~ s(lat,lon) + s(N_w)",
+               "y_var ~ s(lat,lon) + s(E_w)",
+               "y_var ~ s(lat,lon) + s(LST)",
+               "y_var ~ s(lat,lon) + s(DISTOC)",
+               "y_var ~ s(lat,lon) + s(LC1)",
+               "y_var ~ s(lat,lon) + s(CANHGHT)",
+               "y_var ~ s(lat,lon) + s(LST) + ti(LST,LC1)",
+               "y_var ~ s(lat,lon) + s(LST) + ti(LST,CANHGHT)")
 
 #list_models<-c("y_var ~ lat*lon + elev_s")
 
