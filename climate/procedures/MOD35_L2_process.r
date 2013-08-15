@@ -196,9 +196,9 @@ if(!any(file.exists(outfiles))) {
 plot=F
 if(plot){
 i=1
-system(paste("gdalinfo ",swaths[1]))
-d=brick(lapply(outfiles,function(r) raster(r)))
-plot(d)
+system(paste("gdalinfo ",outfiles[19]))
+d=lapply(outfiles,function(r) raster(r))
+summary(d[[5]])
 }
 #system(paste("scp ",outfiles[1]," adamw@acrobates.eeb.yale.edu:/data/personal/adamw/projects/interp/tmp/",sep=""))
 
@@ -262,33 +262,6 @@ if(verbose) print(paste(nfs,"swaths available for processing"))
      ## Sensor Zenith      ## extract first bit to keep only "low angle" observations
      execGRASS("r.in.gdal",input=paste("SenZen_",bfile,sep=""),
              output=paste("SZ_",i,sep=""),flags=c("overwrite","o")) ; print("")
-   
-     ## check for interpolation artefacts
-#     execGRASS("r.stats",input=paste("SZ_",i,sep=""),output=paste("SZ_",i,".txt",sep=""),flags=c("c"))
-#     execGRASS("r.clump",input=paste("SZ_",i,sep=""),output=paste("SZ_",i,"_clump",sep=""))
-#     execGRASS("r.stats",input=paste("SZ_",i,"_clump",sep=""),output="-",flags=c("c"))
-
-     ## write out the table of weights for use in the neighborhood analysis to identify bad pixels from swtif
-     p=75  #must be odd
-     mat=matrix(rep(0,p*p),nrow=p)
-     mat[0.5+p/2,]=1
-     cat(mat,file="weights.txt")
-     execGRASS("r.neighbors",input=paste("SZ_",i,sep=""),output=paste("SZ_",i,"clump",sep=""),method="range",size=p,weight="weights.txt")  # too slow!
-     system(paste("r.mapcalc \"SZ_",i,"_clump2=SZ_",i,"clump==0\"",sep=""))
-
-#     p=-50:50
-#     system(paste("r.mapcalc \"SZ_",i,"_clump=if(min(",paste("SZ_",i,"[0,",p,"]",sep="",collapse=","),")==max(",paste("SZ_",i,"[0,",p,"]",sep="",collapse=","),"),1,0)\"",sep=""))
-#     system(paste("r.mapcalc \"SZ_",i,"_clump=if(min(",paste("SZ_",i,"[0,",min(p,"]",sep="",collapse=","),")==max(",paste("SZ_",i,"[0,",p,"]",sep="",collapse=","),"),1,0)\"",sep=""))
-#     vals=do.call(rbind.data.frame,strsplit(execGRASS("r.stats",input=paste("SZ_",i,"_clump",sep=""),output="-",flags=c("c"),intern=T),split=" "))
-#     colnames(vals)=c("value","count")
-#     vals$count=as.numeric(as.character(vals$count))
-#     vals$value=as.numeric(as.character(vals$value))
-#     vals=na.omit(vals)
-#     vals$count[vals$value==1&vals$count>10]
-                                            #
-     #plot(p~value,data=vals)
-#     print(sum(vals$p[vals$p>.1]))
-     
      ## Solar Zenith      ## extract first bit to keep only "low angle" observations
      execGRASS("r.in.gdal",input=paste("SolZen_",bfile,sep=""),
              output=paste("SoZ_",i,sep=""),flags=c("overwrite","o")) ; print("")
@@ -296,12 +269,12 @@ if(verbose) print(paste(nfs,"swaths available for processing"))
      system(paste("r.mapcalc <<EOF
                 CM_fill_",i," =  if(isnull(CM1_",i,"),1,0)
                 QA_useful_",i," =  if((QA_",i," / 2^0) % 2==1,1,0)
-                SZ_low_",i," =  if(SZ_",i,"_clump2==0&SZ_",i,"<6000,1,0)
+                SZ_low_",i," =  if(SZ_",i,"<6000,1,0)
                 SoZ_low_",i," =  if(SoZ_",i,"<8500,1,0)
                 CM_dayflag_",i," =  if((CM1_",i," / 2^3) % 2==1,1,0)
                 CM_cloud_",i," =  if((CM1_",i," / 2^0) % 2==1,(CM1_",i," / 2^1) % 2^2,null())
-                SZday_",i," = if(SZ_",i,"_clump2==0&CM_dayflag_",i,"==1,SZ_",i,",null())
-                SZnight_",i," = if(SZ_",i,"_clump2==0&CM_dayflag_",i,"==0,SZ_",i,",null())
+                SZday_",i," = if(CM_dayflag_",i,"==1,SZ_",i,",null())
+                SZnight_",i," = if(CM_dayflag_",i,"==0,SZ_",i,",null())
                 CMday_",i," = if(SoZ_low_",i,"==1&SZ_low_",i,"==1&QA_useful_",i,"==1&CM_dayflag_",i,"==1,CM_cloud_",i,",null())
                 CMnight_",i," = if(SZ_low_",i,"==1&QA_useful_",i,"==1&CM_dayflag_",i,"==0,CM_cloud_",i,",null())
 EOF",sep=""))
@@ -315,15 +288,13 @@ EOF",sep=""))
        d2=stack(
 #         raster(readRAST6(paste("QA_useful_",i,sep=""))),
          raster(readRAST6(paste("CM1_",i,sep=""))),
-#         raster(readRAST6(paste("CM_cloud_",i,sep=""))),
-#         raster(readRAST6(paste("CM_dayflag_",i,sep=""))),
-#         raster(readRAST6(paste("CMday_",i,sep=""))),
-#         raster(readRAST6(paste("CMnight_",i,sep=""))),
+         raster(readRAST6(paste("CM_cloud_",i,sep=""))),
+         raster(readRAST6(paste("CM_dayflag_",i,sep=""))),
+         raster(readRAST6(paste("CMday_",i,sep=""))),
+         raster(readRAST6(paste("CMnight_",i,sep=""))),
 #         raster(readRAST6(paste("CM_fill_",i,sep=""))),
 #         raster(readRAST6(paste("SoZ_",i,sep=""))),
-         raster(readRAST6(paste("SZ_",i,sep=""))),
-         raster(readRAST6(paste("SZ_",i,"_clump",sep=""))),
-         raster(readRAST6(paste("SZ_",i,"_clump2",sep="")))
+         raster(readRAST6(paste("SZ_",i,sep="")))
          )
        plot(d2,add=F)
      }
@@ -346,13 +317,11 @@ paste("r.mapcalc <<EOF
 if(plot){
   ps=1:nfs
   ps=c(12,14,17)
-  sz1=brick(lapply(ps,function(i) raster(readRAST6(paste("SZnight_",i,sep="")))))
-  sz_clump=brick(lapply(ps,function(i) raster(readRAST6(paste("SZ_",i,"_clump2",sep="")))))
-  d=brick(lapply(ps,function(i) raster(readRAST6(paste("CMnight_",i,sep="")))))
+  sz1=brick(lapply(ps,function(i) raster(readRAST6(paste("SZday_",i,sep="")))))
+  d=brick(lapply(ps,function(i) raster(readRAST6(paste("CMday_",i,sep="")))))
   d2=brick(list(raster(readRAST6("SZday_min")),raster(readRAST6("SZnight_min")),raster(readRAST6("CMday_daily")),raster(readRAST6("CMnight_daily"))))
   library(rasterVis)
   levelplot(sz1,col.regions=rainbow(100),at=seq(min(sz1@data@min),max(sz1@data@max),len=100))
-  levelplot(sz_clump)
   levelplot(d)
   levelplot(d2)
 }

@@ -1,12 +1,15 @@
 #### Script to facilitate processing of MOD06 data
-  
+### This script is meant to be run iteratively, rather than unsupervised. There are several steps that require manual checking (such as choosing the number of cores, etc.)
+
+## working directory
 setwd("/nobackupp1/awilso10/mod35")
 
+## load libraries
 library(rgdal)
 library(raster)
 library(RSQLite)
 
-
+## flag to increase verbosity of output
 verbose=T
 
 ## get MODLAND tile information
@@ -19,7 +22,7 @@ load("modlandTiles.Rdata")
 ## Choose some tiles to process
 ### list of tiles to process
 tiles=c("h10v08","h11v08","h12v08","h10v07","h11v07","h12v07")  # South America
-## a northern block of tiles
+## or a northern block of tiles
 tiles=apply(expand.grid(paste("h",11:17,sep=""),v=c("v00","v01","v02","v03","v04")),1,function(x) paste(x,collapse="",sep=""))
 ## subset to MODLAND tiles
 alltiles=system("ls -r MODTILES/ | grep tif$ | cut -c1-6 | sort | uniq - ",intern=T)
@@ -99,6 +102,7 @@ proclist$done=paste(proclist$tile,proclist$date,sep="_")%in%substr(basename(as.c
 
 ### report on what has already been processed
 print(paste(sum(!proclist$done)," out of ",nrow(proclist)," (",round(100*sum(!proclist$done)/nrow(proclist),2),"%) remain"))
+stem(table(tile=proclist$tile[proclist$done],year=proclist$year[proclist$done]))
 table(tile=proclist$tile[proclist$done],year=proclist$year[proclist$done])
 table(table(tile=proclist$tile[!proclist$done],year=proclist$year[!proclist$done]))
 
@@ -112,26 +116,39 @@ script="/u/awilso10/environmental-layers/climate/procedures/MOD35_L2_process.r"
 tp=T  # rerun everything
 tp=((!proclist$done)&proclist$avail)  #date-tiles to process
 table(Available=proclist$avail,Completed=proclist$done)
+table(tp)
 
 write.table(paste("--verbose ",script," --date ",proclist$date[tp]," --verbose T --tile ",proclist$tile[tp],sep=""),
 file=paste("notdone.txt",sep=""),row.names=F,col.names=F,quote=F)
 
+## try running it once for a single tile-date to get estimate of time/tile-day
+test=F
+if(test){
+  i=2
+  time1=system.time(system(paste("Rscript --verbose ",script," --date ",proclist$date[i]," --verbose T --tile ",proclist$tile[i],sep="")))
+  hours=round(length(proclist$date[tp])*142/60/60)
+  hours=round(length(proclist$date[tp])*time1[3]/60/60,1)
+  hours/240
+  print(paste("Based on runtime of previous command, it will take",hours," hours to process the full set"))
+}
+
+
 ### qsub script
 cat(paste("
 #PBS -S /bin/bash
-#PBS -l select=20:ncpus=8:mpiprocs=8
+#PBS -l select=28:ncpus=8:mpiprocs=8
 ##PBS -l select=100:ncpus=8:mpiprocs=8
 ##PBS -l walltime=8:00:00
-#PBS -l walltime=4:00:00
+#PBS -l walltime=2:00:00
 #PBS -j n
 #PBS -m be
 #PBS -N mod35
-#PBS -q normal
-##PBS -q devel
+##PBS -q normal
+#PBS -q devel
 #PBS -V
 
 #CORES=800
-CORES=160
+CORES=224
 
 HDIR=/u/armichae/pr/
   source $HDIR/etc/environ.sh
@@ -151,6 +168,7 @@ mpiexec -np $CORES pxargs -a $WORKLIST -p $EXE -v -v -v --work-analyze 1> $LOGST
 system(paste("cat mod35_qsub",sep=""))
 system(paste("cat notdone.txt | head",sep=""))
 system(paste("cat notdone.txt | wc -l ",sep=""))
+
 
 ## Submit it
 system(paste("qsub mod35_qsub",sep=""))
