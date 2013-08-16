@@ -198,7 +198,7 @@ if(plot){
 i=1
 system(paste("gdalinfo ",outfiles[19]))
 d=lapply(outfiles,function(r) raster(r))
-summary(d[[5]])
+summary(d[[6]])
 }
 #system(paste("scp ",outfiles[1]," adamw@acrobates.eeb.yale.edu:/data/personal/adamw/projects/interp/tmp/",sep=""))
 
@@ -306,7 +306,6 @@ EOF",sep=""))
 ## use r.series to find minimum
 system(paste("r.series input=",paste("SZnight_",1:nfs,sep="",collapse=",")," output=SZnight_min method=min_raster",sep=""))
 system(paste("r.series input=",paste("SZday_",1:nfs,sep="",collapse=",")," output=SZday_min method=min_raster",sep=""))
-
 ## select cloud observation with lowest sensor zenith for day and night
 system(
 paste("r.mapcalc <<EOF
@@ -314,9 +313,12 @@ paste("r.mapcalc <<EOF
               CMnight_daily=",paste(paste("if((SZnight_min+1)==",1:nfs,",CMnight_",1:nfs,",",sep="",collapse=" "),"null()",paste(rep(")",times=nfs),sep="",collapse=""))
 ))
 
+    execGRASS("r.null",map="CMday_daily",setnull="255") ; print("")
+    execGRASS("r.null",map="CMnight_daily",setnull="255") ; print("")
+
 if(plot){
   ps=1:nfs
-  ps=c(12,14,17)
+  ps=c(10,11,13,14)
   sz1=brick(lapply(ps,function(i) raster(readRAST6(paste("SZday_",i,sep="")))))
   d=brick(lapply(ps,function(i) raster(readRAST6(paste("CMday_",i,sep="")))))
   d2=brick(list(raster(readRAST6("SZday_min")),raster(readRAST6("SZnight_min")),raster(readRAST6("CMday_daily")),raster(readRAST6("CMnight_daily"))))
@@ -329,10 +331,10 @@ if(plot){
 
   ### Write the files to a netcdf file
   ## create image group to facilitate export as multiband netcdf
-    execGRASS("i.group",group="mod35",input=c("CMday_daily","CMnight_daily")) ; print("")
+    execGRASS("i.group",group="mod35",input=c("CMday_daily","CMnight_daily"),flags=c("quiet")) ; print("")
 
 if(file.exists(ncfile)) file.remove(ncfile)  #if it exists already, delete it
-  execGRASS("r.out.gdal",input="mod35",output=ncfile,type="Byte",nodata=255,flags=c("quiet"),
+  execGRASS("r.out.gdal",input="mod35",output=ncfile,type="Byte",nodata=255,flags=c("verbose"),
 #      createopt=c("FORMAT=NC4","ZLEVEL=5","COMPRESS=DEFLATE","WRITE_GDAL_TAGS=YES","WRITE_LONLAT=NO"),format="netCDF")  #for compressed netcdf
       createopt=c("FORMAT=NC","WRITE_GDAL_TAGS=YES","WRITE_LONLAT=NO"),format="netCDF")
 
@@ -353,20 +355,24 @@ if(file.exists(ncfile)) file.remove(ncfile)  #if it exists already, delete it
 system(paste("ncgen -o ",tempdir(),"/time.nc ",tempdir(),"/time.cdl",sep=""))
 system(paste(ncopath,"ncks -A ",tempdir(),"/time.nc ",ncfile,sep=""))
 ## add other attributes
+## need to delete _FillValue becuase r.out.gdal incorrectly calls zero values missing if there are no other missing values in the raster.
+## so need to delete then re-add.  If you just change the value, ncatted will change the values in the raster in addition to the attribute.
   system(paste(ncopath,"ncrename -v Band1,CMday -v Band2,CMnight ",ncfile,sep=""))
   system(paste(ncopath,"ncatted ",
 " -a units,CMday,o,c,\"Cloud Flag (0-3)\" ",
 " -a missing_value,CMday,o,b,255 ",
-" -a _FillValue,CMday,o,b,255 ",
+" -a _FillValue,CMday,d,, ", 
 " -a valid_range,CMday,o,b,\"0,3\" ",
 " -a long_name,CMday,o,c,\"Cloud Flag from day pixels\" ",
 " -a units,CMnight,o,c,\"Cloud Flag (0-3)\" ",
 " -a missing_value,CMnight,o,b,255 ",
-" -a _FillValue,CMnight,o,b,255 ",
+" -a _FillValue,CMnight,d,, ",
 " -a valid_range,CMnight,o,b,\"0,3\" ",
 " -a long_name,CMnight,o,c,\"Cloud Flag from night pixels\" ",
 ncfile,sep=""))
-#system(paste(ncopath,"ncatted -a sourcecode,global,o,c,",script," ",ncfile,sep=""))
+## add the fillvalue attribute back (without changing the actual values)
+system(paste(ncopath,"ncatted -a _FillValue,CMday,o,b,255 ",ncfile,sep=""))
+system(paste(ncopath,"ncatted -a _FillValue,CMnight,o,b,255 ",ncfile,sep=""))
    
 
 ## Confirm that the file has the correct attributes, otherwise delete it

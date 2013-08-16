@@ -103,7 +103,7 @@ proclist$done=paste(proclist$tile,proclist$date,sep="_")%in%substr(basename(as.c
 ### report on what has already been processed
 print(paste(sum(!proclist$done)," out of ",nrow(proclist)," (",round(100*sum(!proclist$done)/nrow(proclist),2),"%) remain"))
 stem(table(tile=proclist$tile[proclist$done],year=proclist$year[proclist$done]))
-table(tile=proclist$tile[proclist$done],year=proclist$year[proclist$done])
+#table(tile=proclist$tile[proclist$done],year=proclist$year[proclist$done])
 table(table(tile=proclist$tile[!proclist$done],year=proclist$year[!proclist$done]))
 
 ### explore tile counts
@@ -127,8 +127,8 @@ if(test){
   i=2
   time1=system.time(system(paste("Rscript --verbose ",script," --date ",proclist$date[i]," --verbose T --tile ",proclist$tile[i],sep="")))
   hours=round(length(proclist$date[tp])*142/60/60)
-  hours=round(length(proclist$date[tp])*time1[3]/60/60,1)
-  hours/240
+  hours=round(length(proclist$date[tp])*time1[3]/60/60,1); hours
+  hours/400
   print(paste("Based on runtime of previous command, it will take",hours," hours to process the full set"))
 }
 
@@ -136,7 +136,7 @@ if(test){
 ### qsub script
 cat(paste("
 #PBS -S /bin/bash
-#PBS -l select=28:ncpus=8:mpiprocs=8
+#PBS -l select=50:ncpus=8:mpiprocs=8
 ##PBS -l select=100:ncpus=8:mpiprocs=8
 ##PBS -l walltime=8:00:00
 #PBS -l walltime=2:00:00
@@ -148,7 +148,7 @@ cat(paste("
 #PBS -V
 
 #CORES=800
-CORES=224
+CORES=400
 
 HDIR=/u/armichae/pr/
   source $HDIR/etc/environ.sh
@@ -179,7 +179,7 @@ system("qstat -u awilso10")
 ### Now submit the script to generate the climatologies
 
 ## report 'mostly' finished tiles
-## this relyies on proclist above so be sure to update above before running
+## this relies on proclist above so be sure to update above before running
 md=table(tile=proclist$tile[!proclist$done],year=proclist$year[!proclist$done])
 mdt=names(md[md<10,])
 tiles=mdt
@@ -204,16 +204,16 @@ write.table(paste("--verbose ",climatescript," --verbose T --tile ",ctiles[!ctil
 file=paste("notdone_climate.txt",sep=""),row.names=F,col.names=F,quote=F)
 
 ## delay start until previous jobs have finished?
-delay=F
+delay=T
 ## check running jobs to get JobID of job you want to wait for
-system("qstat -u awilso10")
+system("qstat -u awilso10",intern=T)
 ## enter JobID here:
-job="881394.pbspl1.nas.nasa.gov"
+job="2031668.pbspl1.nas.nasa.gov"
 
 ### qsub script
 cat(paste("
 #PBS -S /bin/bash
-#PBS -l select=10:ncpus=8:mem=94
+#PBS -l select=4:ncpus=8:mem=94
 #PBS -l walltime=2:00:00
 #PBS -j n
 #PBS -m be
@@ -224,7 +224,7 @@ cat(paste("
 #PBS -V
 ",if(delay) paste("#PBS -W depend=afterany:",job,sep="")," 
 
-CORES=80
+CORES=32
 HDIR=/u/armichae/pr/
   source $HDIR/etc/environ.sh
   source /pleiades/u/awilso10/environ.sh
