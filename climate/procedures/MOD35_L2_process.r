@@ -24,6 +24,7 @@ opta <- getopt(matrix(c(
                         'date', 'd', 1, 'character',
                         'tile', 't', 1, 'character',
                         'verbose','v',1,'logical',
+                        'profile','p',0,'logical',
                         'help', 'h', 0, 'logical'
                         ), ncol=4, byrow=TRUE))
 if ( !is.null(opta$help) )
@@ -35,6 +36,9 @@ if ( !is.null(opta$help) )
 
 testing=F
 platform="pleiades" 
+
+## record profiling information if requested
+if(opta$profile)  Rprof("/nobackupp1/awilso10/mod35/log/profile.out")
 
 ## default date and tile to play with  (will be overwritten below when running in batch)
 if(testing){
@@ -95,7 +99,7 @@ if(platform=="litoria"){  #if running on local server, use different paths
 
 
 ### print some status messages
-if(verbose) print(paste("Processing tile",tile," for date",date))
+if(verbose) writeLines(paste("STATUS: Beginning ",tile,date))
 
 ## load tile information and get bounding box
 load(file="/nobackupp1/awilso10/mod35/modlandTiles.Rdata")
@@ -128,7 +132,8 @@ fs$id=substr(fs$id,7,19)
 ## find the swaths on disk (using datadir)
 swaths=list.files(datadir,pattern=paste(fs$id,collapse="|"),recursive=T,full=T)
 
-if(verbose) print(paste(nrow(fs)," swath IDs recieved from database and ",length(swaths)," found on disk"))
+### print some status messages
+if(verbose) writeLines(paste("STATUS:swaths tile:",tile,"date:",date,"swathIDs:",nrow(fs)," swathsOnDisk:",length(swaths)))
 
 
 ## define function that grids swaths
@@ -185,13 +190,25 @@ for(file in swaths){
 
 
 #############################################################################
-## Check output
-## confirm at least one file for this date is present.  If not, quit.
-outfiles=list.files(tempdir(),full=T,pattern=paste(basename(swaths),"$",sep="",collapse="|"))
-if(!any(file.exists(outfiles))) {
+## check for zero dimension in HDFs
+## occasionlly swtif will output a hdf with a resolution of 0.  Not sure why, but drop them here.
+CMcheck=list.files(pattern="CM_.*hdf$")  #list of files to check
+CM_0=do.call(c,lapply(CMcheck, function(f) any(res(raster(f))==0)))
+keep=sub("CM_","",CMcheck[!CM_0])
+if(length(keep)<length(CMcheck)){writeLines(paste("Warning (Resolution of zero): ",paste(sub("CM_","",CMcheck)[!sub("CM_","",CMcheck)%in%keep],collapse=",")," from ",tile," for ",date))}
+outfiles=list.files(tempdir(),full=T,pattern=paste(keep,"$",sep="",collapse="|"))
+if(length(outfiles)==0) {
   print(paste("########################################   No gridded files for region exist for tile",tile," on date",date))
   q("no",status=0)
 }
+
+## confirm at least one file for this date is present.  If not, quit.
+#outfiles=list.files(tempdir(),full=T,pattern=paste(basename(swaths),"$",sep="",collapse="|"))
+#if(!any(file.exists(outfiles))) {
+#  print(paste("########################################   No gridded files for region exist for tile",tile," on date",date))
+#  q("no",status=0)
+#}
+
 
 plot=F
 if(plot){
@@ -251,9 +268,10 @@ if(verbose) print(paste(nfs,"swaths available for processing"))
 
 ## loop through scenes and process QA flags
   for(i in 1:nfs){
-     bfile=tfs[i]
+    bfile=tfs[i]
      ## Read in the data from the HDFs
      ## Cloud Mask
+     GDALinfo(paste("CM_",bfile,sep=""),returnStats=F,silent=T)
      execGRASS("r.in.gdal",input=paste("CM_",bfile,sep=""),
               output=paste("CM1_",i,sep=""),flags=c("overwrite","o")) ; print("")
      ## QA      ## extract first bit to keep only "useful" values of cloud mask
@@ -399,11 +417,12 @@ fvar=all(finalvars%in%strsplit(system(paste("cdo -s showvar ",ncfile),intern=T),
 #  system(paste("rm -frR ",tempdir(),sep=""))
 
 
-  ## print out some info
-print(paste("#######################               Finished ",tile,"-",date, "###################################"))
+### print some status messages
+if(verbose) writeLines(paste("STATUS:end tile:",tile,"date:",date,"swathIDs:",nrow(fs)," swathsOnDisk:",length(swaths),"fileExists:",file.exists(ncfile)))
 
-## delete old files
-#system("cleartemp")
+## turn off the profiler
+if(opta$profile)  Rprof(NULL)
+
 
 ## quit
 q("no",status=0)
