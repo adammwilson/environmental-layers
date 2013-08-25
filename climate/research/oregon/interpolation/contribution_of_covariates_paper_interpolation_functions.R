@@ -65,8 +65,19 @@ extract_from_list_obj<-function(obj_list,list_name){
   return(tb_list_tmp) #this is  a data.frame
 }
 
-calc_stat_from_raster_prediction_obj <-function(raster_prediction_obj,stat){
-  tb <-raster_prediction_obj$tb_diagnostic_v  #Kriging methods
+calc_stat_from_raster_prediction_obj <-function(raster_prediction_obj,stat,training=FALSE){
+  #Calculate statistics from validation and training out of raster_prediction_obj
+  #If training is TRUE, then using training dataset
+  
+  #extract relevant information
+  if(training==TRUE){
+    tb <- extract_from_list_obj(raster_prediction_obj$validation_mod_obj,"metrics_s")
+    rownames(tb)<-NULL #remove row names
+  }else{
+    tb <- raster_prediction_obj$tb_diagnostic_v
+  }
+  
+  #Now summarize
   
   t<-melt(tb,
           measure=c("mae","rmse","r","me","m50"), 
@@ -547,6 +558,28 @@ convert_spdf_to_df_from_list <-function(obj_list,list_name){
   #tb_list_tmp<-do.call(rbind,list_tmp) #long rownames
   
   return(tb_list_tmp) #this is  a data.frame
+}
+
+calc_stat_month_from_raster_prediction_obj <-function(raster_prediction_obj,stat){
+  #Calculate monthly averages from tb
+  #Function
+  #tb must have a month column month
+  add_month_tag<-function(tb){
+    date<-strptime(tb$date, "%Y%m%d")   # interpolation date being processed
+    month<-strftime(date, "%m")          # current month of the date being processed
+  }
+  
+  ## Beging ##
+  tb<-raster_prediction_obj$tb_diagnostic_v
+  tb$month<-add_month_tag(tb)
+  
+  t<-melt(tb,
+          measure=c("mae","rmse","r","me","m50"), 
+          id=c("pred_mod","month"),
+          na.rm=T)
+  
+  stat_tb<-cast(t,pred_mod+month~variable,stat)
+  return(stat_tb)
 }
 
 
