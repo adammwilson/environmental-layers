@@ -46,8 +46,7 @@ script_path<-"/home/parmentier/Data/IPLANT_project/env_layers_scripts/" #path to
 source(file.path(script_path,function_analyses_paper)) #source all functions used in this script.
 
 in_dir1 <-"/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/output_data_365d_gam_day_lst_comb3_08132013"
-in_dir2 <-"/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/output_data_365d_gam_day_lst_comb4_07152013/"
-
+in_dir2 <-"/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/output_data_365d_gam_day_lst_comb4_08152013"
 #kriging results:
 in_dir3 <-"/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/output_data_365d_kriging_day_lst_comb3_07112013"
 #gwr results:
@@ -67,10 +66,11 @@ out_prefix<-"analyses_08152013"
 method_interpolation <- "gam_daily"
 covar_obj_file_1 <- "covar_obj__365d_gam_day_lst_comb3_08132013.RData"
 met_obj_file_1 <- "met_stations_outfiles_obj_gam_daily__365d_gam_day_lst_comb3_08132013.RData"
+#met_stations_outfiles_obj_gam_daily__365d_gam_day_lst_comb3_08132013.RData
 
 #raster_prediciton object for baseline 1 () s(lat,lon) + s(elev)) and baseline 2 (slat,lon))
 raster_obj_file_1 <- "raster_prediction_obj_gam_daily_dailyTmax_365d_gam_day_lst_comb3_08132013.RData" 
-raster_obj_file_2 <- "raster_prediction_obj_gam_daily_dailyTmax_365d_gam_day_lst_comb4_07152013.RData"
+raster_obj_file_2 <- "raster_prediction_obj_gam_daily_dailyTmax_365d_gam_day_lst_comb4_08152013.RData"
 
 raster_obj_file_3 <- "raster_prediction_obj_kriging_daily_dailyTmax_365d_kriging_day_lst_comb3_07112013.RData"
 raster_obj_file_4 <- "raster_prediction_obj_gwr_daily_dailyTmax_365d_gwr_day_lst_comb3_part1_07122013.RData"
@@ -117,8 +117,8 @@ table_data1 <-summary_metrics_v1$avg[,c("mae","rmse","me","r")] #select relevant
 table_data2 <-summary_metrics_v2$avg[,c("mae","rmse","me","r")]
 
 ###Table 3a, baseline 1: s(lat,lon) 
-
-model_col<-c("Baseline1","Elevation","Northing","Easting","LST","DISTOC","Forest","CANHEIGHT") #,"LST*Forest","LST*CANHEIGHT") # 
+#Chnage here !!! need  to reorder rows based on  mod first
+model_col<-c("Baseline1","Elevation","Northing","Easting","LST","DISTOC","Forest","CANHEIGHT","LST*Forest","LST*CANHEIGHT") # 
 df3a<- as.data.frame(sapply(table_data2,FUN=function(x) x-x[1]))
 df3a<- round(df3a,digit=3) #roundto three digits teh differences
 df3a$Model <-model_col
@@ -128,13 +128,15 @@ print(df3a) #show resulting table
 ###Table 3b, baseline 2: s(lat,lon) + s(elev)
 
 model_col<-c("Baseline2","Northness","Eastness","LST","DISTOC","Forest","CANHEIGHT","LST*Forest","LST*CANHEIGHT")
-names_table_col<-c("DiffMAE","DiffRMSE","DiffME","Diffr","Model")
+names_table_col<-c("ΔMAE","ΔRMSE","ΔME","Δr","Model")
 
 df3b <- as.data.frame(sapply(table_data1,FUN=function(x) x-x[1])) #difference between baseline (line 1) and other models
 df3b <- round(df3b,digit=3) #roundto three digits the differences
 df3b$Model <- model_col
 names(df3b)<- names_table_col
 print(df3b) #Part b of table 3
+
+sd2_v <-calc_stat_from_raster_prediction_obj(raster_prediction_obj_2,"sd",training=FALSE)
 
 #Testing siginificance between models
 
@@ -489,7 +491,9 @@ y_range<-range(unlist(month_data_list))
 #Now plot figure 6
 res_pix<-480
 col_mfrow<-2
-row_mfrow<-2
+#row_mfrow<-2
+row_mfrow<-1
+
 png_file_name<- paste("Figure_6_monthly_accuracy_",out_prefix,".png", sep="")
 png(filename=file.path(out_dir,png_file_name),
     width=col_mfrow*res_pix,height=row_mfrow*res_pix)
@@ -507,30 +511,57 @@ title(main="Monthly average MAE")
 
 ylab_text<-"MAE (C)"
 xlab_text<-"Month"
-y_range<-range(month_data_list$gam$mae,month_data_list$kriging$mae,month_data_list$gwr$mae)
-boxplot(mae~month,data=month_data_list$gam,ylim=y_range,main="GAM",ylab=ylab_text,outline=FALSE)
-boxplot(mae~month,data=month_data_list$kriging,ylim=y_range,main="Kriging",ylab=ylab_text,outline=FALSE)
-boxplot(mae~month,data=month_data_list$gwr,ylim=y_range,main="GWR",ylab=ylab_text,outline=FALSE)
+#y_range<-range(month_data_list$gam$mae,month_data_list$kriging$mae,month_data_list$gwr$mae)
+#y_range<-range(month_data_list$gam$mae)
+boxplot(mae~month,data=month_data_list$gam,main="GAM",ylab=ylab_text,outline=FALSE)
+#boxplot(mae~month,data=month_data_list$kriging,ylim=y_range,main="Kriging",ylab=ylab_text,outline=FALSE)
+#boxplot(mae~month,data=month_data_list$gwr,ylim=y_range,main="GWR",ylab=ylab_text,outline=FALSE)
 
 dev.off()
 
-plot(x3[month=="01",c("mae")]))
-median(x3[x3$month=="03",c("mae")],na.rm=T)
-mean(x3[x3$month=="03",c("mae")],na.rm=T)
+#Now generate table 5
 
-boxplot(x)
-
-#Now generate table
+test<-boxplot(mae~month,data=month_data_list$gam,main="GAM",ylab=ylab_text,outline=FALSE)
 
 length(tb1_month$mae)
 names(tb1_month)
+
+#Calculate standard deviation for each metric
+sd1 <- calc_stat_month_from_raster_prediction_obj(raster_prediction_obj_1,"sd") # see function script
+sd2 <- calc_stat_month_from_raster_prediction_obj(raster_prediction_obj_2,"sd") # standard deviation for baseline 2
+sd3 <- calc_stat_month_from_raster_prediction_obj(raster_prediction_obj_3,"sd") # kriging
+sd4 <- calc_stat_month_from_raster_prediction_obj(raster_prediction_obj_4,"sd") #gwr
+
+avg_v1 <- calc_stat_month_from_raster_prediction_obj(raster_prediction_obj_1,"mean") # see function script
+avg_v2 <- calc_stat_month_from_raster_prediction_obj(raster_prediction_obj_2,"mean") # standard deviation for baseline 2
+avg_v3 <- calc_stat_month_from_raster_prediction_obj(raster_prediction_obj_3,"mean") # kriging
+avg_v4 <- calc_stat_month_from_raster_prediction_obj(raster_prediction_obj_4,"mean") #gwr
+
+#Combined sd in one table for mod1 (baseline 2)
+table_sd <- do.call(cbind,list(gam=sd1[sd1$pred_mod=="mod1",c("rmse")],
+                               kriging=sd3[sd3$pred_mod=="mod1",c("rmse")],
+                               gwr=sd4[sd4$pred_mod=="mod1",c("rmse")])) #table containing the sd for the three mdethods for baseline 2
+table_sd <- as.data.frame(round(table_sd,digit=3)) #round to three digits the differences
+
+#Combined mean in one table for mod1 (baseline 2)
+table_avg <- do.call(cbind,list(gam=avg_v1[avg_v1$pred_mod=="mod1",c("rmse")],
+                               kriging=avg_v3[sd3$pred_mod=="mod1",c("rmse")],
+                               gwr=avg_v4[avg_v4$pred_mod=="mod1",c("rmse")])) #table containing the sd for the three mdethods for baseline 2
+table_avg <- as.data.frame(round(table_avg,digit=3)) #round to three digits the differences
+
+#combined tables with accuracy metrics and their standard deviations
+table5_paper <-table_combined_symbol(table_avg,table_sd,"±")
+table5_paper$month <- month.abb
+
+file_name<-paste("table5_comparisons_monthly_averages_interpolation_methods_paper","_",out_prefix,".txt",sep="")
+write.table(as.data.frame(table5_paper),file=file_name,sep=",")
 
 ####### FIGURE 7: Spatial pattern ######
 
 y_var_name <-"dailyTmax"
 index<-244 #index corresponding to January 1
 
-lf1 <- raster_prediction_obj_1$method_mod_obj[[index]][[y_var_name]]
+lf1 <- raster_prediction_obj_1$method_mod_obj[[index]][[y_var_name]] #select relevant raster images for the given dates
 lf3 <- raster_prediction_obj_3$method_mod_obj[[index]][[y_var_name]]
 lf4 <- raster_prediction_obj_4$method_mod_obj[[index]][[y_var_name]]
 
@@ -566,13 +597,49 @@ dev.off()
 
 ## FIGURE COMPARISON OF  MODELS COVARRIATES
 
+lf2 <- raster_prediction_obj_2$method_mod_obj[[index]][[y_var_name]]
+lf2 #contains the models for gam
+
+pred_temp_s <-stack(lf2)
+date_selected <- "20109101"
+#names_layers <-c("mod1=s(lat,long)+s(elev)","mod4=s(lat,long)+s(LST)","diff=mod1-mod4")
+names_layers <-c("mod1 = s(lat,long)","mod2 = s(lat,long)+s(elev)","mod3 = s(lat,long)+s(N_w)","mod4 = s(lat,long)+s(E_w)",
+                 "mod5 = s(lat,long)+s(LST)","mod6 = s(lat,long)+s(DISTOC)","mod7 = s(lat,long)+s(LC1)",
+                 "mod8 = s(lat,long)+s(LC1,LST)","mod9 = s(lat,long)+s(CANHGHT)","mod10 = s(lat,long)+s(LST,CANHGHT)")
+
+#names_layers<-names(pred_temp_s)
+#names(pred_temp_s)<-names_layers
+
+s.range <- c(min(minValue(pred_temp_s)), max(maxValue(pred_temp_s)))
+#s.range <- s.range+c(5,-5)
+col.breaks <- pretty(s.range, n=200)
+lab.breaks <- pretty(s.range, n=100)
+temp.colors <- colorRampPalette(c('blue', 'white', 'red'))
+max_val<-s.range[2]
+min_val <-s.range[1]
+#max_val<- -10
+#min_val <- 0
+layout_m<-c(4,3) #one row two columns
+
+png(paste("Figure_7_spatial_pattern_tmax_prediction_models_baseline1_gam_levelplot_",date_selected,out_prefix,".png", sep=""),
+    height=480*layout_m[1],width=480*layout_m[2])
+
+levelplot(pred_temp_s,main="Interpolated Surfaces Model Comparison baseline 1", ylab=NULL,xlab=NULL,
+          par.settings = list(axis.text = list(font = 2, cex = 1.3),layout=layout_m,
+                              par.main.text=list(font=2,cex=2),strip.background=list(col="white")),par.strip.text=list(font=2,cex=1.5),
+          names.attr=names_layers,col.regions=temp.colors,at=seq(max_val,min_val,by=0.01))
+#col.regions=temp.colors(25))
+dev.off()
+
+
+################ #FIGURE 8
 lf1 <- raster_prediction_obj_1$method_mod_obj[[index]][[y_var_name]]
 lf1 #contains the models for gam
 
 pred_temp_s <-stack(lf1$mod1,lf1$mod4)
 date_selected <- "20109101"
 #names_layers <-c("mod1=s(lat,long)+s(elev)","mod4=s(lat,long)+s(LST)","diff=mod1-mod4")
-names_layers <-c("mod1=s(lat,long)+s(elev)","mod4=s(lat,long)+s(LST)")
+names_layers <-c("mod1 = s(lat,long)+s(elev)","mod4 = s(lat,long)+s(LST)")
 names(pred_temp_s)<-names_layers
 s.range <- c(min(minValue(pred_temp_s)), max(maxValue(pred_temp_s)))
 #s.range <- s.range+c(5,-5)
@@ -585,7 +652,7 @@ min_val <-s.range[1]
 min_val <- 0
 layout_m<-c(1,2) #one row two columns
 
-png(paste("spatial_pattern_tmax_prediction_models_gam_levelplot_",date_selected,out_prefix,".png", sep=""),
+png(paste("Figure_8a_spatial_pattern_tmax_prediction_models_gam_levelplot_",date_selected,out_prefix,".png", sep=""),
     height=480*layout_m[1],width=480*layout_m[2])
 
 levelplot(pred_temp_s,main="Interpolated Surfaces Model Comparison", ylab=NULL,xlab=NULL,
@@ -593,18 +660,27 @@ levelplot(pred_temp_s,main="Interpolated Surfaces Model Comparison", ylab=NULL,x
                               par.main.text=list(font=2,cex=2),strip.background=list(col="white")),par.strip.text=list(font=2,cex=1.5),
           names.attr=names_layers,col.regions=temp.colors,at=seq(max_val,min_val,by=0.01))
 #col.regions=temp.colors(25))
+
+#col.regions=temp.colors(25))
 dev.off()
+
 
 diff<-raster(lf1$mod1)-raster(lf1$mod4)
 names_layers <- c("difference=mod1-mod4")
 names(diff) <- names_layers
+
+
+png(paste("Figure_8b_spatial_pattern_tmax_prediction_models_gam_levelplot_",date_selected,out_prefix,".png", sep=""),
+    height=480*layout_m[1],width=480*layout_m[2])
+
 plot(diff,col=temp.colors(100),main=names_layers)
 #levelplot(diff,main="Interpolated Surfaces Model Comparison", ylab=NULL,xlab=NULL,
 #          par.settings = list(axis.text = list(font = 2, cex = 1.3),layout=c(1,1),
 #                              par.main.text=list(font=2,cex=2),strip.background=list(col="white")),par.strip.text=list(font=2,cex=1.5),
 #          names.attr=names_layers,col.regions=temp.colors)
+dev.off()
 
-######## NOW GET A ACCUURAY BY STATIONS
+######## NOW GET A ACCURACY BY STATIONS
 
 list_data_v<-extract_list_from_list_obj(raster_prediction_obj_1$validation_mod_obj,"data_v")
 data_v_test <- list_data_v[[1]]
@@ -612,10 +688,35 @@ data_v_test <- list_data_v[[1]]
 #Convert sp data.frame and combined them in one unique df, see function define earlier
 data_v_combined <-convert_spdf_to_df_from_list(list_data_v) #long rownames
 names_var<-c("res_mod1","res_mod2","res_mod3","res_mod4","res_mod5","res_mod6","res_mod7","res_mod8")
+
+limit_val<- c(-30,-2.57,0,2.57,30)
+data_v_combined$res_mod1_rc1 <- cut(data_v_combined$res_mod1,include.lowest=TRUE,breaks=limit_val)
+data_v_combined$res_mod1_rc1
+
+t<-melt(data_v_combined,
+        measure=names_var, 
+        id=c("res_mod1_rc1","id"),
+        na.rm=T)
+
+n_tb<-cast(t,res_mod1_rc1+id~variable,length)
+n_tb_tot <-cast(t,id~variable,length) #number of times the stations was used for validation
+
+merge(n_tb$id
+dim(n_tb)
+#mae_tb <-cast(t,dst_cat1~variable,mae_fun)
+#rmse_tb <-cast(t,dst_cat1~variable,rmse_fun)
+#sd_abs_tb<-cast(t,dst_cat1~variable,sd_abs_fun)
+
+#avg_tb<-cast(t,dst_cat1~variable,mean)
+#sd_tb<-cast(t,dst_cat1~variable,sd)
+
 t<-melt(data_v_combined,
         measure=names_var, 
         id=c("id"),
         na.rm=T)
+
+hist(data_v_combined)
+names(data_v_combined)
 
 mae_fun<-function(x){mean(abs(x))} #Mean Absolute Error give a residuals vector
 sd_abs_fun<-function(x){sd(abs(x))} #sd Absolute Error give a residuals vector
@@ -629,7 +730,7 @@ sd_abs_tb<-cast(t,dst_cat1~variable,sd_abs_fun)
 #n_tb<-cast(t,dst_cat1~variable,length)
 
 met_obj <-load_obj(file.path(in_dir1,met_obj_file_1))
-stat_loc<-readOGR(dsn=dirname(met_obj$loc_stations),layer=sub(".shp","",basename(met_obj$loc_stations)))
+stat_loc<-readOGR(dsn=in_dir1,layer=sub(".shp","",basename(met_obj$loc_stations)))
 
 data_v_mae <-merge(mae_tb,stat_loc,by.x=c("id"),by.y=c("STAT_ID"))
 hist(data_v_mae$res_mod1)
@@ -674,114 +775,118 @@ data_id_setdiff <- data_v_mae[data_v_mae$id %in% id_setdiff,]
 
 p_elev +layer(sp.polygons(reg_outline,lwd=0.9,col="green")) + layer(sp.points(data_id_setdiff,pch=4,cex=2,col="pink"))
 
-#### ls()
-
-#Now get p values and other things...
-
+###############################
+########## Prepare table 6
+# Now get p values and other things...
 ###baseline 2: s(lat,lon) + s(elev)
+      
+l_obj<-vector("list",length=2)
+l_obj[[1]]<-raster_prediction_obj_1
+l_obj[[2]]<-raster_prediction_obj_2
+l_table <- vector("list",length=length(l_obj))   
+for (k in 1:length(l_obj)){
+  raster_prediction_obj<- l_obj[[k]]
+  list_myModels <- extract_list_from_list_obj(raster_prediction_obj$method_mod_obj,"mod")
+    
+  list_models_info <-lapply(1:length(list_myModels),FUN=create_s_and_p_table_term_models,list_myModels)
+  dates<-(extract_from_list_obj(raster_prediction_obj_1$method_mod_obj,"sampling_dat"))$date #get vector of dates
+  names(list_models_info)<-dates #adding names to the list
+    
+  #Prepare and process p. value information regarding models: count number of times values were above a threshold.
+  s.table_term_tb <-extract_from_list_obj(list_models_info,"s.table_term")
+    
+  threshold_val<-c(0.01,0.05,0.1)
+  s.table_term_tb$p_val_rec1 <- s.table_term_tb[["p-value"]] < threshold_val[1]
+  s.table_term_tb$p_val_rec2 <- s.table_term_tb[["p-value"]] < threshold_val[2]
+  s.table_term_tb$p_val_rec3 <- s.table_term_tb[["p-value"]] < threshold_val[3]
+  
+  names_var <- c("p_val_rec1","p_val_rec2","p_val_rec3")
+  t2<-melt(s.table_term_tb,
+           measure=names_var, 
+           id=c("mod_name","term_name"),
+           na.rm=T)
+  
+  summary_s.table_term2 <- cast(t2,term_name+mod_name~variable,sum)
+  
+  #Now add AIC
+  AIC_models_tb <-extract_from_list_obj(list_models_info,"AIC_models")
+  AIC_models_tb
+  names_var <- c("AIC")
+  #id_var <- 
+  t3<-melt(AIC_models_tb,
+           measure=names_var, 
+           id=c("mod_name","term_name"),
+           na.rm=T)
+  
+  summary_AIC <- cast(t3,term_name+mod_name~variable,median)
+  summary_AIC$AIC <- round(summary_AIC[,c("AIC")],digit=2) #roundto three digits teh differences
+  
+  #Now combine tables and drop duplicate columns the combined table can be modified for the paper...
+  avg_s <- calc_stat_from_raster_prediction_obj(raster_prediction_obj,"mean",training=TRUE)
+  avg_v <- calc_stat_from_raster_prediction_obj(raster_prediction_obj,"mean",training=FALSE)
+  avg <- cbind(avg_s[,c("pred_mod","mae")],avg_v[,c("mae")])
+  names(avg)<-c("pred_mod","mae_s","mae_v")
+  avg[,c("mae_s","mae_v")] <- round(avg[,c("mae_s","mae_v")],digit=2)
+  table <- merge(summary_AIC,avg,by.x="mod_name",by.y="pred_mod")
+  
+  tables_AIC_ac_p_val <-list(table,summary_s.table_term2)
+  names(tables_AIC_ac_p_val) <-c("table","s.table_p_val_term")
+  l_table[[k]] <- tables_AIC_ac_p_val
+}
 
-tb1_s
-names_var <- c("mae","rmse","me","r")
-#id_var <- 
-t<-melt(tb1_s,
-        measure=names_var, 
-        id=c("pred_mod"),
-        na.rm=T)
-
-summary_metrics_s1$avg <-cast(t,pred_mod~variable,mean)
-#sd_abs_tb<-cast(t,dst_cat1~variable,sd_abs_fun)
-
-#summary_metrics_s1<-raster_prediction_obj_1$summary_metrics_s
-#summary_metrics_s2<-raster_prediction_obj_2$summary_metrics_v
-
-table_data1 <-summary_metrics_s1$avg[,c("mae","rmse","me","r")]
-#table_data2 <-summary_metrics_v2$avg[,c("mae","rmse","me","r")]
-
-model_col<-c("Baseline2","Northness","Eastness","LST","DISTOC","Forest","CANHEIGHT","LST*Forest") # removed ,"LST*CANHEIGHT")
-names_table_col<-c("DiffMAE","DiffRMSE","DiffME","Diffr","Model")
-
-df1<- as.data.frame(sapply(table_data1,FUN=function(x) x-x[1]))
-df1<- round(df1,digit=3) #roundto three digits teh differences
-df1$Model <-model_col
-names(df1)<- names_table_col
-df1
-
-list_myModels <- extract_list_from_list_obj(raster_prediction_obj_1$method_mod_obj,"mod")
-
-#for (i in 1:length(list_myModels)){
-#  i<-1
-
-list_models_info <-lapply(1:length(list_myModels),FUN=create_s_and_p_table_term_models,list_myModels)
-#raster_prediction_obj_1$method_mod_obj[[i]]$sampling_dat$date
-dates<-(extract_from_list_obj(raster_prediction_obj_1$method_mod_obj,"sampling_dat"))$date #get vector of dates
-names(list_models_info)<-dates
-
-#Add dates to the data.frame?? -->later
-
-s.table_term_tb <-extract_from_list_obj(list_models_info,"s.table_term")
-#s.table_term_tb_t <-extract_list_from_list_obj(list_models_info,"s.table_term") #add dates to summary later
-AIC_models_tb <-extract_from_list_obj(list_models_info,"AIC_models")
-
-threshold_val<-c(0.01,0.05,0.1)
-s.table_term_tb$p_val_rec1 <- s.table_term_tb[["p-value"]] < threshold_val[1]
-s.table_term_tb$p_val_rec2 <- s.table_term_tb[["p-value"]] < threshold_val[2]
-s.table_term_tb$p_val_rec3 <- s.table_term_tb[["p-value"]] < threshold_val[3]
-
-#test<-do.call(rbind,s.table_term_tb_t)
-
-s.table_term_tb
-names_var <- c("p-value")
-#id_var <- 
-t<-melt(s.table_term_tb,
-        measure=names_var, 
-        id=c("mod_name","term_name"),
-        na.rm=T)
-
-summary_s.table_term <- cast(t,term_name+mod_name~variable,median)
-summary_s.table_term
-
-names_var <- c("p_val_rec1","p_val_rec2","p_val_rec3")
-t2<-melt(s.table_term_tb,
-        measure=names_var, 
-        id=c("mod_name","term_name"),
-        na.rm=T)
-
-summary_s.table_term2 <- cast(t2,term_name+mod_name~variable,sum)
-summary_s.table_term2
-
-#Now combine tables and drop duplicate columns the combined table can be modified for the paper...
-s.table_summary_tb <- cbind(summary_s.table_term,summary_s.table_term2[,]) #-c("term_name","mod_name")]) 
-
-AIC_models_tb
-names_var <- c("AIC")
-#id_var <- 
-t3<-melt(AIC_models_tb,
-        measure=names_var, 
-        id=c("mod_name","term_name"),
-        na.rm=T)
-
-summary_AIC <- cast(t3,term_name+mod_name~variable,median)
-summary_AIC 
-
-
+## Now prepare table
+s.table_p_val_term <- l_table[[1]]$s.table_p_val_term[-c(10:26),]
+s.table_p_val_term <- s.table_p_val_term[order(s.table_p_val_term$mod_name),]
+#summary_s.table_term2 <- summary_s.table_term2[-c(8,10),]
+table <- l_table[[1]]$table
+      
+table6a <- merge(s.table_p_val_term,table,by="mod_name")  
+table6a <- table6a[,-match(c("term_name.y"),names(table6a))]
+#model_col<-c("Baseline2","Northness","Eastness","LST","DISTOC","Forest","CANHEIGHT","LST*Forest") # removed ,"LST*CANHEIGHT")
+#names_table_col<-c("DiffMAE","DiffRMSE","DiffME","Diffr","Model")
+       
+s.table_p_val_term <- l_table[[2]]$s.table_p_val_term[-c(11:19),]
+s.table_p_val_term <- s.table_p_val_term[order(s.table_p_val_term$mod_name),]
+#summary_s.table_term2 <- summary_s.table_term2[-c(8,10),]
+tableb <- l_table[[2]]$table
+      
+table6b <- merge(s.table_p_val_term,tableb,by="mod_name")  
+table6b <- table6b[,-match(c("term_name.y"),names(table6b))]
+#model_col<-c("Baseline2","Northness","Eastness","LST","DISTOC","Forest","CANHEIGHT","LST*Forest") # removed ,"LST*CANHEIGHT")
+#names_table_col<-c("DiffMAE","DiffRMSE","DiffME","Diffr","Model")
+      
+#table6b[order(table6b$mod_name),]
+      
 #Now write out table...
 
-table<-rbind(table_data1,table_data3)
-table<-rbind(table,table_data4)
-table<- round(table,digit=3) #roundto three digits teh differences
+file_name<-paste("table6a_paper","_",out_prefix,".txt",sep="")
+write.table(table6a,file=file_name,sep=",")
 
-model_col<-c("GAM","Kriging","GWR")
-names_table_col<-c("MAE","RMSE","ME","R","Model")
+file_name<-paste("table6b_paper","_",out_prefix,".txt",sep="")
+write.table(table6b,file=file_name,sep=",")
 
-table$Model <-model_col
-names(table)<- names_table_col
-table
+########################
+### Prepare table 7: correlation matrix between covariates      
 
-file_name<-paste("table4_avg_paper","_",out_prefix,".txt",sep="")
-write.table(table,file=file_name,sep=",")
+names(s_raster)
 
-file_name<-paste("table4_sd_paper","_",out_prefix,".txt",sep="")
-write.table(table_sd,file=file_name,sep=",")
+list_formulas<-raster_prediction_obj_2$method_mod_obj[[1]]$formulas
+list_formulas <- lapply(list_formulas,FUN=as.formula)
+covar_names_model <- unique(unlist(lapply(list_formulas,FUN=all.vars)))[-1]  
+covar_names_model <- c(covar_names_model[-6],c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06",
+                                               "mm_07","mm_08","mm_09","mm_10","mm_11","mm_12"))
+covar_raster <- subset(s_raster,covar_names_model)
+
+names(covar_raster) <- covar_names_model
+corr_layers_covar <-layerStats(covar_raster,"pearson",na.rm=TRUE)
+corr_mat <-round(corr_layers_covar[[1]], digit=2)
+      
+file_name<-paste("table7_paper","_",out_prefix,".txt",sep="")
+write.table(corr_mat,file=file_name,sep=",")
+      
+#met_obj <-load_obj(file.path(in_dir1,met_obj_file_1))
+#stat_loc<-readOGR(dsn=in_dir1,layer=sub(".shp","",basename(met_obj$loc_stations)))
+#dim(stat_loc)      
 
 ###################### END OF SCRIPT #######################
 
