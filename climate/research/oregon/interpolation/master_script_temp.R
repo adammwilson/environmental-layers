@@ -10,7 +10,7 @@
 #STAGE 5: Output analyses: assessment of results for specific dates...
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 08/25/2013                                                                                 
+#DATE: 08/30/2013                                                                                 
 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363, TASK$568--   
 
@@ -80,8 +80,8 @@ met_stations_outfiles_obj_file<-"/data/project/layers/commons/data_workflow/outp
 #met_stations_outfiles_obj_file<-"met_stations_outfiles_obj_gam_CAI__365d_gam_CAI_lst_comb3_08252013.RData"
 
 var<-"TMAX" # variable being interpolated
-out_prefix<-"_365d_gam_CAI_lst_comb3_08252013"                #User defined output prefix
-out_suffix<-"_OR_08252013"                                       #Regional suffix
+out_prefix<-"_365d_gam_CAI_lst_comb3_08302013"                #User defined output prefix
+out_suffix<-"_OR_08302013"                                       #Regional suffix
 out_suffix_modis <-"_05302013"                       #pattern to find tiles produced previously     
 
 #interpolation_method<-c("gam_fusion","gam_CAI","gam_daily") #other otpions to be added later
@@ -259,6 +259,8 @@ prop_minmax_month <-c(0.2,0.3)  #if prop_min=prop_max and step=0 then prediction
 #dates_selected<-c("20100101","20100102","20100301","20100302","20100501","20100502","20100701","20100702","20100901","20100902","20101101","20101102")
 dates_selected<-"" # if empty string then predict for the full year specified earlier
 screen_data_training<-FALSE #screen training data for NA and use same input training for all models fitted
+use_clim_image <- TRUE # use predicted image as a base...rather than average Tmin at the station for delta
+join_daily <- FALSE # join monthly and daily station before calucating delta
 
 #Models to run...this can be changed for each run
 #LC1: Evergreen/deciduous needleleaf trees
@@ -307,13 +309,14 @@ lst_avg<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_0
 list_param_raster_prediction<-list(list_param_data_prep,screen_data_training,
                                 seed_number,nb_sample,step,constant,prop_minmax,dates_selected,
                                 seed_number_month,nb_sample_month,step_month,constant_month,prop_minmax_month,
-                                list_models,lst_avg,out_path,script_path,
+                                list_models,lst_avg,out_path,script_path,use_clim_image,join_daily,
                                 interpolation_method)
 names(list_param_raster_prediction)<-c("list_param_data_prep","screen_data_training",
                                 "seed_number","nb_sample","step","constant","prop_minmax","dates_selected",
                                 "seed_number_month","nb_sample_month","step_month","constant_month","prop_minmax_month",
-                                "list_models","lst_avg","out_path","script_path",
+                                "list_models","lst_avg","out_path","script_path","use_clim_image","join_daily",
                                 "interpolation_method")
+
 #debug(raster_prediction_fun)
 raster_prediction_obj <-raster_prediction_fun(list_param_raster_prediction)
 

@@ -8,7 +8,7 @@
 # 5)runGAMFusion <- function(i,list_param) : daily step for fusion method, perform daily prediction
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 08/25/2013                                                                                 
+#DATE: 08/30/2013                                                                                 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363--   
 
 ##Comments and TODO:
@@ -621,6 +621,7 @@ run_prediction_daily_deviation <- function(i,list_param) {            # loop ove
     
     daily_delta_rast<-interpolate(rast_clim_month,fitdelta) #Interpolation of the bias surface...
     
+    #To many I/O out of swap memory on atlas
     #Saving kriged surface in raster images
     data_name<-paste("daily_delta_",y_var_name,"_",model_name,"_",sampling_month_dat$prop[index_m],"_",sampling_month_dat$run_samp[index_m],"_",
                      sampling_dat$date[index_d],"_",sampling_dat$prop[index_d],"_",sampling_dat$run_samp[index_d],sep="")
@@ -695,16 +696,30 @@ run_prediction_daily_deviation <- function(i,list_param) {            # loop ove
       
       daily_delta_rast<-interpolate(rast_clim_month,fitdelta) #Interpolation of the bias surface...
       
-      #Saving kriged surface in raster images
-      data_name<-paste("daily_delta_",y_var_name,"_",model_name,"_",sampling_month_dat$prop[index_m],"_",sampling_month_dat$run_samp[index_m],"_",
-                       sampling_dat$date[index_d],"_",sampling_dat$prop[index_d],"_",sampling_dat$run_samp[index_d],sep="")
-      raster_name_delta<-file.path(out_path,paste(interpolation_method,"_",var,"_",data_name,out_prefix,".tif", sep=""))
-      writeRaster(daily_delta_rast, filename=raster_name_delta,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
-      
-      list_daily_delta_rast[[k]] <- raster_name_delta   
+      list_daily_delta_rast[[k]] <- daily_delta_rast 
+      #list_daily_delta_rast[[k]] <- raster_name_delta   
     }
     
-    raster_name_delta <- list_daily_delta_rast
+    #Too many I/O out of swap memory on atlas
+    #Saving kriged surface in raster images
+    delta_rast_s <-stack(list_daily_delta_rast)
+    names(delta_rast_s) <- names(daily_delta_df)
+    
+    #Should check that all delta images have been created for every model!!! remove from list empty elements!!
+    
+    #data_name<-paste("daily_delta_",y_var_name,"_",model_name,"_",sampling_month_dat$prop[index_m],"_",sampling_month_dat$run_samp[index_m],"_",
+    #                 sampling_dat$date[index_d],"_",sampling_dat$prop[index_d],"_",sampling_dat$run_samp[index_d],sep="")
+    #raster_name_delta<-file.path(out_path,paste(interpolation_method,"_",var,"_",data_name,out_prefix,".tif", sep=""))
+    #writeRaster(daily_delta_rast, filename=raster_name_delta,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
+    
+    data_name<-paste("daily_delta_",y_var_name,"_",sampling_month_dat$prop[index_m],"_",sampling_month_dat$run_samp[index_m],"_",
+                     sampling_dat$date[index_d],"_",sampling_dat$prop[index_d],"_",sampling_dat$run_samp[index_d],sep="")
+    raster_name_delta<-file.path(out_path,paste(interpolation_method,"_",var,"_",data_name,out_prefix,".tif", sep=""))
+    
+    writeRaster(delta_rast_s, filename=raster_name_delta,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
+    #writeRaster(r_spat, NAflag=NA_flag_val,filename=raster_name,bylayer=TRUE,bandorder="BSQ",overwrite=TRUE)   
+    
+    #raster_name_delta <- list_daily_delta_rast
     mod_krtmp2 <- list_mod_krtmp2
   }
   
@@ -712,14 +727,19 @@ run_prediction_daily_deviation <- function(i,list_param) {            # loop ove
   # STEP 4 - Calculate daily predictions - T(day) = clim(month) + delta(day)
   #########
   
-  if(use_clim_image==FALSE){
-    list_daily_delta_rast <- rep(raster_name_delta,length=nlayers(rast_clim_mod))
-  }
+  #if(use_clim_image==FALSE){
+  #  list_daily_delta_rast <- rep(raster_name_delta,length=nlayers(rast_clim_mod))
+  #}
   #Now predict daily after having selected the relevant month
   temp_list<-vector("list",nlayers(rast_clim_mod))  
   for (k in 1:nlayers(rast_clim_mod)){
-    rast_clim_month<-raster(rast_clim_list[[k]])
-    daily_delta_rast <- raster(list_daily_delta_rast[[k]])
+    if(use_clim_image==TRUE){
+      daily_delta_rast <- list_daily_delta_rast[[k]]
+    }
+    #if use_clim_image==FALSE then daily__delta_rast already defined earlier...
+    
+    #rast_clim_month<-raster(rast_clim_list[[k]])
+    rast_clim_month <- subset(rast_clim_mod,k)
     temp_predicted<-rast_clim_month + daily_delta_rast
     
     data_name<-paste(y_var_name,"_predicted_",names(rast_clim_mod)[k],"_",sampling_month_dat$prop[index_m],"_",sampling_month_dat$run_samp[index_m],"_",
