@@ -72,25 +72,15 @@ calculate_accuracy_metrics<-function(i,list_param){
   
   #PARSING INPUT PARAMETERS
   out_path <- list_param$out_path
-  day_list <- list_param$rast_day_year_list[[i]]
-  #day_list <-rast_day_yearlist[[i]] #list of prediction for the current date...
-  names_mod <- names(day_list)
-  method_mod_obj <- list_param$method_mod_obj
+  day_list <- list_param$rast_day_year_list[[i]] #this is the list of raster files, may be daily or monthly predictions
+  names_mod <- names(day_list) #names of the predicted variables
 
-  y_var_name <- list_param$y_var_name #missing--debugging
+  y_ref <- list_param$y_ref  #This is the reference variable from which resituals and accuracy metrics are created
   multi_time_scale <- list_param$multi_time_scale
   
-  if(multi_time_scale==TRUE){
-    data_v <- method_mod_obj[[i]]$data_month_v
-    data_s <- method_mod_obj[[i]]$data_month_s
-    daily_dev_sampling_dat <- method_mod_obj[[i]]$daily_dev_sampling_dat
-    sampling_dat_day <- method_mod_obj[[i]]$daily_dev_sampling_dat
-  }else{
-    #Change to results_mod_obj[[i]]$data_s to make it less specific
-    data_v <- method_mod_obj[[i]]$data_v
-    data_s <- method_mod_obj[[i]]$data_s
-    sampling_dat_day <- (method_mod_obj[[i]])$sampling_dat
-  }
+  data_v <- list_param$list_data_v[[i]]
+  data_s <- list_param$list_data_s[[i]]
+  sampling_dat_day <- list_param$list_sampling_dat[[i]]
   
   ## Now create the stack
   
@@ -98,10 +88,9 @@ calculate_accuracy_metrics<-function(i,list_param){
   names(rast_day_mod) <- names(day_list)
   #Change to handle cases in which data_v is NULL!!!
     
-  ns<-nrow(data_s) # some loss of data might have happened because of the averaging...
-  nv<-nrow(data_v)
+  ns <- nrow(data_s) # some loss of data might have happened because of the averaging...
+  nv <- nrow(data_v)
   
-
   #add sampling dat info...
   N=length(names_mod)
   
@@ -112,22 +101,23 @@ calculate_accuracy_metrics<-function(i,list_param){
     
     extract_data_v<-extract(rast_day_mod,data_v,df=TRUE)
     data_v <-spCbind(data_v,extract_data_v) #should match IDs before joining for good practice    
-    metrics_v_obj<-calc_val_metrics_rast(data_v,y_var_name,names_mod)
+    metrics_v_obj<-calc_val_metrics_rast(data_v,y_ref,names_mod)
     metrics_v_df<-cbind(metrics_v_obj$metrics,run_info)
-    metrics_v_df["var_interp"]<-rep(y_var_name,times=nrow(metrics_v_df)) 
+    metrics_v_df["var_interp"]<-rep(y_ref,times=nrow(metrics_v_df)) 
     #Name of the variable interpolated, useful for cross-comparison between methods at later stages
     data_v<-spCbind(data_v,metrics_v_obj$residuals)
-    
   }
   
   extract_data_s<-extract(rast_day_mod,data_s,df=TRUE)  
+  
   data_s <-spCbind(data_s,extract_data_s)
 
-  metrics_s_obj <- calc_val_metrics_rast(data_s,y_var_name,names_mod)  
+  metrics_s_obj <- calc_val_metrics_rast(data_s,y_ref,names_mod)  
+  
   run_info <- cbind(sampling_dat_day,n=ns)
   run_info[rep(seq_len(nrow(run_info)), each=N),]
   metrics_s_df <- cbind(metrics_s_obj$metrics,run_info)
-  metrics_s_df["var_interp"] <- rep(y_var_name,times=nrow(metrics_s_df)) 
+  metrics_s_df["var_interp"] <- rep(y_ref,times=nrow(metrics_s_df)) 
   #Name of the variable interpolated, useful for cross-comparison between methods at later stages
   
   data_s <- spCbind(data_s,metrics_s_obj$residuals)
