@@ -125,12 +125,14 @@ raster_prediction_fun <-function(list_param_raster_prediction){
   
   ###################### START OF THE SCRIPT ########################
    
+  #This should not be set here...? master script, modify for precip
   if (var=="TMAX"){
-    y_var_name<-"dailyTmax"                                       
+    y_var_name<-"dailyTmax"
+    y_var_month<-"TMax"
   }
-  
   if (var=="TMIN"){
-    y_var_name<-"dailyTmin"                                       
+    y_var_name<-"dailyTmin"
+    y_var_month <-"TMin"
   }
   
   ################# CREATE LOG FILE #####################
@@ -329,54 +331,80 @@ raster_prediction_fun <-function(list_param_raster_prediction){
   
   ############### NOW RUN VALIDATION #########################
   #SIMPLIFY THIS PART: one call
-  
-  #list_tmp<-vector("list",length(method_mod_obj))
-  #for (i in 1:length(method_mod_obj)){
-  #  tmp<-method_mod_obj[[i]][[y_var_name]]  #y_var_name is the variable predicted (dailyTmax or dailyTmin)
-  #  list_tmp[[i]]<-tmp
-  #}
-  #rast_day_yearlist<-list_tmp #list of predicted images over full year...
-  
-  list_data_v <- extract_list_from_list_obj(method_mod_obj,"data_v")
-  list_data_s <- extract_list_from_list_obj(method_mod_obj,"data_s")
-  rast_day_yearlist <- extract_list_from_list_obj(method_mod_obj,y_var_name) #list_tmp #list of predicted images over full year...
-  list_sampling_dat <- extract_list_from_list_obj(method_mod_obj,"sampling_dat")
-  
+      
   cat("Validation step:",file=log_fname,sep="\n", append=TRUE)
   t1<-proc.time()
   cat(paste("Local Date and Time: ",as.character(Sys.time()),sep=""),
       file=log_fname,sep="\n")
   
-  multi_time_scale <- FALSE
-  #list_param_validation<-list(i,rast_day_yearlist,method_mod_obj,y_var_name, multi_time_scale,out_prefix, out_path)
-  #names(list_param_validation)<-c("list_index","rast_day_year_list","method_mod_obj","y_var_name","multi_time_scale","out_prefix", "out_path") #same names for any method
-  #debug(calculate_accuracy_metrics)
-  #test_val<-calculate_accuracy_metrics(1,list_param_validation)
-  #list_param_validation<-list(i,rast_day_yearlist,method_mod_obj,y_var_name, multi_time_scale,out_prefix, out_path)
-  #names(list_param_validation)<-c("list_index","rast_day_year_list","method_mod_obj","y_var_name","multi_time_scale","out_prefix", "out_path") #same names for any method
+  if (interpolation_method=="gam_daily" | interpolation_method=="kriging_daily" | interpolation_method=="gwr_daily"){
+    multi_time_scale <- FALSE
+    
+    list_data_v <- extract_list_from_list_obj(method_mod_obj,"data_v")
+    list_data_s <- extract_list_from_list_obj(method_mod_obj,"data_s")
+    rast_day_yearlist <- extract_list_from_list_obj(method_mod_obj,y_var_name) #list_tmp #list of predicted images over full year...
+    list_sampling_dat <- extract_list_from_list_obj(method_mod_obj,"sampling_dat")
+    
+    list_param_validation<-list(i,rast_day_yearlist,list_data_v,list_data_s,list_sampling_dat,y_var_name, multi_time_scale,out_prefix, out_path)
+    names(list_param_validation)<-c("list_index","rast_day_year_list",
+                                  "list_data_v","list_data_s","list_sampling_dat","y_ref","multi_time_scale","out_prefix", "out_path") #same names for any method
+    #debug(calculate_accuracy_metrics)
+    #test_val2 <-calculate_accuracy_metrics(1,list_param_validation)
   
-  list_param_validation<-list(i,rast_day_yearlist,list_data_v,list_data_s,list_sampling_dat,y_var_name, multi_time_scale,out_prefix, out_path)
-  names(list_param_validation)<-c("list_index","rast_day_year_list",
-                                  "list_data_v","list_data_s","list_sampling_dat","y_var_name","multi_time_scale","out_prefix", "out_path") #same names for any method
-  debug(calculate_accuracy_metrics)
-  test_val2 <-calculate_accuracy_metrics(1,list_param_validation)
-  
-  validation_mod_obj <-mclapply(1:length(method_mod_obj), list_param=list_param_validation, calculate_accuracy_metrics,mc.preschedule=FALSE,mc.cores = 9) 
-  save(validation_mod_obj,file= file.path(out_path,paste(interpolation_method,"_validation_mod_obj_",y_var_name,out_prefix,".RData",sep="")))
-  t2<-proc.time()-t1
-  cat(as.character(t2),file=log_fname,sep="\n", append=TRUE)
-  
+    validation_mod_obj <-mclapply(1:length(method_mod_obj), list_param=list_param_validation, calculate_accuracy_metrics,mc.preschedule=FALSE,mc.cores = 9) 
+    save(validation_mod_obj,file= file.path(out_path,paste(interpolation_method,"_validation_mod_obj_",y_var_name,out_prefix,".RData",sep="")))
+    t2<-proc.time()-t1
+    cat(as.character(t2),file=log_fname,sep="\n", append=TRUE)
+  }
+    
   ### Run monthly validation if multi-time scale methods and add information to daily...
   
   if (interpolation_method %in% c("gam_CAI","kriging_CAI","gwr_CAI","gam_fusion","kriging_fusion","gwr_fusion")){
     multi_time_scale <- TRUE
-    list_param_validation_month <-list(i,clim_yearlist,clim_method_mod_obj,y_var_name, multi_time_scale ,out_prefix, out_path)
-    names(list_param_validation_month)<-c("list_index","rast_day_year_list","method_mod_obj","y_var_name","multi_time_scale","out_prefix", "out_path") #same names for any method
+    i<-1
+    
+    ## daily time scale
+    list_data_v <- extract_list_from_list_obj(method_mod_obj,"data_v")
+    list_data_s <- extract_list_from_list_obj(method_mod_obj,"data_s")
+    rast_day_yearlist <- extract_list_from_list_obj(method_mod_obj,y_var_name) #list_tmp #list of predicted images over full year...
+    list_sampling_dat <- extract_list_from_list_obj(method_mod_obj,"daily_dev_sampling_dat")
+    
+    list_param_validation<-list(i,rast_day_yearlist,list_data_v,list_data_s,list_sampling_dat,y_var_name, multi_time_scale,out_prefix, out_path)
+    names(list_param_validation)<-c("list_index","rast_day_year_list",
+                                    "list_data_v","list_data_s","list_sampling_dat","y_ref","multi_time_scale","out_prefix", "out_path") #same names for any method
+    #debug(calculate_accuracy_metrics)
+    #test_val2 <-calculate_accuracy_metrics(1,list_param_validation)
+    
+    validation_mod_obj <-mclapply(1:length(method_mod_obj), list_param=list_param_validation, calculate_accuracy_metrics,mc.preschedule=FALSE,mc.cores = 9) 
+    save(validation_mod_obj,file= file.path(out_path,paste(interpolation_method,"_validation_mod_obj_",y_var_name,out_prefix,".RData",sep="")))
+    
+    ### monthly time scale
+    list_data_v <- extract_list_from_list_obj(clim_method_mod_obj,"data_month_v") #extract monthly testing/validation dataset
+    list_data_s <- extract_list_from_list_obj(clim_method_mod_obj,"data_month") #extract monthly training/fitting dataset
+    rast_day_yearlist <- extract_list_from_list_obj(clim_method_mod_obj,"clim") #list_tmp #list of predicted images over full year at monthly time scale
+    list_sampling_dat <- extract_list_from_list_obj(clim_method_mod_obj,"sampling_month_dat")
+    
+    #list_param_validation_month <-list(i,clim_yearlist,clim_method_mod_obj,y_var_name, multi_time_scale ,out_prefix, out_path)
+    #names(list_param_validation_month)<-c("list_index","rast_day_year_list","method_mod_obj","y_var_name","multi_time_scale","out_prefix", "out_path") #same names for any method
+    
+    list_param_validation_month <-list(i,rast_day_yearlist,list_data_v,list_data_s,list_sampling_dat,y_var_month, multi_time_scale,out_prefix, out_path)
+    names(list_param_validation_month)<-c("list_index","rast_day_year_list",
+                                    "list_data_v","list_data_s","list_sampling_dat","y_ref","multi_time_scale","out_prefix", "out_path") #same names for any method
+    #debug(calculate_accuracy_metrics)    
+    #test_val2 <-calculate_accuracy_metrics(2,list_param_validation)
     
     validation_mod_month_obj <- mclapply(1:length(clim_method_mod_obj), list_param=list_param_validation_month, calculate_accuracy_metrics,mc.preschedule=FALSE,mc.cores = 9) 
     #test_val<-calculate_accuracy_metrics(1,list_param_validation)
     save(validation_mod_month_obj,file= file.path(out_path,paste(interpolation_method,"_validation_mod_month_obj_",y_var_name,out_prefix,".RData",sep="")))
   
+    ##Create data.frame with validation and fit metrics for a full year/full numbe of runs
+    tb_month_diagnostic_v<-extract_from_list_obj(validation_mod_month_obj,"metrics_v") 
+    #tb_diagnostic_v contains accuracy metrics for models sample and proportion for every run...if full year then 365 rows maximum
+    rownames(tb_month_diagnostic_v)<-NULL #remove row names
+    tb_month_diagnostic_v$method_interp <- interpolation_method
+    tb_month_diagnostic_s<-extract_from_list_obj(validation_mod_month_obj,"metrics_s")
+    rownames(tb_month_diagnostic_s)<-NULL #remove row names
+    tb_month_diagnostic_s$method_interp <- interpolation_method #add type of interpolation...out_prefix too??
     
   }
   #################### ASSESSMENT OF PREDICTIONS: PLOTS OF ACCURACY METRICS ###########
@@ -412,10 +440,10 @@ raster_prediction_fun <-function(list_param_raster_prediction){
   #Will add more information to be returned
   
   if (interpolation_method %in% c("gam_CAI","kriging_CAI","gwr_CAI","gam_fusion","kriging_fusion","gwr_fusion")){
-    raster_prediction_obj<-list(clim_method_mod_obj,method_mod_obj,validation_mod_obj,tb_diagnostic_v,
-                                tb_diagnostic_s,summary_metrics_v,summary_month_metrics_v)
-    names(raster_prediction_obj)<-c("clim_method_mod_obj","method_mod_obj","validation_mod_obj","tb_diagnostic_v",
-                                    "tb_diagnostic_s","summary_metrics_v","summary_month_metrics_v")  
+    raster_prediction_obj<-list(clim_method_mod_obj,method_mod_obj,validation_mod_obj,validation_mod_month_obj, tb_diagnostic_v,
+                                tb_diagnostic_s,tb_month_diagnostic_v,tb_month_diagnostic_s,summary_metrics_v,summary_month_metrics_v)
+    names(raster_prediction_obj)<-c("clim_method_mod_obj","method_mod_obj","validation_mod_obj","validation_mod_month_obj","tb_diagnostic_v",
+                                    "tb_diagnostic_s","tb_month_diagnostic_v","tb_month_diagnostic_s","summary_metrics_v","summary_month_metrics_v")  
     save(raster_prediction_obj,file= file.path(out_path,paste("raster_prediction_obj_",interpolation_method,"_", y_var_name,out_prefix,".RData",sep="")))
     
   }
