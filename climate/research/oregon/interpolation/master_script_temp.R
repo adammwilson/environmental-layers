@@ -10,7 +10,7 @@
 #STAGE 5: Output analyses: assessment of results for specific dates...
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 08/31/2013                                                                                 
+#DATE: 09/01/2013                                                                                 
 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363, TASK$568--   
 
@@ -58,7 +58,7 @@ grass_setting_script <- file.path(script_path,"grass-setup.R") #Set up system sh
 #source(file.path(script_path,"download_and_produce_MODIS_LST_climatology_06112013.R"))
 source(file.path(script_path,"covariates_production_temperatures_08052013.R"))
 source(file.path(script_path,"Database_stations_covariates_processing_function_06112013.R"))
-source(file.path(script_path,"GAM_fusion_analysis_raster_prediction_multisampling_08302013.R"))
+source(file.path(script_path,"GAM_fusion_analysis_raster_prediction_multisampling_09012013.R"))
 source(file.path(script_path,"results_interpolation_date_output_analyses_08052013.R"))
 #source(file.path(script_path,"results_covariates_database_stations_output_analyses_04012013.R")) #to be completed
 
@@ -80,8 +80,8 @@ met_stations_outfiles_obj_file<-"/data/project/layers/commons/data_workflow/outp
 #met_stations_outfiles_obj_file<-"met_stations_outfiles_obj_gam_CAI__365d_gam_CAI_lst_comb3_08252013.RData"
 
 var<-"TMAX" # variable being interpolated
-out_prefix<-"_365d_gam_CAI_lst_comb3_08312013"                #User defined output prefix
-out_suffix<-"_OR_08312013"                                       #Regional suffix
+out_prefix<-"_365d_gam_CAI_lst_comb3_09012013"                #User defined output prefix
+out_suffix<-"_OR_09012013"                                       #Regional suffix
 out_suffix_modis <-"_05302013"                       #pattern to find tiles produced previously     
 
 #interpolation_method<-c("gam_fusion","gam_CAI","gam_daily") #other otpions to be added later
@@ -253,7 +253,7 @@ seed_number_month <- 100
 nb_sample_month <-1           #number of time random sampling must be repeated for every hold out proportion
 step_month <-0.1         
 constant_month <-0             #if value 1 then use the same samples as date one for the all set of dates
-prop_minmax_month <-c(0,0.1)  #if prop_min=prop_max and step=0 then predictions are done for the number of dates...
+prop_minmax_month <-c(0.2,0.3)  #if prop_min=prop_max and step=0 then predictions are done for the number of dates...
 
 #dates_selected<-c("20100101","20100102","20100103","20100901") # Note that the dates set must have a specific format: yyymmdd
 #dates_selected<-c("20100101","20100102","20100301","20100302","20100501","20100502","20100701","20100702","20100901","20100902","20101101","20101102")
