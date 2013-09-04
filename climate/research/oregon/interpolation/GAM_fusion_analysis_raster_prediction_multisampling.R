@@ -213,11 +213,11 @@ raster_prediction_fun <-function(list_param_raster_prediction){
   if (interpolation_method %in% c("gam_fusion","kriging_fusion","gwr_fusion")){
     list_param_runClim_KGFusion<-list(j,s_raster,covar_names,lst_avg,list_models,dst,sampling_month_obj,var,y_var_name, out_prefix,out_path)
     names(list_param_runClim_KGFusion)<-c("list_index","covar_rast","covar_names","lst_avg","list_models","dst","sampling_month_obj","var","y_var_name","out_prefix","out_path")
-    #source(file.path(script_path,"GAM_fusion_function_multisampling_03122013.R"))
-    clim_method_mod_obj<-mclapply(1:12, list_param=list_param_runClim_KGFusion, runClim_KGFusion,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
-    #clim_method_mod_obj<-mclapply(1:6, list_param=list_param_runClim_KGFusion, runClim_KGFusion,mc.preschedule=FALSE,mc.cores = 6) #This is the end bracket from mclapply(...) statement
+    #debug(runClim_KGFusion)
     #test<-runClim_KGFusion(1,list_param=list_param_runClim_KGFusion)
+    clim_method_mod_obj<-mclapply(1:length(sampling_month_obj$ghcn_data), list_param=list_param_runClim_KGFusion, runClim_KGFusion,mc.preschedule=FALSE,mc.cores = 11) #This is the end bracket from mclapply(...) statement
     save(clim_method_mod_obj,file= file.path(out_path,paste(interpolation_method,"_mod_",y_var_name,out_prefix,".RData",sep="")))
+    #Use function to extract list
     list_tmp<-vector("list",length(clim_method_mod_obj))
     for (i in 1:length(clim_method_mod_obj)){
       tmp<-clim_method_mod_obj[[i]]$clim
@@ -231,7 +231,6 @@ raster_prediction_fun <-function(list_param_raster_prediction){
     names(list_param_runClim_KGCAI)<-c("list_index","covar_rast","covar_names","lst_avg","list_models","dst","sampling_month_obj","var","y_var_name","out_prefix","out_path")
     clim_method_mod_obj<-mclapply(1:length(sampling_month_obj$ghcn_data), list_param=list_param_runClim_KGCAI, runClim_KGCAI,mc.preschedule=FALSE,mc.cores = 11) #This is the end bracket from mclapply(...) statement
     #test<-runClim_KGCAI(1,list_param=list_param_runClim_KGCAI)
-    #gamclim_fus_mod<-mclapply(1:6, list_param=list_param_runClim_KGFusion, runClim_KGFusion,mc.preschedule=FALSE,mc.cores = 6) 
     save(clim_method_mod_obj,file= file.path(out_path,paste(interpolation_method,"_mod_",y_var_name,out_prefix,".RData",sep="")))
     list_tmp<-vector("list",length(clim_method_mod_obj))
     for (i in 1:length(clim_method_mod_obj)){

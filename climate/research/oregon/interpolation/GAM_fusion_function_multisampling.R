@@ -8,7 +8,7 @@
 # 5)runGAMFusion <- function(i,list_param) : daily step for fusion method, perform daily prediction
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 08/30/2013                                                                                 
+#DATE: 09/04/2013                                                                                 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363--   
 
 ##Comments and TODO:
@@ -282,15 +282,60 @@ runClim_KGFusion<-function(j,list_param){
   out_prefix<-list_param$out_prefix
   out_path<-list_param$out_path
   
+  #inserted #
+  sampling_month_obj<-list_param$sampling_month_obj
+  ghcn.month.subsets<-sampling_month_obj$ghcn_data
+  sampling_month_dat <- sampling_month_obj$sampling_dat
+  sampling_month_index <- sampling_month_obj$sampling_index
+  
   #Model and response variable can be changed without affecting the script
-  prop_month<-0 #proportion retained for validation
-  run_samp<-1 #This option can be added later on if/when neeeded
+  #prop_month<-0 #proportion retained for validation...
+  #run_samp<-1 #sample number, can be introduced later...
+  
+  prop_month <- sampling_month_dat$prop[j] #proportion retained for validation...
+  run_samp <- sampling_month_dat$run_samp[j] #sample number if multisampling...
+  #will need create mulitple prediction at daily!!! could be complicated
+  #possibility is to average per proportion !!!
+  
+  date_month <-strptime(sampling_month_dat$date[j], "%Y%m%d")   # interpolation date being processed
+  month_no <-strftime(date_month, "%m")          # current month of the date being processed
+  LST_month<-paste("mm_",month_no,sep="") # name of LST month to be matched
+  LST_name <-LST_month  
+  #### STEP 2: PREPARE DATA
+  
+  #change here...use training data...
+  ###Regression part 1: Creating a validation dataset by creating training and testing datasets
+  
+  #LST_name <-lst_avg[j] # name of LST month to be matched
+  #data_month$LST<-data_month[[LST_name]]
+  
+  dataset_month <-ghcn.month.subsets[[j]]
+  mod_LST <- ghcn.month.subsets[[j]][,match(LST_month, names(ghcn.month.subsets[[j]]))]  #Match interpolation date and monthly LST average
+  dataset_month$LST <- as.data.frame(mod_LST)[,1] #Add the variable LST to the dataset
+  #change here...
+  dst$LST<-dst[[LST_month]] #Add the variable LST to the monthly dataset
+  proj_str<-proj4string(dst) #get the local projection information from monthly data
+    
+  ind.training <- sampling_month_index[[j]]
+  ind.testing  <- setdiff(1:nrow(dataset_month), ind.training)
+  data_month_s <- dataset_month[ind.training, ]   #Training dataset currently used in the modeling
+  data_month_v <- dataset_month[ind.testing, ]    #Testing/validation dataset using input sampling
+  
+  data_month <- data_month_s #training data for  monthhly predictions...
+  
+  #date_proc<-strptime(sampling_dat$date[i], "%Y%m%d")   # interpolation date being processed
+  #mo<-as.integer(strftime(date_proc, "%m"))          # current month of the date being processed
+  #day<-as.integer(strftime(date_proc, "%d"))
+  #year<-as.integer(strftime(date_proc, "%Y"))
+  ## end of pasted
+  
+  #end of insert...09/04
   
   #### STEP 2: PREPARE DATA
   
-  data_month<-dst[dst$month==j,] #Subsetting dataset for the relevant month of the date being processed
-  LST_name<-lst_avg[j] # name of LST month to be matched
-  data_month$LST<-data_month[[LST_name]]
+  #data_month<-dst[dst$month==j,] #Subsetting dataset for the relevant month of the date being processed
+  #LST_name<-lst_avg[j] # name of LST month to be matched
+  #data_month$LST<-data_month[[LST_name]]
   
   #Adding layer LST to the raster stack  
   covar_rast<-s_raster
@@ -311,6 +356,15 @@ runClim_KGFusion<-function(j,list_param){
     data_month$y_var<-data_month$LSTD_bias #Adding bias as the variable modeled
   }
   
+  #If CAI model then...
+  #TMax to model..., add precip later
+  #if (var=="TMAX"){   
+  #  dataset_month$y_var<-dataset_month$TMax #Adding TMax as the variable modeled
+  #}
+  #if (var=="TMIN"){   
+  #  dataset_month$y_var<-dataset_month$TMin #Adding TMin as the variable modeled
+  #}
+  
   #### STEP3:  NOW FIT AND PREDICT  MODEL
   
   list_formulas<-lapply(list_models,as.formula,env=.GlobalEnv) #mulitple arguments passed to lapply!!
@@ -320,13 +374,22 @@ runClim_KGFusion<-function(j,list_param){
   list_out_filename<-vector("list",length(list_formulas))
   names(list_out_filename)<-cname  
   
+  ##Change name...
   for (k in 1:length(list_out_filename)){
     #j indicate which month is predicted, var indicates TMIN or TMAX
-    data_name<-paste(var,"_bias_LST_month_",j,"_",cname[k],"_",prop_month,
+    data_name<-paste(var,"_bias_LST_month_",as.integer(month_no),"_",cname[k],"_",prop_month,
                      "_",run_samp,sep="")
     raster_name<-file.path(out_path,paste("fusion_",interpolation_method,"_",data_name,out_prefix,".tif", sep=""))
     list_out_filename[[k]]<-raster_name
   }
+  
+  #for (k in 1:length(list_out_filename)){
+  #  #j indicate which month is predicted
+  #  data_name<-paste(var,"_clim_month_",as.integer(month_no),"_",cname[k],"_",prop_month,
+  #                   "_",run_samp,sep="")
+  #  raster_name<-file.path(out_path,paste("CAI_",data_name,out_prefix,".tif", sep=""))
+  #  list_out_filename[[k]]<-raster_name
+  #}
   
   ## Select the relevant method...
   
@@ -367,7 +430,7 @@ runClim_KGFusion<-function(j,list_param){
   names(rast_clim_list)<-names(rast_bias_list)
   for (k in 1:nlayers(mod_rast)){
     clim_fus_rast<-LST-subset(mod_rast,k)
-    data_name<-paste(var,"_clim_LST_month_",j,"_",names(rast_clim_list)[k],"_",prop_month,
+    data_name<-paste(var,"_clim_LST_month_",as.integer(month_no),"_",names(rast_clim_list)[k],"_",prop_month,
                      "_",run_samp,sep="")
     raster_name<-file.path(out_path,paste("fusion_",interpolation_method,"_",data_name,out_prefix,".tif", sep=""))
     rast_clim_list[[k]]<-raster_name
@@ -385,16 +448,16 @@ runClim_KGFusion<-function(j,list_param){
   if (inherits(fitbias,"Krig")){
     #Saving kriged surface in raster images
     bias_rast<-bias_rast<-interpolate(LST,fitbias) #interpolation using function from raster package
-    data_name<-paste(var,"_bias_LST_month_",j,"_",model_name,"_",prop_month,
+    data_name<-paste(var,"_bias_LST_month_",as.integer(month_no),"_",model_name,"_",prop_month,
                      "_",run_samp,sep="")
-    raster_name_bias<-file.path(out_path,paste("fusion_",data_name,out_prefix,".tif", sep=""))
+    raster_name_bias<-file.path(out_path,paste("fusion_",interpolation_method,"_",data_name,out_prefix,".tif", sep=""))
     writeRaster(bias_rast, filename=raster_name_bias,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
     
     #now climatology layer
     clim_rast<-LST-bias_rast
-    data_name<-paste(var,"_clim_LST_month_",j,"_",model_name,"_",prop_month,
+    data_name<-paste(var,"_clim_LST_month_",as.integer(month_no),"_",model_name,"_",prop_month,
                      "_",run_samp,sep="")
-    raster_name_clim<-file.path(out_path,paste("fusion_",data_name,out_prefix,".tif", sep=""))
+    raster_name_clim<-file.path(out_path,paste("fusion_",interpolation_method,"_",data_name,out_prefix,".tif", sep=""))
     writeRaster(clim_rast, filename=raster_name_clim,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
     #Adding to current objects
     mod_list[[model_name]]<-fitbias
@@ -413,11 +476,12 @@ runClim_KGFusion<-function(j,list_param){
 
   #### STEP 5: Prepare object and return
   
-  clim_obj<-list(rast_bias_list,rast_clim_list,data_month,mod_list,list_formulas)
-  names(clim_obj)<-c("bias","clim","data_month","mod","formulas")
+  #Prepare object to return
+  clim_obj<-list(rast_bias_list,rast_clim_list,data_month,data_month_v,sampling_month_dat[j,],mod_list,list_formulas)
+  names(clim_obj)<-c("bias","clim","data_month","data_month_v","sampling_month_dat","mod","formulas")
   
-  save(clim_obj,file= file.path(out_path,paste("clim_obj_month_",j,"_",var,"_",out_prefix,".RData",sep="")))
-  
+  save(clim_obj,file= file.path(out_path,paste("clim_obj_fusion_month_",as.integer(month_no),"_",var,"_",prop_month,
+                                               "_",run_samp,"_",out_prefix,".RData",sep="")))  
   return(clim_obj)
 }
 
