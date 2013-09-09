@@ -10,7 +10,7 @@
 #STAGE 5: Output analyses: assessment of results for specific dates...
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 09/01/2013                                                                                 
+#DATE: 09/09/2013                                                                                 
 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363, TASK$568--   
 
@@ -80,8 +80,8 @@ met_stations_outfiles_obj_file<-"/data/project/layers/commons/data_workflow/outp
 #met_stations_outfiles_obj_file<-"met_stations_outfiles_obj_gam_CAI__365d_gam_CAI_lst_comb3_08252013.RData"
 
 var<-"TMAX" # variable being interpolated
-out_prefix<-"_365d_gam_fus_lst_comb3_09032013"                #User defined output prefix
-out_suffix<-"_OR_09032013"                                       #Regional suffix
+out_prefix<-"_365d_gam_fus_lst_comb3_09092013"                #User defined output prefix
+out_suffix<-"_OR_09092013"                                       #Regional suffix
 out_suffix_modis <-"_05302013"                       #pattern to find tiles produced previously     
 
 #interpolation_method<-c("gam_fusion","gam_CAI","gam_daily") #other otpions to be added later
@@ -96,7 +96,8 @@ interpolation_method<-c("gam_fusion") #other otpions to be added later
 #interpolation_method<-c("kriging_daily") #other otpions to be added later
 #interpolation_method<-c("gwr_daily") #other otpions to be added later
 
-out_path<-"/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/output_data"
+#out_path<-"/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/output_data"
+out_path <- "/data/project/layers/commons/Oregon_interpolation/output_data"
 
 #out_path<-"/data/project/layers/commons/data_workflow/output_data"
 out_path <-paste(out_path,out_prefix,sep="")
