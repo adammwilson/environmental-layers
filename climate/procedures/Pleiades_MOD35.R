@@ -1,12 +1,15 @@
 #### Script to facilitate processing of MOD06 data
-  
+### This script is meant to be run iteratively, rather than unsupervised. There are several steps that require manual checking (such as choosing the number of cores, etc.)
+
+## working directory
 setwd("/nobackupp1/awilso10/mod35")
 
+## load libraries
 library(rgdal)
 library(raster)
 library(RSQLite)
 
-
+## flag to increase verbosity of output
 verbose=T
 
 ## get MODLAND tile information
@@ -19,10 +22,13 @@ load("modlandTiles.Rdata")
 ## Choose some tiles to process
 ### list of tiles to process
 tiles=c("h10v08","h11v08","h12v08","h10v07","h11v07","h12v07")  # South America
-## a northern block of tiles
+## or a northern block of tiles
 tiles=apply(expand.grid(paste("h",11:17,sep=""),v=c("v00","v01","v02","v03","v04")),1,function(x) paste(x,collapse="",sep=""))
 ## subset to MODLAND tiles
 alltiles=system("ls -r MODTILES/ | grep tif$ | cut -c1-6 | sort | uniq - ",intern=T)
+
+## or run all tiles
+#tiles=alltiles
 
 ## subset to tiles in global region (not outside global boundary in sinusoidal projection)
 tiles=tiles[tiles%in%alltiles]
@@ -35,7 +41,7 @@ datadir="/nobackupp4/datapool/modis/MOD35_L2.006/"
 
 outdir="daily/" #paste("daily/",tile,sep="")
 
-##find swaths in region from sqlite database for the specified date/tile
+##find swaths in region from sqlite database for the specified tile
 ## this takes a while, about 30 minutes, so only rebuild if you need to update what's available...
 rebuildswathtable=F
 if(rebuildswathtable){
@@ -66,7 +72,7 @@ if(rebuildswathtable){
   save(fs,swaths,file="swathtile.Rdata")
 }
 
-load("swathtile.Rdata")
+if(!exists("fs")) load("swathtile.Rdata")
 
 if(verbose) print(paste("###############",nrow(fs)," swath IDs recieved from database"))
 
@@ -99,7 +105,8 @@ proclist$done=paste(proclist$tile,proclist$date,sep="_")%in%substr(basename(as.c
 
 ### report on what has already been processed
 print(paste(sum(!proclist$done)," out of ",nrow(proclist)," (",round(100*sum(!proclist$done)/nrow(proclist),2),"%) remain"))
-table(tile=proclist$tile[proclist$done],year=proclist$year[proclist$done])
+stem(table(tile=proclist$tile[proclist$done],year=proclist$year[proclist$done]))
+#table(tile=proclist$tile[proclist$done],year=proclist$year[proclist$done])
 table(table(tile=proclist$tile[!proclist$done],year=proclist$year[!proclist$done]))
 
 ### explore tile counts
@@ -112,33 +119,46 @@ script="/u/awilso10/environmental-layers/climate/procedures/MOD35_L2_process.r"
 tp=T  # rerun everything
 tp=((!proclist$done)&proclist$avail)  #date-tiles to process
 table(Available=proclist$avail,Completed=proclist$done)
+table(tp)
 
-write.table(paste("--verbose ",script," --date ",proclist$date[tp]," --verbose T --tile ",proclist$tile[tp],sep=""),
+write.table(paste("--verbose ",script," --date ",proclist$date[tp]," --verbose T --profile F --tile ",proclist$tile[tp],sep=""),
 file=paste("notdone.txt",sep=""),row.names=F,col.names=F,quote=F)
 
-### qsub script
+## try running it once for a single tile-date to get estimate of time/tile-day
+test=F
+if(test){
+  i=2
+  time1=system.time(system(paste("Rscript --verbose ",script," --date ",proclist$date[i]," --profile T --verbose T --tile ",proclist$tile[i],sep="")))
+  hours=round(length(proclist$date[tp])*142/60/60); hours
+  hours=round(length(proclist$date[tp])*time1[3]/60/60,1); hours
+  nodes=100
+  threads=nodes*8
+  writeLines(paste(" ################### \n Hours per date-tile:",round(time1[3]/60/60,2),"\n Date-tiles to process:",sum(tp)," \n Estimated CPU time: ",hours,"hours \n  With ",threads,"threads:",round(hours/threads,2),"hours \n ###################"))
+}
+
+### Set up submission script
+queue="devel"
+queue="normal" #"devel"
+nodes=50
+walltime=2
+
+### write qsub script to disk
 cat(paste("
 #PBS -S /bin/bash
-#PBS -l select=20:ncpus=8:mpiprocs=8
-##PBS -l select=100:ncpus=8:mpiprocs=8
-##PBS -l walltime=8:00:00
-#PBS -l walltime=4:00:00
+#PBS -l select=",nodes,":ncpus=8:mpiprocs=8
+#PBS -l walltime=",walltime,":00:00
 #PBS -j n
 #PBS -m be
 #PBS -N mod35
-#PBS -q normal
-##PBS -q devel
+#PBS -q ",queue,"
 #PBS -V
 
-#CORES=800
-CORES=160
-
+CORES=",nodes*8,"
 HDIR=/u/armichae/pr/
   source $HDIR/etc/environ.sh
   source /u/awilso10/environ.sh
   source /u/awilso10/.bashrc
 IDIR=/nobackupp1/awilso10/mod35/
-##WORKLIST=$HDIR/var/run/pxrRgrs/work.txt
 WORKLIST=$IDIR/notdone.txt
 EXE=Rscript
 LOGSTDOUT=$IDIR/log/mod35_stdout
@@ -149,8 +169,12 @@ mpiexec -np $CORES pxargs -a $WORKLIST -p $EXE -v -v -v --work-analyze 1> $LOGST
 
 ### Check the files
 system(paste("cat mod35_qsub",sep=""))
-system(paste("cat notdone.txt | head",sep=""))
+system(paste("cat notdone.txt | head -n 4",sep=""))
 system(paste("cat notdone.txt | wc -l ",sep=""))
+
+## start interactive job on compute node for debugging
+# system("qsub -I -l walltime=2:00:00 -lselect=2:ncpus=16:model=san -q devel")
+
 
 ## Submit it
 system(paste("qsub mod35_qsub",sep=""))
@@ -161,7 +185,7 @@ system("qstat -u awilso10")
 ### Now submit the script to generate the climatologies
 
 ## report 'mostly' finished tiles
-## this relyies on proclist above so be sure to update above before running
+## this relies on proclist above so be sure to update above before running
 md=table(tile=proclist$tile[!proclist$done],year=proclist$year[!proclist$done])
 mdt=names(md[md<10,])
 tiles=mdt
@@ -188,14 +212,14 @@ file=paste("notdone_climate.txt",sep=""),row.names=F,col.names=F,quote=F)
 ## delay start until previous jobs have finished?
 delay=F
 ## check running jobs to get JobID of job you want to wait for
-system("qstat -u awilso10")
+system("qstat -u awilso10",intern=T)
 ## enter JobID here:
-job="881394.pbspl1.nas.nasa.gov"
+job="2031668.pbspl1.nas.nasa.gov"
 
 ### qsub script
 cat(paste("
 #PBS -S /bin/bash
-#PBS -l select=10:ncpus=8:mem=94
+#PBS -l select=4:ncpus=8:mem=94
 #PBS -l walltime=2:00:00
 #PBS -j n
 #PBS -m be
@@ -206,7 +230,7 @@ cat(paste("
 #PBS -V
 ",if(delay) paste("#PBS -W depend=afterany:",job,sep="")," 
 
-CORES=80
+CORES=32
 HDIR=/u/armichae/pr/
   source $HDIR/etc/environ.sh
   source /pleiades/u/awilso10/environ.sh
@@ -232,15 +256,13 @@ system(paste("qsub mod35_climatology_qsub",sep=""))
 ## check progress
 system("qstat -u awilso10")
 
-## start interactive job on compute node for debugging
-# system("qsub -I -l walltime=2:00:00 -lselect=2:ncpus=16:model=san -q devel")
 
 
 #################################################################
 ### copy the files back to Yale
 
 
-system("ssh lou")
+#system("ssh lou")
 #scp `find MOD35/summary -name "MOD35_h[0-9][0-9]v[0-9][0-9].nc"` adamw@acrobates.eeb.yale.edu:/data/personal/adamw/projects/interp/data/modis/mod35/summary/
 system("rsync -cavv `find summary -name \"MOD35_h[0-9][0-9]v[0-9][0-9]_mean.nc\"` adamw@acrobates.eeb.yale.edu:/data/personal/adamw/projects/interp/data/modis/mod35/summary/")
 system("rsync -cavv `find summary -name \"MOD35_h[0-9][0-9]v[0-9][0-9].nc\"` adamw@acrobates.eeb.yale.edu:/data/personal/adamw/projects/interp/data/modis/mod35/summary/")

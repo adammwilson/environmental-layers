@@ -45,6 +45,7 @@ if(testing){
   date="20090129"
   tile="h11v08"
   tile="h17v00"
+  tile="h12v04"
   verbose=T
 }
 
@@ -54,6 +55,7 @@ if(!testing){
   tile=opta$tile 
   verbose=opta$verbose  #print out extensive information for debugging?
 }
+
 ## get year and doy from date
 year=format(as.Date(date,"%Y%m%d"),"%Y")
 doy=format(as.Date(date,"%Y%m%d"),"%j")
@@ -172,11 +174,17 @@ END
   ## vars to grid
 vars=as.data.frame(matrix(c(
   "Cloud_Mask",              "CM",       "NN",    1,
+  "Cloud_Mask",              "CM2",       "NN",    2,
+  "Cloud_Mask",              "CM3",       "NN",    3,
+  "Cloud_Mask",              "CM4",       "NN",    4,
   "Quality_Assurance",       "QA",       "NN",    1,
+  "Quality_Assurance",       "QA2",       "NN",    2,
+  "Quality_Assurance",       "QA3",       "NN",    3,
+  "Quality_Assurance",       "QA4",       "NN",    4,
   "Solar_Zenith",            "SolZen",   "NN", 1,
   "Sensor_Zenith",           "SenZen",   "CUBIC", 1
   ),
-  byrow=T,ncol=4,dimnames=list(1:4,c("variable","varid","method","band"))),stringsAsFactors=F)
+  byrow=T,ncol=4,dimnames=list(1:10,c("variable","varid","method","band"))),stringsAsFactors=F)
 
 
 ############################################################################
@@ -201,14 +209,6 @@ if(length(outfiles)==0) {
   print(paste("########################################   No gridded files for region exist for tile",tile," on date",date))
   q("no",status=0)
 }
-
-## confirm at least one file for this date is present.  If not, quit.
-#outfiles=list.files(tempdir(),full=T,pattern=paste(basename(swaths),"$",sep="",collapse="|"))
-#if(!any(file.exists(outfiles))) {
-#  print(paste("########################################   No gridded files for region exist for tile",tile," on date",date))
-#  q("no",status=0)
-#}
-
 
 plot=F
 if(plot){
@@ -239,7 +239,7 @@ summary(d[[6]])
   if(!file.exists(tf)) dir.create(tf)
   ## create output directory if needed
   ## Identify output file
-  ncfile=paste(outdir,"MOD35_",tile,"_",date,".nc",sep="")  #this is the 'final' daily output file
+  ncfile=paste(outdir,"MOD35_alltests_",tile,"_",date,".nc",sep="")  #this is the 'final' daily output file
   if(!file.exists(dirname(ncfile))) dir.create(dirname(ncfile),recursive=T)
  
   ## set up temporary grass instance for this PID
@@ -261,10 +261,32 @@ if(platform=="litoria"){
 }
 
 ## Identify which files to process
-tfs=unique(sub("CM_|QA_|SenZen_|SolZen_","",basename(outfiles)))
+tfs=unique(sub("^.*[_]","MOD35_",basename(outfiles)))
 #tfs=list.files(tempdir(),pattern="temp.*hdf")
 nfs=length(tfs)
 if(verbose) print(paste(nfs,"swaths available for processing"))
+
+## single test matrix - links tests with their applied status
+flags=as.data.frame(matrix(c(
+  "non_cloud_obstruction",         "CM2", 0, "QA2", 0,
+  "thin_cirrus_solar",             "CM2", 1, "QA2", 1,
+  "shadow",                        "CM2", 2, "QA2", 2,
+  "thin_cirrus_ir",                "CM2", 3, "QA2", 3,
+  "cloud_adjacency_ir",            "CM2", 4, "QA2", 4,
+  "ir_threshold",                  "CM2", 5, "QA2", 5,
+  "high_cloud_co2",                "CM2", 6, "QA2", 6,
+  "high_cloud_67",                 "CM2", 7, "QA2", 7,
+  "high_cloud_138",                "CM3", 0, "QA3", 0,
+  "high_cloud_37_12",              "CM3", 1, "QA3", 1,
+  "cloud_ir_difference",           "CM3", 2, "QA3", 2,
+  "cloud_37_11",                   "CM3", 3, "QA3", 3,
+  "cloud_visible",                 "CM3", 4, "QA3", 4,
+  "cloud_visible_ratio",           "CM3", 5, "QA3", 5,
+  "cloud_ndvi",                    "CM3", 6, "QA3", 6,
+  "cloud_night_73_11",             "CM3", 7, "QA3", 7
+  ),
+  byrow=T,ncol=5,dimnames=list(1:16,c("variable","CMband","CMbit","QAband","QAbit"))),stringsAsFactors=F)
+
 
 ## loop through scenes and process QA flags
   for(i in 1:nfs){
@@ -277,6 +299,10 @@ if(verbose) print(paste(nfs,"swaths available for processing"))
      ## QA      ## extract first bit to keep only "useful" values of cloud mask
      execGRASS("r.in.gdal",input=paste("QA_",bfile,sep=""),
              output=paste("QA_",i,sep=""),flags=c("overwrite","o")) ; print("")
+    ## for all CMs and QAs in flags table, import them
+    for(c in c(unique(flags$CMband),unique(flags$QAband)))
+     execGRASS("r.in.gdal",input=paste(c,"_",bfile,sep=""),
+              output=paste(c,"_",i,sep=""),flags=c("overwrite","o")) ; print("")
      ## Sensor Zenith      ## extract first bit to keep only "low angle" observations
      execGRASS("r.in.gdal",input=paste("SenZen_",bfile,sep=""),
              output=paste("SZ_",i,sep=""),flags=c("overwrite","o")) ; print("")
@@ -296,24 +322,20 @@ if(verbose) print(paste(nfs,"swaths available for processing"))
                 CMday_",i," = if(SoZ_low_",i,"==1&SZ_low_",i,"==1&QA_useful_",i,"==1&CM_dayflag_",i,"==1,CM_cloud_",i,",null())
                 CMnight_",i," = if(SZ_low_",i,"==1&QA_useful_",i,"==1&CM_dayflag_",i,"==0,CM_cloud_",i,",null())
 EOF",sep=""))
+## produce test by test summaries
+    for(n in 1:nrow(flags))
+      system(paste("r.mapcalc '",
+flags$variable[n],"_",i,"=if((",flags$QAband[n],"_",i," / 2^",
+flags$QAbit[n],") % 2==1&SZ_low_",i,"==1&QA_useful_",i,"==1,(",flags$CMband[n],"_",i," / 2^",flags$CMbit[n],") % 2,null())'",sep=""))
 
-#     CM_dayflag_",i," =  if((CM1_",i," / 2^3) % 2==1,1,0)
-#     CM_dscore_",i," =  if((CM_dayflag_",i,"==0|isnull(CM1_",i,")),0,if(QA_useful_",i,"==0,1,if(SZ_",i,">=6000,2,if(SoZ_",i,">=8500,3,4))))
-#     CM_nscore_",i," =  if((CM_dayflag_",i,"==1|isnull(CM1_",i,")),0,if(QA_useful_",i,"==0,1,if(SZ_",i,">=6000,2,4)))
-
-     drawplot=F
+    
+    drawplot=F
      if(drawplot){
-       d2=stack(
-#         raster(readRAST6(paste("QA_useful_",i,sep=""))),
-         raster(readRAST6(paste("CM1_",i,sep=""))),
-         raster(readRAST6(paste("CM_cloud_",i,sep=""))),
-         raster(readRAST6(paste("CM_dayflag_",i,sep=""))),
-         raster(readRAST6(paste("CMday_",i,sep=""))),
-         raster(readRAST6(paste("CMnight_",i,sep=""))),
-#         raster(readRAST6(paste("CM_fill_",i,sep=""))),
-#         raster(readRAST6(paste("SoZ_",i,sep=""))),
-         raster(readRAST6(paste("SZ_",i,sep="")))
-         )
+       d2=stack(lapply(paste(
+         c("QA_useful","CM1","CM_cloud","SZ",flags$variable),
+         "_",i,sep=""),function(x) raster(readRAST6(x))))
+       
+  
        plot(d2,add=F)
      }
        
@@ -328,8 +350,14 @@ system(paste("r.series input=",paste("SZday_",1:nfs,sep="",collapse=",")," outpu
 system(
 paste("r.mapcalc <<EOF
               CMday_daily=",paste(paste("if((SZday_min+1)==",1:nfs,",CMday_",1:nfs,",",sep="",collapse=" "),"null()",paste(rep(")",times=nfs),sep="",collapse="")),"
-              CMnight_daily=",paste(paste("if((SZnight_min+1)==",1:nfs,",CMnight_",1:nfs,",",sep="",collapse=" "),"null()",paste(rep(")",times=nfs),sep="",collapse=""))
-))
+              CMnight_daily=",paste(paste("if((SZnight_min+1)==",1:nfs,",CMnight_",1:nfs,",",sep="",collapse=" "),"null()",paste(rep(")",times=nfs),sep="",collapse=""))))
+
+## test-by-test summaries
+    for(n in 1:nrow(flags))
+system(
+paste("r.mapcalc <<EOF
+",flags$variable[n],"_daily=",
+paste(paste("if((SZday_min+1)==",1:nfs,", ",flags$variable[n],"_",1:nfs,",",sep="",collapse=" "),"null()",paste(rep(")",times=nfs),sep="",collapse="")),sep=""))
 
     execGRASS("r.null",map="CMday_daily",setnull="255") ; print("")
     execGRASS("r.null",map="CMnight_daily",setnull="255") ; print("")
@@ -340,16 +368,21 @@ if(plot){
   sz1=brick(lapply(ps,function(i) raster(readRAST6(paste("SZday_",i,sep="")))))
   d=brick(lapply(ps,function(i) raster(readRAST6(paste("CMday_",i,sep="")))))
   d2=brick(list(raster(readRAST6("SZday_min")),raster(readRAST6("SZnight_min")),raster(readRAST6("CMday_daily")),raster(readRAST6("CMnight_daily"))))
+  d3=stack(lapply(c("SZday_min","CMday_daily",paste(flags$variable,
+    "_daily",sep="")),function(x) raster(readRAST6(x))))
+  
   library(rasterVis)
   levelplot(sz1,col.regions=rainbow(100),at=seq(min(sz1@data@min),max(sz1@data@max),len=100))
   levelplot(d)
   levelplot(d2)
+  plot(d3)
 }
 
 
   ### Write the files to a netcdf file
   ## create image group to facilitate export as multiband netcdf
-    execGRASS("i.group",group="mod35",input=c("CMday_daily","CMnight_daily"),flags=c("quiet")) ; print("")
+ebands=c("CMday_daily","CMnight_daily",paste(flags$variable,"_daily",sep=""))
+execGRASS("i.group",group="mod35",input=ebands,flags=c("quiet")) ; print("")
 
 if(file.exists(ncfile)) file.remove(ncfile)  #if it exists already, delete it
   execGRASS("r.out.gdal",input="mod35",output=ncfile,type="Byte",nodata=255,flags=c("verbose"),
@@ -375,8 +408,9 @@ system(paste(ncopath,"ncks -A ",tempdir(),"/time.nc ",ncfile,sep=""))
 ## add other attributes
 ## need to delete _FillValue becuase r.out.gdal incorrectly calls zero values missing if there are no other missing values in the raster.
 ## so need to delete then re-add.  If you just change the value, ncatted will change the values in the raster in addition to the attribute.
-  system(paste(ncopath,"ncrename -v Band1,CMday -v Band2,CMnight ",ncfile,sep=""))
-  system(paste(ncopath,"ncatted ",
+  system(paste(ncopath,"ncrename -v ",paste("Band",1:length(ebands),",",sub("_daily","",ebands),sep="",collapse=" -v ")," ",ncfile,sep=""))
+
+system(paste(ncopath,"ncatted ",
 " -a units,CMday,o,c,\"Cloud Flag (0-3)\" ",
 " -a missing_value,CMday,o,b,255 ",
 " -a _FillValue,CMday,d,, ", 
@@ -391,7 +425,19 @@ ncfile,sep=""))
 ## add the fillvalue attribute back (without changing the actual values)
 system(paste(ncopath,"ncatted -a _FillValue,CMday,o,b,255 ",ncfile,sep=""))
 system(paste(ncopath,"ncatted -a _FillValue,CMnight,o,b,255 ",ncfile,sep=""))
-   
+
+for(p in 1:nrow(flags)){
+  system(paste(ncopath,"ncatted ",
+" -a units,",flags$variable[p],",o,c,\"Cloud Flag (0-1)\" ",
+" -a missing_value,",flags$variable[p],",o,b,255 ",
+" -a _FillValue,",flags$variable[p],",d,, ", 
+" -a valid_range,",flags$variable[p],",o,b,\"0,1\" ",
+" -a long_name,",flags$variable[p],",o,c,",flags$variable[p]," ",
+ncfile,sep=""))
+## add the fillvalue attribute back (without changing the actual values)
+system(paste(ncopath,"ncatted -a _FillValue,",flags$variable[p],",o,b,255 ",ncfile,sep=""))
+system(paste(ncopath,"ncatted -a _FillValue,",flags$variable[p],",o,b,255 ",ncfile,sep=""))
+}  
 
 ## Confirm that the file has the correct attributes, otherwise delete it
 ntime=as.numeric(system(paste("cdo -s ntime ",ncfile),intern=T))
