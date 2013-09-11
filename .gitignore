@@ -4,3 +4,8 @@ tmp*
 *.Rdata
 *[~]
 *[#]*
+*.kml
+*.kmz
+*.jpg
+*.png
+*.pdf

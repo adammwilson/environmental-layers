@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<!-- saved from url=(0014)about:internet -->
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+
+<title>Google Earth Engine Processing</title>
+
+<style type="text/css">
+body, td {
+   font-family: sans-serif;
+   background-color: white;
+   font-size: 12px;
+   margin: 8px;
+}
+
+tt, code, pre {
+   font-family: 'DejaVu Sans Mono', 'Droid Sans Mono', 'Lucida Console', Consolas, Monaco, monospace;
+}
+
+h1 { 
+   font-size:2.2em; 
+}
+
+h2 { 
+   font-size:1.8em; 
+}
+
+h3 { 
+   font-size:1.4em; 
+}
+
+h4 { 
+   font-size:1.0em; 
+}
+
+h5 { 
+   font-size:0.9em; 
+}
+
+h6 { 
+   font-size:0.8em; 
+}
+
+a:visited {
+   color: rgb(50%, 0%, 50%);
+}
+
+pre {	
+   margin-top: 0;
+   max-width: 95%;
+   border: 1px solid #ccc;
+   white-space: pre-wrap;
+}
+
+pre code {
+   display: block; padding: 0.5em;
+}
+
+code.r, code.cpp {
+   background-color: #F8F8F8;
+}
+
+table, td, th {
+  border: none;
+}
+
+blockquote {
+   color:#666666;
+   margin:0;
+   padding-left: 1em;
+   border-left: 0.5em #EEE solid;
+}
+
+hr {
+   height: 0px;
+   border-bottom: none;
+   border-top-width: thin;
+   border-top-style: dotted;
+   border-top-color: #999999;
+}
+
+@media print {
+   * { 
+      background: transparent !important; 
+      color: black !important; 
+      filter:none !important; 
+      -ms-filter: none !important; 
+   }
+
+   body { 
+      font-size:12pt; 
+      max-width:100%; 
+   }
+       
+   a, a:visited { 
+      text-decoration: underline; 
+   }
+
+   hr { 
+      visibility: hidden;
+      page-break-before: always;
+   }
+
+   pre, blockquote { 
+      padding-right: 1em; 
+      page-break-inside: avoid; 
+   }
+
+   tr, img { 
+      page-break-inside: avoid; 
+   }
+
+   img { 
+      max-width: 100% !important; 
+   }
+
+   @page :left { 
+      margin: 15mm 20mm 15mm 10mm; 
+   }
+     
+   @page :right { 
+      margin: 15mm 10mm 15mm 20mm; 
+   }
+
+   p, h2, h3 { 
+      orphans: 3; widows: 3; 
+   }
+
+   h2, h3 { 
+      page-break-after: avoid; 
+   }
+}
+
+</style>
+
+<!-- Styles for R syntax highlighter -->
+<style type="text/css">
+   pre .operator,
+   pre .paren {
+     color: rgb(104, 118, 135)
+   }
+
+   pre .literal {
+     color: rgb(88, 72, 246)
+   }
+
+   pre .number {
+     color: rgb(0, 0, 205);
+   }
+
+   pre .comment {
+     color: rgb(76, 136, 107);
+   }
+
+   pre .keyword {
+     color: rgb(0, 0, 255);
+   }
+
+   pre .identifier {
+     color: rgb(0, 0, 0);
+   }
+
+   pre .string {
+     color: rgb(3, 106, 7);
+   }
+</style>
+
+<!-- R syntax highlighter -->
+<script type="text/javascript">
+var hljs=new function(){function m(p){return p.replace(/&/gm,"&amp;").replace(/</gm,"&lt;")}function f(r,q,p){return RegExp(q,"m"+(r.cI?"i":"")+(p?"g":""))}function b(r){for(var p=0;p<r.childNodes.length;p++){var q=r.childNodes[p];if(q.nodeName=="CODE"){return q}if(!(q.nodeType==3&&q.nodeValue.match(/\s+/))){break}}}function h(t,s){var p="";for(var r=0;r<t.childNodes.length;r++){if(t.childNodes[r].nodeType==3){var q=t.childNodes[r].nodeValue;if(s){q=q.replace(/\n/g,"")}p+=q}else{if(t.childNodes[r].nodeName=="BR"){p+="\n"}else{p+=h(t.childNodes[r])}}}if(/MSIE [678]/.test(navigator.userAgent)){p=p.replace(/\r/g,"\n")}return p}function a(s){var r=s.className.split(/\s+/);r=r.concat(s.parentNode.className.split(/\s+/));for(var q=0;q<r.length;q++){var p=r[q].replace(/^language-/,"");if(e[p]){return p}}}function c(q){var p=[];(function(s,t){for(var r=0;r<s.childNodes.length;r++){if(s.childNodes[r].nodeType==3){t+=s.childNodes[r].nodeValue.length}else{if(s.childNodes[r].nodeName=="BR"){t+=1}else{if(s.childNodes[r].nodeType==1){p.push({event:"start",offset:t,node:s.childNodes[r]});t=arguments.callee(s.childNodes[r],t);p.push({event:"stop",offset:t,node:s.childNodes[r]})}}}}return t})(q,0);return p}function k(y,w,x){var q=0;var z="";var s=[];function u(){if(y.length&&w.length){if(y[0].offset!=w[0].offset){return(y[0].offset<w[0].offset)?y:w}else{return w[0].event=="start"?y:w}}else{return y.length?y:w}}function t(D){var A="<"+D.nodeName.toLowerCase();for(var B=0;B<D.attributes.length;B++){var C=D.attributes[B];A+=" "+C.nodeName.toLowerCase();if(C.value!==undefined&&C.value!==false&&C.value!==null){A+='="'+m(C.value)+'"'}}return A+">"}while(y.length||w.length){var v=u().splice(0,1)[0];z+=m(x.substr(q,v.offset-q));q=v.offset;if(v.event=="start"){z+=t(v.node);s.push(v.node)}else{if(v.event=="stop"){var p,r=s.length;do{r--;p=s[r];z+=("</"+p.nodeName.toLowerCase()+">")}while(p!=v.node);s.splice(r,1);while(r<s.length){z+=t(s[r]);r++}}}}return z+m(x.substr(q))}function j(){function q(x,y,v){if(x.compiled){return}var u;var s=[];if(x.k){x.lR=f(y,x.l||hljs.IR,true);for(var w in x.k){if(!x.k.hasOwnProperty(w)){continue}if(x.k[w] instanceof Object){u=x.k[w]}else{u=x.k;w="keyword"}for(var r in u){if(!u.hasOwnProperty(r)){continue}x.k[r]=[w,u[r]];s.push(r)}}}if(!v){if(x.bWK){x.b="\\b("+s.join("|")+")\\s"}x.bR=f(y,x.b?x.b:"\\B|\\b");if(!x.e&&!x.eW){x.e="\\B|\\b"}if(x.e){x.eR=f(y,x.e)}}if(x.i){x.iR=f(y,x.i)}if(x.r===undefined){x.r=1}if(!x.c){x.c=[]}x.compiled=true;for(var t=0;t<x.c.length;t++){if(x.c[t]=="self"){x.c[t]=x}q(x.c[t],y,false)}if(x.starts){q(x.starts,y,false)}}for(var p in e){if(!e.hasOwnProperty(p)){continue}q(e[p].dM,e[p],true)}}function d(B,C){if(!j.called){j();j.called=true}function q(r,M){for(var L=0;L<M.c.length;L++){if((M.c[L].bR.exec(r)||[null])[0]==r){return M.c[L]}}}function v(L,r){if(D[L].e&&D[L].eR.test(r)){return 1}if(D[L].eW){var M=v(L-1,r);return M?M+1:0}return 0}function w(r,L){return L.i&&L.iR.test(r)}function K(N,O){var M=[];for(var L=0;L<N.c.length;L++){M.push(N.c[L].b)}var r=D.length-1;do{if(D[r].e){M.push(D[r].e)}r--}while(D[r+1].eW);if(N.i){M.push(N.i)}return f(O,M.join("|"),true)}function p(M,L){var N=D[D.length-1];if(!N.t){N.t=K(N,E)}N.t.lastIndex=L;var r=N.t.exec(M);return r?[M.substr(L,r.index-L),r[0],false]:[M.substr(L),"",true]}function z(N,r){var L=E.cI?r[0].toLowerCase():r[0];var M=N.k[L];if(M&&M instanceof Array){return M}return false}function F(L,P){L=m(L);if(!P.k){return L}var r="";var O=0;P.lR.lastIndex=0;var M=P.lR.exec(L);while(M){r+=L.substr(O,M.index-O);var N=z(P,M);if(N){x+=N[1];r+='<span class="'+N[0]+'">'+M[0]+"</span>"}else{r+=M[0]}O=P.lR.lastIndex;M=P.lR.exec(L)}return r+L.substr(O,L.length-O)}function J(L,M){if(M.sL&&e[M.sL]){var r=d(M.sL,L);x+=r.keyword_count;return r.value}else{return F(L,M)}}function I(M,r){var L=M.cN?'<span class="'+M.cN+'">':"";if(M.rB){y+=L;M.buffer=""}else{if(M.eB){y+=m(r)+L;M.buffer=""}else{y+=L;M.buffer=r}}D.push(M);A+=M.r}function G(N,M,Q){var R=D[D.length-1];if(Q){y+=J(R.buffer+N,R);return false}var P=q(M,R);if(P){y+=J(R.buffer+N,R);I(P,M);return P.rB}var L=v(D.length-1,M);if(L){var O=R.cN?"</span>":"";if(R.rE){y+=J(R.buffer+N,R)+O}else{if(R.eE){y+=J(R.buffer+N,R)+O+m(M)}else{y+=J(R.buffer+N+M,R)+O}}while(L>1){O=D[D.length-2].cN?"</span>":"";y+=O;L--;D.length--}var r=D[D.length-1];D.length--;D[D.length-1].buffer="";if(r.starts){I(r.starts,"")}return R.rE}if(w(M,R)){throw"Illegal"}}var E=e[B];var D=[E.dM];var A=0;var x=0;var y="";try{var s,u=0;E.dM.buffer="";do{s=p(C,u);var t=G(s[0],s[1],s[2]);u+=s[0].length;if(!t){u+=s[1].length}}while(!s[2]);if(D.length>1){throw"Illegal"}return{r:A,keyword_count:x,value:y}}catch(H){if(H=="Illegal"){return{r:0,keyword_count:0,value:m(C)}}else{throw H}}}function g(t){var p={keyword_count:0,r:0,value:m(t)};var r=p;for(var q in e){if(!e.hasOwnProperty(q)){continue}var s=d(q,t);s.language=q;if(s.keyword_count+s.r>r.keyword_count+r.r){r=s}if(s.keyword_count+s.r>p.keyword_count+p.r){r=p;p=s}}if(r.language){p.second_best=r}return p}function i(r,q,p){if(q){r=r.replace(/^((<[^>]+>|\t)+)/gm,function(t,w,v,u){return w.replace(/\t/g,q)})}if(p){r=r.replace(/\n/g,"<br>")}return r}function n(t,w,r){var x=h(t,r);var v=a(t);var y,s;if(v){y=d(v,x)}else{return}var q=c(t);if(q.length){s=document.createElement("pre");s.innerHTML=y.value;y.value=k(q,c(s),x)}y.value=i(y.value,w,r);var u=t.className;if(!u.match("(\\s|^)(language-)?"+v+"(\\s|$)")){u=u?(u+" "+v):v}if(/MSIE [678]/.test(navigator.userAgent)&&t.tagName=="CODE"&&t.parentNode.tagName=="PRE"){s=t.parentNode;var p=document.createElement("div");p.innerHTML="<pre><code>"+y.value+"</code></pre>";t=p.firstChild.firstChild;p.firstChild.cN=s.cN;s.parentNode.replaceChild(p.firstChild,s)}else{t.innerHTML=y.value}t.className=u;t.result={language:v,kw:y.keyword_count,re:y.r};if(y.second_best){t.second_best={language:y.second_best.language,kw:y.second_best.keyword_count,re:y.second_best.r}}}function o(){if(o.called){return}o.called=true;var r=document.getElementsByTagName("pre");for(var p=0;p<r.length;p++){var q=b(r[p]);if(q){n(q,hljs.tabReplace)}}}function l(){if(window.addEventListener){window.addEventListener("DOMContentLoaded",o,false);window.addEventListener("load",o,false)}else{if(window.attachEvent){window.attachEvent("onload",o)}else{window.onload=o}}}var e={};this.LANGUAGES=e;this.highlight=d;this.highlightAuto=g;this.fixMarkup=i;this.highlightBlock=n;this.initHighlighting=o;this.initHighlightingOnLoad=l;this.IR="[a-zA-Z][a-zA-Z0-9_]*";this.UIR="[a-zA-Z_][a-zA-Z0-9_]*";this.NR="\\b\\d+(\\.\\d+)?";this.CNR="\\b(0[xX][a-fA-F0-9]+|(\\d+(\\.\\d*)?|\\.\\d+)([eE][-+]?\\d+)?)";this.BNR="\\b(0b[01]+)";this.RSR="!|!=|!==|%|%=|&|&&|&=|\\*|\\*=|\\+|\\+=|,|\\.|-|-=|/|/=|:|;|<|<<|<<=|<=|=|==|===|>|>=|>>|>>=|>>>|>>>=|\\?|\\[|\\{|\\(|\\^|\\^=|\\||\\|=|\\|\\||~";this.ER="(?![\\s\\S])";this.BE={b:"\\\\.",r:0};this.ASM={cN:"string",b:"'",e:"'",i:"\\n",c:[this.BE],r:0};this.QSM={cN:"string",b:'"',e:'"',i:"\\n",c:[this.BE],r:0};this.CLCM={cN:"comment",b:"//",e:"$"};this.CBLCLM={cN:"comment",b:"/\\*",e:"\\*/"};this.HCM={cN:"comment",b:"#",e:"$"};this.NM={cN:"number",b:this.NR,r:0};this.CNM={cN:"number",b:this.CNR,r:0};this.BNM={cN:"number",b:this.BNR,r:0};this.inherit=function(r,s){var p={};for(var q in r){p[q]=r[q]}if(s){for(var q in s){p[q]=s[q]}}return p}}();hljs.LANGUAGES.cpp=function(){var a={keyword:{"false":1,"int":1,"float":1,"while":1,"private":1,"char":1,"catch":1,"export":1,virtual:1,operator:2,sizeof:2,dynamic_cast:2,typedef:2,const_cast:2,"const":1,struct:1,"for":1,static_cast:2,union:1,namespace:1,unsigned:1,"long":1,"throw":1,"volatile":2,"static":1,"protected":1,bool:1,template:1,mutable:1,"if":1,"public":1,friend:2,"do":1,"return":1,"goto":1,auto:1,"void":2,"enum":1,"else":1,"break":1,"new":1,extern:1,using:1,"true":1,"class":1,asm:1,"case":1,typeid:1,"short":1,reinterpret_cast:2,"default":1,"double":1,register:1,explicit:1,signed:1,typename:1,"try":1,"this":1,"switch":1,"continue":1,wchar_t:1,inline:1,"delete":1,alignof:1,char16_t:1,char32_t:1,constexpr:1,decltype:1,noexcept:1,nullptr:1,static_assert:1,thread_local:1,restrict:1,_Bool:1,complex:1},built_in:{std:1,string:1,cin:1,cout:1,cerr:1,clog:1,stringstream:1,istringstream:1,ostringstream:1,auto_ptr:1,deque:1,list:1,queue:1,stack:1,vector:1,map:1,set:1,bitset:1,multiset:1,multimap:1,unordered_set:1,unordered_map:1,unordered_multiset:1,unordered_multimap:1,array:1,shared_ptr:1}};return{dM:{k:a,i:"</",c:[hljs.CLCM,hljs.CBLCLM,hljs.QSM,{cN:"string",b:"'\\\\?.",e:"'",i:"."},{cN:"number",b:"\\b(\\d+(\\.\\d*)?|\\.\\d+)(u|U|l|L|ul|UL|f|F)"},hljs.CNM,{cN:"preprocessor",b:"#",e:"$"},{cN:"stl_container",b:"\\b(deque|list|queue|stack|vector|map|set|bitset|multiset|multimap|unordered_map|unordered_set|unordered_multiset|unordered_multimap|array)\\s*<",e:">",k:a,r:10,c:["self"]}]}}}();hljs.LANGUAGES.r={dM:{c:[hljs.HCM,{cN:"number",b:"\\b0[xX][0-9a-fA-F]+[Li]?\\b",e:hljs.IMMEDIATE_RE,r:0},{cN:"number",b:"\\b\\d+(?:[eE][+\\-]?\\d*)?L\\b",e:hljs.IMMEDIATE_RE,r:0},{cN:"number",b:"\\b\\d+\\.(?!\\d)(?:i\\b)?",e:hljs.IMMEDIATE_RE,r:1},{cN:"number",b:"\\b\\d+(?:\\.\\d*)?(?:[eE][+\\-]?\\d*)?i?\\b",e:hljs.IMMEDIATE_RE,r:0},{cN:"number",b:"\\.\\d+(?:[eE][+\\-]?\\d*)?i?\\b",e:hljs.IMMEDIATE_RE,r:1},{cN:"keyword",b:"(?:tryCatch|library|setGeneric|setGroupGeneric)\\b",e:hljs.IMMEDIATE_RE,r:10},{cN:"keyword",b:"\\.\\.\\.",e:hljs.IMMEDIATE_RE,r:10},{cN:"keyword",b:"\\.\\.\\d+(?![\\w.])",e:hljs.IMMEDIATE_RE,r:10},{cN:"keyword",b:"\\b(?:function)",e:hljs.IMMEDIATE_RE,r:2},{cN:"keyword",b:"(?:if|in|break|next|repeat|else|for|return|switch|while|try|stop|warning|require|attach|detach|source|setMethod|setClass)\\b",e:hljs.IMMEDIATE_RE,r:1},{cN:"literal",b:"(?:NA|NA_integer_|NA_real_|NA_character_|NA_complex_)\\b",e:hljs.IMMEDIATE_RE,r:10},{cN:"literal",b:"(?:NULL|TRUE|FALSE|T|F|Inf|NaN)\\b",e:hljs.IMMEDIATE_RE,r:1},{cN:"identifier",b:"[a-zA-Z.][a-zA-Z0-9._]*\\b",e:hljs.IMMEDIATE_RE,r:0},{cN:"operator",b:"<\\-(?!\\s*\\d)",e:hljs.IMMEDIATE_RE,r:2},{cN:"operator",b:"\\->|<\\-",e:hljs.IMMEDIATE_RE,r:1},{cN:"operator",b:"%%|~",e:hljs.IMMEDIATE_RE},{cN:"operator",b:">=|<=|==|!=|\\|\\||&&|=|\\+|\\-|\\*|/|\\^|>|<|!|&|\\||\\$|:",e:hljs.IMMEDIATE_RE,r:0},{cN:"operator",b:"%",e:"%",i:"\\n",r:1},{cN:"identifier",b:"`",e:"`",r:0},{cN:"string",b:'"',e:'"',c:[hljs.BE],r:0},{cN:"string",b:"'",e:"'",c:[hljs.BE],r:0},{cN:"paren",b:"[[({\\])}]",e:hljs.IMMEDIATE_RE,r:0}]}};
+hljs.initHighlightingOnLoad();
+</script>
+
+
+
+
+</head>
+
+<body>
+<p>Systematic landcover bias in Collection 5 MODIS cloud mask and derived products – a global overview</p>
+
+<hr/>
+
+<pre><code class="r">opts_chunk$set(eval = F)
+</code></pre>
+
+<p>This document describes the analysis of the Collection 5 MOD35 data.</p>
+
+<h1>Google Earth Engine Processing</h1>
+
+<p>The following code produces the annual (2009) summaries of cloud frequency from MOD09, MOD35, and MOD11 using the Google Earth Engine &#39;playground&#39; API <a href="http://ee-api.appspot.com/">http://ee-api.appspot.com/</a>. </p>
+
+<pre><code class="coffee">var startdate=&quot;2009-01-01&quot;
+var stopdate=&quot;2009-12-31&quot;
+
+// MOD11 MODIS LST
+var mod11 = ee.ImageCollection(&quot;MOD11A2&quot;).map(function(img){ 
+  return img.select([&#39;LST_Day_1km&#39;])});
+// MOD09 internal cloud flag
+var mod09 = ee.ImageCollection(&quot;MOD09GA&quot;).filterDate(new Date(startdate),new Date(stopdate)).map(function(img) {
+  return img.select([&#39;state_1km&#39;]).expression(&quot;((b(0)/1024)%2)&quot;);
+});
+// MOD35 cloud flag
+var mod35 = ee.ImageCollection(&quot;MOD09GA&quot;).filterDate(new Date(startdate),new Date(stopdate)).map(function(img) {
+  return img.select([&#39;state_1km&#39;]).expression(&quot;((b(0))%4)==1|((b(0))%4)==2&quot;);
+});
+
+//define reducers
+var COUNT = ee.call(&quot;Reducer.count&quot;);
+var MEAN = ee.call(&quot;Reducer.mean&quot;);
+
+//a few maps of constants
+c100=ee.Image(100);  //to multiply by 100
+c02=ee.Image(0.02);  //to scale LST data
+c272=ee.Image(272.15); // to convert K-&gt;C
+
+//calculate mean cloudiness (%), rename, and convert to integer
+mod09a=mod09.reduce(MEAN).select([0], [&#39;MOD09&#39;]).multiply(c100).int8();
+mod35a=mod35.reduce(MEAN).select([0], [&#39;MOD35&#39;]).multiply(c100).int8();
+
+/////////////////////////////////////////////////
+// Generate the cloud frequency surface:
+getMiss = function(collection) {
+  //filter by date
+i2=collection.filterDate(new Date(startdate),new Date(stopdate));
+// number of layers in collection
+i2_n=i2.getInfo().features.length;
+//get means
+// image of -1s to convert to % missing
+c1=ee.Image(-1);
+// 1 Calculate the number of days with measurements
+// 2 divide by the total number of layers
+i2_c=ee.Image(i2_n).float()
+// 3 Add -1 and multiply by -1 to invert to % cloudy
+// 4 Rename to &quot;Percent_Cloudy&quot;
+// 5 multiply by 100 and convert to 8-bit integer to decrease file size
+i2_miss=i2.reduce(COUNT).divide(i2_c).add(c1).multiply(c1).multiply(c100).int8();
+return (i2_miss);
+};
+
+// run the function
+mod11a=getMiss(mod11).select([0], [&#39;MOD11_LST_PMiss&#39;]);
+
+// get long-term mean
+mod11b=mod11.reduce(MEAN).multiply(c02).subtract(c272).int8().select([0], [&#39;MOD11_LST_MEAN&#39;]);
+
+// summary object with all layers
+summary=mod11a.addBands(mod11b).addBands(mod35a).addBands(mod09a)
+
+var region=&#39;[[-180, -60], [-180, 90], [180, 90], [180, -60]]&#39;  //global
+
+// get download link
+print(&quot;All&quot;)
+var path = summary.getDownloadURL({
+  &#39;scale&#39;: 1000,
+  &#39;crs&#39;: &#39;EPSG:4326&#39;,
+  &#39;region&#39;: region
+});
+print(&#39;https://earthengine.sandbox.google.com&#39; + path);
+</code></pre>
+
+<h1>Data Processing</h1>
+
+<pre><code class="r">setwd(&quot;~/acrobates/adamw/projects/MOD35C5&quot;)
+library(raster)
+</code></pre>
+
+<pre><code>## Loading required package: sp
+</code></pre>
+
+<pre><code class="r">beginCluster(10)
+</code></pre>
+
+<pre><code>## Loading required package: snow
+</code></pre>
+
+<pre><code class="r">library(rasterVis)
+</code></pre>
+
+<pre><code>## Loading required package: lattice Loading required package: latticeExtra
+## Loading required package: RColorBrewer Loading required package: hexbin
+## Loading required package: grid
+</code></pre>
+
+<pre><code class="r">library(rgdal)
+</code></pre>
+
+<pre><code>## rgdal: version: 0.8-10, (SVN revision 478) Geospatial Data Abstraction
+## Library extensions to R successfully loaded Loaded GDAL runtime: GDAL
+## 1.9.2, released 2012/10/08 but rgdal build and GDAL runtime not in sync:
+## ... consider re-installing rgdal!! Path to GDAL shared files:
+## /usr/share/gdal/1.9 Loaded PROJ.4 runtime: Rel. 4.8.0, 6 March 2012,
+## [PJ_VERSION: 480] Path to PROJ.4 shared files: (autodetected)
+</code></pre>
+
+<pre><code class="r">library(plotKML)
+</code></pre>
+
+<pre><code>## plotKML version 0.3-5 (2013-05-16) URL:
+## http://plotkml.r-forge.r-project.org/
+## 
+## Attaching package: &#39;plotKML&#39;
+## 
+## The following object is masked from &#39;package:raster&#39;:
+## 
+## count
+</code></pre>
+
+<pre><code class="r">library(Cairo)
+library(reshape)
+</code></pre>
+
+<pre><code>## Loading required package: plyr
+## 
+## Attaching package: &#39;plyr&#39;
+## 
+## The following object is masked from &#39;package:plotKML&#39;:
+## 
+## count
+## 
+## The following object is masked from &#39;package:raster&#39;:
+## 
+## count
+## 
+## Attaching package: &#39;reshape&#39;
+## 
+## The following object is masked from &#39;package:plyr&#39;:
+## 
+## rename, round_any
+## 
+## The following object is masked from &#39;package:raster&#39;:
+## 
+## expand
+</code></pre>
+
+<pre><code class="r">library(rgeos)
+</code></pre>
+
+<pre><code>## rgeos version: 0.2-19, (SVN revision 394) GEOS runtime version:
+## 3.3.3-CAPI-1.7.4 Polygon checking: TRUE
+</code></pre>
+
+<pre><code class="r">library(splancs)
+</code></pre>
+
+<pre><code>## Spatial Point Pattern Analysis Code in S-Plus
+## 
+## Version 2 - Spatial and Space-Time analysis
+## 
+## Attaching package: &#39;splancs&#39;
+## 
+## The following object is masked from &#39;package:raster&#39;:
+## 
+## zoom
+</code></pre>
+
+<pre><code class="r">
+## get % cloudy
+mod09 = raster(&quot;data/MOD09_2009.tif&quot;)
+names(mod09) = &quot;C5MOD09CF&quot;
+NAvalue(mod09) = 0
+
+mod35c5 = raster(&quot;data/MOD35_2009.tif&quot;)
+names(mod35c5) = &quot;C5MOD35CF&quot;
+NAvalue(mod35c5) = 0
+
+## mod35C6 annual
+mod35c6 = raster(&quot;data/MOD35C6_2009.tif&quot;)
+names(mod35c6) = &quot;C6MOD35CF&quot;
+NAvalue(mod35c6) = 255
+
+## landcover
+lulc = raster(&quot;data/MCD12Q1_IGBP_2009_051_wgs84_1km.tif&quot;)
+
+# lulc=ratify(lulc)
+data(worldgrids_pal)  #load palette
+IGBP = data.frame(ID = 0:16, col = worldgrids_pal$IGBP[-c(18, 19)], lulc_levels2 = c(&quot;Water&quot;, 
+    &quot;Forest&quot;, &quot;Forest&quot;, &quot;Forest&quot;, &quot;Forest&quot;, &quot;Forest&quot;, &quot;Shrublands&quot;, &quot;Shrublands&quot;, 
+    &quot;Savannas&quot;, &quot;Savannas&quot;, &quot;Grasslands&quot;, &quot;Permanent wetlands&quot;, &quot;Croplands&quot;, 
+    &quot;Urban and built-up&quot;, &quot;Cropland/Natural vegetation mosaic&quot;, &quot;Snow and ice&quot;, 
+    &quot;Barren or sparsely vegetated&quot;), stringsAsFactors = F)
+IGBP$class = rownames(IGBP)
+rownames(IGBP) = 1:nrow(IGBP)
+levels(lulc) = list(IGBP)
+names(lulc) = &quot;MCD12Q1&quot;
+
+## MOD17
+mod17 = raster(&quot;data/MOD17.tif&quot;, format = &quot;GTiff&quot;)
+NAvalue(mod17) = 65535
+names(mod17) = &quot;MOD17_unscaled&quot;
+
+mod17qc = raster(&quot;data/MOD17qc.tif&quot;, format = &quot;GTiff&quot;)
+NAvalue(mod17qc) = 255
+names(mod17qc) = &quot;MOD17CF&quot;
+
+## MOD11 via earth engine
+mod11 = raster(&quot;data/MOD11_2009.tif&quot;, format = &quot;GTiff&quot;)
+names(mod11) = &quot;MOD11_unscaled&quot;
+NAvalue(mod11) = 0
+
+mod11qc = raster(&quot;data/MOD11qc_2009.tif&quot;, format = &quot;GTiff&quot;)
+names(mod11qc) = &quot;MOD11CF&quot;
+</code></pre>
+
+<p>Import the Collection 5 MOD35 processing path:</p>
+
+<pre><code class="r">pp = raster(&quot;data/MOD35pp.tif&quot;)
+NAvalue(pp) = 255
+names(pp) = &quot;MOD35pp&quot;
+</code></pre>
+
+<p>Define transects to illustrate the fine-grain relationship between MOD35 cloud frequency and both landcover and processing path.</p>
+
+<pre><code class="r">r1 = Lines(list(Line(matrix(c(-61.688, 4.098, -59.251, 3.43), ncol = 2, byrow = T))), 
+    &quot;Venezuela&quot;)
+r2 = Lines(list(Line(matrix(c(133.746, -31.834, 134.226, -32.143), ncol = 2, 
+    byrow = T))), &quot;Australia&quot;)
+r3 = Lines(list(Line(matrix(c(73.943, 27.419, 74.369, 26.877), ncol = 2, byrow = T))), 
+    &quot;India&quot;)
+r4 = Lines(list(Line(matrix(c(33.195, 12.512, 33.802, 12.894), ncol = 2, byrow = T))), 
+    &quot;Sudan&quot;)
+
+trans = SpatialLines(list(r1, r2, r3, r4), CRS(&quot;+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs &quot;))
+### write out shapefiles of transects
+writeOGR(SpatialLinesDataFrame(trans, data = data.frame(ID = names(trans)), 
+    match.ID = F), &quot;output&quot;, layer = &quot;transects&quot;, driver = &quot;ESRI Shapefile&quot;, 
+    overwrite = T)
+</code></pre>
+
+<p>Buffer transects to identify a small region around each transect for comparison and plotting</p>
+
+<pre><code class="r">transb = gBuffer(trans, byid = T, width = 0.4)
+## make polygons of bounding boxes
+bb0 &lt;- lapply(slot(transb, &quot;polygons&quot;), bbox)
+bb1 &lt;- lapply(bb0, bboxx)
+# turn these into matrices using a helper function in splancs
+bb2 &lt;- lapply(bb1, function(x) rbind(x, x[1, ]))
+# close the matrix rings by appending the first coordinate
+rn &lt;- row.names(transb)
+# get the IDs
+bb3 &lt;- vector(mode = &quot;list&quot;, length = length(bb2))
+# make somewhere to keep the output
+for (i in seq(along = bb3)) bb3[[i]] &lt;- Polygons(list(Polygon(bb2[[i]])), ID = rn[i])
+# loop over the closed matrix rings, adding the IDs
+bbs &lt;- SpatialPolygons(bb3, proj4string = CRS(proj4string(transb)))
+</code></pre>
+
+<p>Extract the CF and mean values from each raster of interest.</p>
+
+<pre><code class="r">trd1 = lapply(1:length(transb), function(x) {
+    td = crop(mod11, transb[x])
+    tdd = lapply(list(mod35c5, mod35c6, mod09, mod17, mod17qc, mod11, mod11qc, 
+        lulc, pp), function(l) resample(crop(l, transb[x]), td, method = &quot;ngb&quot;))
+    ## normalize MOD11 and MOD17
+    for (j in which(do.call(c, lapply(tdd, function(i) names(i))) %in% c(&quot;MOD11_unscaled&quot;, 
+        &quot;MOD17_unscaled&quot;))) {
+        trange = cellStats(tdd[[j]], range)
+        tscaled = 100 * (tdd[[j]] - trange[1])/(trange[2] - trange[1])
+        tscaled@history = list(range = trange)
+        names(tscaled) = sub(&quot;_unscaled&quot;, &quot;&quot;, names(tdd[[j]]))
+        tdd = c(tdd, tscaled)
+    }
+    return(brick(tdd))
+})
+## bind all subregions into single dataframe for plotting
+trd = do.call(rbind.data.frame, lapply(1:length(trd1), function(i) {
+    d = as.data.frame(as.matrix(trd1[[i]]))
+    d[, c(&quot;x&quot;, &quot;y&quot;)] = coordinates(trd1[[i]])
+    d$trans = names(trans)[i]
+    d = melt(d, id.vars = c(&quot;trans&quot;, &quot;x&quot;, &quot;y&quot;))
+    return(d)
+}))
+transd = do.call(rbind.data.frame, lapply(1:length(trans), function(l) {
+    td = as.data.frame(extract(trd1[[l]], trans[l], along = T, cellnumbers = F)[[1]])
+    td$loc = extract(trd1[[l]], trans[l], along = T, cellnumbers = T)[[1]][, 
+        1]
+    td[, c(&quot;x&quot;, &quot;y&quot;)] = xyFromCell(trd1[[l]], td$loc)
+    td$dist = spDistsN1(as.matrix(td[, c(&quot;x&quot;, &quot;y&quot;)]), as.matrix(td[1, c(&quot;x&quot;, 
+        &quot;y&quot;)]), longlat = T)
+    td$transect = names(trans[l])
+    td2 = melt(td, id.vars = c(&quot;loc&quot;, &quot;x&quot;, &quot;y&quot;, &quot;dist&quot;, &quot;transect&quot;))
+    td2 = td2[order(td2$variable, td2$dist), ]
+    # get per variable ranges to normalize
+    tr = cast(melt.list(tapply(td2$value, td2$variable, function(x) data.frame(min = min(x, 
+        na.rm = T), max = max(x, na.rm = T)))), L1 ~ variable)
+    td2$min = tr$min[match(td2$variable, tr$L1)]
+    td2$max = tr$max[match(td2$variable, tr$L1)]
+    print(paste(&quot;Finished &quot;, names(trans[l])))
+    return(td2)
+}))
+
+transd$type = ifelse(grepl(&quot;MOD35|MOD09|CF&quot;, transd$variable), &quot;CF&quot;, &quot;Data&quot;)
+</code></pre>
+
+<p>Compute difference between MOD09 and MOD35 cloud masks</p>
+
+<pre><code class="r">## comparison of % cloudy days
+dif_c5_09 = raster(&quot;data/dif_c5_09.tif&quot;, format = &quot;GTiff&quot;)
+</code></pre>
+
+<p>Define a color scheme</p>
+
+<pre><code class="r">n = 100
+at = seq(0, 100, len = n)
+bgyr = colorRampPalette(c(&quot;purple&quot;, &quot;blue&quot;, &quot;green&quot;, &quot;yellow&quot;, &quot;orange&quot;, &quot;red&quot;, 
+    &quot;red&quot;))
+bgrayr = colorRampPalette(c(&quot;purple&quot;, &quot;blue&quot;, &quot;grey&quot;, &quot;red&quot;, &quot;red&quot;))
+cols = bgyr(n)
+</code></pre>
+
+<p>Import a global coastline map for overlay</p>
+
+<pre><code class="r">library(maptools)
+coast = map2SpatialLines(map(&quot;world&quot;, interior = FALSE, plot = FALSE), proj4string = CRS(&quot;+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs&quot;))
+</code></pre>
+
+<p>Draw the global cloud frequencies</p>
+
+<pre><code class="r">g1 = levelplot(stack(mod35c5, mod09), xlab = &quot; &quot;, scales = list(x = list(draw = F), 
+    y = list(alternating = 1)), col.regions = cols, at = at) + layer(sp.polygons(bbs[1:4], 
+    lwd = 2)) + layer(sp.lines(coast, lwd = 0.5))
+
+g2 = levelplot(dif_c5_09, col.regions = bgrayr(100), at = seq(-70, 70, len = 100), 
+    margin = F, ylab = &quot; &quot;, colorkey = list(&quot;right&quot;)) + layer(sp.polygons(bbs[1:4], 
+    lwd = 2)) + layer(sp.lines(coast, lwd = 0.5))
+g2$strip = strip.custom(var.name = &quot;Difference (C5MOD35-C5MOD09)&quot;, style = 1, 
+    strip.names = T, strip.levels = F)
+</code></pre>
+
+<p>Now illustrate the fine-grain regions</p>
+
+<pre><code class="r">p1=useOuterStrips(levelplot(value~x*y|variable+trans,data=trd[!trd$variable%in%c(&quot;MOD17_unscaled&quot;,&quot;MOD11_unscaled&quot;,&quot;MCD12Q1&quot;,&quot;MOD35pp&quot;),],asp=1,scales=list(draw=F,rot=0,relation=&quot;free&quot;),
+                                       at=at,col.regions=cols,maxpixels=7e6,
+                                       ylab=&quot;Latitude&quot;,xlab=&quot;Longitude&quot;),strip = strip.custom(par.strip.text=list(cex=.7)))+layer(sp.lines(trans,lwd=2))
+
+p2=useOuterStrips(
+  levelplot(value~x*y|variable+trans,data=trd[trd$variable%in%c(&quot;MCD12Q1&quot;),],
+            asp=1,scales=list(draw=F,rot=0,relation=&quot;free&quot;),colorkey=F,
+            at=c(-1,IGBP$ID),col.regions=IGBP$col,maxpixels=7e7,
+            legend=list(
+              right=list(fun=draw.key(list(columns=1,#title=&quot;MCD12Q1 \n IGBP Land \n Cover&quot;,
+                           rectangles=list(col=IGBP$col,size=1),
+                           text=list(as.character(IGBP$ID),at=IGBP$ID-.5))))),
+            ylab=&quot;&quot;,xlab=&quot; &quot;),strip = strip.custom(par.strip.text=list(cex=.7)),strip.left=F)+layer(sp.lines(trans,lwd=2))
+p3=useOuterStrips(
+  levelplot(value~x*y|variable+trans,data=trd[trd$variable%in%c(&quot;MOD35pp&quot;),],
+            asp=1,scales=list(draw=F,rot=0,relation=&quot;free&quot;),colorkey=F,
+            at=c(-1:4),col.regions=c(&quot;blue&quot;,&quot;cyan&quot;,&quot;tan&quot;,&quot;darkgreen&quot;),maxpixels=7e7,
+            legend=list(
+              right=list(fun=draw.key(list(columns=1,#title=&quot;MOD35 \n Processing \n Path&quot;,
+                           rectangles=list(col=c(&quot;blue&quot;,&quot;cyan&quot;,&quot;tan&quot;,&quot;darkgreen&quot;),size=1),
+                           text=list(c(&quot;Water&quot;,&quot;Coast&quot;,&quot;Desert&quot;,&quot;Land&quot;)))))),
+            ylab=&quot;&quot;,xlab=&quot; &quot;),strip = strip.custom(par.strip.text=list(cex=.7)),strip.left=F)+layer(sp.lines(trans,lwd=2))
+</code></pre>
+
+<p>Now draw the profile plots for each transect.</p>
+
+<pre><code class="r">## transects
+p4=xyplot(value~dist|transect,groups=variable,type=c(&quot;smooth&quot;,&quot;p&quot;),
+       data=transd,panel=function(...,subscripts=subscripts) {
+         td=transd[subscripts,]
+         ## mod09
+         imod09=td$variable==&quot;C5MOD09CF&quot;
+         panel.xyplot(td$dist[imod09],td$value[imod09],type=c(&quot;p&quot;,&quot;smooth&quot;),span=0.2,subscripts=1:sum(imod09),col=&quot;red&quot;,pch=16,cex=.25)
+         ## mod35C5
+         imod35=td$variable==&quot;C5MOD35CF&quot;
+         panel.xyplot(td$dist[imod35],td$value[imod35],type=c(&quot;p&quot;,&quot;smooth&quot;),span=0.09,subscripts=1:sum(imod35),col=&quot;blue&quot;,pch=16,cex=.25)
+         ## mod35C6
+         imod35c6=td$variable==&quot;C6MOD35CF&quot;
+         panel.xyplot(td$dist[imod35c6],td$value[imod35c6],type=c(&quot;p&quot;,&quot;smooth&quot;),span=0.09,subscripts=1:sum(imod35c6),col=&quot;black&quot;,pch=16,cex=.25)
+         ## mod17
+         imod17=td$variable==&quot;MOD17&quot;
+         panel.xyplot(td$dist[imod17],100*((td$value[imod17]-td$min[imod17][1])/(td$max[imod17][1]-td$min[imod17][1])),
+                      type=c(&quot;smooth&quot;),span=0.09,subscripts=1:sum(imod17),col=&quot;darkgreen&quot;,lty=5,pch=1,cex=.25)
+         imod17qc=td$variable==&quot;MOD17CF&quot;
+         panel.xyplot(td$dist[imod17qc],td$value[imod17qc],type=c(&quot;p&quot;,&quot;smooth&quot;),span=0.09,subscripts=1:sum(imod17qc),col=&quot;darkgreen&quot;,pch=16,cex=.25)
+         ## mod11
+         imod11=td$variable==&quot;MOD11&quot;
+         panel.xyplot(td$dist[imod11],100*((td$value[imod11]-td$min[imod11][1])/(td$max[imod11][1]-td$min[imod11][1])),
+                      type=c(&quot;smooth&quot;),span=0.09,subscripts=1:sum(imod17),col=&quot;orange&quot;,lty=&quot;dashed&quot;,pch=1,cex=.25)
+         imod11qc=td$variable==&quot;MOD11CF&quot;
+         qcspan=ifelse(td$transect[1]==&quot;Australia&quot;,0.2,0.05)
+         panel.xyplot(td$dist[imod11qc],td$value[imod11qc],type=c(&quot;p&quot;,&quot;smooth&quot;),npoints=100,span=qcspan,subscripts=1:sum(imod11qc),col=&quot;orange&quot;,pch=16,cex=.25)
+         ## land
+         path=td[td$variable==&quot;MOD35pp&quot;,]
+         panel.segments(path$dist,-10,c(path$dist[-1],max(path$dist,na.rm=T)),-10,col=c(&quot;blue&quot;,&quot;cyan&quot;,&quot;tan&quot;,&quot;darkgreen&quot;)[path$value+1],subscripts=1:nrow(path),lwd=10,type=&quot;l&quot;)
+         land=td[td$variable==&quot;MCD12Q1&quot;,]
+         panel.segments(land$dist,-20,c(land$dist[-1],max(land$dist,na.rm=T)),-20,col=IGBP$col[land$value+1],subscripts=1:nrow(land),lwd=10,type=&quot;l&quot;)
+        },subscripts=T,par.settings = list(grid.pars = list(lineend = &quot;butt&quot;)),
+       scales=list(
+         x=list(alternating=1,relation=&quot;free&quot;),#, lim=c(0,70)),
+         y=list(at=c(-18,-10,seq(0,100,len=5)),
+           labels=c(&quot;MCD12Q1 IGBP&quot;,&quot;MOD35 path&quot;,seq(0,100,len=5)),
+           lim=c(-25,100)),
+         alternating=F),
+       xlab=&quot;Distance Along Transect (km)&quot;, ylab=&quot;% Missing Data / % of Maximum Value&quot;,
+       legend=list(
+         bottom=list(fun=draw.key(list( rep=FALSE,columns=1,title=&quot; &quot;,
+                      lines=list(type=c(&quot;b&quot;,&quot;b&quot;,&quot;b&quot;,&quot;b&quot;,&quot;b&quot;,&quot;l&quot;,&quot;b&quot;,&quot;l&quot;),pch=16,cex=.5,
+                        lty=c(0,1,1,1,1,5,1,5),
+                        col=c(&quot;transparent&quot;,&quot;red&quot;,&quot;blue&quot;,&quot;black&quot;,&quot;darkgreen&quot;,&quot;darkgreen&quot;,&quot;orange&quot;,&quot;orange&quot;)),
+                       text=list(
+                         c(&quot;MODIS Products&quot;,&quot;C5 MOD09 % Cloudy&quot;,&quot;C5 MOD35 % Cloudy&quot;,&quot;C6 MOD35 % Cloudy&quot;,&quot;MOD17 % Missing&quot;,&quot;MOD17 (scaled)&quot;,&quot;MOD11 % Missing&quot;,&quot;MOD11 (scaled)&quot;)),
+                       rectangles=list(border=NA,col=c(NA,&quot;tan&quot;,&quot;darkgreen&quot;)),
+                       text=list(c(&quot;C5 MOD35 Processing Path&quot;,&quot;Desert&quot;,&quot;Land&quot;)),
+                       rectangles=list(border=NA,col=c(NA,IGBP$col[sort(unique(transd$value[transd$variable==&quot;MCD12Q1&quot;]+1))])),
+                       text=list(c(&quot;MCD12Q1 IGBP Land Cover&quot;,IGBP$class[sort(unique(transd$value[transd$variable==&quot;MCD12Q1&quot;]+1))])))))),
+  strip = strip.custom(par.strip.text=list(cex=.75)))
+print(p4)
+</code></pre>
+
+<p>Compile the PDF:</p>
+
+<pre><code class="r">CairoPDF(&quot;output/mod35compare.pdf&quot;, width = 11, height = 7)
+### Global Comparison
+print(g1, position = c(0, 0.35, 1, 1), more = T)
+print(g2, position = c(0, 0, 1, 0.415), more = F)
+
+### MOD35 Desert Processing path
+levelplot(pp, asp = 1, scales = list(draw = T, rot = 0), maxpixels = 1e+06, 
+    at = c(-1:3), col.regions = c(&quot;blue&quot;, &quot;cyan&quot;, &quot;tan&quot;, &quot;darkgreen&quot;), margin = F, 
+    colorkey = list(space = &quot;bottom&quot;, title = &quot;MOD35 Processing Path&quot;, labels = list(labels = c(&quot;Water&quot;, 
+        &quot;Coast&quot;, &quot;Desert&quot;, &quot;Land&quot;), at = 0:4 - 0.5))) + layer(sp.polygons(bbs, 
+    lwd = 2)) + layer(sp.lines(coast, lwd = 0.5))
+### levelplot of regions
+print(p1, position = c(0, 0, 0.62, 1), more = T)
+print(p2, position = c(0.6, 0.21, 0.78, 0.79), more = T)
+print(p3, position = c(0.76, 0.21, 1, 0.79))
+### profile plots
+print(p4)
+dev.off()
+</code></pre>
+
+<p>Derive summary statistics for manuscript</p>
+
+<pre><code class="r">td = cast(transect + loc + dist ~ variable, value = &quot;value&quot;, data = transd)
+td2 = melt.data.frame(td, id.vars = c(&quot;transect&quot;, &quot;dist&quot;, &quot;loc&quot;, &quot;MOD35pp&quot;, 
+    &quot;MCD12Q1&quot;))
+
+## function to prettyprint mean/sd&#39;s
+msd = function(x) paste(round(mean(x, na.rm = T), 1), &quot;% ±&quot;, round(sd(x, na.rm = T), 
+    1), sep = &quot;&quot;)
+
+cast(td2, transect + variable ~ MOD35pp, value = &quot;value&quot;, fun = msd)
+cast(td2, transect + variable ~ MOD35pp + MCD12Q1, value = &quot;value&quot;, fun = msd)
+cast(td2, transect + variable ~ ., value = &quot;value&quot;, fun = msd)
+
+cast(td2, transect + variable ~ ., value = &quot;value&quot;, fun = msd)
+
+cast(td2, variable ~ MOD35pp, value = &quot;value&quot;, fun = msd)
+cast(td2, variable ~ ., value = &quot;value&quot;, fun = msd)
+
+td[td$transect == &quot;Venezuela&quot;, ]
+</code></pre>
+
+<p>Export regional areas as KML for inclusion on website</p>
+
+<pre><code class="r">library(plotKML)
+
+kml_open(&quot;output/modiscloud.kml&quot;)
+
+readAll(mod35c5)
+
+kml_layer.Raster(mod35c5,
+     plot.legend = TRUE,raster_name=&quot;Collection 5 MOD35 Cloud Frequency&quot;,
+    z.lim = c(0,100),colour_scale = get(&quot;colour_scale_numeric&quot;, envir = plotKML.opts),
+#    home_url = get(&quot;home_url&quot;, envir = plotKML.opts),
+#    metadata = NULL, html.table = NULL,
+    altitudeMode = &quot;clampToGround&quot;, balloon = FALSE
+)
+
+system(paste(&quot;gdal_translate -of KMLSUPEROVERLAY &quot;,mod35c5@file@name,&quot; output/mod35c5.kmz -co FORMAT=JPEG&quot;))
+
+logo = &quot;http://static.tumblr.com/t0afs9f/KWTm94tpm/yale_logo.png&quot;
+kml_screen(image.file = logo, position = &quot;UL&quot;, sname = &quot;YALE logo&quot;,size=c(.1,.1))
+kml_close(&quot;modiscloud.kml&quot;)
+kml_compress(&quot;modiscloud.kml&quot;,files=c(paste(month.name,&quot;.png&quot;,sep=&quot;&quot;),&quot;obj_legend.png&quot;),zip=&quot;/usr/bin/zip&quot;)
+</code></pre>
+
+</body>
+
+</html>
+
