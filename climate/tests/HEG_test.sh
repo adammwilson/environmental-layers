@@ -1,7 +1,8 @@
 #! /bin/bash
 
-mkdir /tmp/tmp1
-cd /tmp/tmp1
+tempdir=~/acrobates/adamw/projects/tmp
+mkdir $tempdir
+cd $tempdir
 
 url="ftp://ladsweb.nascom.nasa.gov/allData/6/MOD35_L2/2009/029/"
 ## two granules that still show interpolation artifacts
@@ -34,6 +35,8 @@ END
 " > params.txt
 
 ### run it
-/usr/local/heg/2.12/bin/swtif -p params.txt -d  -tmpLatLondir /tmp/tmp1
+/usr/local/heg/2.12b/bin/swtif -p params.txt -d  -tmpLatLondir $tempdir
 
 ## now view the output file in 
+
+

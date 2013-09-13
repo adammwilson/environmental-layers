@@ -1,6 +1,6 @@
 ## Figures associated with MOD35 Cloud Mask Exploration
 
-setwd("~/acrobates/adamw/projects/MOD35C5")
+setwd("~/acrobates/adamw/projects/MOD35C6")
 
 library(raster);beginCluster(10)
 library(rasterVis)
@@ -11,29 +11,30 @@ library(reshape)
 library(rgeos)
 library(splancs)
 
-## get % cloudy
-mod09=raster("data/MOD09_2009.tif")
-names(mod09)="C5MOD09CF"
-NAvalue(mod09)=0
-
-mod35c5=raster("data/MOD35_2009.tif")
-names(mod35c5)="C5MOD35CF"
-NAvalue(mod35c5)=0
-
 ## mod35C6 annual
 if(!file.exists("data/MOD35C6_2009.tif")){
-#  system("/usr/local/gdal-1.10.0/bin/gdalbuildvrt  -a_srs '+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs' -sd 1 -b 1 data/MOD35C6.vrt `find /home/adamw/acrobates/adamw/projects/interp/data/modis/mod35/summary/ -name '*h[1]*_mean.nc'` ")
-  system("gdalbuildvrt data/MOD35C6.vrt `find /home/adamw/acrobates/adamw/projects/interp/data/modis/mod35/summary/ -name '*h[1]*_mean.nc'` ")
-
-  system("/usr/local/gdal-1.10.0/bin/gdalbuildvrt -a_srs '+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs' -sd 4 -b 1 data/MOD35C6_CFday_pmiss.vrt `find /home/adamw/acrobates/adamw/projects/interp/data/modis/mod35/summary/ -name '*h[1]*.nc'` ")
-  system("gdalwarp data/MOD35C6_CFday_pmiss.vrt data/MOD35C6_CFday_pmiss.tif -r bilinear")
+  system("/usr/local/gdal-1.10.0/bin/gdalbuildvrt  -a_srs '+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs' -sd 1 -b 1 data/MOD35C6.vrt `find /home/adamw/acrobates/adamw/projects/interp/data/modis/mod35/summary/ -name '*h[0-9][0-9]v[0-9][0-9]*_mean.nc'` ")
+#  system("gdalbuildvrt data/MOD35C6.vrt `find /home/adamw/acrobates/adamw/projects/interp/data/modis/mod35/summary/ -name '*h[1]*_mean.nc'` ")
 
   system("align.sh data/MOD35C6.vrt data/MOD09_2009.tif data/MOD35C6_2009.tif")
+  system("/usr/local/bin/pkcreatect -min 0 -max 100 -g -i data/MOD35C6_2009.tif -o data/MOD35C6_2009a.tif -ct none -co COMPRESS=LZW")
   system("align.sh data/MOD35C6_CFday_pmiss.vrt data/MOD09_2009.tif data/MOD35C6_CFday_pmiss.tif")
 }
 mod35c6=raster("data/MOD35C6_2009_v1.tif")
 names(mod35c6)="C6MOD35CF"
 NAvalue(mod35c6)=255
+
+### summary of "alltests" netcdf file
+tests=c("CMday", "CMnight", "non_cloud_obstruction", "thin_cirrus_solar", "shadow", "thin_cirrus_ir", "cloud_adjacency_ir", "ir_threshold", "high_cloud_co2", "high_cloud_67", "high_cloud_138", "high_cloud_37_12", "cloud_ir_difference",
+"cloud_37_11","cloud_visible","cloud_visible_ratio","cloud_ndvi","cloud_night_73_11")
+alt=brick(lapply(tests,function(t){
+  td=raster("data/MOD35_h12v04_mean_alltests.nc",varname=t)
+  NAvalue(td)=255
+  projection(td)='+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs'
+  return(td)
+}  ))
+levelplot(alt,at=seq(100,0,len=100),col.regions=grey(seq(0,1,len=99)),layout=c(6,3))
+
 
 ## landcover
 if(!file.exists("data/MCD12Q1_IGBP_2009_051_wgs84_1km.tif")){

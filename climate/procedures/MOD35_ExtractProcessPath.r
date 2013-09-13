@@ -8,6 +8,10 @@ library(spgrass6)
 library(rgeos)
 ##download 3 days of modis swath data:
 
+#### Set up command for running swtif to grid and mosaic the swath data
+stitch=paste("sudo MRTDATADIR=\"/usr/local/heg/2.12/data\" PGSHOME=/usr/local/heg/2.12/TOOLKIT_MTD PWD=/home/adamw /usr/local/heg/2.12b/bin/swtif")
+
+## Link to MOD35 Swath data
 url="ftp://ladsweb.nascom.nasa.gov/allData/51/MOD35_L2/2012/"
 dir.create("swath")
 
@@ -15,42 +19,20 @@ getdata=F
 if(getdata)
   system(paste("wget -S --recursive --no-parent --no-directories -N -P swath --accept \"hdf\" --accept \"002|003|004\" ",url))
 
-
-### make global raster that aligns with MODLAND tiles
-## get MODLAND tile to serve as base
-#system("wget http://e4ftl01.cr.usgs.gov/MOLT/MOD13A3.005/2000.02.01/MOD13A3.A2000032.h00v08.005.2006271174446.hdf")
-#t=raster(paste("HDF4_EOS:EOS_GRID:\"",getwd(),"/MOD13A3.A2000032.h00v08.005.2006271174446.hdf\":MOD_Grid_monthly_1km_VI:1 km monthly NDVI",sep=""))
+### make global raster that aligns with MOD17 NPP raster
 t=raster(paste("../../MOD17/MOD17A3_Science_NPP_mean_00_12.tif",sep=""))
 projection(t)
 
 ## make global extent
-pmodis="+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
-
 glb=t
-#values(glb)=NA
 glb=extend(glb,extent(-180,180,-90,90))
 
-#glb=raster(glb,crs="+proj=longlat +datum=WGS84",nrows=42500,ncols=85000)
-#extent(glb)=alignExtent(projectRaster(glb,crs=projection(t),over=T),t)
-#res(glb)=c(926.6254,926.6264)
-#projection(glb)=pmodis
-
-## confirm extent
-#projectExtent(glb,crs="+proj=longlat +datum=WGS84")
-
-
-#### Grid and mosaic the swath data
-
-stitch="sudo MRTDATADIR=\"/usr/local/heg/2.12/data\" PGSHOME=/usr/local/heg/2.12/TOOLKIT_MTD PWD=/home/adamw /usr/local/heg/2.12/bin/swtif"
-#stitch="/usr/local/heg/2.12/bin/swtif"
-
-#stitch="sudo MRTDATADIR=\"/usr/local/heg/2.11/data\" PGSHOME=/usr/local/heg/2.11/TOOLKIT_MTD PWD=/home/adamw /usr/local/heg/2.11/bin/swtif"
-files=paste(getwd(),"/",list.files("swath",pattern="hdf$",full=T),sep="")
+### list of swath files
+files=paste(getwd(),"/",list.files("swath",pattern="hdf$",full=T),sep="")[1:5000]
 
 ## vars to process
 vars=as.data.frame(matrix(c(
   "Cloud_Mask",           "CM",   "NN",    1,
-#  "Sensor_Azimuth",       "ZA",   "CUBIC", 1,
   "Sensor_Zenith",        "SZ",   "CUBIC", 1),
   byrow=T,ncol=4,dimnames=list(1:2,c("variable","varid","method","band"))),stringsAsFactors=F)
 
@@ -59,7 +41,7 @@ vars=as.data.frame(matrix(c(
    gpp = SpatialPolygons(list(Polygons(list(Polygon(gbb)),1)))
    proj4string(gpp)=projection(glb)
 
-outdir="~/acrobates/adamw/projects/interp/data/modis/mod35/processpath/gridded/"
+outdir="/gridded/"
 
 swtif<-function(file,var){
   outfile=paste(tempdir(),"/",var$varid,"_",basename(file),sep="")  #gridded path
@@ -78,8 +60,6 @@ SPATIAL_SUBSET_LR_CORNER = ( ",bbox(gpp)[2,1]," ",bbox(gpp)[1,2]," )
 RESAMPLING_TYPE =",var$method,"
 OUTPUT_PROJECTION_TYPE = GEO
 OUTPUT_PROJECTION_PARAMETERS = ( 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 )
-# OUTPUT_PROJECTION_PARAMETERS = ( 6371007.181 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 )
-# projection parameters from http://landweb.nascom.nasa.gov/cgi-bin/QA_WWW/newPage.cgi?fileName=sn_gctp
 ELLIPSOID_CODE = WGS84
 OUTPUT_TYPE = HDFEOS
 OUTPUT_FILENAME= ",outfile,"
@@ -91,7 +71,7 @@ END
    ## now run the swath2grid tool
    ## write the gridded file
    print(paste("Starting",file))
-   system(paste("sudo ",stitch," -p ",tempdir(),"/",basename(file),"_MODparms.txt -d -log /dev/null ",sep=""),intern=F)#,ignore.stderr=F)
+   system(paste("sudo ",stitch," -p ",tempdir(),"/",basename(file),"_MODparms.txt -d -log /dev/null -tmpLatLondir ",tempdir(),sep=""),intern=F)#,ignore.stderr=F)
    print(paste("Finished processing variable",var$variable,"from ",basename(file),"to",outfile))
 }  
 
@@ -138,37 +118,16 @@ check=do.call(rbind,mclapply(gfiles,function(file){
     else return(0)
 }))
 
+## report on any bad files
 table(check)
 
+## remove any fail the check
 file.remove(gfiles[check==0])
+gfiles=gfiles[check==1]
 
-## use new gdal
-#system(paste("nohup /usr/local/gdal-1.10.0/bin/gdalwarp -wm 900 -overwrite -co COMPRESS=LZW -co PREDICTOR=2 -multi ",outdir,"/*.tif MOD35_path_gdalwarp.tif &",sep=""))
-#system(paste("nohup /usr/local/gdal-1.10.0/bin/gdalwarp -wm 900 -overwrite -co COMPRESS=LZW -co PREDICTOR=2 -multi -r mode ",outdir,"/*.tif MOD35_path_gdalwarp_mode.tif &",sep=""))
-#system(paste(" /usr/local/gdal-1.10.0/bin/gdalwarp -wm 900 -overwrite -co COMPRESS=LZW -co PREDICTOR=2 -multi ",outdir,"/MOD35_L2.A2012001*.tif MOD35_path_gdalwarp.tif",sep=""))
-
-
-###  Merge them into a geotiff
-#system(paste("/usr/local/src/gdal-1.10.0/swig/python/scripts/gdal_merge.py -v -init 255 -n 255 -a_nodata 255 -o MOD35_ProcessPath_gdalmerge2.tif -co \"ZLEVEL=9\" -co \"COMPRESS=LZW\" -co \"PREDICTOR=2\" `ls -d -1 ",outdir,"/*.tif --sort=size | head -n 20 ` ",sep=""))
-system(paste("/usr/local/src/gdal-1.10.0/swig/python/scripts/gdal_merge.py -v -o MOD35_ProcessPath_gdalmerge2.tif -co \"ZLEVEL=9\" -co \"COMPRESS=LZW\" -co \"PREDICTOR=2\" `ls -d -1 ",outdir,"/*.tif --sort=size ` &",sep=""))
-
- 
-  ## try with pktools
-  ## global
-#system(paste("pkmosaic -co COMPRESS=LZW -co PREDICTOR=2 ",paste("-i",list.files("gridded",full=T,pattern="tif$")[1:10],collapse=" ")," -o MOD35_path_pkmosaic_mode.tif  -m 6 -v -t 255 -t 0 &"))
-#bb="-ulx -180 -uly 90 -lrx 180 -lry -90"
-#bb="-ulx -180 -uly 90 -lrx 170 -lry 80"
-#bb="-ulx -72 -uly 11 -lrx -59 -lry -1"
-
-
-#expand.grid(x=seq(-180,170,by=10),y=seq(-90,80))
-#gf2=  grep("2012009[.]03",gfiles,value=T)
-#system(paste("pkmosaic ",bb," -co COMPRESS=LZW -co PREDICTOR=2 ",paste("-i",gf2,collapse=" ")," -o h11v08_path_pkmosaic.tif -ot Byte -m 7 -v -t 255"))
-
-                                        #  bounding box?  
 
 ###########
-### Use GRASS to import all the tifs and calculat the mode
+### Use GRASS to import all the tifs and calculate the mode
 ## make temporary working directory
   tf=paste(tempdir(),"/grass", Sys.getpid(),"/", sep="")  #temporar
   if(!file.exists(tf)) dir.create(tf)
@@ -190,40 +149,37 @@ table(imported)
 ## read in all tifs
   for(f in gfiles[!imported])  {
     print(f)
-    execGRASS("r.in.gdal",input=f,output=basename(f),flags="o")
+    execGRASS("r.external",input=f,output=basename(f),flags=c("overwrite"))
   }
 
-## calculate mode  - can't have more than 1000 open files
-execGRASS("r.series",input=paste(system("g.mlist type=rast pattern=MOD*",intern=T)[1:1000],sep="",collapse=","),output="path1",method="mode",range=c(1,5),flags=c("verbose","overwrite"))
-execGRASS("r.series",input=paste(system("g.mlist type=rast pattern=MOD*",intern=T)[1001:2000],sep="",collapse=","),output="path2",method="mode",range=c(1,5),flags=c("verbose","overwrite"))
-execGRASS("r.series",input=paste(system("g.mlist type=rast pattern=MOD*",intern=T)[2001:3000],sep="",collapse=","),output="path3",method="mode",range=c(1,5),flags=c("verbose","overwrite"))
-execGRASS("r.series",input=paste(system("g.mlist type=rast pattern=MOD*",intern=T)[3001:4000],sep="",collapse=","),output="path4",method="mode",range=c(1,5),flags=c("verbose","overwrite"))
-execGRASS("r.series",input=paste(system("g.mlist type=rast pattern=MOD*",intern=T)[4001:5000],sep="",collapse=","),output="path5",method="mode",range=c(1,5),flags=c("verbose","overwrite"))
+## calculate mode  in chunks.  This first bins several individual swaths together into more or less complete global coverages taking the mode of each chunk
+nbreaks=100
+bins=cut(1:5000,nbreaks)
+ts=system("g.mlist type=rast pattern=MOD*.tif",intern=T)  #files to process
 
-##  Get mode of modes
-execGRASS("r.series",input=paste(system("g.mlist type=rast pattern=path*",intern=T),sep="",collapse=","),output="MOD35_path",method="mode",range=c(1,5),flags=c("verbose","overwrite"))
+for(i in 1:nbreaks)  #loop over breaks
+execGRASS("r.series",input=paste(ts[bins==levels(bins)[i]],sep="",collapse=","),output=paste("path",i,sep="_"),method="mode",range=c(0,5),flags=c("verbose","overwrite"),Sys_wait=T)
+
+##  Get mode of each chunk
+execGRASS("r.series",input=paste(system("g.mlist type=rast pattern=path*",intern=T),sep="",collapse=","),output="MOD35_path",method="mode",range=c(0,5),flags=c("verbose","overwrite"))
+
+## fill in missing data (due to gridding artifacts) very near poles with water (north) and land (south)
+system("r.mapcalc \"MOD35_patha=if(isnull(MOD35_path)&y()>-84.31,0,MOD35_path)\"")
+system("r.mapcalc \"MOD35_pathb=if(isnull(MOD35_patha)&y()<-84.31,3,MOD35_patha)\"")
 
 ## add colors
-execGRASS("r.colors",map="MOD35_path",rules="MOD35_path_grasscolors.txt")
+execGRASS("r.colors",map="MOD35_pathb",rules="MOD35_path_grasscolors.txt")
+
 ## write to disk
-execGRASS("r.out.gdal",input="MOD35_path",output=paste(getwd(),"/MOD35_ProcessPath_C5.tif",sep=""),type="Byte",createopt="COMPRESS=LZW,LEVEL=9,PREDICTOR=2")
+execGRASS("r.out.gdal",input="MOD35_pathb",output=paste(getwd(),"/C5MOD35_ProcessPath.tif",sep=""),type="Byte",createopt="COMPRESS=LZW,LEVEL=9,PREDICTOR=2")
+
+## update metadata
+tags=c("TIFFTAG_IMAGEDESCRIPTION='Collection 5 MOD35 Processing Path (0=Water,1=Coast,2=Desert,3=Land)'",
+  "TIFFTAG_DOCUMENTNAME='Collection 5 MOD35 Processing Path'",
+  "TIFFTAG_DATETIME='20130901'",
+  "TIFFTAG_ARTIST='Adam M. Wilson (adam.wilson@yale.edu)'")
+system(paste("/usr/local/src/gdal-1.10.0/swig/python/scripts/gdal_edit.py ",getwd(),"/C5MOD35_ProcessPath.tif ",paste("-mo ",tags,sep="",collapse=" "),sep=""))
 
 ### delete the temporary files 
   unlink_.gislock()
   system(paste("rm -frR ",tf,sep=""))
-
-#########################
-
-
-cols=c("blue","lightblue","tan","green")
-
-
-
-## connect to raster to extract land-cover bit
-library(raster)
-
-d=raster("CM.tif")
-getlc=function(x) {(x/2^6) %% 2^2}
-
-calc(d,fun=getlc,filename="CM_LC.tif")
-

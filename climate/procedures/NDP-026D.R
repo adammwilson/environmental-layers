@@ -13,7 +13,6 @@ registerDoMC(20)
 
 ## available here http://cdiac.ornl.gov/epubs/ndp/ndp026d/ndp026d.html
 
-
 ## Get station locations
 system("wget -N -nd http://cdiac.ornl.gov/ftp/ndp026d/cat01/01_STID -P data/")
 st=read.table("data/01_STID",skip=1)
@@ -93,7 +92,7 @@ cldy[,c("lat","lon")]=st[match(cldy$StaID,st$StaID),c("lat","lon")]
 write.csv(cldy,file="cldy.csv")
 write.csv(cldm,file="cldm.csv")
 
-
+#########################################################################
 ##################
 ###
 cldm=read.csv("cldm.csv")
