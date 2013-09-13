@@ -134,13 +134,15 @@ if(test){
   nodes=100
   threads=nodes*8
   writeLines(paste(" ################### \n Hours per date-tile:",round(time1[3]/60/60,2),"\n Date-tiles to process:",sum(tp)," \n Estimated CPU time: ",hours,"hours \n  With ",threads,"threads:",round(hours/threads,2),"hours \n ###################"))
+  summaryRprof("/nobackupp1/awilso10/mod35/log/profile.out")
 }
 
 ### Set up submission script
 queue="devel"
 queue="normal" #"devel"
-nodes=50
-walltime=2
+queue="long" #"devel"
+nodes=120
+walltime=24
 
 ### write qsub script to disk
 cat(paste("
@@ -198,8 +200,8 @@ climatescript="/pleiades/u/awilso10/environmental-layers/climate/procedures/MOD3
 
 ## check which tiles have been processed and are on lou with a filename "MOD35_[tile].nc"
 cdone=data.frame(path="",tile="")  #use this if you want to re-run everything
-cdone=data.frame(path=sapply(strsplit(basename(
-                   system("ssh lou 'find MOD35/summary -name \"MOD35_h[0-9][0-9]v[0-9][0-9].nc\"' ",intern=T)),split="_"),function(x) x[2]))
+#cdone=data.frame(path=sapply(strsplit(basename(
+#                   system("ssh lou 'find MOD35/summary -name \"MOD35_h[0-9][0-9]v[0-9][0-9].nc\"' ",intern=T)),split="_"),function(x) x[2]))
 cdone=data.frame(path=sapply(strsplit(basename(
                    system("find summary -name \"MOD35_h[0-9][0-9]v[0-9][0-9].nc\"",intern=T)),split="_"),function(x) x[2]))
 cdone$tile=substr(basename(as.character(cdone$path)),1,6)
@@ -216,21 +218,24 @@ system("qstat -u awilso10",intern=T)
 ## enter JobID here:
 job="2031668.pbspl1.nas.nasa.gov"
 
+
+queue="devel"
+nodes=50
+walltime=2
+
 ### qsub script
 cat(paste("
 #PBS -S /bin/bash
-#PBS -l select=4:ncpus=8:mem=94
-#PBS -l walltime=2:00:00
+#PBS -l select=",nodes,":ncpus=8:mem=94
+#PBS -l walltime=",walltime,":00:00
 #PBS -j n
 #PBS -m be
 #PBS -N mod35_climate
-#PBS -q devel
-##PBS -q normal
-##PBS -q ldan
+#PBS -q ",queue,"
 #PBS -V
 ",if(delay) paste("#PBS -W depend=afterany:",job,sep="")," 
 
-CORES=32
+CORES=",nodes*8,"
 HDIR=/u/armichae/pr/
   source $HDIR/etc/environ.sh
   source /pleiades/u/awilso10/environ.sh
