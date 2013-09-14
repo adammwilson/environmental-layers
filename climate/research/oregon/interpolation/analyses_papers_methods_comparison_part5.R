@@ -4,7 +4,7 @@
 #It uses inputs from interpolation objects created at earlier stages...     
 #Note that this is exploratory code i.e. not part of the worklfow.
 #AUTHOR: Benoit Parmentier                                                                       #
-#DATE: 09/06/2013                                                                                #
+#DATE: 09/13/2013                                                                                #
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#491--                                  #
 ###################################################################################################
 
@@ -62,27 +62,42 @@ calc_stat_prop_tb_diagnostic <-function(names_mod,names_id,tb){
 ################## PARAMETERS ##########
 
 
-#"/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/output_data_365d_gam_day_lst_comb4_07152013/"
+#path to gam CAI and kriging analyes with hold-out
 in_dir1 <- "/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/output_data_365d_gam_CAI_lst_comb3_08312013/"
-in_dir <- "/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/output_data_365d_gam_CAI_lst_comb3_09012013"
-in_dir2 <-"/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/output_data_365d_gam_CAI_lst_comb3_09032013"
+in_dir2 <- "/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/output_data_365d_gam_CAI_lst_comb3_09012013"
+in_dir3 <-"/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/output_data_365d_gam_CAI_lst_comb3_09032013"
 in_dir4 <- "/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/output_data_365d_kriging_CAI_lst_comb3_09042013"
 
+#path to gam fusion and kriging fusion analyes with hold-out
+in_dir5 <- "/data/project/layers/commons/Oregon_interpolation/output_data_365d_gam_fus_lst_comb3_09092013"
+in_dir6 <- "/data/project/layers/commons/Oregon_interpolation/output_data_365d_gam_fus_lst_comb3_09102013"
+in_dir7 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_gam_fus_lst_comb3_09112013"
+in_dir8 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_kriging_fus_lst_comb3_09122013"
+in_dir9 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_kriging_fus_lst_comb3_09132013"
+in_dir10 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_kriging_fus_lst_comb3_09142013"
+
 raster_prediction_obj1 <-load_obj(file.path(in_dir1,"raster_prediction_obj_gam_CAI_dailyTmax_365d_gam_CAI_lst_comb3_08312013.RData"))
-raster_prediction_obj <-load_obj(file.path(in_dir,"raster_prediction_obj_gam_CAI_dailyTmax_365d_gam_CAI_lst_comb3_09012013.RData"))
-raster_prediction_obj2 <-load_obj(file.path(in_dir2,"raster_prediction_obj_gam_CAI_dailyTmax_365d_gam_CAI_lst_comb3_09032013.RData"))
+raster_prediction_obj2 <-load_obj(file.path(in_dir2,"raster_prediction_obj_gam_CAI_dailyTmax_365d_gam_CAI_lst_comb3_09012013.RData"))
+raster_prediction_obj3 <-load_obj(file.path(in_dir3,"raster_prediction_obj_gam_CAI_dailyTmax_365d_gam_CAI_lst_comb3_09032013.RData"))
 raster_prediction_obj4 <-load_obj(file.path(in_dir4,"raster_prediction_obj_kriging_CAI_dailyTmax_365d_kriging_CAI_lst_comb3_09042013.RData"))
-                                                                    
+          
+raster_prediction_obj5 <-load_obj(file.path(in_dir5,"raster_prediction_obj_gam_fusion_dailyTmax_365d_gam_fus_lst_comb3_09092013.RData"))
+raster_prediction_obj6 <-load_obj(file.path(in_dir6,"raster_prediction_obj_gam_fusion_dailyTmax_365d_gam_fus_lst_comb3_09102013.RData"))
+raster_prediction_obj7 <-load_obj(file.path(in_dir7,"raster_prediction_obj_gam_fusion_dailyTmax_365d_gam_fus_lst_comb3_09112013.RData"))
+raster_prediction_obj8 <-load_obj(file.path(in_dir8,"raster_prediction_obj_kriging_fusion_dailyTmax_365d_kriging_fus_lst_comb3_09122013.RData"))
+raster_prediction_obj9 <-load_obj(file.path(in_dir9,"raster_prediction_obj_kriging_fusion_dailyTmax_365d_kriging_fus_lst_comb3_09132013.RData"))
+raster_prediction_obj10 <-load_obj(file.path(in_dir10,"raster_prediction_obj_kriging_fusion_dailyTmax_365d_kriging_fus_lst_comb3_09142013.RData"))
+
 out_dir<-"/home/parmentier/Data/IPLANT_project/paper_multitime_scale__analyses_tables_fig_09032013"
 setwd(out_dir)
 y_var_name <- "dailyTmax"
 y_var_month <- "TMax"
 #y_var_month <- "LSTD_bias"
-out_suffix <- "_OR_09032013"
+out_suffix <- "_OR_09132013"
 #script_path<-"/data/project/layers/commons/data_workflow/env_layers_scripts/"
 #### FUNCTION USED IN SCRIPT
 
-function_analyses_paper <-"contribution_of_covariates_paper_interpolation_functions_08152013.R"
+function_analyses_paper <-"contribution_of_covariates_paper_interpolation_functions_09092013.R"
 
 script_path<-"/home/parmentier/Data/IPLANT_project/env_layers_scripts/" #path to script
 source(file.path(script_path,function_analyses_paper)) #source all functions used in this script.
@@ -90,27 +105,45 @@ source(file.path(script_path,function_analyses_paper)) #source all functions use
 #################################################################################
 ############ ANALYSES 1: Average accuracy per proportion for monthly hold out in muli-timescale mehtods... #######
 
-tb_mv_gam_CAI <-rbind(raster_prediction_obj1$tb_month_diagnostic_v,raster_prediction_obj$tb_month_diagnostic_v,raster_prediction_obj2$tb_month_diagnostic_v)
-tb_ms_gam_CAI <-rbind(raster_prediction_obj1$tb_month_diagnostic_s,raster_prediction_obj$tb_month_diagnostic_s,raster_prediction_obj2$tb_month_diagnostic_s)
+tb_mv_gam_CAI <-rbind(raster_prediction_obj1$tb_month_diagnostic_v,raster_prediction_obj2$tb_month_diagnostic_v,raster_prediction_obj3$tb_month_diagnostic_v)
+tb_ms_gam_CAI <-rbind(raster_prediction_obj1$tb_month_diagnostic_s,raster_prediction_obj2$tb_month_diagnostic_s,raster_prediction_obj3$tb_month_diagnostic_s)
 
-tb_v_gam_CAI <-rbind(raster_prediction_obj1$tb_diagnostic_v,raster_prediction_obj$tb_diagnostic_v,raster_prediction_obj2$tb_diagnostic_v)
-tb_s_gam_CAI <-rbind(raster_prediction_obj1$tb_diagnostic_s,raster_prediction_obj$tb_diagnostic_s,raster_prediction_obj2$tb_diagnostic_s)
-
-prop_obj_gam_CAI_v <- calc_stat_prop_tb_diagnostic(names_mod,names_id,tb_v)
+tb_v_gam_CAI <-rbind(raster_prediction_obj1$tb_diagnostic_v,raster_prediction_obj2$tb_diagnostic_v,raster_prediction_obj3$tb_diagnostic_v)
+tb_s_gam_CAI <-rbind(raster_prediction_obj1$tb_diagnostic_s,raster_prediction_obj2$tb_diagnostic_s,raster_prediction_obj3$tb_diagnostic_s)
+#prop_obj_gam_CAI_v <- calc_stat_prop_tb_diagnostic(names_mod,names_id,tb_v)
 
 tb_mv_kriging_CAI <- raster_prediction_obj4$tb_month_diagnostic_v
 tb_ms_kriging_CAI <- raster_prediction_obj4$tb_month_diagnostic_s
 
 tb_v_kriging_CAI <- raster_prediction_obj4$tb_diagnostic_v
 tb_s_kriging_CAI <- raster_prediction_obj4$tb_diagnostic_s
-                                  
-list_tb <-list(tb_v_gam_CAI,tb_v_kriging_CAI,tb_s_gam_CAI,tb_s_kriging_CAI,tb_mv_gam_CAI,tb_mv_kriging_CAI,tb_ms_gam_CAI,tb_ms_kriging_CAI) #Add fusion here
-names(list_tb) <- c("tb_v_gam_CAI","tb_v_kriging_CAI","tb_s_gam_CAI","tb_s_kriging_CAI","tb_mv_gam_CAI","tb_mv_kriging_CAI","tb_ms_gam_CAI","tb_ms_kriging_CAI") #Add fusion here
+
+### SAME for gam fusion
+
+tb_mv_gam_fus <-rbind(raster_prediction_obj5$tb_month_diagnostic_v,raster_prediction_obj6$tb_month_diagnostic_v,raster_prediction_obj7$tb_month_diagnostic_v)
+tb_ms_gam_fus <-rbind(raster_prediction_obj5$tb_month_diagnostic_s,raster_prediction_obj6$tb_month_diagnostic_s,raster_prediction_obj7$tb_month_diagnostic_s)
+
+tb_v_gam_fus <-rbind(raster_prediction_obj5$tb_diagnostic_v,raster_prediction_obj6$tb_diagnostic_v,raster_prediction_obj7$tb_diagnostic_v)
+tb_s_gam_fus <-rbind(raster_prediction_obj5$tb_diagnostic_s,raster_prediction_obj6$tb_diagnostic_s,raster_prediction_obj7$tb_diagnostic_s)
+
+tb_mv_kriging_fus <-rbind(raster_prediction_obj8$tb_month_diagnostic_v,raster_prediction_obj9$tb_month_diagnostic_v,raster_prediction_obj10$tb_month_diagnostic_v)
+tb_ms_kriging_fus <-rbind(raster_prediction_obj8$tb_month_diagnostic_s,raster_prediction_obj9$tb_month_diagnostic_s,raster_prediction_obj10$tb_month_diagnostic_s)
+
+tb_v_kriging_fus <-rbind(raster_prediction_obj8$tb_diagnostic_v,raster_prediction_obj9$tb_diagnostic_v,raster_prediction_obj10$tb_diagnostic_v)
+tb_s_kriging_fus <-rbind(raster_prediction_obj8$tb_diagnostic_s,raster_prediction_obj9$tb_diagnostic_s,raster_prediction_obj10$tb_diagnostic_s)
+
+#list_tb <-list(tb_v_gam_CAI,tb_v_kriging_CAI,tb_s_gam_CAI,tb_s_kriging_CAI,tb_mv_gam_CAI,tb_mv_kriging_CAI,tb_ms_gam_CAI,tb_ms_kriging_CAI) #Add fusion here
+#names(list_tb) <- c("tb_v_gam_CAI","tb_v_kriging_CAI","tb_s_gam_CAI","tb_s_kriging_CAI","tb_mv_gam_CAI","tb_mv_kriging_CAI","tb_ms_gam_CAI","tb_ms_kriging_CAI") #Add fusion here
+
+list_tb <-list(tb_v_gam_CAI,tb_v_kriging_CAI,tb_s_gam_CAI,tb_s_kriging_CAI,tb_mv_gam_CAI,tb_mv_kriging_CAI,tb_ms_gam_CAI,tb_ms_kriging_CAI, #Add fusion here
+               tb_v_gam_fus,tb_v_kriging_fus,tb_s_gam_fus,tb_s_kriging_fus,tb_mv_gam_fus,tb_mv_kriging_fus,tb_ms_gam_fus,tb_ms_kriging_fus) #Add fusion here
+names(list_tb) <- c("tb_v_gam_CAI","tb_v_kriging_CAI","tb_s_gam_CAI","tb_s_kriging_CAI","tb_mv_gam_CAI","tb_mv_kriging_CAI","tb_ms_gam_CAI","tb_ms_kriging_CAI", #Add fusion here
+                   "tb_v_gam_fus","tb_v_kriging_fus","tb_s_gam_fus","tb_s_kriging_fus","tb_mv_gam_fus","tb_mv_kriging_fus","tb_ms_gam_fus","tb_ms_kriging_fus") #Add fusion here
 
 ##### DAILY AVERAGE ACCURACY : PLOT AND DIFFERENCES...
 
 for(i in 1:length(list_tb)){
-  i<-i+1
+  i <- i+1
   tb <-list_tb[[i]]
   plot_name <- names(list_tb)[i]
   pat_str <- "tb_m"
@@ -139,7 +172,7 @@ for(i in 1:length(list_tb)){
           main=paste("rmse ",plot_name,sep=" "),
           pch=1:length(avg_tb$pred_mod),
           par.settings=list(superpose.symbol = list(
-            pch=1:length(avg_tb$pred_mod))),
+          pch=1:length(avg_tb$pred_mod))),
           auto.key=list(columns=5))
   
   dev.off()
@@ -162,9 +195,44 @@ diff_df<-function(tb_s,tb_v,list_metric_names){
   return(tb_diff)
 }
 
+
 metric_names <- c("mae","rmse","me","r")
 diff_kriging_CAI <- diff_df(tb_s_kriging_CAI,tb_v_kriging_CAI,metric_names)
 diff_gam_CAI <- diff_df(tb_s_gam_CAI,tb_v_gam_CAI,metric_names)
 
-boxplot(diff_kriging_CAI$rmse,diff_gam_CAI$rmse)
+boxplot(diff_kriging_CAI$rmse,diff_gam_CAI$rmse,names=c("kriging_CAI","gam_CAI"),
+        main="Difference between training and testing daily rmse")
+
+metric_names <- c("mae","rmse","me","r")
+diff_kriging_m_CAI <- diff_df(tb_ms_kriging_CAI,tb_mv_kriging_CAI,metric_names)
+diff_gam_m_CAI <- diff_df(tb_ms_gam_CAI,tb_mv_gam_CAI,metric_names)
+
+boxplot(diff_kriging_m_CAI$rmse,diff_gam_m_CAI$rmse,names=c("kriging_CAI","gam_CAI"),
+        main="Difference between training and monhtly testing rmse")
+
+### For fusion
+
+metric_names <- c("mae","rmse","me","r")
+diff_kriging_fus <- diff_df(tb_s_kriging_fus,tb_v_kriging_fus,metric_names)
+diff_gam_fus <- diff_df(tb_s_gam_fus,tb_v_gam_fus,metric_names)
+
+boxplot(diff_kriging_fus$rmse,diff_gam_fus$rmse,names=c("kriging_fus","gam_fus"),
+        main="Difference between training and testing daily rmse")
+
+metric_names <- c("mae","rmse","me","r")
+diff_kriging_m_fus <- diff_df(tb_ms_kriging_fus,tb_mv_kriging_fus,metric_names)
+diff_gam_m_fus <- diff_df(tb_ms_gam_fus,tb_mv_gam_fus,metric_names)
+
+boxplot(diff_kriging_m_fus$rmse,diff_gam_m_fus$rmse,names=c("kriging_fus","gam_fus"),
+        main="Difference between training and testing FUS rmse")
+
+### NOW PLOT OF COMPARISON BETWEEN Kriging and GAM
+
+xyplot(as.formula(plot_formula),group=pred_mod,type="b",
+       data=avg_tb,
+       main=paste("rmse ",plot_name,sep=" "),
+       pch=1:length(avg_tb$pred_mod),
+       par.settings=list(superpose.symbol = list(
+         pch=1:length(avg_tb$pred_mod))),
+       auto.key=list(columns=5))
 
