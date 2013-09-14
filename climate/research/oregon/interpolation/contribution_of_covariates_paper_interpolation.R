@@ -4,8 +4,8 @@
 #different covariates using two baselines. Accuracy methods are added in the the function script to evaluate results.
 #Figures, tables and data for the contribution of covariate paper are also produced in the script.
 #AUTHOR: Benoit Parmentier                                                                      
-#DATE: 08/15/2013            
-#Version: 2
+#DATE: 09/09/2013            
+#Version: 3
 #PROJECT: Environmental Layers project                                     
 #################################################################################################
 
@@ -37,7 +37,7 @@ library(pgirmess)                            # Krusall Wallis test with mulitple
 
 #### FUNCTION USED IN SCRIPT
 
-function_analyses_paper <-"contribution_of_covariates_paper_interpolation_functions_08152013.R"
+function_analyses_paper <-"contribution_of_covariates_paper_interpolation_functions_09092013.R"
 
 ##############################
 #### Parameters and constants  
@@ -59,11 +59,13 @@ in_dir7<- "/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_0314
 out_dir<-"/home/parmentier/Data/IPLANT_project/paper_analyses_tables_fig_08032013"
 setwd(out_dir)
 
+infile_reg_outline <- "/data/project/layers/commons/data_workflow/inputs/region_outlines_ref_files/OR83M_state_outline.shp"  #input region outline defined by polygon: Oregon
+met_stations_outfiles_obj_file<-"/data/project/layers/commons/data_workflow/output_data_365d_gam_fus_lst_test_run_07172013/met_stations_outfiles_obj_gam_fusion__365d_gam_fus_lst_test_run_07172013.RData"
+CRS_locs_WGS84<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0") #Station coords WGS84
 y_var_name <- "dailyTmax"
+out_prefix<-"analyses_09092013"
 
-out_prefix<-"analyses_08152013"
-
-method_interpolation <- "gam_daily"
+#method_interpolation <- "gam_daily"
 covar_obj_file_1 <- "covar_obj__365d_gam_day_lst_comb3_08132013.RData"
 met_obj_file_1 <- "met_stations_outfiles_obj_gam_daily__365d_gam_day_lst_comb3_08132013.RData"
 #met_stations_outfiles_obj_gam_daily__365d_gam_day_lst_comb3_08132013.RData
@@ -82,6 +84,7 @@ raster_obj_file_7 <- "raster_prediction_obj_gwr_daily_dailyTmax_365d_gwr_daily_m
 
 #Load objects containing training, testing, models objects 
 
+met_stations_obj <- load_obj(met_stations_outfiles_obj_file)
 covar_obj <-load_obj(file.path(in_dir1,covar_obj_file_1)) #Reading covariates object for GAM daily method
 infile_covariates <- covar_obj$infile_covariates
 infile_reg_outline <- covar_obj$infile_reg_outline
@@ -117,7 +120,7 @@ table_data1 <-summary_metrics_v1$avg[,c("mae","rmse","me","r")] #select relevant
 table_data2 <-summary_metrics_v2$avg[,c("mae","rmse","me","r")]
 
 ###Table 3a, baseline 1: s(lat,lon) 
-#Chnage here !!! need  to reorder rows based on  mod first
+#Change here !!! need  to reorder rows based on  mod first
 model_col<-c("Baseline1","Elevation","Northing","Easting","LST","DISTOC","Forest","CANHEIGHT","LST*Forest","LST*CANHEIGHT") # 
 df3a<- as.data.frame(sapply(table_data2,FUN=function(x) x-x[1]))
 df3a<- round(df3a,digit=3) #roundto three digits teh differences
@@ -219,12 +222,77 @@ write.table(as.data.frame(table4_paper),file=file_name,sep=",")
 #Figure 6: Spatial pattern of prediction for one day
 
 ### Figure 1: Oregon study area
+#3 parameters from output
+infile_monthly<-list_outfiles$monthly_covar_ghcn_data #outile4 from database_covar script
+infile_daily<-list_outfiles$daily_covar_ghcn_data  #outfile3 from database_covar script
+infile_locs<- list_outfiles$loc_stations_ghcn #outfile2? from database covar script
 
-#...add code
+ghcn_dat <- readOGR(dsn=dirname(met_stations_obj$monthly_covar_ghcn_data),
+        sub(".shp","",basename(met_stations_obj$monthly_covar_ghcn_data)))
+ghcn_dat_WGS84 <-spTransform(ghcn_dat,CRS_locs_WGS84)         # Project from WGS84 to new coord. system
+
+interp_area <- readOGR(dsn=dirname(infile_reg_outline),sub(".shp","",basename(infile_reg_outline)))
+interp_area_WGS84 <-spTransform(interp_area,CRS_locs_WGS84)         # Project from WGS84 to new coord. system
+
+usa_map <- getData('GADM', country='USA', level=1) #Get US map
+usa_map_2 <- usa_map[usa_map$NAME_1!="Alaska",] #remove Alaska
+usa_map_2 <- usa_map_2[usa_map_2$NAME_1!="Hawaii",] #remove Hawai 
+usa_map_OR <- usa_map_2[usa_map_2$NAME_1=="Oregon",] #get OR
+
+elev <- subset(s_raster,"elev_s")
+elev_WGS84 <- projectRaster(from=elev,crs=CRS_locs_WGS84,method="ngb")
+
+#set up the output file to plot
+res_pix<-960
+col_mfrow<-1
+row_mfrow<-1
+png(filename=paste("Figure1_contribution_covariates_study_area_",out_prefix,".png",sep=""),
+    width=col_mfrow*res_pix,height=row_mfrow*res_pix)
+par(mfrow=c(1,1))
+
+
+#plot(elev_WGS84)
+plot(interp_area_WGS84)
+plot(ghcn_dat_WGS84,add=T)
+title("SStudy area with ")
+#this work on non sp plot too: Scale bar postion
+#scale_position<-c(450000, 600000)
+#arrow_position<-c(900000, 600000)
+
+#legend("topright",legend=c(0:7),title="Number of change",
+#       pt.cex=1.4,cex=2.1,fill=rev(terrain.colors(8)),bty="n")
+#label_scalebar<-c("0","125","250")
+#scalebar(d=250000, xy=scale_position, type = 'bar', 
+#         divs=3,label=label_scalebar,below="kilometers",
+#         cex=1.8)
+
+## Northern arrow
+#SpatialPolygonsRescale(layout.north.arrow(), offset = arrow_position, 
+#                       scale = 150000, fill=c("transparent","black"),plot.grid=FALSE)
+##note that scale in SpatialPolygonRescale sets the size of the north arrow!!
+
+### PLACE INSET MAP OF THE USA
+#opar <- par(fig=c(0.7, 0.95, 0.5, 0.75), new=TRUE)
+#opar <- par(fig=c(0, 0, 1, 1), new=TRUE)
+
+par(mar = c(0,0,0,0)) # remove margin
+#opar <- par(fig=c(0.9,0.95,0.8, 0.85), new=TRUE)
+opar <- par(fig=c(0.85,0.95,0.8, 0.9), new=TRUE)
+
+#p1<-spplot(ghcn_dat,"station")
+#p2<-spplot(usa_map_2,"NAMES_1")
+#print(p1,position=c(0,0,1,1),more=T)
+#print(p2,position=c(0,0,0.3,0.3),more=T)
+
+plot(usa_map_2,border="black") #border and lwd are options of graphics package polygon object
+plot(usa_map_OR,col="grey",add=T)
+box()
+dev.off()
+
 
 ### Figure 2:  Method comparison workflow 
 
-# Workflow not generated in R
+# Workflow figure is not generated in R
 
 ################################################
 ################### Figure 3. MAE/RMSE and distance to closest fitting station.
@@ -254,14 +322,16 @@ metric_name <-"rmse_tb"
 title_plot <- "RMSE and distance to closest station for baseline 2"
 y_lab_text <- "RMSE (C)"
 #quick test
-list_param_plot<-list(list_dist_obj,col_t,pch_t,legend_text,mod_name,x_tick_labels,metric_name,title_plot,y_lab_text)
-names(list_param_plot)<-c("list_dist_obj","col_t","pch_t","legend_text","mod_name","x_tick_labels","metric_name","title_plot","y_lab_text")
+add_CI <- c(TRUE,TRUE,TRUE)
+
+list_param_plot<-list(list_dist_obj,col_t,pch_t,legend_text,mod_name,x_tick_labels,metric_name,title_plot,y_lab_text,add_CI)
+names(list_param_plot)<-c("list_dist_obj","col_t","pch_t","legend_text","mod_name","x_tick_labels","metric_name","title_plot","y_lab_text","add_CI")
 plot_dst_MAE(list_param_plot)
 
 metric_name <-"mae_tb"
 title_plot <- "MAE and distance to closest fitting station"
 y_lab_text <- "MAE (C)"
-
+add_CI <- c(TRUE,TRUE,TRUE)
 #Now set up plotting device
 res_pix<-480
 col_mfrow<-2
@@ -272,8 +342,11 @@ png(filename=file.path(out_dir,png_file_name),
 par(mfrow=c(row_mfrow,col_mfrow))
 
 #Figure 3a
-list_param_plot<-list(list_dist_obj,col_t,pch_t,legend_text,mod_name,x_tick_labels,metric_name,title_plot,y_lab_text)
-names(list_param_plot)<-c("list_dist_obj","col_t","pch_t","legend_text","mod_name","x_tick_labels","metric_name","title_plot","y_lab_text")
+list_param_plot<-list(list_dist_obj,col_t,pch_t,legend_text,mod_name,x_tick_labels,metric_name,
+                      title_plot,y_lab_text,add_CI)
+names(list_param_plot)<-c("list_dist_obj","col_t","pch_t","legend_text","mod_name","x_tick_labels","metric_name",
+                          "title_plot","y_lab_text","add_CI")
+debug(plot_dst_MAE)
 plot_dst_MAE(list_param_plot)
 title(xlab="Distance to closest fitting station (km)")
 
@@ -310,6 +383,8 @@ col_t<-c("red","blue","black")
 pch_t<- 1:length(col_t)
 legend_text <- c("GAM","Kriging","GWR")
 mod_name<-c("mod1","mod1","mod1")#selected models
+add_CI <- c(TRUE,TRUE,TRUE)
+#add_CI <- c(TRUE,FALSE,FALSE)
 
 ##### plot figure 4 for paper
 ####
@@ -321,10 +396,12 @@ png_file_name<- paste("Figure_4_proportion_of_holdout_and_accuracy_",out_prefix,
 png(filename=file.path(out_dir,png_file_name),
     width=col_mfrow*res_pix,height=row_mfrow*res_pix)
 par(mfrow=c(row_mfrow,col_mfrow))
-metric_name<-"mae"
-list_param_plot<-list(list_prop_obj,col_t,pch_t,legend_text,mod_name,metric_name)
-names(list_param_plot)<-c("list_prop_obj","col_t","pch_t","legend_text","mod_name","metric_name")
 
+metric_name<-"mae"
+list_param_plot<-list(list_prop_obj,col_t,pch_t,legend_text,mod_name,metric_name,add_CI)
+names(list_param_plot)<-c("list_prop_obj","col_t","pch_t","legend_text","mod_name","metric_name","add_CI")
+
+#debug(plot_prop_metrics)
 plot_prop_metrics(list_param_plot)
 title(main="MAE for hold out and methods",
       xlab="Hold out validation/testing proportion",
@@ -332,8 +409,8 @@ title(main="MAE for hold out and methods",
 
 #now figure 4b
 metric_name<-"rmse"
-list_param_plot<-list(list_prop_obj,col_t,pch_t,legend_text,mod_name,metric_name)
-names(list_param_plot)<-c("list_prop_obj","col_t","pch_t","legend_text","mod_name","metric_name")
+list_param_plot<-list(list_prop_obj,col_t,pch_t,legend_text,mod_name,metric_name,add_CI)
+names(list_param_plot)<-c("list_prop_obj","col_t","pch_t","legend_text","mod_name","metric_name","add_CI")
 plot_prop_metrics(list_param_plot)
 title(main="RMSE for hold out and methods",
       xlab="Hold out validation/testing proportion",
@@ -347,6 +424,7 @@ dev.off()
 #read in relevant data:
 ## Calculate average difference for RMSE for all three methods
 #read in relevant data:
+
 tb1_s<-extract_from_list_obj(raster_prediction_obj_1$validation_mod_obj,"metrics_s")
 rownames(tb1_s)<-NULL #remove row names
 tb1_s$method_interp <- "gam_daily" #add type of interpolation...out_prefix too??
@@ -406,6 +484,7 @@ par(mfrow=c(row_mfrow,col_mfrow))
 col_t<-c("red","blue","black")
 pch_t<- 1:length(col_t)
 
+##Make this a function???
 y_range<-range(prop_obj_kriging$avg_tb$rmse,prop_obj_kriging_s$avg_tb$rmse)
 #y_range<-range(prop_obj_gam$avg_tb$rmse,prop_obj_gam_s$avg_tb$rmse)
 plot(prop_obj_gam$avg_tb$rmse ~ prop_obj_gam$avg_tb$prop, ylab="",xlab="",type="b",col=c("red"),pch=pch_t[1],ylim=y_range,lty=2)
@@ -415,11 +494,40 @@ lines(prop_obj_gwr$avg_tb$rmse ~ prop_obj_gam$avg_tb$prop, ylab="",xlab="",type=
 lines(prop_obj_kriging$avg_tb$rmse ~ prop_obj_kriging$avg_tb$prop,ylab="",xlab="", type="b",ylim=y_range,pch=pch_t[2],,col=c("blue"),lty=2)
 lines(prop_obj_kriging_s$avg_tb$rmse ~ prop_obj_kriging_s$avg_tb$prop,ylab="",xlab="",type="b",ylim=y_range,pch=pch_t[2],col=c("blue"))
 
+plot_ac_holdout_prop<- function(l_prop,l_col_t,l_pch_t,add_CI,y_range){
+  
+  for(i in 1:length(l_prop)){
+    if(i==1){
+      plot(l_prop[[i]]$avg_tb$rmse ~ l_prop[[i]]$avg_tb$prop,ylab="",xlab="",type="b",pch=l_pch_t[i],ylim=y_range,col=l_col_t[i],lty=l_lty_t[i])
+    }else{
+      lines(l_prop[[i]]$avg_tb$rmse ~ l_prop[[i]]$avg_tb$prop,ylab="",xlab="",type="b",pch=l_pch_t[i],ylim=y_range,col=l_col_t[i],lty=l_lty_t[i])
+    }
+    if(add_CI[i]==TRUE){
+      ciw   <- qt(0.975, l_prop[[i]]$n_tb$rmse) * l_prop[[i]]$sd_tb$rmse / sqrt(l_prop[[i]]$n_tb$rmse)
+      plotCI(y=l_prop[[i]]$avg_tb$rmse, x=l_prop[[i]]$avg_tb$prop, uiw=ciw, col=l_col_t[i], barcol="blue", lwd=1,pch=l_pch_t[i],
+             add=TRUE) 
+    }
+  }
+}
+
+l_prop<- list(prop_obj_gam,prop_obj_gam_s,prop_obj_gwr_s,prop_obj_gwr,prop_obj_kriging,prop_obj_kriging_s)
+
+l_col_t <- c("red","red","black","black","blue","blue")
+l_pch_t <- c(1,1,3,3,2,2)
+l_lty_t <- c(2,1,1,2,2,1)
+add_CI <- c(TRUE,TRUE,FALSE,FALSE,FALSE,FALSE)
+y_range<-c(0.5,3)
+
+plot_ac_holdout_prop(l_prop,l_col_t,l_pch_t,add_CI,y_range)
+
+legend_text <- c("GAM","Kriging","GWR","training","testing")
+
 legend("topleft",legend=legend_text, 
-       cex=0.9, pch=pch_t,col=col_t,lty=1,bty="n")
+       cex=0.9, pch=c(pch_t,NA,NA),col=c(col_t,NA,NA),lty=c(NA,NA,NA,1,2),bty="n")
 title(main="Training and testing RMSE for hold out and methods",
       xlab="Hold out validation/testing proportion",
       ylab="RMSE (C)")
+
 
 boxplot(diff_mae_data) #plot differences in training and testing accuracies for three methods
 title(main="Difference between training and testing MAE",
@@ -682,7 +790,16 @@ dev.off()
 
 ######## NOW GET A ACCURACY BY STATIONS
 
-list_data_v<-extract_list_from_list_obj(raster_prediction_obj_1$validation_mod_obj,"data_v")
+list_data_s <-extract_list_from_list_obj(raster_prediction_obj_1$validation_mod_obj,"data_s")
+list_data_v <-extract_list_from_list_obj(raster_prediction_obj_1$validation_mod_obj,"data_v")
+
+#number of observations per day
+year_nbv <- sapply(list_data_v,FUN=length)
+year_nbs <- sapply(list_data_s,FUN=length)
+nb_df <- data.frame(nv=year_nbv,ns=year_nbs)
+nb_df$n_tot <- year_nbv + year_nbs
+range(nb_df$n_tot)
+
 data_v_test <- list_data_v[[1]]
 
 #Convert sp data.frame and combined them in one unique df, see function define earlier

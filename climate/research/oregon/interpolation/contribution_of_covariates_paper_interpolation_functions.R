@@ -265,7 +265,8 @@ plot_dst_MAE <-function(list_param){
   metric_name <-list_param$metric_name
   title_plot <- list_param$title_plot
   y_lab_text <- list_param$y_lab_text
-    
+  add_CI <- list_param$add_CI  
+  
   for (i in 1:length(list_dist_obj)){
     
     l<-list_dist_obj[[i]]
@@ -286,14 +287,35 @@ plot_dst_MAE <-function(list_param){
     #ciw2   <- qt(0.975, n) * y_sd2 / sqrt(n)
     ciw   <- qt(0.975, n) * y_sd / sqrt(n)
     
-    if(i==1){
-      plotCI(y=y, x=x, uiw=ciw, col=col_t[i], barcol="blue", lwd=1,
-             ylab=y_lab_text, xlab="")
-      lines(y~x, pch=pch_t[i],col=col_t[i],type="b")
+    #if(i==1){
+    #  plotCI(y=y, x=x, uiw=ciw, col=col_t[i], barcol="blue", lwd=1,
+    #         ylab=y_lab_text, xlab="")
+    #  lines(y~x, pch=pch_t[i],col=col_t[i],type="b")
+    #  
+    #}else{
+    #  lines(y~x, pch=pch_t[i],col=col_t[i],type="b")
+    #}
+    
+    if(add_CI[i]==TRUE){
       
+      if (i==1){
+        plotCI(y=y, x=x, uiw=ciw, col=col_t[i], barcol="blue", lwd=1,pch=pch_t[i],
+               ylab=y_lab_text, xlab="") 
+        lines(y~x, pch=pch_t[i],col=col_t[i],type="b")
+      }else{
+        lines(y~x, pch=pch_t[i],col=col_t[i],type="b")
+        plotCI(y=y, x=x, uiw=ciw, col=col_t[i], barcol="blue", lwd=1,pch=pch_t[i],
+               ylab=y_lab_text, xlab="",add=TRUE) 
+      }
+ 
     }else{
-      lines(y~x, pch=pch_t[i],col=col_t[i],type="b")
+      if (i==1){
+        plot(y~x, pch=pch_t[i],col=col_t[i],type="b")
+      }else{
+        lines(y~x, pch=pch_t[i],col=col_t[i],type="b")
+      }
     }
+    
     
   }
   legend("topleft",legend=legend_text, 
@@ -347,6 +369,7 @@ plot_prop_metrics <-function(list_param){
   legend_text <- list_param$legend_text
   list_mod_name<-list_param$mod_name
   metric_name<-list_param$metric_name
+  add_CI <- list_param$add_CI
   
   for (i in 1:length(list_obj)){
     
@@ -370,16 +393,37 @@ plot_prop_metrics <-function(list_param){
     #plotCI(y=y, x=x, uiw=ciw, col="red", main=paste(" MAE for ",mod_name,sep=""), barcol="blue", lwd=1,
     #       ylab="RMSE (C)", xlab=xlab_text)
     
-    ciw   <- qt(0.975, no) * y_sd / sqrt(no)
+    #ciw   <- qt(0.975, no) * y_sd / sqrt(no)
     
-    if(i==1){
-      plotCI(y=y, x=x, uiw=ciw, col=col_t[i], main=paste(" Comparison of ",metric_name," in ",mod_name,sep=""), barcol="blue", lwd=1,
-             ylab="RMSE (C)", xlab=xlab_text)
-      lines(y~x, col=col_t[i])
+    #if(i==1){
+    #  plotCI(y=y, x=x, uiw=ciw, col=col_t[i], main=paste(" Comparison of ",metric_name," in ",mod_name,sep=""), barcol="blue", lwd=1,
+    #         ylab="RMSE (C)", xlab=xlab_text)
+    #  lines(y~x, col=col_t[i])
+      
+    #}else{
+    #  lines(y~x, col=col_t[i])
+    #}
+    
+    if(add_CI[i]==TRUE){
+      
+      if (i==1){
+        plotCI(y=y, x=x, uiw=ciw, col=col_t[i], barcol="blue", lwd=1,pch=pch_t[i],main=paste(" Comparison of ",metric_name," in ",mod_name,sep=""),
+               ylab="RMSE (C)", xlab=xlab_text) 
+        lines(y~x, pch=pch_t[i],col=col_t[i],type="b")
+      }else{
+        lines(y~x, pch=pch_t[i],col=col_t[i],type="b")
+        plotCI(y=y, x=x, uiw=ciw, col=col_t[i], barcol="blue", lwd=1,pch=pch_t[i],
+               ylab="RMSE (C)", xlab=xlab_text,add=TRUE) 
+      }
       
     }else{
-      lines(y~x, col=col_t[i])
+      if (i==1){
+        plot(y~x, pch=pch_t[i],col=col_t[i],type="b")
+      }else{
+        lines(y~x, pch=pch_t[i],col=col_t[i],type="b")
+      }
     }
+    
     
   }
   legend("topleft",legend=legend_text, 
