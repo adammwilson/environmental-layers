@@ -80,8 +80,8 @@ met_stations_outfiles_obj_file<-"/data/project/layers/commons/data_workflow/outp
 #met_stations_outfiles_obj_file<-"met_stations_outfiles_obj_gam_CAI__365d_gam_CAI_lst_comb3_08252013.RData"
 
 var<-"TMAX" # variable being interpolated
-out_prefix<-"_365d_gwr_CAI_lst_comb3_09162013"                #User defined output prefix
-out_suffix<-"_OR_09142013"                                       #Regional suffix
+out_prefix<-"_365d_gwr_CAI_lst_comb3_09172013"                #User defined output prefix
+out_suffix<-"_OR_09172013"                                       #Regional suffix
 out_suffix_modis <-"_05302013"                       #pattern to find tiles produced previously     
 
 #interpolation_method<-c("gam_fusion","gam_CAI","gam_daily") #other otpions to be added later
@@ -254,7 +254,7 @@ seed_number_month <- 100
 nb_sample_month <-1           #number of time random sampling must be repeated for every hold out proportion
 step_month <-0.1         
 constant_month <- 0             #if value 1 then use the same samples as date one for the all set of dates
-prop_minmax_month <-c(0,0.1)  #if prop_min=prop_max and step=0 then predictions are done for the number of dates...
+prop_minmax_month <-c(0.2,0.3)  #if prop_min=prop_max and step=0 then predictions are done for the number of dates...
 
 #dates_selected<-c("20100101","20100102","20100103","20100901") # Note that the dates set must have a specific format: yyymmdd
 #dates_selected<-c("20100101","20100102","20100301","20100302","20100501","20100502","20100701","20100702","20100901","20100902","20101101","20101102")
