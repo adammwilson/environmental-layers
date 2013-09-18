@@ -31,7 +31,7 @@ if(!file.exists("data/MOD35C6_2009.tif")){
   system("align.sh data/MOD35C6.vrt data/MOD09_2009.tif data/MOD35C6_2009.tif")
   system("align.sh data/MOD35C6_CFday_pmiss.vrt data/MOD09_2009.tif data/MOD35C6_CFday_pmiss.tif")
 }
-mod35c6=raster("data/MOD35C6_2009_v1.tif")
+mod35c6=raster("data/MOD35C6_2009.tif")
 names(mod35c6)="C6MOD35CF"
 NAvalue(mod35c6)=255
 
@@ -92,7 +92,7 @@ names(mod11qc)="MOD11CF"
 
 ### Processing path
 if(!file.exists("data/MOD35pp.tif"))
-system("align.sh data/MOD35_ProcessPath.tif data/MOD09_2009.tif data/MOD35pp.tif")
+system("align.sh data/C5MOD35_ProcessPath.tif data/MOD09_2009.tif data/MOD35pp.tif")
 pp=raster("data/MOD35pp.tif")
 NAvalue(pp)=255
 names(pp)="MOD35pp"
@@ -132,26 +132,15 @@ r3=Lines(list(
                 73.943,27.419,
                 74.369,26.877
                 ),ncol=2,byrow=T))),"India")
-#r4=Lines(list(
-#  Line(matrix(c(
-#                -5.164,42.270,
-#                -4.948,42.162
-#                ),ncol=2,byrow=T))),"Spain")
-
-r5=Lines(list(
+r4=Lines(list(
   Line(matrix(c(
                 33.195,12.512,
                 33.802,12.894
                 ),ncol=2,byrow=T))),"Sudan")
 
-#r6=Lines(list(
-#  Line(matrix(c(
-#                -63.353,-10.746,
-#                -63.376,-9.310
-#                ),ncol=2,byrow=T))),"Brazil")
 
 
-trans=SpatialLines(list(r1,r2,r3,r5),CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs "))
+trans=SpatialLines(list(r1,r2,r3,r4),CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs "))
 ### write out shapefiles of transects
 writeOGR(SpatialLinesDataFrame(trans,data=data.frame(ID=names(trans)),match.ID=F),"output",layer="transects",driver="ESRI Shapefile",overwrite=T)
 
@@ -224,16 +213,119 @@ dif_c5_09=raster("data/dif_c5_09.tif",format="GTiff")
 #dif_c5_c6=mod35c5-mod35c6
 
 ## exploring various ways to compare cloud products along landcover or processing path edges
-#t1=trd1[[1]]
-#dif_p=calc(trd1[[1]], function(x) (x[1]-x[3])/(1-x[1]))
-#edge=calc(edge(subset(t1,"MCD12Q1"),classes=T,type="inner"),function(x) ifelse(x==1,1,NA))
-#edgeb=buffer(edge,width=5000)
-#edgeb=calc(edgeb,function(x) ifelse(is.na(x),0,1))
-#names(edge)="edge"
-#names(edgeb)="edgeb"
-#td1=as.data.frame(stack(t1,edge,edgeb))
-#cor(td1$MOD17,td1$C6MOD35,use="complete",method="spearman")
-#cor(td1$MOD17[td1$edgeb==1],td1$C5MOD35[td1$edgeb==1],use="complete",method="spearman")
+t1=trd1[[1]]
+dif_p=calc(trd1[[1]], function(x) (x[1]-x[3])/(1-x[1]))
+edge=calc(edge(subset(t1,"MCD12Q1"),classes=T,type="inner"),function(x) ifelse(x==1,1,NA))
+edgeb=buffer(edge,width=5000)
+edgeb=calc(edgeb,function(x) ifelse(is.na(x),0,1))
+names(edge)="edge"
+names(edgeb)="edgeb"
+
+pedge=calc(edge(subset(t1,"MOD35pp"),classes=T,type="inner"),function(x) ifelse(x==1,1,NA))
+pedgeb=buffer(pedge,width=3000)
+pedgeb=calc(pedgeb,function(x) ifelse(is.na(x),0,1))
+names(pedgeb)="pedgeb"
+
+td1=as.data.frame(stack(t1,edgeb,pedgeb))
+td1l=melt(td1,id.vars=c("pedgeb","edgeb","MOD35pp","MCD12Q1"),measure.vars=c("C5MOD35CF","C6MOD35CF","C5MOD09CF"))
+td1l=td1l[td1l$pedgeb==1|td1l$edgeb==1,]
+
+cast(MOD35pp~MCD12Q1~variable,fun.aggregate="mean",data=td1l)
+
+## Moving window
+tiles=expand.grid(xmin=seq(-180,170,by=10),ymin=seq(-60,80,by=10))
+tiles$xmax=tiles$xmin+10;tiles$ymax=tiles$ymin+10
+
+
+registerDoMC(10)
+############################
+writeLines(c(""), "log.txt")
+nrw=nrow(mod35c5)
+nby=10
+nrwg=seq(1,nrw,by=nby)
+writeLines(paste("Processing ",length(nrwg)," groups"))
+
+output=mclapply(nrwg,function(ti){
+  ## Extract focal areas 
+  ngb=5
+  vals=getValuesFocal(mod35c5,ngb=ngb,row=ti,nrows=nby)
+  pp_ind=getValuesFocal(pp,ngb=ngb,row=ti,nrows=nby)
+  lulc_ind=getValuesFocal(lulc,ngb=ngb,row=ti,nrows=nby)
+  ## processing path
+  pp_bias=raster(matrix(do.call(rbind,lapply(1:nrow(vals),function(i) {
+    tind1=pp_ind[i,]  #vector of indices
+    tval1=vals[i,]    # vector of values
+    tind2=tind1[!is.na(tind1)&!is.na(tval1)]  #which classes exist without NAs?
+    if(length(unique(tind2))<2) return(255)  #if only one class, return 255
+    if(sort(table(tind2),dec=T)[2]<5) return(254) # if too few observations of class 2, return 254
+    round(kruskal.test(tval1,tind1)$p.value*100)         # if it works, return p.value*100
+  })),nrow=nby,ncol=ncol(mod35c5),byrow=T))     # turn it back into a raster
+  ## udpate raster and write it
+  extent(pp_bias)=extent(mod35c5[ti:(ti+nby-1),1:ncol(mod35c5),drop=F])
+  projection(pp_bias)=projection(mod35c5)
+  writeRaster(pp_bias,file=paste("data/tiles/pp_bias_",ti,".tif",sep=""),
+              format="GTiff",dataType="INT1U",overwrite=T,NAflag=255) #,options=c("COMPRESS=LZW","ZLEVEL=9")
+  ## landcover
+  lulc_bias=raster(matrix(do.call(rbind,lapply(1:nrow(vals),function(i) {
+    tind1=lulc_ind[i,]  #vector of indices
+    tval1=vals[i,]    # vector of values
+    tind2=tind1[!is.na(tind1)&!is.na(tval1)]  #which classes exist without NAs?
+    if(length(unique(tind2))<2) return(255)  #if only one class, return 255
+    if(sort(table(tind2),dec=T)[2]<5) return(254) # if too few observations of class 2, return 254
+    round(kruskal.test(tval1,tind1)$p.value*100)         # if it works, return p.value*100
+  })),nrow=nby,ncol=ncol(mod35c5),byrow=T))     # turn it back into a raster
+  ## udpate raster and write it
+  extent(lulc_bias)=extent(mod35c5[ti:(ti+nby-1),1:ncol(mod35c5),drop=F])
+  projection(lulc_bias)=projection(mod35c5)
+  writeRaster(lulc_bias,file=paste("data/tiles/lulc_bias_",ti,".tif",sep=""),
+              format="GTiff",dataType="INT1U",overwrite=T,NAflag=255) #,options=c("COMPRESS=LZW","ZLEVEL=9")
+  return(ti)
+},mc.cores=10)
+
+
+
+## original solution
+#  pp_bias=raster(matrix(do.call(rbind,lapply(1:nrow(vals),function(i) {
+#    if(length(unique(na.omit(pp_ind[i,])))<2) return(255)
+#    if(sort(table(pp_ind[i,]),dec=T)[2]<5) return(254)
+#    kruskal.test(vals[i,],pp_ind[i,])$p.value*100
+#  })),nrow=nrow(t_mod35c5),ncol=ncol(t_mod35c5),byrow=T))
+#  extent(pp_bias)=extent(t_mod35c5)
+#  writeRaster(pp_bias,file=paste("data/tiles/pp_bias_",ti,".tif",sep=""),
+#              format="GTiff",dataType="INT1U",options=c("COMPRESS=LZW","ZLEVEL=9"),overwrite=T)
+  ## Run kruskal test for processing lulc bias
+#  lulc_bias=raster(matrix(do.call(rbind,mclapply(1:nrow(vals),function(i) {
+#    if(length(unique(na.omit(lulc_ind[i,])))<2) return(NA)
+#    if(sort(table(lulc_ind[i,]),dec=T)[2]<5) return(255)
+#    kruskal.test(vals[i,],lulc_ind[i,])$p.value*100
+#  })),nrow=nrow(t_mod35c5),ncol=ncol(t_mod35c5),byrow=T))
+#  extent(lulc_bias)=extent(t_mod35c5)
+#  writeRaster(lulc_bias,dataType="INT1U",file=paste("data/tiles/lulc_bias_",ti,".tif",sep=""),
+#              format="GTiff",options=c("COMPRESS=LZW","ZLEVEL=9"),overwrite=T)
+
+
+### check raster temporary files
+showTmpFiles()
+#removeTmpFiles(h=1)
+
+## merge all the files back again
+  system("gdalbuildvrt data/lulc_bias.vrt `find data/tiles -name 'lulc_bias*tif'` ")
+  system("gdalwarp -co 'COMPRESS=LZW' -co 'ZLEVEL=9' data/lulc_bias.vrt data/lulc_bias.tif -r near")
+
+  system("gdalbuildvrt data/pp_bias.vrt `find data/tiles -name 'pp_bias*tif'` ")
+  system("gdalwarp -co 'COMPRESS=LZW' -co 'ZLEVEL=9' data/pp_bias.vrt data/pp_bias.tif -r near")
+
+
+#plot(stack(foc,x1))
+pat=c(-0.02,seq(0,0.1,len=50),seq(0.1,1,len=50))
+grayr2=colorRampPalette(c("red",grey(c(.75,.5,.25))))
+levelplot(stack(pp_bias,lulc_bias),col.regions=c("cyan",grayr2(100)),at=pat,colorkey=list(at=pat,cuts=100),margin=F)
+
+cor(td1$MOD17,td1$C6MOD35,use="complete",method="spearman")
+cor(td1$MOD17[td1$edgeb==1],td1$C5MOD35[td1$edgeb==1],use="complete",method="spearman")
+
+bwplot(value~MOD35pp|variable,data=td1l[td1l$pedgeb==1,],horizontal=F)
+
 
 ### Correlations
 #trdw=cast(trd,trans+x+y~variable,value="value")
@@ -252,23 +344,43 @@ dif_c5_09=raster("data/dif_c5_09.tif",format="GTiff")
 ## set up some graphing parameters
 at=seq(0,100,leng=100)
 bgyr=colorRampPalette(c("purple","blue","green","yellow","orange","red","red"))
-bgrayr=colorRampPalette(c("purple","blue","grey","red","red"))
+bgray=colorRampPalette(c("purple","blue","deepskyblue4"))
+grayr=colorRampPalette(c("grey","red","darkred"))
+bgrayr=colorRampPalette(c("darkblue","blue","grey","red","purple"))
+
 cols=bgyr(100)
+
+strip=strip.custom(par.strip.text=list(cex=.7),bg="transparent")
 
 ## global map
 library(maptools)
 coast=map2SpatialLines(map("world", interior=FALSE, plot=FALSE),proj4string=CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"))
 
-g1=levelplot(stack(mod35c5,mod09),xlab=" ",scales=list(x=list(draw=F),y=list(alternating=1)),col.regions=cols,at=at)+layer(sp.polygons(bbs[1:4],lwd=2))+layer(sp.lines(coast,lwd=.5))
+g1=levelplot(stack(mod35c5,mod35c6,mod09),xlab=" ",scales=list(x=list(draw=F),y=list(alternating=1)),
+  col.regions=cols,at=at,cuts=length(at),maxpixels=1e6,
+  colorkey=list(at=at))+
+#  layer(sp.polygons(bbs,lwd=5,col="black"))+
+  layer(sp.lines(coast,lwd=.5))+
+  layer(sp.points(coordinates(bbs),col="black",cex=2,pch=13,lwd=2))
 
-g2=levelplot(dif_c5_09,col.regions=bgrayr(100),at=seq(-70,70,len=100),margin=F,ylab=" ",colorkey=list("right"))+layer(sp.polygons(bbs[1:4],lwd=2))+layer(sp.lines(coast,lwd=.5))
+### Plot of differences between MOD09 adn MOD35 masks
+#system("gdalinfo -stats /home/adamw/acrobates/adamw/projects/MOD35C5/data/dif_c5_09.tif")
+## get quantiles for color bar of differences
+#qs=unique(quantile(as.vector(as.matrix(dif_c5_09)),seq(0,1,len=100),na.rm=T))
+#c(bgray(sum(qs<0)),grayr(sum(qs>=0)+1))
+qs=seq(-80,80,len=100)
+g2=levelplot(dif_c5_09,col.regions=bgrayr(100),cuts=100,at=qs,margin=F,ylab=" ",colorkey=list("right",at=qs),maxpixels=1e6)+
+  layer(sp.points(coordinates(bbs),col="black",cex=2,pch=13,lwd=2))+
+  #layer(sp.polygons(bbs,lwd=2))+
+  layer(sp.lines(coast,lwd=.5))
+
 g2$strip=strip.custom(var.name="Difference (C5MOD35-C5MOD09)",style=1,strip.names=T,strip.levels=F)  #update strip text
 #g3=histogram(dif_c5_09,col="black",border=NA,scales=list(x=list(at=c(-50,0,50)),y=list(draw=F),cex=1))+layer(panel.abline(v=0,col="red",lwd=2))
 
 ### regional plots
 p1=useOuterStrips(levelplot(value~x*y|variable+trans,data=trd[!trd$variable%in%c("MOD17_unscaled","MOD11_unscaled","MCD12Q1","MOD35pp"),],asp=1,scales=list(draw=F,rot=0,relation="free"),
                                        at=at,col.regions=cols,maxpixels=7e6,
-                                       ylab="Latitude",xlab="Longitude"),strip = strip.custom(par.strip.text=list(cex=.7)))+layer(sp.lines(trans,lwd=2))
+                                       ylab="Latitude",xlab="Longitude"),strip.left=strip,strip = strip)+layer(sp.lines(trans,lwd=2))
 
 p2=useOuterStrips(
   levelplot(value~x*y|variable+trans,data=trd[trd$variable%in%c("MCD12Q1"),],
@@ -278,7 +390,7 @@ p2=useOuterStrips(
               right=list(fun=draw.key(list(columns=1,#title="MCD12Q1 \n IGBP Land \n Cover",
                            rectangles=list(col=IGBP$col,size=1),
                            text=list(as.character(IGBP$ID),at=IGBP$ID-.5))))),
-            ylab="",xlab=" "),strip = strip.custom(par.strip.text=list(cex=.7)),strip.left=F)+layer(sp.lines(trans,lwd=2))
+            ylab="",xlab=" "),strip = strip,strip.left=F)+layer(sp.lines(trans,lwd=2))
 p3=useOuterStrips(
   levelplot(value~x*y|variable+trans,data=trd[trd$variable%in%c("MOD35pp"),],
             asp=1,scales=list(draw=F,rot=0,relation="free"),colorkey=F,
@@ -287,7 +399,7 @@ p3=useOuterStrips(
               right=list(fun=draw.key(list(columns=1,#title="MOD35 \n Processing \n Path",
                            rectangles=list(col=c("blue","cyan","tan","darkgreen"),size=1),
                            text=list(c("Water","Coast","Desert","Land")))))),
-            ylab="",xlab=" "),strip = strip.custom(par.strip.text=list(cex=.7)),strip.left=F)+layer(sp.lines(trans,lwd=2))
+            ylab="",xlab=" "),strip = strip,strip.left=F)+layer(sp.lines(trans,lwd=2))
 
 ## transects
 p4=xyplot(value~dist|transect,groups=variable,type=c("smooth","p"),
@@ -323,7 +435,7 @@ p4=xyplot(value~dist|transect,groups=variable,type=c("smooth","p"),
         },subscripts=T,par.settings = list(grid.pars = list(lineend = "butt")),
        scales=list(
          x=list(alternating=1,relation="free"),#, lim=c(0,70)),
-         y=list(at=c(-18,-10,seq(0,100,len=5)),
+         y=list(at=c(-20,-10,seq(0,100,len=5)),
            labels=c("MCD12Q1 IGBP","MOD35 path",seq(0,100,len=5)),
            lim=c(-25,100)),
          alternating=F),
@@ -339,9 +451,8 @@ p4=xyplot(value~dist|transect,groups=variable,type=c("smooth","p"),
                        text=list(c("C5 MOD35 Processing Path","Desert","Land")),
                        rectangles=list(border=NA,col=c(NA,IGBP$col[sort(unique(transd$value[transd$variable=="MCD12Q1"]+1))])),
                        text=list(c("MCD12Q1 IGBP Land Cover",IGBP$class[sort(unique(transd$value[transd$variable=="MCD12Q1"]+1))])))))),
-  strip = strip.custom(par.strip.text=list(cex=.75)))
-print(p4)
-
+  strip = strip,strip.left=F)
+#print(p4)
 
 
 CairoPDF("output/mod35compare.pdf",width=11,height=7)
@@ -352,9 +463,12 @@ print(g2,position=c(0,0,1,0.415),more=F)
 #print(g3,position=c(0.31,0.06,.42,0.27),more=F)
          
 ### MOD35 Desert Processing path
-levelplot(pp,asp=1,scales=list(draw=T,rot=0),maxpixels=1e6,
-          at=c(-1:3),col.regions=c("blue","cyan","tan","darkgreen"),margin=F,
-          colorkey=list(space="bottom",title="MOD35 Processing Path",labels=list(labels=c("Water","Coast","Desert","Land"),at=0:4-.5)))+layer(sp.polygons(bbs,lwd=2))+layer(sp.lines(coast,lwd=.5))
+levelplot(pp,asp=1,scales=list(draw=T,rot=0),maxpixels=1e6,cuts=3,
+          at=(0:3)+.5,col.regions=c("blue","cyan","tan","darkgreen"),margin=F,
+          colorkey=list(space="top",title="MOD35 Processing Path",labels=list(labels=c("Water","Coast","Desert","Land"),at=0:3),height=.25))+
+  layer(sp.points(coordinates(bbs),col="black",cex=2,pch=13,lwd=2))+
+  layer(sp.lines(coast,lwd=.5))
+
 ### levelplot of regions
 print(p1,position=c(0,0,.62,1),more=T)
 print(p2,position=c(0.6,0.21,0.78,0.79),more=T)
@@ -390,7 +504,7 @@ kml_open("output/modiscloud.kml")
 readAll(mod35c5)
 
 kml_layer.Raster(mod35c5,
-     plot.legend = TRUE,raster_name="Collection 5 MOD35 Cloud Frequency",
+     plot.legend = TRUE,raster_name="Collection 5 MOD35 2009 Cloud Frequency",
     z.lim = c(0,100),colour_scale = get("colour_scale_numeric", envir = plotKML.opts),
 #    home_url = get("home_url", envir = plotKML.opts),
 #    metadata = NULL, html.table = NULL,

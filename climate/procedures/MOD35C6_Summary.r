@@ -2,7 +2,7 @@
 
 setwd("~/acrobates/adamw/projects/MOD35C6")
 
-library(raster);beginCluster(10)
+library(raster)#;beginCluster(10)
 library(rasterVis)
 library(rgdal)
 library(plotKML)
@@ -18,7 +18,7 @@ if(!file.exists("data/MOD35C6_2009.tif")){
 
   system("align.sh data/MOD35C6.vrt data/MOD09_2009.tif data/MOD35C6_2009.tif")
   system("/usr/local/bin/pkcreatect -min 0 -max 100 -g -i data/MOD35C6_2009.tif -o data/MOD35C6_2009a.tif -ct none -co COMPRESS=LZW")
-  system("align.sh data/MOD35C6_CFday_pmiss.vrt data/MOD09_2009.tif data/MOD35C6_CFday_pmiss.tif")
+#  system("align.sh data/MOD35C6_CFday_pmiss.vrt data/MOD09_2009.tif data/MOD35C6_CFday_pmiss.tif")
 }
 mod35c6=raster("data/MOD35C6_2009_v1.tif")
 names(mod35c6)="C6MOD35CF"
