@@ -34,7 +34,7 @@ if(verbose) print(paste("Checking daily output in preparation for generating cli
  fdly=data.frame(path=list.files(outdir,pattern="nc$",full=T),stringsAsFactors=F)
   fdly$file=basename(fdly$path)
   fdly$dateid=substr(fdly$file,14,21)
-  fdly$date=as.Date(substr(fdly$file,14,21),"%Y%m%d")
+  fdly$date=as.Date(substr(fdly$file,14,21),"%Y%m%d") #23,30 for alltiles
   fdly$month=format(fdly$date,"%m")
   fdly$year=format(fdly$date,"%Y")
 nrow(fdly)
@@ -55,6 +55,7 @@ if(!file.exists(tsdir)) dir.create(tsdir,recursive=T)
 
 ## merge all daily files to create a single file with all dates
 system(paste(ncopath,"ncrcat -O ",outdir,"/*nc ",outdir2,"/MOD35_",tile,"_daily.nc",sep=""))
+#system(paste(ncopath,"ncrcat -O ",outdir,"/*alltests*nc ",outdir2,"/MOD35_",tile,"_daily_alltiles.nc",sep=""))
 system(paste("ncdump -h ",outdir2,"/MOD35_",tile,"_daily.nc",sep=""))
  
 ## Update attributes
