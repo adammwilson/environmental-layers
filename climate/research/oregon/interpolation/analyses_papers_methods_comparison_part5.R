@@ -228,11 +228,53 @@ boxplot(diff_kriging_m_fus$rmse,diff_gam_m_fus$rmse,names=c("kriging_fus","gam_f
 
 ### NOW PLOT OF COMPARISON BETWEEN Kriging and GAM
 
-xyplot(as.formula(plot_formula),group=pred_mod,type="b",
-       data=avg_tb,
-       main=paste("rmse ",plot_name,sep=" "),
-       pch=1:length(avg_tb$pred_mod),
-       par.settings=list(superpose.symbol = list(
-         pch=1:length(avg_tb$pred_mod))),
-       auto.key=list(columns=5))
+#Now get
+
+tb_v_gam_CAI
+tb_v_gam_fus
+tb_v_kriging_CAI
+tb_v_kriging_fus
+
+methods_names <- c("tb_v_gam_CAI","tb_v_gam_fus","tb_v_kriging_CAI","tb_v_kriging_fus")
+list_prop_obj <- vector("list",length=length(methods_names))
+for(i in 1:length(methods_names)){
+  tb <- list_tb[[methods_names[i]]]
+  names_id <- c("pred_mod","prop_month")
+  names_mod <-unique(tb$pred_mod)
+  list_prop_obj[[i]] <- calc_stat_prop_tb_diagnostic(names_mod,names_id,tb)
+  names(list_prop_obj)[i] <- methods_names[i]
+  #avg_tb <- prop_obj$avg_tb
+}
+
+ac_prop_tb_list <- extract_list_from_list_obj(list_prop_obj,"avg_tb")
+nb_rows <- sapply(ac_prop_tb_list,FUN=nrow)
+method_interp_names<-c("gam_CAI","gam_fus","kriging_CAI","kriging_fus")
+for(i in 1:length(methods_names)){
+  avg_tb<-ac_prop_tb_list[[i]]
+  avg_tb$method_interp <-rep(x=method_interp_names[i],times=nb_rows[i])
+  ac_prop_tb_list[[i]] <- avg_tb  
+}
+#lapply(methods_names,function(i) {rep(x[i],nrows[i],times[i])},times=nb_rows)
+
+#names(ac_prop_tb_list) <- names(list_prop_obj)
+
+t44 <- do.call(rbind,ac_prop_tb_list)
+View(t44)
+
+t44[which.min(t44$rmse),]
+
+test <- t44[order(t44$rmse),]
+
+test2<-test[test$method_interp%in% c("gam_fus","gam_CAI"),]
+test2[1:24,]
+#head(ac_prop_tb)
+
+#list_prop_obj$avg_tb
+#xyplot(as.formula(plot_formula),group=pred_mod,type="b",
+#       data=avg_tb,
+#       main=paste("rmse ",plot_name,sep=" "),
+#       pch=1:length(avg_tb$pred_mod),
+#       par.settings=list(superpose.symbol = list(
+#         pch=1:length(avg_tb$pred_mod))),
+#       auto.key=list(columns=5))
 
