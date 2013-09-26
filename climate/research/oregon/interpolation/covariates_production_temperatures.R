@@ -11,7 +11,7 @@
 # -24 LST layers: "climatology" produced from MOD11A1, LST (mean and obs) using script in step 1 of workflow
 # 3) The output is a multiband file in tif format with projected covariates for the processing region/tile.             
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 06/20/2013                                                                                 
+#DATE: 08/05/2013                                                                                 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363--   
 
 ##Comments and TODO:
@@ -167,11 +167,16 @@ change_names_file_list<-function(list_name,out_suffix,out_prefix,extension,out_p
 }
 
 screening_val_r_stack_fun<-function(list_val_range,r_stack){
-  #Screening values for raster stack
+  #Screening values for a raster stack by providing a valid range. Values outside the valid
+  #range are assigned NA. Layers in the stack/brick are only screened if a name valid range is provided.
   #input: list_val_range: list of character strings comma separated
   #        e.g.: "mm_12,-15,50","mm_12,-15,50"
   #               variable name, min value, max value
-    
+  #The user must include the name of the variable matching the names in the raster brick/stack.
+  #Values are assigned NA if they are less than the mini value or greater than the maximum value.
+  #Output: stack with screened values. Note that the original order of layer names is not preserved!!!
+  
+  ## Parameters: parsing
   
   tab_range_list<-do.call(rbind,as.list(list_val_range))
 
@@ -186,12 +191,21 @@ screening_val_r_stack_fun<-function(list_val_range,r_stack){
   val_rst<-vector("list",nrow(tab_range)) #list of one row data.frame
   
   for (k in 1:nrow(tab_range)){
-    avl<-c(-Inf,tab_range$vmin[k],NA, tab_range$vmax[k],+Inf,NA)   #This creates a input vector...val 1 are -9999, 2 neg, 3 positive
-    rclmat<-matrix(avl,ncol=3,byrow=TRUE)
+    #avl<-c(-Inf,tab_range$vmin[k],NA, tab_range$vmax[k],+Inf,NA)   #This creates a input vector...val 1 are -9999, 2 neg, 3 positive
+    #avl<-c(tab_range$vmin[k],tab_range$vmax[k],NA)   #This creates a input vector...val 1 are -9999, 2 neg, 3 positive
+    
+    #rclmat<-matrix(avl,ncol=3,byrow=TRUE)
     #s_raster_r<-raster(r_stack,match(tab_range$varterm[k],names(r_stack))) #select relevant layer from stack
     s_raster_r<-raster(r_stack,match(tab_range$varname[k],names(r_stack)))
-    s_raster_r<-reclassify(s_raster_r,rclmat)  #now reclass values 
+    #s_raster_r<-reclassify(s_raster_r,rclmat)  #now reclass values 
+    #s_raster_r<-reclassify(s_raster_r,rclmat,include.lowest=TRUE,right=FALSE)  #now reclass values 
+    #s_raster_r<-reclassify(s_raster_r,rclmat,include.lowest=FALSE,right=FALSE)  #now reclass values 
+    #s_raster_r<-reclassify(s_raster_r,rclmat,include.lowest=TRUE,right=TRUE)  #now reclass values
+    #s_raster_r<-reclassify(s_raster_r,rclmat,include.lowest=FALSE,right=TRUE)  #now reclass values
     #r_stack<-dropLayer(r_stack,match(tab_range$varname[k],names(r_stack)))
+    s_raster_r[s_raster_r < tab_range$vmin[k]] <- NA #Assign NA if less than the minimum value in the valid range
+    s_raster_r[s_raster_r > tab_range$vmax[k]] <- NA #Assign NA if greater than the maxim value in the valid range
+    
     names(s_raster_r)<-tab_range$varname[k] #Loss of layer names when using reclass
     val_rst[[k]]<-s_raster_r
   }
@@ -462,7 +476,6 @@ covariates_production_temperature<-function(list_param){
     proj4string(ref_rast) <- CRS_interp #Assign given reference system from master script...
   }
   
-
   out_suffix_lst <-paste(out_suffix,".tif",sep="")          
   mean_lst_list_outnames<-change_names_file_list(mean_m_list,out_suffix_lst,"reg_",".tif",out_path=out_path)     
   nobs_lst_list_outnames<-change_names_file_list(nobs_m_list,out_suffix_lst,"reg_",".tif",out_path=out_path)   
@@ -509,6 +522,7 @@ covariates_production_temperature<-function(list_param){
   lc_list <- c(infile_elev,infile_canheight,infile_distoc) #, lc_list #15 layers to reproject...
   out_suffix_l <-paste(out_suffix,".tif",sep="")          
   lc_list_outnames<-change_names_file_list(lc_list,out_suffix_l,"reg_",".tif",out_path=out_path)    
+  j<-1
   list_param_create_region<-list(j,raster_name=lc_list,reg_ref_rast=ref_rast,out_rast_name=lc_list_outnames)
   list_covar_layers <- mclapply(1:3, list_param=list_param_create_region, create__m_raster_region,mc.preschedule=FALSE,mc.cores = 3) #This is the end bracket from mclapply(...) statement
   
@@ -526,8 +540,8 @@ covariates_production_temperature<-function(list_param){
   r2<-raster(terrain_rast,layer=pos)             #Select layer from stack
   N<-cos(r1)
   E<-sin(r1)
-  Nw<-sin(r2)*cos(r1)   #Adding a variable to the dataframe
-  Ew<-sin(r2)*sin(r1)   #Adding variable to the dataframe.
+  Nw<-sin(r2)*cos(r1)   #Calculating Northness weighted by the slope
+  Ew<-sin(r2)*sin(r1)   #Calculating Eastness weighted by the slope
   
   ################################
   #6) X-Y coordinates and LAT-LONG: do not keep in memory?

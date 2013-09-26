@@ -10,7 +10,7 @@
 #STAGE 5: Output analyses: assessment of results for specific dates...
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 07/18/2013                                                                                 
+#DATE: 09/18/2013                                                                                 
 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363, TASK$568--   
 
@@ -48,7 +48,7 @@ script_path<-"/data/project/layers/commons/data_workflow/env_layers_scripts/"
 
 ##SCRIPT USED FOR THE PREDICTIONS: Source or list all scripts here to avoid confusion on versions being run!!!!
 
-#source(file.path(script_path,"master_script_temp_07162013.R")) #Master script can be run directly...
+#source(file.path(script_path,"master_script_temp_08122013.R")) #Master script can be run directly...
 
 #CALLED FROM MASTER SCRIPT:
 
@@ -56,43 +56,50 @@ modis_download_script <- file.path(script_path,"modis_download_05142013.py") # L
 clim_script <- file.path(script_path,"climatology_05312013.py") # LST climatology python script
 grass_setting_script <- file.path(script_path,"grass-setup.R") #Set up system shell environment for python+GRASS
 #source(file.path(script_path,"download_and_produce_MODIS_LST_climatology_06112013.R"))
-source(file.path(script_path,"covariates_production_temperatures_07172013.R"))
+source(file.path(script_path,"covariates_production_temperatures_08052013.R"))
 source(file.path(script_path,"Database_stations_covariates_processing_function_06112013.R"))
-source(file.path(script_path,"GAM_fusion_analysis_raster_prediction_multisampling_07172013.R"))
-source(file.path(script_path,"results_interpolation_date_output_analyses_06112013.R"))
+source(file.path(script_path,"GAM_fusion_analysis_raster_prediction_multisampling_09042013.R"))
+source(file.path(script_path,"results_interpolation_date_output_analyses_08052013.R"))
 #source(file.path(script_path,"results_covariates_database_stations_output_analyses_04012013.R")) #to be completed
 
 #FUNCTIONS CALLED FROM GAM ANALYSIS RASTER PREDICTION ARE FOUND IN...
 
-source(file.path(script_path,"sampling_script_functions_03122013.R"))
-source(file.path(script_path,"GAM_fusion_function_multisampling_07022013.R")) #Include GAM_CAI
+source(file.path(script_path,"sampling_script_functions_08252013.R"))
+source(file.path(script_path,"GAM_fusion_function_multisampling_09042013.R")) #Includes Fusion and CAI methods
 source(file.path(script_path,"interpolation_method_day_function_multisampling_07052013.R")) #Include GAM_day
-source(file.path(script_path,"GAM_fusion_function_multisampling_validation_metrics_05062013.R"))
+source(file.path(script_path,"GAM_fusion_function_multisampling_validation_metrics_09012013.R"))
 
 #stages_to_run<-c(1,2,3,4,5) #May decide on antoher strategy later on...
 #stages_to_run<-c(0,2,3,4,5) #May decide on antoher strategy later on...
-stages_to_run<-c(0,0,0,4,5) #MRun only raster fitting, prediction and assessemnt (providing lst averages, covar brick and met stations)
+stages_to_run<-c(0,2,3,4,5) #MRun only raster fitting, prediction and assessemnt (providing lst averages, covar brick and met stations)
 #If stage 2 is skipped then use previous covar object
 covar_obj_file<-"/data/project/layers/commons/data_workflow/output_data_365d_gam_fus_lst_test_run_07172013/covar_obj__365d_gam_fus_lst_test_run_07172013.RData"
+#covar_obj_file<-"covar_obj__365d_gam_CAI_lst_comb3_08252013.RData"
 #If stage 3 is skipped then use previous met_stations object
 met_stations_outfiles_obj_file<-"/data/project/layers/commons/data_workflow/output_data_365d_gam_fus_lst_test_run_07172013/met_stations_outfiles_obj_gam_fusion__365d_gam_fus_lst_test_run_07172013.RData"
-
+#met_stations_outfiles_obj_file<-"met_stations_outfiles_obj_gam_CAI__365d_gam_CAI_lst_comb3_08252013.RData"
 
 var<-"TMAX" # variable being interpolated
-out_prefix<-"_365d_gam_fus_lst_test_run_07182013"                #User defined output prefix
-out_suffix<-"_OR_07182013"                                       #Regional suffix
+out_prefix<-"_365d_gwr_CAI_lst_comb3_09182013"                #User defined output prefix
+out_suffix<-"_OR_09182013"                                       #Regional suffix
 out_suffix_modis <-"_05302013"                       #pattern to find tiles produced previously     
 
 #interpolation_method<-c("gam_fusion","gam_CAI","gam_daily") #other otpions to be added later
 #interpolation_method<-c("gam_CAI") #other otpions to be added later
-interpolation_method<-c("gam_fusion") #other otpions to be added later
+#interpolation_method<-c("gam_fusion") #other otpions to be added later
+#interpolation_method<-c("kriging_fusion") #other otpions to be added later
+#interpolation_method<-c("gwr_fusion") #other otpions to be added later
+interpolation_method<-c("gwr_CAI") #other otpions to be added later
+#interpolation_method<-c("kriging_CAI") 
+
 #interpolation_method<-c("gam_daily") #other otpions to be added later
 #interpolation_method<-c("kriging_daily") #other otpions to be added later
 #interpolation_method<-c("gwr_daily") #other otpions to be added later
 
-#out_path <- paste("/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/output_data",
-#                  out_prefix,"/",sep="")
-out_path<-"/data/project/layers/commons/data_workflow/output_data"
+#out_path<-"/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/output_data"
+out_path <- "/data/project/layers/commons/Oregon_interpolation/output_data"
+
+#out_path<-"/data/project/layers/commons/data_workflow/output_data"
 out_path <-paste(out_path,out_prefix,sep="")
 
 if (!file.exists(out_path)){
@@ -104,7 +111,8 @@ if (!file.exists(out_path)){
 lc_path<-"/data/project/layers/commons/data_workflow/inputs/lc-consensus-global"
 infile_modis_grid<-"/data/project/layers/commons/data_workflow/inputs/modis_grid/modis_sinusoidal_grid_world.shp" #modis grid tiling system, global
 infile_elev<-"/data/project/layers/commons/data_workflow/inputs/dem-cgiar-srtm-1km-tif/srtm_1km.tif"  #elevation at 1km, global extent to be replaced by the new fused product 
-infile_canheight<-"/data/project/layers/commons/data_workflow/inputs/treeheight-simard2011/Simard_Pinto_3DGlobalVeg_JGR.tif"         #Canopy height, global extent
+#infile_canheight<-"/data/project/layers/commons/data_workflow/inputs/treeheight-simard2011/Simard_Pinto_3DGlobalVeg_JGR.tif"         #Canopy height, global extent
+infile_canheight<-"/data/project/layers/commons/data_workflow/inputs/treeheight-simard2011/canheight_int.tif" #changed to INT4S
 infile_distoc <- "/data/project/layers/commons/data_workflow/inputs/distance_to_coast/GMT_intermediate_coast_distance_01d_rev.tif" #distance to coast, global extent at 0.01 deg
 #infile_covariates<- "/home/parmentier/Data/IPLANT_project/Venezuela_interpolation/Venezuela_01142013/covariates_Oregon_region_TMAX__OR_04052013.tif" #Oregon covar TMAX from earlier codes...for continuity
 #infile_reg_outline=""  #input region outline defined by polygon: none for Venezuela
@@ -234,27 +242,66 @@ list_param_data_prep <- list(infile_monthly,infile_daily,infile_locs,infile_cova
 names(list_param_data_prep) <- c("infile_monthly","infile_daily","infile_locs","infile_covariates","covar_names","var","out_prefix","CRS_locs_WGS84")
 
 #Set additional parameters
-#Input for sampling function...
+#Input for sampling function...need to reorganize inputs!!!
 seed_number<- 100  #if seed zero then no seed?     
+
 nb_sample<-1           #number of time random sampling must be repeated for every hold out proportion
 step<-0         
 constant<-0             #if value 1 then use the same samples as date one for the all set of dates
-prop_minmax<-c(0.3,0.3)  #if prop_min=prop_max and step=0 then predicitons are done for the number of dates...
+prop_minmax<-c(0.3,0.3)  #if prop_min=prop_max and step=0 then predictions are done for the number of dates...
+
+seed_number_month <- 100
+nb_sample_month <-1           #number of time random sampling must be repeated for every hold out proportion
+step_month <-0.1         
+constant_month <- 0             #if value 1 then use the same samples as date one for the all set of dates
+prop_minmax_month <-c(0.4,0.7)  #if prop_min=prop_max and step=0 then predictions are done for the number of dates...
+
 #dates_selected<-c("20100101","20100102","20100103","20100901") # Note that the dates set must have a specific format: yyymmdd
+#dates_selected<-c("20100101","20100102","20100301","20100302","20100501","20100502","20100701","20100702","20100901","20100902","20101101","20101102")
 dates_selected<-"" # if empty string then predict for the full year specified earlier
-screen_data_training<-FALSE #screen training data for NA and use same input training for all models fitted
+screen_data_training<- FALSE #screen training data for NA and use same input training for all models fitted
+use_clim_image <- TRUE # use predicted image as a base...rather than average Tmin at the station for delta
+join_daily <- FALSE # join monthly and daily station before calucating delta
 
 #Models to run...this can be changed for each run
 #LC1: Evergreen/deciduous needleleaf trees
 
-#Combination for test run:
+#Combination 3: for paper baseline=s(lat,lon)+s(elev)
+#list_models<-c("y_var ~ s(lat,lon) + s(elev_s)",
+#                "y_var ~ s(lat,lon) + s(elev_s) + s(N_w)",
+#                "y_var ~ s(lat,lon) + s(elev_s) + s(E_w)",
+#                "y_var ~ s(lat,lon) + s(elev_s) + s(LST)",
+#                "y_var ~ s(lat,lon) + s(elev_s) + s(DISTOC)",
+#                "y_var ~ s(lat,lon) + s(elev_s) + s(LC1)",
+#                "y_var ~ s(lat,lon) + s(elev_s) + s(CANHGHT)",
+#                "y_var ~ s(lat,lon) + s(elev_s) + s(LST) + ti(LST,LC1)",
+#                "y_var ~ s(lat,lon) + s(elev_s) + s(LST) + ti(LST,CANHGHT)")
 
-list_models<-c("y_var ~ s(elev_s)",
-                "y_var ~ s(LST)",
-                "y_var ~ s(lat,lon)+ s(elev_s)",
-                "y_var ~ te(lat,lon,elev_s)",
-                "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST)", 
-                "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w) + s(LST) + s(LC1)") 
+#Combination 4: for paper baseline=s(lat,lon)
+# list_models<-c("y_var ~ s(lat,lon)",
+#                "y_var ~ s(lat,lon) + s(elev_s)",
+#                "y_var ~ s(lat,lon) + s(N_w)",
+#                "y_var ~ s(lat,lon) + s(E_w)",
+#                "y_var ~ s(lat,lon) + s(LST)",
+#                "y_var ~ s(lat,lon) + s(DISTOC)",
+#                "y_var ~ s(lat,lon) + s(LC1)",
+#                "y_var ~ s(lat,lon) + s(CANHGHT)",
+#                "y_var ~ s(lat,lon) + s(LST) + ti(LST,LC1)",
+#                "y_var ~ s(lat,lon) + s(LST) + ti(LST,CANHGHT)")
+
+#list_models<-c("y_var ~ lat*lon + elev_s")
+
+#list_models<-c("y_var ~ s(lat,lon) + s(elev_s)")
+
+list_models<-c("y_var ~ lat*lon + elev_s",
+               "y_var ~ lat*lon + elev_s + N_w",
+               "y_var ~ lat*lon + elev_s + E_w",
+               "y_var ~ lat*lon + elev_s + LST",
+               "y_var ~ lat*lon + elev_s + DISTOC",
+               "y_var ~ lat*lon + elev_s + LC1",
+               "y_var ~ lat*lon + elev_s + CANHGHT",
+               "y_var ~ lat*lon + elev_s + LST + I(LST*LC1)",
+               "y_var ~ lat*lon + elev_s + LST + I(LST*CANHGHT)")
 
 #Default name of LST avg to be matched               
 lst_avg<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_09","mm_10","mm_11","mm_12")  
@@ -262,26 +309,28 @@ lst_avg<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_0
 #Collect all parameters in a list
 list_param_raster_prediction<-list(list_param_data_prep,screen_data_training,
                                 seed_number,nb_sample,step,constant,prop_minmax,dates_selected,
-                                list_models,lst_avg,out_path,script_path,
+                                seed_number_month,nb_sample_month,step_month,constant_month,prop_minmax_month,
+                                list_models,lst_avg,out_path,script_path,use_clim_image,join_daily,
                                 interpolation_method)
 names(list_param_raster_prediction)<-c("list_param_data_prep","screen_data_training",
                                 "seed_number","nb_sample","step","constant","prop_minmax","dates_selected",
-                                "list_models","lst_avg","out_path","script_path",
+                                "seed_number_month","nb_sample_month","step_month","constant_month","prop_minmax_month",
+                                "list_models","lst_avg","out_path","script_path","use_clim_image","join_daily",
                                 "interpolation_method")
 
+#debug(raster_prediction_fun)
 raster_prediction_obj <-raster_prediction_fun(list_param_raster_prediction)
 
 ############## STAGE 5: OUTPUT ANALYSES ##################
 
 date_selected_results<-c("20100101") 
-
 list_param_results_analyses<-list(out_path,script_path,raster_prediction_obj,interpolation_method,
-                                  infile_covariates,covar_names,date_selected_results,var,out_prefix)
+                                  covar_obj,date_selected_results,var,out_prefix)
 names(list_param_results_analyses)<-c("out_path","script_path","raster_prediction_obj","interpolation_method",
-                     "infile_covariates","covar_names","date_selected_results","var","out_prefix")
+                     "covar_obj","date_selected_results","var","out_prefix")
 #plots_assessment_by_date<-function(j,list_param){
 if (stages_to_run[5]==5){
-  #source(file.path(script_path,"results_interpolation_date_output_analyses_05062013.R"))
+  #source(file.path(script_path,"results_interpolation_date_output_analyses_08052013.R"))
   #Use lapply or mclapply
   summary_v_day <-plots_assessment_by_date(1,list_param_results_analyses)
   #Call as function...

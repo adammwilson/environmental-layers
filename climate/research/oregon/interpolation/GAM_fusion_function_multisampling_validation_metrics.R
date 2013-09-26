@@ -72,52 +72,65 @@ calculate_accuracy_metrics<-function(i,list_param){
   
   #PARSING INPUT PARAMETERS
   out_path <- list_param$out_path
-  day_list<- list_param$rast_day_year_list[[i]]
-  #day_list <-rast_day_yearlist[[i]] #list of prediction for the current date...
-  names_mod<-names(day_list)
-  method_mod_obj<-list_param$method_mod_obj
-  #Change to results_mod_obj[[i]]$data_s to make it less specific
-  data_v <- method_mod_obj[[i]]$data_v
-  data_s <- method_mod_obj[[i]]$data_s
-  y_var_name <- list_param$y_var_name #missing--debugging
+  day_list <- list_param$rast_day_year_list[[i]] #this is the list of raster files, may be daily or monthly predictions
+  names_mod <- names(day_list) #names of the predicted variables
+
+  y_ref <- list_param$y_ref  #This is the reference variable from which resituals and accuracy metrics are created
+  multi_time_scale <- list_param$multi_time_scale
+  
+  data_v <- list_param$list_data_v[[i]]
+  data_s <- list_param$list_data_s[[i]]
+  sampling_dat_day <- list_param$list_sampling_dat[[i]]
   
   ## Now create the stack
   
   rast_day_mod <- stack(day_list)
   names(rast_day_mod) <- names(day_list)
-  extract_data_v<-extract(rast_day_mod,data_v,df=TRUE)
-  extract_data_s<-extract(rast_day_mod,data_s,df=TRUE)
-  
-  data_v <-spCbind(data_v,extract_data_v) #should match IDs before joining for good practice
-  data_s <-spCbind(data_s,extract_data_s)
-  
-  ns<-nrow(data_s) # some loss of data might have happened because of the averaging...
-  nv<-nrow(data_v)
-  
-  sampling_dat_day<-(method_mod_obj[[i]])$sampling_dat
-   
-  metrics_v_obj<-calc_val_metrics_rast(data_v,y_var_name,names_mod)
-  metrics_s_obj<-calc_val_metrics_rast(data_s,y_var_name,names_mod)
+  #Change to handle cases in which data_v is NULL!!!
+    
+  ns <- nrow(data_s) # some loss of data might have happened because of the averaging...
+  nv <- nrow(data_v)
   
   #add sampling dat info...
   N=length(names_mod)
-  run_info<-cbind(sampling_dat_day,n=nv)
-  run_info[rep(seq_len(nrow(run_info)), each=N),] #repeating same row n times
-  metrics_v_df<-cbind(metrics_v_obj$metrics,run_info)
-  metrics_v_df["var_interp"]<-rep(y_var_name,times=nrow(metrics_v_df)) 
-  #Name of the variable interpolated, useful for cross-comparison between methods at later stages
   
-  run_info<-cbind(sampling_dat_day,n=ns)
-  run_info[rep(seq_len(nrow(run_info)), each=N),]
-  metrics_s_df<-cbind(metrics_s_obj$metrics,run_info)
-  metrics_s_df["var_interp"]<-rep(y_var_name,times=nrow(metrics_s_df)) 
-  #Name of the variable interpolated, useful for cross-comparison between methods at later stages
-  
-  data_v<-spCbind(data_v,metrics_v_obj$residuals)
-  data_s<-spCbind(data_s,metrics_s_obj$residuals)
+  #Handle case of 0% hold out, monhtly or daily
+  if (nv > 0){
+    run_info<-cbind(sampling_dat_day,n=nv)
+    run_info[rep(seq_len(nrow(run_info)), each=N),] #repeating same row n times
     
-  validation_obj<-list(metrics_s_df,metrics_v_df,data_s,data_v)
-  names(validation_obj)<-c("metrics_s","metrics_v","data_s","data_v")
+    extract_data_v<-extract(rast_day_mod,data_v,df=TRUE)
+    data_v <-spCbind(data_v,extract_data_v) #should match IDs before joining for good practice    
+    metrics_v_obj<-calc_val_metrics_rast(data_v,y_ref,names_mod)
+    metrics_v_df<-cbind(metrics_v_obj$metrics,run_info)
+    metrics_v_df["var_interp"]<-rep(y_ref,times=nrow(metrics_v_df)) 
+    #Name of the variable interpolated, useful for cross-comparison between methods at later stages
+    data_v<-spCbind(data_v,metrics_v_obj$residuals)
+  }
+  
+  extract_data_s<-extract(rast_day_mod,data_s,df=TRUE)  
+  
+  data_s <-spCbind(data_s,extract_data_s)
+
+  metrics_s_obj <- calc_val_metrics_rast(data_s,y_ref,names_mod)  
+  
+  run_info <- cbind(sampling_dat_day,n=ns)
+  run_info[rep(seq_len(nrow(run_info)), each=N),]
+  metrics_s_df <- cbind(metrics_s_obj$metrics,run_info)
+  metrics_s_df["var_interp"] <- rep(y_ref,times=nrow(metrics_s_df)) 
+  #Name of the variable interpolated, useful for cross-comparison between methods at later stages
+  
+  data_s <- spCbind(data_s,metrics_s_obj$residuals)
+  
+  #prepare output object
+  
+  if (nv > 0){
+    validation_obj<-list(metrics_s_df,metrics_v_df,data_s,data_v)
+    names(validation_obj)<-c("metrics_s","metrics_v","data_s","data_v")
+  }else{
+    validation_obj<-list(metrics_s_df,data_s)
+    names(validation_obj)<-c("metrics_s","data_s")
+  }
   
   return(validation_obj)
 
@@ -132,6 +145,18 @@ extract_from_list_obj<-function(obj_list,list_name){
   }
   tb_list_tmp<-do.call(rbind,list_tmp) #long rownames
   return(tb_list_tmp) #this is  a data.frame
+}
+
+#### Function to create a list from a object made up of a list with names e.g. method_mod_obj or clim_method_mod_obj
+extract_list_from_list_obj<-function(obj_list,list_name){
+  #Create a list of an object from a given list of object using a name prodived as input
+  
+  list_tmp<-vector("list",length(obj_list))
+  for (i in 1:length(obj_list)){
+    tmp<-obj_list[[i]][[list_name]] #double bracket to return data.frame
+    list_tmp[[i]]<-tmp
+  }
+  return(list_tmp) #this is  a data.frame
 }
 
 #### Function to plot boxplot from data.frame table of accuracy metrics
@@ -161,8 +186,14 @@ boxplot_from_tb <-function(tb_diagnostic,metric_names,out_prefix,out_path){
   names(tb_mod_list)<-mod_names
   #mod_metrics<-do.call(cbind,tb_mod_list)
   #debug here
-  mod_metrics<-do.call(cbindX,tb_mod_list)
+  if(length(tb_mod_list)>1){
+    mod_metrics<-do.call(cbindX,tb_mod_list) #column bind the list??
+  }else{
+    mod_metrics<-tb_mod_list[[1]]
+  }
+  
   test_names<-lapply(1:length(mod_names),function(k) paste(names(tb_mod_list[[1]]),mod_names[k],sep="_"))
+  #test names are used when plotting the boxplot for the different models
   names(mod_metrics)<-unlist(test_names)
   rows_total<-lapply(tb_mod_list,nrow)
   for (j in 1:length(metric_names)){

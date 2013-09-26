@@ -4,7 +4,7 @@
 #Part 1: Script produces plots for every selected date
 #Part 2: Examine 
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 06/10/2013                                                                                 
+#DATE: 08/05/2013                                                                                 
 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#???--   
 
@@ -34,7 +34,7 @@ extract_from_list_obj<-function(obj_list,list_name){
 plots_assessment_by_date<-function(j,list_param){
   ###Function to assess results from interpolation predictions
   #AUTHOR: Benoit Parmentier                                                                       
-  #DATE: 05/10/2013                                                                                 
+  #DATE: 08/05/2013                                                                                 
   #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363--   
   
   #1) in_path
@@ -42,8 +42,7 @@ plots_assessment_by_date<-function(j,list_param){
   #3) script_path
   #4) raster_prediction_obj
   #5) interpolation_method
-  #6) infile_covariates
-  #7) covar_names
+  #7) covar_obj: covariates object contains file name and names of covariates
   #8) date_selected_results
   #9) var
   #10) out_prefix
@@ -67,13 +66,14 @@ plots_assessment_by_date<-function(j,list_param){
   var<-list_param$var #variable being interpolated
   out_path <- list_param$out_path
   interpolation_method <- list_param$interpolation_method
-  infile_covariates <- list_param$infile_covariates
-  covar_names<-list_param$covar_names
+  infile_covariates <- list_param$covar_obj$infile_covariates
+  covar_names<-list_param$covar_obj$covar_names
   
   raster_prediction_obj<-list_param$raster_prediction_obj
   method_mod_obj<-raster_prediction_obj$method_mod_obj
   validation_mod_obj<-raster_prediction_obj$validation_mod_obj
   
+  #This should not be set here...? master script
   if (var=="TMAX"){
     y_var_name<-"dailyTmax"
     y_var_month<-"TMax"
@@ -111,7 +111,7 @@ plots_assessment_by_date<-function(j,list_param){
   
   #Get raster stack of interpolated surfaces
   index<-i_dates[[j]]
-  pred_temp<-as.character(method_mod_obj[[index]][[y_var_name]]) #list of files with path included
+  pred_temp<-as.character(method_mod_obj[[index]][[y_var_name]]) #list of daily prediction files with path included
   rast_pred_temp_s <-stack(pred_temp) #stack of temperature predictions from models (daily)
   rast_pred_temp <-mask(rast_pred_temp_s,LC_mask,file=file.path(out_path,"test.tif"),overwrite=TRUE)
   
@@ -146,7 +146,9 @@ plots_assessment_by_date<-function(j,list_param){
   rmse<-metrics_v$rmse[nrow(metrics_v)]
   rmse_f<-metrics_s$rmse[nrow(metrics_s)]  
   
-  if (interpolation_method=="gam_CAI" | interpolation_method=="gam_fusion"){
+  #Set as constant in master script ?? : c("gam_CAI","kriging_CAI","gwr_CAI","gam_fusion","kriging_fusion","gwr_fusion")
+  if (interpolation_method %in% c("gam_CAI","kriging_CAI","gwr_CAI","gam_fusion","kriging_fusion","gwr_fusion")){
+    #if multi-time scale method then the raster prediction object contains a "clim_method_mod_obj"
     clim_method_mod_obj <- raster_prediction_obj$clim_method_mod_obj
     data_month<-clim_method_mod_obj[[index]]$data_month
     
@@ -156,7 +158,8 @@ plots_assessment_by_date<-function(j,list_param){
     title(paste("LST vs ", y_var_month,"for",datelabel,sep=" "))
     abline(0,1)
     nb_point<-paste("n=",length(data_month[[y_var_month]]),sep="")
-    mean_bias<-paste("Mean LST bias= ",format(mean(data_month$LSTD_bias,na.rm=TRUE),digits=3),sep="")
+    LSTD_bias <- data_month$TMax - data_month$LST #in case it is a CAI method, calculate bias
+    mean_bias<-paste("Mean LST bias= ",format(mean(LSTD_bias,na.rm=TRUE),digits=3),sep="")
     #Add the number of data points on the plot
     legend("topleft",legend=c(mean_bias,nb_point),bty="n")
     dev.off()
@@ -221,7 +224,7 @@ plots_assessment_by_date<-function(j,list_param){
   #paste(metrics_v$pred_mod,format(metrics_v$rmse,digits=3),sep=":")
   names(rast_pred_temp)<-paste(metrics_v$pred_mod,format(metrics_v$rmse,digits=3),sep=":")
   #plot(rast_pred_temp)
-  levelplot(rast_pred_temp)
+  levelplot(rast_pred_temp) #not working...takes too long to plot?
   dev.off()
   
   ## Figure 5b: prediction raster images
@@ -245,7 +248,7 @@ plots_assessment_by_date<-function(j,list_param){
   
   ## Figure 7: delta surface and bias
   
-  if (interpolation_method=="gam_fusion"){
+  if (interpolation_method%in% c("gam_fusion","kriging_fusion","gwr_fusion")){
     png(file.path(out_path,paste("Bias_delta_surface_",y_var_name,"_",sampling_dat$date[i],"_",sampling_dat$prop[i],
               "_",sampling_dat$run_samp[i],out_prefix,".png", sep="")))
     
@@ -253,40 +256,45 @@ plots_assessment_by_date<-function(j,list_param){
     delta_rast<-raster(method_mod_obj[[index]]$delta) #only one delta image!!!
     names(delta_rast)<-"delta"
     rast_temp_date<-stack(bias_rast,delta_rast)
+    layers_names <- names(rast_temp_date)
     rast_temp_date<-mask(rast_temp_date,LC_mask,file=file.path(out_path,"test.tif"),overwrite=TRUE)
     #bias_d_rast<-raster("fusion_bias_LST_20100103_30_1_10d_GAM_fus5_all_lstd_02082013.rst")
+    names(rast_temp_date) <-layers_names
     plot(rast_temp_date)
     dev.off()
   }
 
-  if (interpolation_method=="gam_CAI"){
+  if (interpolation_method %in% c("gam_CAI","kriging_CAI","gwr_CAI","gam_fusion","kriging_fusion","gwr_fusion")){
     png(file.path(out_path,paste("clim_surface_",y_var_name,"_",sampling_dat$date[i],"_",sampling_dat$prop[i],
               "_",sampling_dat$run_samp[i],out_prefix,".png", sep="")))
     
     clim_rast<-stack(clim_method_mod_obj[[index]]$clim)
     delta_rast<-raster(method_mod_obj[[index]]$delta) #only one delta image!!!
     names(delta_rast)<-"delta"
+    layers_names <- c(names(clim_rast),"delta")
     rast_temp_date<-stack(clim_rast,delta_rast)
-    rast_temp_date<-mask(rast_temp_date,LC_mask,file=file.path(out_path,"test.tif"),overwrite=TRUE)
+    rast_temp_date<-mask(rast_temp_date,LC_mask,file=file.path(out_path,"test.tif"),overwrite=TRUE) #loosing names here
     #bias_d_rast<-raster("fusion_bias_LST_20100103_30_1_10d_GAM_fus5_all_lstd_02082013.rst")
+    names(rast_temp_date) <-layers_names
     plot(rast_temp_date)
     
     dev.off()
   }
   
   #Figure 9: histogram for all images...
+  ## Add later...? distance to closest fitting station?
+  
+  #tb_diagnostic_v <- raster_prediction_obj$tb_diagnostic_v
+  #raster_prediction_obj$summary_metrics_v
+  #raster_prediction_obj$summary_month_metrics_v$metric_month_avg
+  #raster_prediction_obj$summary_month_metrics_v$metric_month_sd
   
   #Write out accuracy information:
   
   #add sd later...
-  write.table(tb_diagnostic_v,)
-  tb_diagnostic_v <- raster_prediction_obj$tb_diagnostic_v
-  raster_prediction_obj$summary_metrics_v
-  raster_prediction_obj$summary_month_metrics_v$metric_month_avg
-  raster_prediction_obj$summary_month_metrics_v$metric_month_sd
-  
+  #write.table(tb_diagnostic_v,)
   #write.table(tb_diagnostic_v, file= file.path(out_path,interpolation_method,"_tb_diagnostic_v",out_prefix,".txt",sep=""), sep=",",overwrite=FALSE)
-  write.table(tb, file= paste(path,"/","results2_gwr_Assessment_measure_all",out_prefix,".txt",sep=""), sep=",")
+  #write.table(tb, file= paste(path,"/","results2_gwr_Assessment_measure_all",out_prefix,".txt",sep=""), sep=",")
   
   #histogram(rast_pred_temp)
   list_output_analyses<-list(metrics_s,metrics_v)
