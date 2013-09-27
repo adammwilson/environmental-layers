@@ -63,7 +63,7 @@ infile_reg_outline <- "/data/project/layers/commons/data_workflow/inputs/region_
 met_stations_outfiles_obj_file<-"/data/project/layers/commons/data_workflow/output_data_365d_gam_fus_lst_test_run_07172013/met_stations_outfiles_obj_gam_fusion__365d_gam_fus_lst_test_run_07172013.RData"
 CRS_locs_WGS84<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0") #Station coords WGS84
 y_var_name <- "dailyTmax"
-out_prefix<-"analyses_09092013"
+out_prefix<-"analyses_09232013"
 
 #method_interpolation <- "gam_daily"
 covar_obj_file_1 <- "covar_obj__365d_gam_day_lst_comb3_08132013.RData"
@@ -122,6 +122,7 @@ table_data2 <-summary_metrics_v2$avg[,c("mae","rmse","me","r")]
 ###Table 3a, baseline 1: s(lat,lon) 
 #Change here !!! need  to reorder rows based on  mod first
 model_col<-c("Baseline1","Elevation","Northing","Easting","LST","DISTOC","Forest","CANHEIGHT","LST*Forest","LST*CANHEIGHT") # 
+names_table_col<-c("ΔMAE","ΔRMSE","ΔME","Δr","Model")
 df3a<- as.data.frame(sapply(table_data2,FUN=function(x) x-x[1]))
 df3a<- round(df3a,digit=3) #roundto three digits teh differences
 df3a$Model <-model_col
@@ -131,7 +132,6 @@ print(df3a) #show resulting table
 ###Table 3b, baseline 2: s(lat,lon) + s(elev)
 
 model_col<-c("Baseline2","Northness","Eastness","LST","DISTOC","Forest","CANHEIGHT","LST*Forest","LST*CANHEIGHT")
-names_table_col<-c("ΔMAE","ΔRMSE","ΔME","Δr","Model")
 
 df3b <- as.data.frame(sapply(table_data1,FUN=function(x) x-x[1])) #difference between baseline (line 1) and other models
 df3b <- round(df3b,digit=3) #roundto three digits the differences
@@ -223,9 +223,9 @@ write.table(as.data.frame(table4_paper),file=file_name,sep=",")
 
 ### Figure 1: Oregon study area
 #3 parameters from output
-infile_monthly<-list_outfiles$monthly_covar_ghcn_data #outile4 from database_covar script
-infile_daily<-list_outfiles$daily_covar_ghcn_data  #outfile3 from database_covar script
-infile_locs<- list_outfiles$loc_stations_ghcn #outfile2? from database covar script
+#infile_monthly<-list_outfiles$monthly_covar_ghcn_data #outile4 from database_covar script
+#infile_daily<-list_outfiles$daily_covar_ghcn_data  #outfile3 from database_covar script
+#infile_locs<- list_outfiles$loc_stations_ghcn #outfile2? from database covar script
 
 ghcn_dat <- readOGR(dsn=dirname(met_stations_obj$monthly_covar_ghcn_data),
         sub(".shp","",basename(met_stations_obj$monthly_covar_ghcn_data)))
@@ -346,7 +346,7 @@ list_param_plot<-list(list_dist_obj,col_t,pch_t,legend_text,mod_name,x_tick_labe
                       title_plot,y_lab_text,add_CI)
 names(list_param_plot)<-c("list_dist_obj","col_t","pch_t","legend_text","mod_name","x_tick_labels","metric_name",
                           "title_plot","y_lab_text","add_CI")
-debug(plot_dst_MAE)
+#undebug(plot_dst_MAE)
 plot_dst_MAE(list_param_plot)
 title(xlab="Distance to closest fitting station (km)")
 
@@ -384,6 +384,7 @@ pch_t<- 1:length(col_t)
 legend_text <- c("GAM","Kriging","GWR")
 mod_name<-c("mod1","mod1","mod1")#selected models
 add_CI <- c(TRUE,TRUE,TRUE)
+CI_bar <- c(TRUE,TRUE,TRUE)
 #add_CI <- c(TRUE,FALSE,FALSE)
 
 ##### plot figure 4 for paper
@@ -398,8 +399,8 @@ png(filename=file.path(out_dir,png_file_name),
 par(mfrow=c(row_mfrow,col_mfrow))
 
 metric_name<-"mae"
-list_param_plot<-list(list_prop_obj,col_t,pch_t,legend_text,mod_name,metric_name,add_CI)
-names(list_param_plot)<-c("list_prop_obj","col_t","pch_t","legend_text","mod_name","metric_name","add_CI")
+list_param_plot<-list(list_prop_obj,col_t,pch_t,legend_text,mod_name,metric_name,add_CI,CI_bar)
+names(list_param_plot)<-c("list_prop_obj","col_t","pch_t","legend_text","mod_name","metric_name","add_CI","CI_bar")
 
 #debug(plot_prop_metrics)
 plot_prop_metrics(list_param_plot)
@@ -409,8 +410,8 @@ title(main="MAE for hold out and methods",
 
 #now figure 4b
 metric_name<-"rmse"
-list_param_plot<-list(list_prop_obj,col_t,pch_t,legend_text,mod_name,metric_name,add_CI)
-names(list_param_plot)<-c("list_prop_obj","col_t","pch_t","legend_text","mod_name","metric_name","add_CI")
+list_param_plot<-list(list_prop_obj,col_t,pch_t,legend_text,mod_name,metric_name,add_CI,CI_bar)
+names(list_param_plot)<-c("list_prop_obj","col_t","pch_t","legend_text","mod_name","metric_name","add_CI","CI_bar")
 plot_prop_metrics(list_param_plot)
 title(main="RMSE for hold out and methods",
       xlab="Hold out validation/testing proportion",
@@ -483,16 +484,15 @@ par(mfrow=c(row_mfrow,col_mfrow))
 
 col_t<-c("red","blue","black")
 pch_t<- 1:length(col_t)
-
 ##Make this a function???
 y_range<-range(prop_obj_kriging$avg_tb$rmse,prop_obj_kriging_s$avg_tb$rmse)
 #y_range<-range(prop_obj_gam$avg_tb$rmse,prop_obj_gam_s$avg_tb$rmse)
-plot(prop_obj_gam$avg_tb$rmse ~ prop_obj_gam$avg_tb$prop, ylab="",xlab="",type="b",col=c("red"),pch=pch_t[1],ylim=y_range,lty=2)
-lines(prop_obj_gam_s$avg_tb$rmse ~ prop_obj_gam_s$avg_tb$prop, ylab="",xlab="",type="b",pch=pch_t[1],ylim=y_range,col=c("red"))
-lines(prop_obj_gwr_s$avg_tb$rmse ~ prop_obj_gwr_s$avg_tb$prop, ylab="",xlab="",type="b",ylim=y_range,pch=pch_t[3],col=c("black"))
-lines(prop_obj_gwr$avg_tb$rmse ~ prop_obj_gam$avg_tb$prop, ylab="",xlab="",type="b",ylim=y_range,pch=pch_t[3],,col=c("black"),lty=2)
-lines(prop_obj_kriging$avg_tb$rmse ~ prop_obj_kriging$avg_tb$prop,ylab="",xlab="", type="b",ylim=y_range,pch=pch_t[2],,col=c("blue"),lty=2)
-lines(prop_obj_kriging_s$avg_tb$rmse ~ prop_obj_kriging_s$avg_tb$prop,ylab="",xlab="",type="b",ylim=y_range,pch=pch_t[2],col=c("blue"))
+#plot(prop_obj_gam$avg_tb$rmse ~ prop_obj_gam$avg_tb$prop, ylab="",xlab="",type="b",col=c("red"),pch=pch_t[1],ylim=y_range,lty=2)
+#lines(prop_obj_gam_s$avg_tb$rmse ~ prop_obj_gam_s$avg_tb$prop, ylab="",xlab="",type="b",pch=pch_t[1],ylim=y_range,col=c("red"))
+#lines(prop_obj_gwr_s$avg_tb$rmse ~ prop_obj_gwr_s$avg_tb$prop, ylab="",xlab="",type="b",ylim=y_range,pch=pch_t[3],col=c("black"))
+#lines(prop_obj_gwr$avg_tb$rmse ~ prop_obj_gam$avg_tb$prop, ylab="",xlab="",type="b",ylim=y_range,pch=pch_t[3],,col=c("black"),lty=2)
+#lines(prop_obj_kriging$avg_tb$rmse ~ prop_obj_kriging$avg_tb$prop,ylab="",xlab="", type="b",ylim=y_range,pch=pch_t[2],,col=c("blue"),lty=2)
+#lines(prop_obj_kriging_s$avg_tb$rmse ~ prop_obj_kriging_s$avg_tb$prop,ylab="",xlab="",type="b",ylim=y_range,pch=pch_t[2],col=c("blue"))
 
 plot_ac_holdout_prop<- function(l_prop,l_col_t,l_pch_t,add_CI,y_range){
   
@@ -515,15 +515,23 @@ l_prop<- list(prop_obj_gam,prop_obj_gam_s,prop_obj_gwr_s,prop_obj_gwr,prop_obj_k
 l_col_t <- c("red","red","black","black","blue","blue")
 l_pch_t <- c(1,1,3,3,2,2)
 l_lty_t <- c(2,1,1,2,2,1)
-add_CI <- c(TRUE,TRUE,FALSE,FALSE,FALSE,FALSE)
+add_CI <- c(FALSE,FALSE,FALSE,FALSE,FALSE,FALSE)
+#add_CI <- c(TRUE,TRUE,TRUE,TRUE,TRUE,TRUE)
 y_range<-c(0.5,3)
 
 plot_ac_holdout_prop(l_prop,l_col_t,l_pch_t,add_CI,y_range)
 
-legend_text <- c("GAM","Kriging","GWR","training","testing")
+legend_text <- c("GAM","Kriging","GWR")
+#legend_text <- c("GAM","Kriging","GWR","training","testing")
 
+#legend("topleft",legend=legend_text, 
+#       cex=0.9, pch=c(pch_t,NA,NA),col=c(col_t,"white","white"),lty=c(NA,NA,NA,1,2),bty="n")
 legend("topleft",legend=legend_text, 
-       cex=0.9, pch=c(pch_t,NA,NA),col=c(col_t,NA,NA),lty=c(NA,NA,NA,1,2),bty="n")
+       cex=0.9, pch=c(pch_t),col=c(col_t),lty=c(1,1,1),bty="n")
+legend_text_data <-c("training","testing")
+legend("top",legend=legend_text_data, 
+       cex=0.9, lty=c(1,2),bty="n")
+
 title(main="Training and testing RMSE for hold out and methods",
       xlab="Hold out validation/testing proportion",
       ylab="RMSE (C)")

@@ -370,6 +370,7 @@ plot_prop_metrics <-function(list_param){
   list_mod_name<-list_param$mod_name
   metric_name<-list_param$metric_name
   add_CI <- list_param$add_CI
+  CI_bar <- list_param$CI_bar
   
   for (i in 1:length(list_obj)){
     
@@ -387,8 +388,12 @@ plot_prop_metrics <-function(list_param){
     x<- l$avg_tb$prop
     y_sd <- unlist(as.data.frame(sd_tb)) #sd_tb
     
-    ciw <-y_sd
     #ciw2   <- qt(0.975, n) * y_sd2 / sqrt(n)
+    if (CI_bar[i]==TRUE){
+      ciw   <- qt(0.975, no) * y_sd / sqrt(no)
+    }else{
+      ciw <-y_sd
+    }
     
     #plotCI(y=y, x=x, uiw=ciw, col="red", main=paste(" MAE for ",mod_name,sep=""), barcol="blue", lwd=1,
     #       ylab="RMSE (C)", xlab=xlab_text)
@@ -448,58 +453,6 @@ plot_dst_spat_fun<-function(stat_tb,names_var,cat_val){
   legend("topleft",legend=names_var, 
          cex=1.2, pch=pch_t,col=col_t,lty=1,bty="n")
   axis(1,at=1:length(stat_tb[,1]),labels=stat_tb[,1])
-}
-
-plot_prop_metrics <-function(list_param){
-  #
-  #list_dist_obj: list of dist object 
-  #col_t: list of color for each 
-  #pch_t: symbol for line
-  #legend_text: text for line and symbol
-  #mod_name: selected models
-  #
-  ## BEGIN ##
-  
-  list_obj<-list_param$list_prop_obj
-  col_t <-list_param$col_t 
-  pch_t <- list_param$pch_t 
-  legend_text <- list_param$legend_text
-  list_mod_name<-list_param$mod_name
-  metric_name<-list_param$metric_name
-  
-  for (i in 1:length(list_obj)){
-    
-    l<-list_obj[[i]]
-    mod_name<-list_mod_name[i]
-    avg_tb<-subset(l$avg_tb,pred_mod==mod_name,select=metric_name) #selecte relevant accuarcy metric
-    n_tb<-subset(l$n_tb,pred_mod==mod_name,select=metric_name) 
-    sd_tb<-subset(l$sd_tb,pred_mod==mod_name,select=metric_name) #l$sd_abs_tb[,metric_name]
-    
-    #xlab_text<-"holdout proportion"
-    
-    no <- unlist(as.data.frame(n_tb))
-    y <- unlist(as.data.frame(avg_tb))
-    
-    x<- l$avg_tb$prop
-    y_sd <- unlist(as.data.frame(sd_tb)) #sd_tb
-    
-    ciw <-y_sd
-    #ciw2   <- qt(0.975, n) * y_sd2 / sqrt(n)    
-    ciw   <- qt(0.975, no) * y_sd / sqrt(no)
-    
-    if(i==1){
-      plotCI(y=y, x=x, uiw=ciw, col=col_t[i], barcol="blue", lwd=1,
-             ylab="", xlab="")
-      lines(y~x, col=col_t[i],pch=pch_t[i],type="b")      
-    }else{
-      lines(y~x, col=col_t[i],pch=pch_t[i],type="b")
-    }
-    
-  }
-  legend("topleft",legend=legend_text, 
-         cex=1.2, pch=pch_t,col=col_t,lty=1,bty="n")
-  #axis(1,at=1:length(stat_tb[,1]),labels=stat_tb[,1])
-  
 }
 
 #Calculate the difference between training and testing in two different data.frames. Columns to substract are provided.
