@@ -75,7 +75,13 @@ in_dir7 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_ga
 in_dir8 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_kriging_fus_lst_comb3_09122013"
 in_dir9 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_kriging_fus_lst_comb3_09132013"
 in_dir10 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_kriging_fus_lst_comb3_09142013"
+in_dir11 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_gwr_CAI_lst_comb3_09162013"
+in_dir12 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_gwr_CAI_lst_comb3_09172013"
+in_dir13 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_gwr_cai_lst_comb3_09282013"
+in_dir14 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_gwr_fus_lst_comb3_09232013"
+in_dir15 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_gwr_fus_lst_comb3_09262013"
 
+#better as list and load one by one specific element from the object
 raster_prediction_obj1 <-load_obj(file.path(in_dir1,"raster_prediction_obj_gam_CAI_dailyTmax_365d_gam_CAI_lst_comb3_08312013.RData"))
 raster_prediction_obj2 <-load_obj(file.path(in_dir2,"raster_prediction_obj_gam_CAI_dailyTmax_365d_gam_CAI_lst_comb3_09012013.RData"))
 raster_prediction_obj3 <-load_obj(file.path(in_dir3,"raster_prediction_obj_gam_CAI_dailyTmax_365d_gam_CAI_lst_comb3_09032013.RData"))
@@ -87,17 +93,25 @@ raster_prediction_obj7 <-load_obj(file.path(in_dir7,"raster_prediction_obj_gam_f
 raster_prediction_obj8 <-load_obj(file.path(in_dir8,"raster_prediction_obj_kriging_fusion_dailyTmax_365d_kriging_fus_lst_comb3_09122013.RData"))
 raster_prediction_obj9 <-load_obj(file.path(in_dir9,"raster_prediction_obj_kriging_fusion_dailyTmax_365d_kriging_fus_lst_comb3_09132013.RData"))
 raster_prediction_obj10 <-load_obj(file.path(in_dir10,"raster_prediction_obj_kriging_fusion_dailyTmax_365d_kriging_fus_lst_comb3_09142013.RData"))
+raster_prediction_obj11 <-load_obj(file.path(in_dir11,"raster_prediction_obj_gwr_CAI_dailyTmax_365d_gwr_CAI_lst_comb3_09162013.RData"))
+raster_prediction_obj12 <-load_obj(file.path(in_dir12,"raster_prediction_obj_gwr_CAI_dailyTmax_365d_gwr_CAI_lst_comb3_09172013.RData"))
+raster_prediction_obj13 <-load_obj(file.path(in_dir13,"raster_prediction_obj_gwr_CAI_dailyTmax_365d_gwr_cai_lst_comb3_09282013.RData"))
+raster_prediction_obj14 <-load_obj(file.path(in_dir14,"raster_prediction_obj_gwr_fusion_dailyTmax_365d_gwr_fus_lst_comb3_09232013.RData"))
+raster_prediction_obj15 <-load_obj(file.path(in_dir15,"raster_prediction_obj_gwr_fusion_dailyTmax_365d_gwr_fus_lst_comb3_09262013.RData"))
+
+#raster_prediction_obj_gwr_CAI_dailyTmax_365d_gwr_cai_lst_comb3_09282013.RData
+#raster_prediction_obj_gwr_fusion_dailyTmax_365d_gwr_fus_lst_comb3_09262013.RData
 
 out_dir<-"/home/parmentier/Data/IPLANT_project/paper_multitime_scale__analyses_tables_fig_09032013"
 setwd(out_dir)
 y_var_name <- "dailyTmax"
 y_var_month <- "TMax"
 #y_var_month <- "LSTD_bias"
-out_suffix <- "_OR_09132013"
+out_suffix <- "_OR_09292013"
 #script_path<-"/data/project/layers/commons/data_workflow/env_layers_scripts/"
 #### FUNCTION USED IN SCRIPT
 
-function_analyses_paper <-"contribution_of_covariates_paper_interpolation_functions_09092013.R"
+function_analyses_paper <-"contribution_of_covariates_paper_interpolation_functions_09232013.R"
 
 script_path<-"/home/parmentier/Data/IPLANT_project/env_layers_scripts/" #path to script
 source(file.path(script_path,function_analyses_paper)) #source all functions used in this script.
@@ -111,6 +125,12 @@ tb_ms_gam_CAI <-rbind(raster_prediction_obj1$tb_month_diagnostic_s,raster_predic
 tb_v_gam_CAI <-rbind(raster_prediction_obj1$tb_diagnostic_v,raster_prediction_obj2$tb_diagnostic_v,raster_prediction_obj3$tb_diagnostic_v)
 tb_s_gam_CAI <-rbind(raster_prediction_obj1$tb_diagnostic_s,raster_prediction_obj2$tb_diagnostic_s,raster_prediction_obj3$tb_diagnostic_s)
 #prop_obj_gam_CAI_v <- calc_stat_prop_tb_diagnostic(names_mod,names_id,tb_v)
+
+tb_mv_gwr_CAI <-rbind(raster_prediction_obj11$tb_month_diagnostic_v,raster_prediction_obj12$tb_month_diagnostic_v,raster_prediction_obj13$tb_month_diagnostic_v)
+tb_ms_gwr_CAI <-rbind(raster_prediction_obj11$tb_month_diagnostic_s,raster_prediction_obj12$tb_month_diagnostic_s,raster_prediction_obj13$tb_month_diagnostic_s)
+
+tb_v_gwr_CAI <-rbind(raster_prediction_obj11$tb_diagnostic_v,raster_prediction_obj12$tb_diagnostic_v,raster_prediction_obj13$tb_diagnostic_v)
+tb_s_gwr_CAI <-rbind(raster_prediction_obj11$tb_diagnostic_s,raster_prediction_obj12$tb_diagnostic_s,raster_prediction_obj13$tb_diagnostic_s)
 
 tb_mv_kriging_CAI <- raster_prediction_obj4$tb_month_diagnostic_v
 tb_ms_kriging_CAI <- raster_prediction_obj4$tb_month_diagnostic_s
@@ -126,24 +146,37 @@ tb_ms_gam_fus <-rbind(raster_prediction_obj5$tb_month_diagnostic_s,raster_predic
 tb_v_gam_fus <-rbind(raster_prediction_obj5$tb_diagnostic_v,raster_prediction_obj6$tb_diagnostic_v,raster_prediction_obj7$tb_diagnostic_v)
 tb_s_gam_fus <-rbind(raster_prediction_obj5$tb_diagnostic_s,raster_prediction_obj6$tb_diagnostic_s,raster_prediction_obj7$tb_diagnostic_s)
 
+tb_mv_gwr_fus <-rbind(raster_prediction_obj14$tb_month_diagnostic_v,raster_prediction_obj15$tb_month_diagnostic_v)
+tb_ms_gwr_fus <-rbind(raster_prediction_obj14$tb_month_diagnostic_s,raster_prediction_obj15$tb_month_diagnostic_s)
+
+tb_v_gwr_fus <-rbind(raster_prediction_obj14$tb_diagnostic_v,raster_prediction_obj15$tb_diagnostic_v)
+tb_s_gwr_fus <-rbind(raster_prediction_obj14$tb_diagnostic_s,raster_prediction_obj15$tb_diagnostic_s)
+
 tb_mv_kriging_fus <-rbind(raster_prediction_obj8$tb_month_diagnostic_v,raster_prediction_obj9$tb_month_diagnostic_v,raster_prediction_obj10$tb_month_diagnostic_v)
 tb_ms_kriging_fus <-rbind(raster_prediction_obj8$tb_month_diagnostic_s,raster_prediction_obj9$tb_month_diagnostic_s,raster_prediction_obj10$tb_month_diagnostic_s)
 
 tb_v_kriging_fus <-rbind(raster_prediction_obj8$tb_diagnostic_v,raster_prediction_obj9$tb_diagnostic_v,raster_prediction_obj10$tb_diagnostic_v)
 tb_s_kriging_fus <-rbind(raster_prediction_obj8$tb_diagnostic_s,raster_prediction_obj9$tb_diagnostic_s,raster_prediction_obj10$tb_diagnostic_s)
 
-#list_tb <-list(tb_v_gam_CAI,tb_v_kriging_CAI,tb_s_gam_CAI,tb_s_kriging_CAI,tb_mv_gam_CAI,tb_mv_kriging_CAI,tb_ms_gam_CAI,tb_ms_kriging_CAI) #Add fusion here
-#names(list_tb) <- c("tb_v_gam_CAI","tb_v_kriging_CAI","tb_s_gam_CAI","tb_s_kriging_CAI","tb_mv_gam_CAI","tb_mv_kriging_CAI","tb_ms_gam_CAI","tb_ms_kriging_CAI") #Add fusion here
+list_tb <- list(tb_v_gam_CAI,tb_v_kriging_CAI,tb_v_gwr_CAI,tb_s_gam_CAI,tb_s_kriging_CAI,tb_s_gwr_CAI,
+           tb_mv_gam_CAI,tb_mv_kriging_CAI,tb_mv_gwr_CAI,tb_ms_gam_CAI,tb_ms_kriging_CAI,tb_ms_gwr_CAI,
+           tb_v_gam_fus,tb_v_kriging_fus,tb_v_gwr_fus,tb_s_gam_fus,tb_s_kriging_fus,tb_s_gwr_fus,
+           tb_mv_gam_fus,tb_mv_kriging_fus,tb_mv_gwr_fus,tb_ms_gam_fus,tb_ms_kriging_fus,tb_ms_gwr_fus)
 
-list_tb <-list(tb_v_gam_CAI,tb_v_kriging_CAI,tb_s_gam_CAI,tb_s_kriging_CAI,tb_mv_gam_CAI,tb_mv_kriging_CAI,tb_ms_gam_CAI,tb_ms_kriging_CAI, #Add fusion here
-               tb_v_gam_fus,tb_v_kriging_fus,tb_s_gam_fus,tb_s_kriging_fus,tb_mv_gam_fus,tb_mv_kriging_fus,tb_ms_gam_fus,tb_ms_kriging_fus) #Add fusion here
-names(list_tb) <- c("tb_v_gam_CAI","tb_v_kriging_CAI","tb_s_gam_CAI","tb_s_kriging_CAI","tb_mv_gam_CAI","tb_mv_kriging_CAI","tb_ms_gam_CAI","tb_ms_kriging_CAI", #Add fusion here
-                   "tb_v_gam_fus","tb_v_kriging_fus","tb_s_gam_fus","tb_s_kriging_fus","tb_mv_gam_fus","tb_mv_kriging_fus","tb_ms_gam_fus","tb_ms_kriging_fus") #Add fusion here
+names(list_tb) <- c("tb_v_gam_CAI","tb_v_kriging_CAI","tb_v_gwr_CAI","tb_s_gam_CAI","tb_s_kriging_CAI","tb_s_gwr_CAI",
+        "tb_mv_gam_CAI","tb_mv_kriging_CAI","tb_mv_gwr_CAI","tb_ms_gam_CAI","tb_ms_kriging_CAI","tb_ms_gwr_CAI",
+        "tb_v_gam_fus","tb_v_kriging_fus","tb_v_gwr_fus","tb_s_gam_fus","tb_s_kriging_fus","tb_s_gwr_fus",
+        "tb_mv_gam_fus","tb_mv_kriging_fus","tb_mv_gwr_fus","tb_ms_gam_fus","tb_ms_kriging_fus","tb_ms_gwr_fus")
 
-##### DAILY AVERAGE ACCURACY : PLOT AND DIFFERENCES...
+#list_tb <-list(tb_v_gam_CAI,tb_v_kriging_CAI,tb_v_gwr_CAI,tb_s_gam_CAI,tb_s_kriging_CAI,tb_s_gwr_CAI,tb_mv_gam_CAI,tb_mv_kriging_CAI,tb_ms_gam_CAI,tb_ms_kriging_CAI,tb_ms_gwr_CAI,tb_ms_gwr_CAI #Add fusion here
+#               tb_v_gam_fus,tb_v_kriging_fus,tb_s_gam_fus,tb_s_kriging_fus,tb_mv_gam_fus,tb_mv_kriging_fus,tb_ms_gam_fus,tb_ms_kriging_fus) #Add fusion here
+#names(list_tb) <- c("tb_v_gam_CAI","tb_v_kriging_CAI","tb_v_gwr_CAI","tb_s_gam_CAI","tb_s_kriging_CAI","tb_s_gwr_CAI","tb_mv_gam_CAI","tb_mv_kriging_CAI","tb_ms_gam_CAI","tb_ms_kriging_CAI","tb_ms_gwr_CAI","tb_ms_gwr_CAI" #Add fusion here
+#                   "tb_v_gam_fus","tb_v_kriging_fus","tb_s_gam_fus","tb_s_kriging_fus","tb_mv_gam_fus","tb_mv_kriging_fus","tb_ms_gam_fus","tb_ms_kriging_fus") #Add fusion here
+
+##### DAILY AVERAGE ACCURACY : PLOT AND DIFFERENCES...Cd
 
 for(i in 1:length(list_tb)){
-  i <- i+1
+  #i <- i+1
   tb <-list_tb[[i]]
   plot_name <- names(list_tb)[i]
   pat_str <- "tb_m"
@@ -167,13 +200,14 @@ for(i in 1:length(list_tb)){
   png(paste("Figure__accuracy_rmse_prop_month_",plot_name,out_suffix,".png", sep=""),
       height=480*layout_m[1],width=480*layout_m[2])
     
-  xyplot(as.formula(plot_formula),group=pred_mod,type="b",
+  p<- xyplot(as.formula(plot_formula),group=pred_mod,type="b",
           data=avg_tb,
           main=paste("rmse ",plot_name,sep=" "),
           pch=1:length(avg_tb$pred_mod),
           par.settings=list(superpose.symbol = list(
           pch=1:length(avg_tb$pred_mod))),
           auto.key=list(columns=5))
+  print(p)
   
   dev.off()
   
@@ -199,32 +233,71 @@ diff_df<-function(tb_s,tb_v,list_metric_names){
 metric_names <- c("mae","rmse","me","r")
 diff_kriging_CAI <- diff_df(tb_s_kriging_CAI,tb_v_kriging_CAI,metric_names)
 diff_gam_CAI <- diff_df(tb_s_gam_CAI,tb_v_gam_CAI,metric_names)
+diff_gwr_CAI <- diff_df(tb_s_gwr_CAI,tb_v_gwr_CAI,metric_names)
 
-boxplot(diff_kriging_CAI$rmse,diff_gam_CAI$rmse,names=c("kriging_CAI","gam_CAI"),
+layout_m<-c(1,1) #one row two columns
+par(mfrow=layout_m)
+
+png(paste("Figure__accuracy_rmse_prop_month_",plot_name,out_suffix,".png", sep=""),
+    height=480*layout_m[1],width=480*layout_m[2])
+boxplot(diff_kriging_CAI$rmse,diff_gam_CAI$rmse,diff_gwr_CAI$rmse,names=c("kriging_CAI","gam_CAI","gwr_CAI"),
+        main="Difference between training and testing daily rmse")
+dev.off()
+
+#remove prop 0,
+diff_kriging_CAI <- diff_df(tb_s_kriging_CAI[tb_s_kriging_CAI$prop_month!=0,],tb_v_kriging_CAI[tb_v_kriging_CAI$prop_month!=0,],metric_names)
+diff_gam_CAI <- diff_df(tb_s_gam_CAI[tb_s_gam_CAI$prop_month!=0,],tb_v_gam_CAI[tb_v_gam_CAI$prop_month!=0,],metric_names)
+diff_gwr_CAI <- diff_df(tb_s_gwr_CAI[tb_s_gwr_CAI$prop_month!=0,],tb_v_gwr_CAI[tb_v_gwr_CAI$prop_month!=0,],metric_names)
+boxplot(diff_kriging_CAI$rmse,diff_gam_CAI$rmse,diff_gwr_CAI$rmse,names=c("kriging_CAI","gam_CAI","gwr_CAI"),
         main="Difference between training and testing daily rmse")
 
+#now monthly accuracy
 metric_names <- c("mae","rmse","me","r")
-diff_kriging_m_CAI <- diff_df(tb_ms_kriging_CAI,tb_mv_kriging_CAI,metric_names)
-diff_gam_m_CAI <- diff_df(tb_ms_gam_CAI,tb_mv_gam_CAI,metric_names)
+diff_kriging_m_CAI <- diff_df(tb_ms_kriging_CAI[tb_ms_kriging_CAI$prop!=0,],tb_mv_kriging_CAI,metric_names)
+diff_gam_m_CAI <- diff_df(tb_ms_gam_CAI[tb_ms_gam_CAI$prop!=0,],tb_mv_gam_CAI,metric_names)
+diff_gwr_m_CAI <- diff_df(tb_ms_gwr_CAI[tb_ms_gwr_CAI$prop!=0,],tb_mv_gwr_CAI,metric_names)
 
-boxplot(diff_kriging_m_CAI$rmse,diff_gam_m_CAI$rmse,names=c("kriging_CAI","gam_CAI"),
+layout_m<-c(1,1) #one row two columns
+par(mfrow=layout_m)
+
+png(paste("Figure__accuracy_rmse_prop_month_",plot_name,out_suffix,".png", sep=""),
+    height=480*layout_m[1],width=480*layout_m[2])
+boxplot(diff_kriging_m_CAI$rmse,diff_gam_m_CAI$rmse,diff_gwr_m_CAI$rmse,names=c("kriging_CAI","gam_CAI","gwr_CAI"),
         main="Difference between training and monhtly testing rmse")
+dev.off()
+
+#boxplot(diff_kriging_m_CAI$rmse,diff_gam_m_CAI$rmse,diff_gwr_CAI,names=c("kriging_CAI","gam_CAI","gwr_CAI"),
+#        main="Difference between training and monhtly testing rmse")
 
 ### For fusion
 
 metric_names <- c("mae","rmse","me","r")
 diff_kriging_fus <- diff_df(tb_s_kriging_fus,tb_v_kriging_fus,metric_names)
 diff_gam_fus <- diff_df(tb_s_gam_fus,tb_v_gam_fus,metric_names)
+diff_gwr_fus <- diff_df(tb_s_gwr_fus,tb_v_gwr_fus,metric_names)
 
-boxplot(diff_kriging_fus$rmse,diff_gam_fus$rmse,names=c("kriging_fus","gam_fus"),
+layout_m<-c(1,1) #one row two columns
+par(mfrow=layout_m)
+
+png(paste("Figure__accuracy_rmse_prop_month_",plot_name,out_suffix,".png", sep=""),
+    height=480*layout_m[1],width=480*layout_m[2])
+boxplot(diff_kriging_fus$rmse,diff_gam_fus$rmse,diff_gwr_fus$rmse,names=c("kriging_fus","gam_fus","gwr_fus"),
         main="Difference between training and testing daily rmse")
+dev.off()
 
 metric_names <- c("mae","rmse","me","r")
-diff_kriging_m_fus <- diff_df(tb_ms_kriging_fus,tb_mv_kriging_fus,metric_names)
-diff_gam_m_fus <- diff_df(tb_ms_gam_fus,tb_mv_gam_fus,metric_names)
+diff_kriging_m_fus <- diff_df(tb_ms_kriging_fus[tb_ms_kriging_fus$prop!=0,],tb_mv_kriging_fus[tb_mv_kriging_fus$prop!=0,],metric_names)
+diff_gam_m_fus <- diff_df(tb_ms_gam_fus[tb_ms_gam_fus$prop!=0,],tb_mv_gam_fus[tb_mv_gam_fus$prop!=0,],metric_names)
+diff_gwr_m_fus <- diff_df(tb_ms_gwr_fus[tb_ms_gwr_fus$prop!=0,],tb_mv_gwr_fus[tb_mv_gwr_fus$prop!=0,],metric_names)
 
-boxplot(diff_kriging_m_fus$rmse,diff_gam_m_fus$rmse,names=c("kriging_fus","gam_fus"),
+layout_m<-c(1,1) #one row two columns
+par(mfrow=layout_m)
+
+png(paste("Figure__accuracy_rmse_prop_month_",plot_name,out_suffix,".png", sep=""),
+    height=480*layout_m[1],width=480*layout_m[2])
+boxplot(diff_kriging_m_fus$rmse,diff_gam_m_fus$rmse,diff_gwr_m_fus$rmse, names=c("kriging_fus","gam_fus","gwr_fus"),
         main="Difference between training and testing FUS rmse")
+dev.off()
 
 ### NOW PLOT OF COMPARISON BETWEEN Kriging and GAM
 
@@ -235,7 +308,7 @@ tb_v_gam_fus
 tb_v_kriging_CAI
 tb_v_kriging_fus
 
-methods_names <- c("tb_v_gam_CAI","tb_v_gam_fus","tb_v_kriging_CAI","tb_v_kriging_fus")
+methods_names <- c("tb_v_gam_CAI","tb_v_gam_fus","tb_v_kriging_CAI","tb_v_kriging_fus","tb_v_gwr_CAI","tb_v_gwr_fus")
 list_prop_obj <- vector("list",length=length(methods_names))
 for(i in 1:length(methods_names)){
   tb <- list_tb[[methods_names[i]]]
@@ -248,7 +321,7 @@ for(i in 1:length(methods_names)){
 
 ac_prop_tb_list <- extract_list_from_list_obj(list_prop_obj,"avg_tb")
 nb_rows <- sapply(ac_prop_tb_list,FUN=nrow)
-method_interp_names<-c("gam_CAI","gam_fus","kriging_CAI","kriging_fus")
+method_interp_names<-c("gam_CAI","gam_fus","kriging_CAI","kriging_fus","gwr_CAI","gwr_fus")
 for(i in 1:length(methods_names)){
   avg_tb<-ac_prop_tb_list[[i]]
   avg_tb$method_interp <-rep(x=method_interp_names[i],times=nb_rows[i])
@@ -258,12 +331,13 @@ for(i in 1:length(methods_names)){
 
 #names(ac_prop_tb_list) <- names(list_prop_obj)
 
-t44 <- do.call(rbind,ac_prop_tb_list)
+t44 <- do.call(rbind,ac_prop_tb_list) #contains all accuracy by method, proportion, model, sample etc.
 View(t44)
 
-t44[which.min(t44$rmse),]
+t44[which.min(t44$rmse),] #Find the mimum rmse across all models and methods...
 
 test <- t44[order(t44$rmse),]
+test[1:24,]
 
 test2<-test[test$method_interp%in% c("gam_fus","gam_CAI"),]
 test2[1:24,]
