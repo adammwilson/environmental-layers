@@ -13,66 +13,70 @@
 #5)stack of covariates: not needed at this this stage
 #6)dst: data at the monthly time scale
 
-#Function used in the script
+#Functions used in the script
+calc_val_metrics<-function(x,y){
+  #This functions calculates accurayc metrics on given two vectors.
+  #Arguments: list of fitted models, raster stack of covariates
+  #Output: spatial grid data frame of the subset of tiles
+  #s_sgdf<-as(r_stack,"SpatialGridDataFrame") #Conversion to spatial grid data frame
+  
+  residuals<-x-y
+  mae<-mean(abs(residuals),na.rm=T)
+  rmse<-sqrt(mean((residuals)^2,na.rm=T))
+  me<-mean(residuals,na.rm=T)
+  r<-cor(x,y,use="complete")
+  m50<-median(residuals,na.rm=T)
+  metrics_dat<-as.data.frame(cbind(mae,rmse,me,r,m50))
+  names(metrics_dat)<-c("mae","rmse","me","r","m50")
+  metrics_obj<-list(metrics_dat,as.data.frame(residuals))
+  names(metrics_obj)<-c("metrics_dat","residuals")
+  return(metrics_obj)
+}
 
+calc_val_metrics_rast <-function(df,y_ref,pred_names){
+  #Input parameters:
+  #1) df: data frame containing the observed and predicted variables (data_s or data_v)
+  #2) y_ref: observed variable correspond to y_var_name??
+  #3) pred_names: models run containig predicted values
+  
+  # library
+  library(maptools)
+  
+  ## START SCRIPT
+  
+  list_metrics<-vector("list",length(pred_names))
+  list_residuals<-vector("list",length(pred_names))
+  names(list_metrics)<-pred_names
+  names(list_residuals)<-pred_names
+  for (j in 1:length(pred_names)){
+    pred_var<-pred_names[j]
+    metrics<-calc_val_metrics(df[[pred_var]],df[[y_ref]])
+    list_metrics[[j]]<-metrics[[1]]
+    list_residuals[[j]]<-metrics[[2]]
+  }
+  metrics_df<-do.call(rbind,list_metrics)
+  metrics_df$pred_mod <- pred_names #adding name column
+  residuals_df<-do.call(cbind,list_residuals) #creating data frame for residuals
+  names(residuals_df)<-paste("res",pred_names,sep="_")
+  
+  accuracy_obj<-list(metrics_df,residuals_df) #output object
+  names(accuracy_obj)<-c("metrics","residuals") 
+  return(accuracy_obj)
+}  
+
+### Main function to compute training and testing accuracy statistics
 calculate_accuracy_metrics<-function(i,list_param){
   library(plyr)
   ### Caculate accuracy metrics
-  calc_val_metrics<-function(x,y){
-    #This functions calculates accurayc metrics on given two vectors.
-    #Arguments: list of fitted models, raster stack of covariates
-    #Output: spatial grid data frame of the subset of tiles
-    #s_sgdf<-as(r_stack,"SpatialGridDataFrame") #Conversion to spatial grid data frame
-    
-    residuals<-x-y
-    mae<-mean(abs(residuals),na.rm=T)
-    rmse<-sqrt(mean((residuals)^2,na.rm=T))
-    me<-mean(residuals,na.rm=T)
-    r<-cor(x,y,use="complete")
-    m50<-median(residuals,na.rm=T)
-    metrics_dat<-as.data.frame(cbind(mae,rmse,me,r,m50))
-    names(metrics_dat)<-c("mae","rmse","me","r","m50")
-    metrics_obj<-list(metrics_dat,as.data.frame(residuals))
-    names(metrics_obj)<-c("metrics_dat","residuals")
-    return(metrics_obj)
-  }
-  
-  calc_val_metrics_rast <-function(df,y_ref,pred_names){
-    #Input parameters:
-    #1) df: data frame containing the observed and predicted variables (data_s or data_v)
-    #2) y_ref: observed variable correspond to y_var_name??
-    #3) pred_names: models run containig predicted values
-    
-    # library
-    library(maptools)
-    
-    ## START SCRIPT
-    
-    list_metrics<-vector("list",length(pred_names))
-    list_residuals<-vector("list",length(pred_names))
-    names(list_metrics)<-pred_names
-    names(list_residuals)<-pred_names
-    for (j in 1:length(pred_names)){
-      pred_var<-pred_names[j]
-      metrics<-calc_val_metrics(df[[pred_var]],df[[y_ref]])
-      list_metrics[[j]]<-metrics[[1]]
-      list_residuals[[j]]<-metrics[[2]]
-    }
-    metrics_df<-do.call(rbind,list_metrics)
-    metrics_df$pred_mod <- pred_names #adding name column
-    residuals_df<-do.call(cbind,list_residuals) #creating data frame for residuals
-    names(residuals_df)<-paste("res",pred_names,sep="_")
-    
-    accuracy_obj<-list(metrics_df,residuals_df) #output object
-    names(accuracy_obj)<-c("metrics","residuals") 
-    return(accuracy_obj)
-  }  
   
   ############### BEGIN SCRIPT ###########
   
   #PARSING INPUT PARAMETERS
   out_path <- list_param$out_path
   day_list <- list_param$rast_day_year_list[[i]] #this is the list of raster files, may be daily or monthly predictions
+  if(class(day_list[[1]])=="list"){
+    day_list<-unlist(day_list)
+  }
   names_mod <- names(day_list) #names of the predicted variables
 
   y_ref <- list_param$y_ref  #This is the reference variable from which resituals and accuracy metrics are created
