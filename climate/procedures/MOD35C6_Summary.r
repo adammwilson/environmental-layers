@@ -17,7 +17,8 @@ if(!file.exists("data/MOD35C6_2009.tif")){
 #  system("gdalbuildvrt data/MOD35C6.vrt `find /home/adamw/acrobates/adamw/projects/interp/data/modis/mod35/summary/ -name '*h[1]*_mean.nc'` ")
 
   system("align.sh data/MOD35C6.vrt data/MOD09_2009.tif data/MOD35C6_2009.tif")
-  system("/usr/local/bin/pkcreatect -min 0 -max 100 -g -i data/MOD35C6_2009.tif -o data/MOD35C6_2009a.tif -ct none -co COMPRESS=LZW")
+  ## add color bar
+  system("/usr/local/bin/pkcreatect -min 0 -max 100 -g -i data/MOD35C6_2009.tif -o data/MOD35C6_2009.tif -ct none -co COMPRESS=LZW")
 #  system("align.sh data/MOD35C6_CFday_pmiss.vrt data/MOD09_2009.tif data/MOD35C6_CFday_pmiss.tif")
 }
 mod35c6=raster("data/MOD35C6_2009_v1.tif")

@@ -22,14 +22,14 @@ NAvalue(mod35c5)=0
 
 ## mod35C6 annual
 if(!file.exists("data/MOD35C6_2009.tif")){
-#  system("/usr/local/gdal-1.10.0/bin/gdalbuildvrt  -a_srs '+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs' -sd 1 -b 1 data/MOD35C6.vrt `find /home/adamw/acrobates/adamw/projects/interp/data/modis/mod35/summary/ -name '*h[1]*_mean.nc'` ")
-  system("gdalbuildvrt data/MOD35C6.vrt `find /home/adamw/acrobates/adamw/projects/interp/data/modis/mod35/summary/ -name '*h[1]*_mean.nc'` ")
+  system("/usr/local/gdal-1.10.0/bin/gdalbuildvrt  -a_srs '+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs' -sd 1 -b 1 data/MOD35C6.vrt `find /home/adamw/acrobates/adamw/projects/interp/data/modis/mod35/summary/ -name '*h[1-9]*_mean.nc'` ")
+#  system("gdalbuildvrt data/MOD35C6.vrt `find /home/adamw/acrobates/adamw/projects/interp/data/modis/mod35/summary/ -name '*h[1-9]*_mean.nc'` ")
 
-  system("/usr/local/gdal-1.10.0/bin/gdalbuildvrt -a_srs '+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs' -sd 4 -b 1 data/MOD35C6_CFday_pmiss.vrt `find /home/adamw/acrobates/adamw/projects/interp/data/modis/mod35/summary/ -name '*h[1]*.nc'` ")
-  system("gdalwarp data/MOD35C6_CFday_pmiss.vrt data/MOD35C6_CFday_pmiss.tif -r bilinear")
+#  system("/usr/local/gdal-1.10.0/bin/gdalbuildvrt -a_srs '+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs' -sd 4 -b 1 data/MOD35C6_CFday_pmiss.vrt `find /home/adamw/acrobates/adamw/projects/interp/data/modis/mod35/summary/ -name '*h[1]*.nc'` ")
+#  system("gdalwarp data/MOD35C6_CFday_pmiss.vrt data/MOD35C6_CFday_pmiss.tif -r bilinear")
 
   system("align.sh data/MOD35C6.vrt data/MOD09_2009.tif data/MOD35C6_2009.tif")
-  system("align.sh data/MOD35C6_CFday_pmiss.vrt data/MOD09_2009.tif data/MOD35C6_CFday_pmiss.tif")
+#  system("align.sh data/MOD35C6_CFday_pmiss.vrt data/MOD09_2009.tif data/MOD35C6_CFday_pmiss.tif")
 }
 mod35c6=raster("data/MOD35C6_2009.tif")
 names(mod35c6)="C6MOD35CF"
@@ -212,43 +212,23 @@ dif_c5_09=raster("data/dif_c5_09.tif",format="GTiff")
 #dif_c6_09=mod35c6-mod09
 #dif_c5_c6=mod35c5-mod35c6
 
-## exploring various ways to compare cloud products along landcover or processing path edges
-t1=trd1[[1]]
-dif_p=calc(trd1[[1]], function(x) (x[1]-x[3])/(1-x[1]))
-edge=calc(edge(subset(t1,"MCD12Q1"),classes=T,type="inner"),function(x) ifelse(x==1,1,NA))
-edgeb=buffer(edge,width=5000)
-edgeb=calc(edgeb,function(x) ifelse(is.na(x),0,1))
-names(edge)="edge"
-names(edgeb)="edgeb"
-
-pedge=calc(edge(subset(t1,"MOD35pp"),classes=T,type="inner"),function(x) ifelse(x==1,1,NA))
-pedgeb=buffer(pedge,width=3000)
-pedgeb=calc(pedgeb,function(x) ifelse(is.na(x),0,1))
-names(pedgeb)="pedgeb"
-
-td1=as.data.frame(stack(t1,edgeb,pedgeb))
-td1l=melt(td1,id.vars=c("pedgeb","edgeb","MOD35pp","MCD12Q1"),measure.vars=c("C5MOD35CF","C6MOD35CF","C5MOD09CF"))
-td1l=td1l[td1l$pedgeb==1|td1l$edgeb==1,]
-
-cast(MOD35pp~MCD12Q1~variable,fun.aggregate="mean",data=td1l)
-
-## Moving window
-tiles=expand.grid(xmin=seq(-180,170,by=10),ymin=seq(-60,80,by=10))
-tiles$xmax=tiles$xmin+10;tiles$ymax=tiles$ymin+10
-
-
-registerDoMC(10)
+##################################################################################
+## Identify problematic areas with hard edges in cloud frequency
 ############################
-writeLines(c(""), "log.txt")
+library(multicore)
+
+## set up processing chunks
 nrw=nrow(mod35c5)
 nby=10
 nrwg=seq(1,nrw,by=nby)
-writeLines(paste("Processing ",length(nrwg)," groups"))
+writeLines(paste("Processing ",length(nrwg)," groups and",nrw,"lines"))
 
+## Parallel loop to conduct moving window analysis and quantify pixels with significant shifts across pp or lulc boundaries
 output=mclapply(nrwg,function(ti){
   ## Extract focal areas 
   ngb=5
   vals=getValuesFocal(mod35c5,ngb=ngb,row=ti,nrows=nby)
+  vals_mod09=getValuesFocal(mod09,ngb=ngb,row=ti,nrows=nby)
   pp_ind=getValuesFocal(pp,ngb=ngb,row=ti,nrows=nby)
   lulc_ind=getValuesFocal(lulc,ngb=ngb,row=ti,nrows=nby)
   ## processing path
@@ -258,11 +238,12 @@ output=mclapply(nrwg,function(ti){
     tind2=tind1[!is.na(tind1)&!is.na(tval1)]  #which classes exist without NAs?
     if(length(unique(tind2))<2) return(255)  #if only one class, return 255
     if(sort(table(tind2),dec=T)[2]<5) return(254) # if too few observations of class 2, return 254
-    round(kruskal.test(tval1,tind1)$p.value*100)         # if it works, return p.value*100
+    return(round(kruskal.test(tval1,tind1)$p.value*100))         # if it works, return p.value*100
   })),nrow=nby,ncol=ncol(mod35c5),byrow=T))     # turn it back into a raster
   ## udpate raster and write it
   extent(pp_bias)=extent(mod35c5[ti:(ti+nby-1),1:ncol(mod35c5),drop=F])
   projection(pp_bias)=projection(mod35c5)
+  NAvalue(pp_bias) <- 255
   writeRaster(pp_bias,file=paste("data/tiles/pp_bias_",ti,".tif",sep=""),
               format="GTiff",dataType="INT1U",overwrite=T,NAflag=255) #,options=c("COMPRESS=LZW","ZLEVEL=9")
   ## landcover
@@ -272,36 +253,33 @@ output=mclapply(nrwg,function(ti){
     tind2=tind1[!is.na(tind1)&!is.na(tval1)]  #which classes exist without NAs?
     if(length(unique(tind2))<2) return(255)  #if only one class, return 255
     if(sort(table(tind2),dec=T)[2]<5) return(254) # if too few observations of class 2, return 254
-    round(kruskal.test(tval1,tind1)$p.value*100)         # if it works, return p.value*100
+    return(round(kruskal.test(tval1,tind1)$p.value*100))         # if it works, get p.value*100
   })),nrow=nby,ncol=ncol(mod35c5),byrow=T))     # turn it back into a raster
   ## udpate raster and write it
   extent(lulc_bias)=extent(mod35c5[ti:(ti+nby-1),1:ncol(mod35c5),drop=F])
   projection(lulc_bias)=projection(mod35c5)
+  NAvalue(lulc_bias) <- 255
   writeRaster(lulc_bias,file=paste("data/tiles/lulc_bias_",ti,".tif",sep=""),
-              format="GTiff",dataType="INT1U",overwrite=T,NAflag=255) #,options=c("COMPRESS=LZW","ZLEVEL=9")
+              format="GTiff",dataType="INT1U",overwrite=T,NAflag=255)#,options=c("COMPRESS=LZW","ZLEVEL=9")
+
+    ## MOD09
+  mod09_lulc_bias=raster(matrix(do.call(rbind,lapply(1:nrow(vals_mod09),function(i) {
+    tind1=lulc_ind[i,]  #vector of indices
+    tval1=vals_mod09[i,]    # vector of values
+    tind2=tind1[!is.na(tind1)&!is.na(tval1)]  #which classes exist without NAs?
+    if(length(unique(tind2))<2) return(255)  #if only one class, return 255
+    if(sort(table(tind2),dec=T)[2]<5) return(254) # if too few observations of class 2, return 254
+    return(round(kruskal.test(tval1,tind1)$p.value*100))         # if it works, get p.value*100
+  })),nrow=nby,ncol=ncol(mod35c5),byrow=T))     # turn it back into a raster
+  ## udpate raster and write it
+  extent(mod09_lulc_bias)=extent(mod09[ti:(ti+nby-1),1:ncol(mod09),drop=F])
+  projection(mod09_lulc_bias)=projection(mod09)
+  NAvalue(mod09_lulc_bias) <- 255
+  writeRaster(mod09_lulc_bias,file=paste("data/tiles/mod09_lulc_bias_",ti,".tif",sep=""),
+              format="GTiff",dataType="INT1U",overwrite=T,NAflag=255)#,options=c("COMPRESS=LZW","ZLEVEL=9")
+
   return(ti)
-},mc.cores=10)
-
-
-
-## original solution
-#  pp_bias=raster(matrix(do.call(rbind,lapply(1:nrow(vals),function(i) {
-#    if(length(unique(na.omit(pp_ind[i,])))<2) return(255)
-#    if(sort(table(pp_ind[i,]),dec=T)[2]<5) return(254)
-#    kruskal.test(vals[i,],pp_ind[i,])$p.value*100
-#  })),nrow=nrow(t_mod35c5),ncol=ncol(t_mod35c5),byrow=T))
-#  extent(pp_bias)=extent(t_mod35c5)
-#  writeRaster(pp_bias,file=paste("data/tiles/pp_bias_",ti,".tif",sep=""),
-#              format="GTiff",dataType="INT1U",options=c("COMPRESS=LZW","ZLEVEL=9"),overwrite=T)
-  ## Run kruskal test for processing lulc bias
-#  lulc_bias=raster(matrix(do.call(rbind,mclapply(1:nrow(vals),function(i) {
-#    if(length(unique(na.omit(lulc_ind[i,])))<2) return(NA)
-#    if(sort(table(lulc_ind[i,]),dec=T)[2]<5) return(255)
-#    kruskal.test(vals[i,],lulc_ind[i,])$p.value*100
-#  })),nrow=nrow(t_mod35c5),ncol=ncol(t_mod35c5),byrow=T))
-#  extent(lulc_bias)=extent(t_mod35c5)
-#  writeRaster(lulc_bias,dataType="INT1U",file=paste("data/tiles/lulc_bias_",ti,".tif",sep=""),
-#              format="GTiff",options=c("COMPRESS=LZW","ZLEVEL=9"),overwrite=T)
+},mc.cores=15)
 
 
 ### check raster temporary files
@@ -309,24 +287,34 @@ showTmpFiles()
 #removeTmpFiles(h=1)
 
 ## merge all the files back again
-  system("gdalbuildvrt data/lulc_bias.vrt `find data/tiles -name 'lulc_bias*tif'` ")
-  system("gdalwarp -co 'COMPRESS=LZW' -co 'ZLEVEL=9' data/lulc_bias.vrt data/lulc_bias.tif -r near")
+  system("gdalbuildvrt -srcnodata 255 -vrtnodata 255 data/lulc_bias.vrt `find data/tiles -name 'lulc_bias*tif'` ")
+  system("gdalwarp -srcnodata 255 -dstnodata 255 -multi -r bilinear -co 'COMPRESS=LZW' -co 'ZLEVEL=9' data/lulc_bias.vrt data/lulc_bias.tif -r near")
+#  system("align.sh data/lulc_bias.vrt data/MOD09_2009.tif data/lulc_bias.tif")
 
   system("gdalbuildvrt data/pp_bias.vrt `find data/tiles -name 'pp_bias*tif'` ")
-  system("gdalwarp -co 'COMPRESS=LZW' -co 'ZLEVEL=9' data/pp_bias.vrt data/pp_bias.tif -r near")
+  system("gdalwarp -srcnodata 255 -dstnodata 255 -multi -r bilinear -co 'COMPRESS=LZW' -co 'ZLEVEL=9' data/pp_bias.vrt data/pp_bias.tif -r near")
+  system("align.sh -srcnodata 255 -dstnodata 255 -multi -r bilinear data/pp_bias.vrt data/MOD09_2009.tif data/pp_bias_align.tif &")
 
+  system("gdalbuildvrt data/mod09_lulc_bias.vrt `find data/tiles -name 'mod09_lulc_bias*tif'` ")
+  system("gdalwarp -srcnodata 255 -dstnodata 255 -multi -r bilinear -co 'COMPRESS=LZW' -co 'ZLEVEL=9' data/mod09_lulc_bias.vrt data/mod09_lulc_bias.tif -r near")
 
-#plot(stack(foc,x1))
-pat=c(-0.02,seq(0,0.1,len=50),seq(0.1,1,len=50))
-grayr2=colorRampPalette(c("red",grey(c(.75,.5,.25))))
-levelplot(stack(pp_bias,lulc_bias),col.regions=c("cyan",grayr2(100)),at=pat,colorkey=list(at=pat,cuts=100),margin=F)
+### read them back in
+pp_bias=raster("data/pp_bias.tif")
+names(pp_bias)="Processing Path"
+lulc_bias=raster("data/lulc_bias.tif")
+names(lulc_bias)="Land Use Land Cover"
+
+pat=c(0,0.05,1)#seq(0,0.-5,len=2) #,seq(0.05,.1,len=50))
+grayr2=colorRampPalette(c("red","transparent"))#grey(c(.75,.5,.25))))
+levelplot(stack(pp_bias,lulc_bias),col.regions=c(grayr2(2)),at=pat,
+          colorkey=F,margin=F,maxpixels=1e6)+layer(sp.lines(coast,lwd=.5))
 
 cor(td1$MOD17,td1$C6MOD35,use="complete",method="spearman")
 cor(td1$MOD17[td1$edgeb==1],td1$C5MOD35[td1$edgeb==1],use="complete",method="spearman")
 
 bwplot(value~MOD35pp|variable,data=td1l[td1l$pedgeb==1,],horizontal=F)
 
-
+crosstab(dif_c5_09,pp)
 ### Correlations
 #trdw=cast(trd,trans+x+y~variable,value="value")
 #cor(trdw$MOD17,trdw$C5MOD35,use="complete",method="spearman")
