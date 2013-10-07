@@ -8,7 +8,7 @@
 # 5)runGAMFusion <- function(i,list_param) : daily step for fusion method, perform daily prediction
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 09/04/2013                                                                                 
+#DATE: 10/03/2013                                                                                 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363--   
 
 ##Comments and TODO:
@@ -56,6 +56,56 @@ fit_models<-function(list_formulas,data_training){
   }
   return(list_fitted_models) 
 }
+
+#Function to glue all methods together...still need to separate fit and training for gwr and kriging, ok for now
+interpolate_area_fun <- function(method_interp,list_models,s_raster,list_out_filename,data_df){
+  ##Function to fit and predict an interpolation surface
+  ##Author: Benoit Parmentier
+  ##Function depends on other functions!!!
+  #inpputs:
+  #method_interp: interpolation method with value "gam","gwr","kriging"
+  #list_models: models to fit and predict as string (i.e.vector char)
+  #s_raster: stack with covariate variables, must match in name the data.frame input
+  #data_df: spatial point data.frame with covariates, must be projected match names of covariates
+  #list_out_filename: list of char containing output names for models
+  
+  #Conver to formula object
+  list_formulas<-lapply(list_models,as.formula,env=.GlobalEnv) #mulitple arguments passed to lapply!!
+  cname<-paste("mod",1:length(list_formulas),sep="") #change to more meaningful name?
+  
+  names(list_out_filename)<-cname  
+  
+  ##Now carry out prediction
+  if(method_interp=="gam"){    
+    
+    #First fitting
+    mod_list<-fit_models(list_formulas,data_df) #only gam at this stage
+    names(mod_list)<-cname
+    
+    #if raster provided then predict surface
+    if(!is.null(s_raster)){
+      #Second predict values for raster image...by providing fitted model list, raster brick and list of output file names
+      rast_pred_list<-predict_raster_model(mod_list,s_raster,list_out_filename)
+      names(rast_pred_list)<-cname
+    }
+  }
+  
+  if(method_interp%in%c("gwr","kriging")){
+    
+    #Call funciton to fit and predict gwr and/or kriging
+    #month_prediction_obj<-predict_auto_krige_raster_model(list_formulas,s_raster,data_month,list_out_filename)
+    rast_prediction_obj<-predict_autokrige_gwr_raster_model(method_interp,list_formulas,s_raster,data_df,list_out_filename)
+    
+    mod_list <-rast_prediction_obj$list_fitted_models
+    rast_pred_list <-rast_prediction_obj$list_rast_pred
+    names(rast_pred_list)<-cname
+  }
+  
+  #Now prepare to return object
+  interp_area_obj <-list(mod_list,list_formulas,rast_pred_list)
+  names(interp_area_obj) <- c("mod_list","list_formulas","rast_pred_list")
+  return(interp_area_obj)
+} 
 
 ####
 #TODO:
@@ -502,7 +552,10 @@ run_prediction_daily_deviation <- function(i,list_param) {            # loop ove
   #6)y_var_name: name of the variable predicted - dailyTMax, dailyTMin
   #7)out_prefix
   #8)out_path
-  #
+  #9)list_models2 : interpolation model's formulas as string
+  #10)interp_methods2: "gam","gwr","kriging"
+  #11)s_raster: stack for covariates and toher variables
+  
   #The output is a list of four shapefile names produced by the function:
   #1) list_temp: y_var_name
   #2) rast_clim_list: list of files for temperature climatology predictions
@@ -525,6 +578,9 @@ run_prediction_daily_deviation <- function(i,list_param) {            # loop ove
   out_prefix<-list_param$out_prefix
   dst<-list_param$dst #monthly station dataset
   out_path <-list_param$out_path
+  list_models2 <-list_param$list_models2
+  interp_method2 <- list_param$interp_method2
+  s_raster <- list_param$s_raster
   
   sampling_month_obj <- list_param$sampling_month_obj
   daily_dev_sampling_dat <- list_param$daily_dev_sampling_dat
@@ -567,6 +623,14 @@ run_prediction_daily_deviation <- function(i,list_param) {            # loop ove
   mo<-as.integer(strftime(date_proc, "%m"))          # current month of the date being processed
   day<-as.integer(strftime(date_proc, "%d"))
   year<-as.integer(strftime(date_proc, "%Y"))
+  
+  #Adding layer LST to the raster stack  
+  #names(s_raster)<-covar_names
+  pos<-match("LST",names(s_raster)) #Find the position of the layer with name "LST", if not present pos=NA
+  s_raster<-dropLayer(s_raster,pos)      # If it exists drop layer
+  LST<-subset(s_raster,LST_month)
+  names(LST)<-"LST"
+  s_raster<-addLayer(s_raster,LST)            #Adding current month
   
   #Now get monthly data...
   
@@ -671,26 +735,74 @@ run_prediction_daily_deviation <- function(i,list_param) {            # loop ove
     #only one delta in this case!!!
     #list(mod)
     
-    model_name<-paste("mod_stat_kr",sep="_")
-    daily_delta_xy<-as.matrix(cbind(dmoday$x,dmoday$y))
-    fitdelta<-Krig(daily_delta_xy,daily_delta,theta=1e5) #use TPS or krige
-    mod_krtmp2 <- fitdelta
-    #names(mod_krtmp2)[k] <- model_name
-    #data_s$daily_delta<-daily_delta
-    #rast_clim_list<-rast_clim_yearlist[[index_m]]  #select relevant monthly climatology image ...
-    rast_clim_list<-rast_clim_yearlist[[index_m]]  #select relevant monthly climatology image ...
-    rast_clim_mod <- stack(rast_clim_list)
-    names(rast_clim_mod) <- names(rast_clim_list)
-    rast_clim_month <- subset(rast_clim_mod,1) #example layer to interpolate to
+    if(is.null(list_models2)){ #change here...
+      
+      list_daily_delta_rast <- vector("list",length=1) #only one delta surface in this case!!
+      list_mod_krtmp2 <- vector("list",length=1) #only one delta model in this case!!
+      
+      model_name<-paste("mod_stat_kr",sep="_")
+      daily_delta_xy<-as.matrix(cbind(dmoday$x,dmoday$y))
+      fitdelta<-Krig(daily_delta_xy,daily_delta,theta=1e5) #use TPS or krige
+      mod_krtmp2 <- fitdelta
+      #names(mod_krtmp2)[k] <- model_name
+      #data_s$daily_delta<-daily_delta
+      #rast_clim_list<-rast_clim_yearlist[[index_m]]  #select relevant monthly climatology image ...
+      rast_clim_list<-rast_clim_yearlist[[index_m]]  #select relevant monthly climatology image ...
+      rast_clim_mod <- stack(rast_clim_list)
+      names(rast_clim_mod) <- names(rast_clim_list)
+      rast_clim_month <- subset(rast_clim_mod,1) #example layer to interpolate to
+      
+      daily_delta_rast<-interpolate(rast_clim_month,fitdelta) #Interpolation of the of the daily devation
+      #there is only one daily devation (delta) sruface in this case
+      
+      #To many I/O out of swap memory on atlas
+      #Saving kriged surface in raster images
+      data_name<-paste("daily_delta_",y_var_name,"_",model_name,"_",sampling_month_dat$prop[index_m],"_",sampling_month_dat$run_samp[index_m],"_",
+                       sampling_dat$date[index_d],"_",sampling_dat$prop[index_d],"_",sampling_dat$run_samp[index_d],sep="")
+      raster_name_delta<-file.path(out_path,paste(interpolation_method,"_",var,"_",data_name,out_prefix,".tif", sep=""))
+      writeRaster(daily_delta_rast, filename=raster_name_delta,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
+      
+      list_daily_delta_rast[[1]] <- raster_name_delta
+      list_mod_krtmp2[[1]] <- mod_krtmp2
+    }
     
-    daily_delta_rast<-interpolate(rast_clim_month,fitdelta) #Interpolation of the bias surface...
-    
-    #To many I/O out of swap memory on atlas
-    #Saving kriged surface in raster images
-    data_name<-paste("daily_delta_",y_var_name,"_",model_name,"_",sampling_month_dat$prop[index_m],"_",sampling_month_dat$run_samp[index_m],"_",
-                     sampling_dat$date[index_d],"_",sampling_dat$prop[index_d],"_",sampling_dat$run_samp[index_d],sep="")
-    raster_name_delta<-file.path(out_path,paste(interpolation_method,"_",var,"_",data_name,out_prefix,".tif", sep=""))
-    writeRaster(daily_delta_rast, filename=raster_name_delta,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
+    if(!is.null(list_models2)){ #change here...
+      list_daily_delta_rast <- vector("list",length=1) #several delta surfaces in this case but stored as one list!!
+      list_mod_krtmp2 <- vector("list",length=1) #several delta model in this case but stored as one list!!
+      
+      dev_mod_name<-paste("dev_mod",1:length(list_models2),sep="") #change to more meaningful name?
+      model_name<-paste("mod_stat_",sep="_")
+      #Now generate file names for the predictions...
+      list_out_filename<-vector("list",length(list_models2))
+      names(list_out_filename)<- dev_mod_name  
+      
+      ##Change name...
+      for (j in 1:length(list_out_filename)){
+        #j indicate which month is predicted, var indicates TMIN or TMAX
+        data_name<-paste("daily_delta_",y_var_name,"_",model_name,"_",sampling_month_dat$prop[index_m],"_",sampling_month_dat$run_samp[index_m],"_",
+                         sampling_dat$date[index_d],"_",sampling_dat$prop[index_d],"_",sampling_dat$run_samp[index_d],
+                         "_",interp_method2,"_",dev_mod_name[j],sep="")
+        raster_name_delta<-file.path(out_path,paste(interpolation_method,"_",var,"_",data_name,out_prefix,".tif", sep=""))
+        
+        list_out_filename[[j]]<-raster_name_delta
+      }
+      
+      #Now call function
+      
+      #for (j in 1:length(list_models2)){
+      dmoday$y_var <- daily_delta
+      #coordinates(data_s)<-cbind(data_s$x,data_s$y)
+      #proj4string(data_s)<-proj_str
+      #coordinates(data_v)<-cbind(data_v$x,data_v$y)
+      #proj4string(data_v)<-proj_str
+      
+      interp_area_obj <-interpolate_area_fun(interp_method2,list_models2,s_raster,list_out_filename,dmoday)
+      rast_pred_list <- interp_area_obj$rast_pred_list
+      rast_pred_list <-rast_pred_list[!sapply(rast_pred_list,is.null)] #remove NULL elements in list
+      list_daily_delta_rast[[1]] <-rast_pred_list
+      #names(list_daily_delta_rast) <- names(daily_delta_df)
+      list_mod_krtmp2[[1]] <-interp_area_obj$mod_list      
+    }
   }
   
   if(use_clim_image==TRUE){
@@ -739,35 +851,90 @@ run_prediction_daily_deviation <- function(i,list_param) {            # loop ove
     
     names(extract_data_s) <- paste(names(extract_data_s),"_m",sep="") # "m" for monthly predictions...
     dmoday <-spCbind(dmoday,extract_data_s) #contains the predicted clim at locations
-    
+    dmoday <-spCbind(dmoday,daily_delta_df) #contains the predicted clim at locations
     #Now krige  forevery model !! loop
     list_mod_krtmp2 <- vector("list",length=nlayers(rast_clim_mod)) 
     list_daily_delta_rast <- vector("list",length=nlayers(rast_clim_mod)) 
-    
+    names(list_daily_delta_rast) <- names(daily_delta_df)
+    names(list_mod_krtmp2) <- names(daily_delta_df)
     for(k in 1:nlayers(rast_clim_mod)){
       
-      daily_delta <- daily_delta_df[[k]]
+      daily_delta <- daily_delta_df[[k]] #Current daily deviation being process: the reference monthly prediction varies...
       #model_name<-paste("mod_kr","day",sep="_")
       model_name<- names(daily_delta_df)[k]
       
-      daily_delta_xy<-as.matrix(cbind(dmoday$x,dmoday$y))
-      fitdelta<-Krig(daily_delta_xy,daily_delta,theta=1e5) #use TPS or krige
-      list_mod_krtmp2[[k]] <-fitdelta
-      names(list_mod_krtmp2)[k] <- model_name
-      #data_s$daily_delta<-daily_delta
-      #rast_clim_list<-rast_clim_yearlist[[index_m]]  #select relevant monthly climatology image ...
-      rast_clim_month <- subset(rast_clim_mod,1) #example layer to interpolate to
+      if(is.null(list_models2)){
+        daily_delta_xy<-as.matrix(cbind(dmoday$x,dmoday$y))
+        fitdelta<-Krig(daily_delta_xy,daily_delta,theta=1e5) #use TPS or krige
+        list_mod_krtmp2[[k]] <-fitdelta
+        names(list_mod_krtmp2)[k] <- model_name
+        #data_s$daily_delta<-daily_delta
+        #rast_clim_list<-rast_clim_yearlist[[index_m]]  #select relevant monthly climatology image ...
+        rast_clim_month <- subset(rast_clim_mod,1) #example layer to interpolate to
+        
+        daily_delta_rast<-interpolate(rast_clim_month,fitdelta) #Interpolation of the bias surface...
+        
+        #list_daily_delta_rast[[k]] <- raster_name_delta
+        
+        data_name<-paste("daily_delta_",y_var_name,"_",model_name,"_",sampling_month_dat$prop[index_m],"_",sampling_month_dat$run_samp[index_m],"_",
+                         sampling_dat$date[index_d],"_",sampling_dat$prop[index_d],"_",sampling_dat$run_samp[index_d],sep="")
+        raster_name_delta<-file.path(out_path,paste(interpolation_method,"_",var,"_",data_name,out_prefix,".tif", sep=""))
+        
+        writeRaster(delta_rast_s, filename=raster_name_delta,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
+        #writeRaster(r_spat, NAflag=NA_flag_val,filename=raster_name,bylayer=TRUE,bandorder="BSQ",overwrite=TRUE)   
+        
+        #raster_name_delta <- list_daily_delta_rast
+        #mod_krtmp2 <- list_mod_krtmp2
+        list_daily_delta_rast[[k]] <- raster_name_delta
+        
+      }
       
-      daily_delta_rast<-interpolate(rast_clim_month,fitdelta) #Interpolation of the bias surface...
+      if (!is.null(list_models2)){
+        
+        #list_formulas<-lapply(list_models,as.formula,env=.GlobalEnv) #mulitple arguments passed to lapply!!
+        dev_mod_name<-paste("dev_mod",1:length(list_models2),sep="") #change to more meaningful name?
+        
+        #Now generate file names for the predictions...
+        list_out_filename<-vector("list",length(list_models2))
+        names(list_out_filename)<- dev_mod_name  
+        
+        ##Change name...
+        for (j in 1:length(list_out_filename)){
+          #j indicate which month is predicted, var indicates TMIN or TMAX
+          data_name<-paste("daily_delta_",y_var_name,"_",model_name,"_",sampling_month_dat$prop[index_m],"_",sampling_month_dat$run_samp[index_m],"_",
+                           sampling_dat$date[index_d],"_",sampling_dat$prop[index_d],"_",sampling_dat$run_samp[index_d],
+                           "_",interp_method2,"_",dev_mod_name[j],sep="")
+          raster_name_delta<-file.path(out_path,paste(interpolation_method,"_",var,"_",data_name,out_prefix,".tif", sep=""))
+          
+          list_out_filename[[j]]<-raster_name_delta
+        }
+        
+        #Now call function
+        
+        #for (j in 1:length(list_models2)){
+        dmoday$y_var <- daily_delta
+        #coordinates(data_s)<-cbind(data_s$x,data_s$y)
+        #proj4string(data_s)<-proj_str
+        #coordinates(data_v)<-cbind(data_v$x,data_v$y)
+        #proj4string(data_v)<-proj_str
+        
+        interp_area_obj <-interpolate_area_fun(interp_method2,list_models2,s_raster,list_out_filename,dmoday)
+        rast_pred_list <- interp_area_obj$rast_pred_list
+        names(rast_pred_list) <- dev_mod_name
+        rast_pred_list <-rast_pred_list[!sapply(rast_pred_list,is.null)] #remove NULL elements in list
+        list_daily_delta_rast[[k]] <-rast_pred_list
+        names(list_daily_delta_rast) <- names(daily_delta_df)
+        mod_list <-interp_area_obj$mod_list
+        names(mod_list) <- dev_mod_name
+        list_mod_krtmp2[[k]] <-interp_area_obj$mod_list
+      }
       
-      list_daily_delta_rast[[k]] <- daily_delta_rast 
-      #list_daily_delta_rast[[k]] <- raster_name_delta   
     }
     
     #Too many I/O out of swap memory on atlas
     #Saving kriged surface in raster images
-    delta_rast_s <-stack(list_daily_delta_rast)
-    names(delta_rast_s) <- names(daily_delta_df)
+    #delta_rast_s <-stack(list_daily_delta_rast)
+    #names(delta_rast_s) <- names(daily_delta_df)
     
     #Should check that all delta images have been created for every model!!! remove from list empty elements!!
     
@@ -776,15 +943,15 @@ run_prediction_daily_deviation <- function(i,list_param) {            # loop ove
     #raster_name_delta<-file.path(out_path,paste(interpolation_method,"_",var,"_",data_name,out_prefix,".tif", sep=""))
     #writeRaster(daily_delta_rast, filename=raster_name_delta,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
     
-    data_name<-paste("daily_delta_",y_var_name,"_",sampling_month_dat$prop[index_m],"_",sampling_month_dat$run_samp[index_m],"_",
-                     sampling_dat$date[index_d],"_",sampling_dat$prop[index_d],"_",sampling_dat$run_samp[index_d],sep="")
-    raster_name_delta<-file.path(out_path,paste(interpolation_method,"_",var,"_",data_name,out_prefix,".tif", sep=""))
+    #data_name<-paste("daily_delta_",y_var_name,"_",sampling_month_dat$prop[index_m],"_",sampling_month_dat$run_samp[index_m],"_",
+    #                 sampling_dat$date[index_d],"_",sampling_dat$prop[index_d],"_",sampling_dat$run_samp[index_d],sep="")
+    #raster_name_delta<-file.path(out_path,paste(interpolation_method,"_",var,"_",data_name,out_prefix,".tif", sep=""))
     
-    writeRaster(delta_rast_s, filename=raster_name_delta,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
+    #writeRaster(delta_rast_s, filename=raster_name_delta,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
     #writeRaster(r_spat, NAflag=NA_flag_val,filename=raster_name,bylayer=TRUE,bandorder="BSQ",overwrite=TRUE)   
     
     #raster_name_delta <- list_daily_delta_rast
-    mod_krtmp2 <- list_mod_krtmp2
+    #mod_krtmp2 <- list_mod_krtmp2
   }
   
   #########
@@ -798,26 +965,58 @@ run_prediction_daily_deviation <- function(i,list_param) {            # loop ove
   temp_list<-vector("list",nlayers(rast_clim_mod))  
   for (k in 1:nlayers(rast_clim_mod)){
     if(use_clim_image==TRUE){
-      daily_delta_rast <- list_daily_delta_rast[[k]]
+      if (is.null(list_models2)){ 
+        daily_delta_rast <- raster(list_daily_delta_rast[[k]]) #There is only one image of deviation per model if list_models2 is NULL
+      }
+      if (!is.null(list_models2)){ #then possible multiple daily dev predictions
+        daily_delta_rast <- stack(unlist(list_daily_delta_rast[[k]]))
+      }
+      #daily_delta_rast <- subset(delta_rast_s,k)
     }
     #if use_clim_image==FALSE then daily__delta_rast already defined earlier...
     
-    #rast_clim_month<-raster(rast_clim_list[[k]])
-    rast_clim_month <- subset(rast_clim_mod,k)
-    temp_predicted<-rast_clim_month + daily_delta_rast
+    if(use_clim_image==FALSE){
+      if (is.null(list_models2)){ 
+        daily_delta_rast <- raster(list_daily_delta_rast[[1]]) #There is only one image of deviation per model if list_models2 is NULL
+      }
+      if (!is.null(list_models2)){ #then possible multiple daily dev predictions hence use stack
+        daily_delta_rast <- stack(unlist(list_daily_delta_rast[[1]]))
+      }
+      #daily_delta_rast <- subset(delta_rast_s,k)
+    }
     
-    data_name<-paste(y_var_name,"_predicted_",names(rast_clim_mod)[k],"_",sampling_month_dat$prop[index_m],"_",sampling_month_dat$run_samp[index_m],"_",
-                     sampling_dat$date[index_d],"_",sampling_dat$prop[index_d],"_",sampling_dat$run_samp[index_d],sep="")
-    raster_name<-file.path(out_path,paste(interpolation_method,"_",data_name,out_prefix,".tif", sep=""))
-    writeRaster(temp_predicted, filename=raster_name,overwrite=TRUE) 
-    temp_list[[k]]<-raster_name
+    #rast_clim_month<-raster(rast_clim_list[[k]])
+    rast_clim_month <- subset(rast_clim_mod,k) #long term monthly prediction
+    if (is.null(list_models2)){ 
+      temp_predicted<-rast_clim_month + daily_delta_rast
+      data_name<-paste(y_var_name,"_predicted_",names(rast_clim_mod)[k],"_",sampling_month_dat$prop[index_m],"_",sampling_month_dat$run_samp[index_m],"_",
+                       sampling_dat$date[index_d],"_",sampling_dat$prop[index_d],"_",sampling_dat$run_samp[index_d],sep="")
+      raster_name<-file.path(out_path,paste(interpolation_method,"_",data_name,out_prefix,".tif", sep=""))
+      writeRaster(temp_predicted, filename=raster_name,overwrite=TRUE) 
+      temp_list[[k]]<-raster_name
+    }
+    if (!is.null(list_models2)){ 
+      dev_mod_name <- paste("dev_mod",1:length(list_models2),sep="") #change to more meaningful name?
+      raster_name_list <- vector("list",length(list_models2))
+      for(j in 1:length(list_models2)){
+        temp_predicted <- rast_clim_month + subset(daily_delta_rast,j)
+        data_name<-paste(y_var_name,"_predicted_",names(rast_clim_mod)[k],"_",sampling_month_dat$prop[index_m],"_",sampling_month_dat$run_samp[index_m],"_",
+                         sampling_dat$date[index_d],"_",sampling_dat$prop[index_d],"_",sampling_dat$run_samp[index_d],"_",
+                         interp_method2,"_",dev_mod_name[j],sep="")
+        raster_name<-file.path(out_path,paste(interpolation_method,"_",data_name,out_prefix,".tif", sep=""))
+        writeRaster(temp_predicted, filename=raster_name,overwrite=TRUE) 
+        raster_name_list[[j]] <- raster_name
+      }
+      names(raster_name_list) <- dev_mod_name
+      temp_list[[k]]<-raster_name_list #record names of the daily predictions 
+    }
   }
   
   ##########
   # STEP 5 - Prepare output object to return
   ##########
   
-  data_s<-dmoday #put the 
+  data_s <- dmoday #put the 
   #coordinates(data_s)<-cbind(data_s$x,data_s$y)
   #proj4string(data_s)<-proj_str
   coordinates(data_v)<-cbind(data_v$x,data_v$y)
@@ -826,13 +1025,13 @@ run_prediction_daily_deviation <- function(i,list_param) {            # loop ove
   #mod_krtmp2<-list_mod_krtmp2    
   #mod_krtmp2<-fitdelta
 
-  model_name<-paste("mod_kr","day",sep="_")
+  model_name<-paste("mod_","day",sep="_")
   
   names(temp_list)<-names(rast_clim_list)
-
+  
   #add data_month_s and data_month_v?
-  delta_obj<-list(temp_list,rast_clim_list,raster_name_delta, data_s, data_v,
-                 modst,data_month_v,sampling_dat[index_d,],daily_dev_sampling_dat[i,],mod_krtmp2)
+  delta_obj<-list(temp_list,rast_clim_list,list_daily_delta_rast, data_s, data_v,
+                 modst,data_month_v,sampling_dat[index_d,],daily_dev_sampling_dat[i,],list_mod_krtmp2)
   
   obj_names<-c(y_var_name,"clim","delta","data_s","data_v",
                "data_month_s","data_month_v","sampling_dat","daily_dev_sampling_dat",model_name)

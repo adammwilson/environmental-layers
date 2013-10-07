@@ -12,7 +12,7 @@
    # gam_daily, kriging_daily,gwr_daily,gam_CAI,gam_fusion,kriging_fusion,gwr_fusion and other options added.
 #For multiple time scale methods, the interpolation is done first at the monthly time scale then delta surfaces are added.
 #AUTHOR: Benoit Parmentier                                                                        
-#DATE: 08/26/2013                                                                                 
+#DATE: 10/04/2013                                                                                 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#568--     
 #
 # TO DO:
@@ -56,6 +56,8 @@ raster_prediction_fun <-function(list_param_raster_prediction){
   #26)interpolation_method: c("gam_fusion","gam_CAI") #other otpions to be added later
   #27) use_clim_image
   #28) join_daily
+  #29)list_models2: models' formulas as string vector for daily devation
+  #30)interp_method2: intepolation method for daily devation step
   
   ###Loading R library and packages     
   
@@ -113,6 +115,8 @@ raster_prediction_fun <-function(list_param_raster_prediction){
   #6 additional parameters for monthly climatology and more
   list_models<-list_param_raster_prediction$list_models
   list_models2<-list_param_raster_prediction$list_models2
+  interp_method2 <- list_param_raster_prediction$interp_method2
+  
   lst_avg<-list_param_raster_prediction$lst_avg
   out_path<-list_param_raster_prediction$out_path
   script_path<-list_param_raster_prediction$script_path
@@ -271,16 +275,16 @@ raster_prediction_fun <-function(list_param_raster_prediction){
   if (interpolation_method %in% c("gam_CAI","kriging_CAI","gwr_CAI","gam_fusion","kriging_fusion","gwr_fusion")){
     #input a list:note that ghcn.subsets is not sampling_obj$data_day_ghcn
     i<-1
-    list_param_run_prediction_daily_deviation <-list(i,clim_yearlist,daily_dev_sampling_dat,sampling_month_obj,sampling_obj,dst,list_models2,
+    list_param_run_prediction_daily_deviation <-list(i,clim_yearlist,daily_dev_sampling_dat,sampling_month_obj,sampling_obj,dst,list_models2,interp_method2,
                                                      s_raster,use_clim_image,join_daily,var,y_var_name, interpolation_method,out_prefix,out_path)
-    names(list_param_run_prediction_daily_deviation)<-c("list_index","clim_yearlist","daily_dev_sampling_dat","sampling_month_obj","sampling_obj","dst","list_models2",
+    names(list_param_run_prediction_daily_deviation)<-c("list_index","clim_yearlist","daily_dev_sampling_dat","sampling_month_obj","sampling_obj","dst","list_models2","interp_method2",
                                                         "s_raster","use_clim_image","join_daily","var","y_var_name","interpolation_method","out_prefix","out_path")
     #method_mod_obj<-mclapply(1:length(sampling_obj$ghcn_data),list_param=list_param_run_prediction_daily_deviation,run_prediction_daily_deviation,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
     #debug(run_prediction_daily_deviation)
     #test <- run_prediction_daily_deviation(1,list_param=list_param_run_prediction_daily_deviation) #This is the end bracket from mclapply(...) statement
     #test <- mclapply(1:9,list_param=list_param_run_prediction_daily_deviation,run_prediction_daily_deviation,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
     
-    method_mod_obj<-mclapply(1:nrow(daily_dev_sampling_dat),list_param=list_param_run_prediction_daily_deviation,run_prediction_daily_deviation,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
+    method_mod_obj<-mclapply(1:nrow(daily_dev_sampling_dat),list_param=list_param_run_prediction_daily_deviation,run_prediction_daily_deviation,mc.preschedule=FALSE,mc.cores = 11) #This is the end bracket from mclapply(...) statement
     save(method_mod_obj,file= file.path(out_path,paste("method_mod_obj_",interpolation_method,"_",y_var_name,out_prefix,".RData",sep="")))
     
   }
@@ -392,9 +396,9 @@ raster_prediction_fun <-function(list_param_raster_prediction){
     names(list_param_validation_month)<-c("list_index","rast_day_year_list",
                                     "list_data_v","list_data_s","list_sampling_dat","y_ref","multi_time_scale","out_prefix", "out_path") #same names for any method
     #debug(calculate_accuracy_metrics)    
-    #test_val2 <-calculate_accuracy_metrics(2,list_param_validation)
+    #test_val2 <-calculate_accuracy_metrics(1,list_param_validation_month)
     
-    validation_mod_month_obj <- mclapply(1:length(clim_method_mod_obj), list_param=list_param_validation_month, calculate_accuracy_metrics,mc.preschedule=FALSE,mc.cores = 9) 
+    validation_mod_month_obj <- mclapply(1:length(clim_method_mod_obj), list_param=list_param_validation_month, calculate_accuracy_metrics,mc.preschedule=FALSE,mc.cores = 6) 
     #test_val<-calculate_accuracy_metrics(1,list_param_validation)
     save(validation_mod_month_obj,file= file.path(out_path,paste(interpolation_method,"_validation_mod_month_obj_",y_var_name,out_prefix,".RData",sep="")))
   
