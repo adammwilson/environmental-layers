@@ -10,7 +10,7 @@
 #STAGE 5: Output analyses: assessment of results for specific dates...
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 09/28/2013                                                                                 
+#DATE: 09/29/2013                                                                                 
 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363, TASK$568--   
 
@@ -80,16 +80,16 @@ met_stations_outfiles_obj_file<-"/data/project/layers/commons/data_workflow/outp
 #met_stations_outfiles_obj_file<-"met_stations_outfiles_obj_gam_CAI__365d_gam_CAI_lst_comb3_08252013.RData"
 
 var<-"TMAX" # variable being interpolated
-out_prefix<-"_365d_gwr_cai_lst_comb3_09282013"                #User defined output prefix
-out_suffix<-"_OR_09282013"                                       #Regional suffix
+out_prefix<-"_365d_gam_cai_lst_comb3_09292013"                #User defined output prefix
+out_suffix<-"_OR_09292013"                                       #Regional suffix
 out_suffix_modis <-"_05302013"                       #pattern to find tiles produced previously     
 
 #interpolation_method<-c("gam_fusion","gam_CAI","gam_daily") #other otpions to be added later
-#interpolation_method<-c("gam_CAI") #other otpions to be added later
+interpolation_method<-c("gam_CAI") #other otpions to be added later
 #interpolation_method<-c("gam_fusion") #other otpions to be added later
 #interpolation_method<-c("kriging_fusion") #other otpions to be added later
 #interpolation_method<-c("gwr_fusion") #other otpions to be added later
-interpolation_method<-c("gwr_CAI") #other otpions to be added later
+#interpolation_method<-c("gwr_CAI") #other otpions to be added later
 #interpolation_method<-c("kriging_CAI") 
 
 #interpolation_method<-c("gam_daily") #other otpions to be added later
@@ -254,7 +254,7 @@ seed_number_month <- 100
 nb_sample_month <-1           #number of time random sampling must be repeated for every hold out proportion
 step_month <-0.1         
 constant_month <- 0             #if value 1 then use the same samples as date one for the all set of dates
-prop_minmax_month <-c(0.4,0.7)  #if prop_min=prop_max and step=0 then predictions are done for the number of dates...
+prop_minmax_month <-c(0,0)  #if prop_min=prop_max and step=0 then predictions are done for the number of dates...
 
 #dates_selected<-c("20100101","20100102","20100103","20100901") # Note that the dates set must have a specific format: yyymmdd
 #dates_selected<-c("20100101","20100102","20100301","20100302","20100501","20100502","20100701","20100702","20100901","20100902","20101101","20101102")
@@ -278,30 +278,41 @@ join_daily <- FALSE # join monthly and daily station before calucating delta
 #                "y_var ~ s(lat,lon) + s(elev_s) + s(LST) + ti(LST,CANHGHT)")
 
 #Combination 4: for paper baseline=s(lat,lon)
-# list_models<-c("y_var ~ s(lat,lon)",
-#                "y_var ~ s(lat,lon) + s(elev_s)",
-#                "y_var ~ s(lat,lon) + s(N_w)",
-#                "y_var ~ s(lat,lon) + s(E_w)",
-#                "y_var ~ s(lat,lon) + s(LST)",
-#                "y_var ~ s(lat,lon) + s(DISTOC)",
-#                "y_var ~ s(lat,lon) + s(LC1)",
-#                "y_var ~ s(lat,lon) + s(CANHGHT)",
-#                "y_var ~ s(lat,lon) + s(LST) + ti(LST,LC1)",
-#                "y_var ~ s(lat,lon) + s(LST) + ti(LST,CANHGHT)")
+list_models<-c("y_var ~ s(lat,lon)",
+               "y_var ~ s(lat,lon) + s(elev_s)",
+                "y_var ~ s(lat,lon) + s(N_w)",
+                "y_var ~ s(lat,lon) + s(E_w)",
+                "y_var ~ s(lat,lon) + s(LST)",
+                "y_var ~ s(lat,lon) + s(DISTOC)",
+                "y_var ~ s(lat,lon) + s(LC1)",
+                "y_var ~ s(lat,lon) + s(CANHGHT)",
+                "y_var ~ s(lat,lon) + s(LST) + ti(LST,LC1)",
+                "y_var ~ s(lat,lon) + s(LST) + ti(LST,CANHGHT)")
+
+list_models2<-c("y_var ~ s(lat,lon)",
+               "y_var ~ s(lat,lon) + s(elev_s)",
+               "y_var ~ s(lat,lon) + s(N_w)",
+               "y_var ~ s(lat,lon) + s(E_w)",
+               "y_var ~ s(lat,lon) + s(LST)",
+               "y_var ~ s(lat,lon) + s(DISTOC)",
+               "y_var ~ s(lat,lon) + s(LC1)",
+               "y_var ~ s(lat,lon) + s(CANHGHT)",
+               "y_var ~ s(lat,lon) + s(LST) + ti(LST,LC1)",
+               "y_var ~ s(lat,lon) + s(LST) + ti(LST,CANHGHT)")
 
 #list_models<-c("y_var ~ lat*lon + elev_s")
 
 #list_models<-c("y_var ~ s(lat,lon) + s(elev_s)")
 
-list_models<-c("y_var ~ lat*lon + elev_s",
-               "y_var ~ lat*lon + elev_s + N_w",
-               "y_var ~ lat*lon + elev_s + E_w",
-               "y_var ~ lat*lon + elev_s + LST",
-               "y_var ~ lat*lon + elev_s + DISTOC",
-               "y_var ~ lat*lon + elev_s + LC1",
-               "y_var ~ lat*lon + elev_s + CANHGHT",
-               "y_var ~ lat*lon + elev_s + LST + I(LST*LC1)",
-               "y_var ~ lat*lon + elev_s + LST + I(LST*CANHGHT)")
+#list_models<-c("y_var ~ lat*lon + elev_s",
+#               "y_var ~ lat*lon + elev_s + N_w",
+#               "y_var ~ lat*lon + elev_s + E_w",
+#               "y_var ~ lat*lon + elev_s + LST",
+#               "y_var ~ lat*lon + elev_s + DISTOC",
+#               "y_var ~ lat*lon + elev_s + LC1",
+#               "y_var ~ lat*lon + elev_s + CANHGHT",
+#               "y_var ~ lat*lon + elev_s + LST + I(LST*LC1)",
+#               "y_var ~ lat*lon + elev_s + LST + I(LST*CANHGHT)")
 
 #Default name of LST avg to be matched               
 lst_avg<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_09","mm_10","mm_11","mm_12")  
@@ -310,15 +321,18 @@ lst_avg<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_0
 list_param_raster_prediction<-list(list_param_data_prep,screen_data_training,
                                 seed_number,nb_sample,step,constant,prop_minmax,dates_selected,
                                 seed_number_month,nb_sample_month,step_month,constant_month,prop_minmax_month,
-                                list_models,lst_avg,out_path,script_path,use_clim_image,join_daily,
+                                list_models,list_models2,lst_avg,out_path,script_path,use_clim_image,join_daily,
                                 interpolation_method)
 names(list_param_raster_prediction)<-c("list_param_data_prep","screen_data_training",
                                 "seed_number","nb_sample","step","constant","prop_minmax","dates_selected",
                                 "seed_number_month","nb_sample_month","step_month","constant_month","prop_minmax_month",
-                                "list_models","lst_avg","out_path","script_path","use_clim_image","join_daily",
+                                "list_models","list_models2","lst_avg","out_path","script_path","use_clim_image","join_daily",
                                 "interpolation_method")
 
 #debug(raster_prediction_fun)
+debug(debug_fun_test)
+debug_fun_test(list_param_raster_prediction)
+
 raster_prediction_obj <-raster_prediction_fun(list_param_raster_prediction)
 
 ############## STAGE 5: OUTPUT ANALYSES ##################

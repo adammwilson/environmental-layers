@@ -112,6 +112,7 @@ raster_prediction_fun <-function(list_param_raster_prediction){
   
   #6 additional parameters for monthly climatology and more
   list_models<-list_param_raster_prediction$list_models
+  list_models2<-list_param_raster_prediction$list_models2
   lst_avg<-list_param_raster_prediction$lst_avg
   out_path<-list_param_raster_prediction$out_path
   script_path<-list_param_raster_prediction$script_path
@@ -270,17 +271,18 @@ raster_prediction_fun <-function(list_param_raster_prediction){
   if (interpolation_method %in% c("gam_CAI","kriging_CAI","gwr_CAI","gam_fusion","kriging_fusion","gwr_fusion")){
     #input a list:note that ghcn.subsets is not sampling_obj$data_day_ghcn
     i<-1
-    list_param_run_prediction_daily_deviation <-list(i,clim_yearlist,daily_dev_sampling_dat,sampling_month_obj,sampling_obj,dst,
-                                                     use_clim_image,join_daily,var,y_var_name, interpolation_method,out_prefix,out_path)
-    names(list_param_run_prediction_daily_deviation)<-c("list_index","clim_yearlist","daily_dev_sampling_dat","sampling_month_obj","sampling_obj","dst",
-                                                        "use_clim_image","join_daily","var","y_var_name","interpolation_method","out_prefix","out_path")
+    list_param_run_prediction_daily_deviation <-list(i,clim_yearlist,daily_dev_sampling_dat,sampling_month_obj,sampling_obj,dst,list_models2,
+                                                     s_raster,use_clim_image,join_daily,var,y_var_name, interpolation_method,out_prefix,out_path)
+    names(list_param_run_prediction_daily_deviation)<-c("list_index","clim_yearlist","daily_dev_sampling_dat","sampling_month_obj","sampling_obj","dst","list_models2",
+                                                        "s_raster","use_clim_image","join_daily","var","y_var_name","interpolation_method","out_prefix","out_path")
     #method_mod_obj<-mclapply(1:length(sampling_obj$ghcn_data),list_param=list_param_run_prediction_daily_deviation,run_prediction_daily_deviation,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
     #debug(run_prediction_daily_deviation)
     #test <- run_prediction_daily_deviation(1,list_param=list_param_run_prediction_daily_deviation) #This is the end bracket from mclapply(...) statement
-    #method_mod_obj<-mclapply(1:nrow(daily_dev_sampling_dat),list_param=list_param_run_prediction_daily_deviation,run_prediction_daily_deviation,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
+    #test <- mclapply(1:9,list_param=list_param_run_prediction_daily_deviation,run_prediction_daily_deviation,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
     
     method_mod_obj<-mclapply(1:nrow(daily_dev_sampling_dat),list_param=list_param_run_prediction_daily_deviation,run_prediction_daily_deviation,mc.preschedule=FALSE,mc.cores = 9) #This is the end bracket from mclapply(...) statement
     save(method_mod_obj,file= file.path(out_path,paste("method_mod_obj_",interpolation_method,"_",y_var_name,out_prefix,".RData",sep="")))
+    
   }
   
   #TODO : Same call for all functions!!! Replace by one "if" for all daily single time scale methods...
@@ -397,7 +399,7 @@ raster_prediction_fun <-function(list_param_raster_prediction){
     save(validation_mod_month_obj,file= file.path(out_path,paste(interpolation_method,"_validation_mod_month_obj_",y_var_name,out_prefix,".RData",sep="")))
   
     ##Create data.frame with validation and fit metrics for a full year/full numbe of runs
-    tb_month_diagnostic_v<-extract_from_list_obj(validation_mod_month_obj,"metrics_v") 
+    tb_month_diagnostic_v <- extract_from_list_obj(validation_mod_month_obj,"metrics_v") 
     #tb_diagnostic_v contains accuracy metrics for models sample and proportion for every run...if full year then 365 rows maximum
     rownames(tb_month_diagnostic_v)<-NULL #remove row names
     tb_month_diagnostic_v$method_interp <- interpolation_method
