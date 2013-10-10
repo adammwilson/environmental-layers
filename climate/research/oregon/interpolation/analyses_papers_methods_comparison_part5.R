@@ -59,6 +59,18 @@ calc_stat_prop_tb_diagnostic <-function(names_mod,names_id,tb){
   return(prop_obj)
 }
 
+#Calculate the difference between training and testing in two different data.frames. Columns to substract are provided.
+diff_df<-function(tb_s,tb_v,list_metric_names){
+  tb_diff<-vector("list", length(list_metric_names))
+  for (i in 1:length(list_metric_names)){
+    metric_name<-list_metric_names[i]
+    tb_diff[[i]] <-tb_s[,c(metric_name)] - tb_v[,c(metric_name)]
+  }
+  names(tb_diff)<-list_metric_names
+  tb_diff<-as.data.frame(do.call(cbind,tb_diff))
+  return(tb_diff)
+}
+
 ################## PARAMETERS ##########
 
 
@@ -80,6 +92,8 @@ in_dir12 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_g
 in_dir13 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_gwr_cai_lst_comb3_09282013"
 in_dir14 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_gwr_fus_lst_comb3_09232013"
 in_dir15 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_gwr_fus_lst_comb3_09262013"
+in_dir16 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_gam_cai_lst_comb3_10042013"
+
 
 #better as list and load one by one specific element from the object
 raster_prediction_obj1 <-load_obj(file.path(in_dir1,"raster_prediction_obj_gam_CAI_dailyTmax_365d_gam_CAI_lst_comb3_08312013.RData"))
@@ -99,15 +113,14 @@ raster_prediction_obj13 <-load_obj(file.path(in_dir13,"raster_prediction_obj_gwr
 raster_prediction_obj14 <-load_obj(file.path(in_dir14,"raster_prediction_obj_gwr_fusion_dailyTmax_365d_gwr_fus_lst_comb3_09232013.RData"))
 raster_prediction_obj15 <-load_obj(file.path(in_dir15,"raster_prediction_obj_gwr_fusion_dailyTmax_365d_gwr_fus_lst_comb3_09262013.RData"))
 
-#raster_prediction_obj_gwr_CAI_dailyTmax_365d_gwr_cai_lst_comb3_09282013.RData
-#raster_prediction_obj_gwr_fusion_dailyTmax_365d_gwr_fus_lst_comb3_09262013.RData
+raster_prediction_obj16 <-load_obj(file.path(in_dir16,"raster_prediction_obj_gam_CAI_dailyTmax_365d_gam_cai_lst_comb3_10042013.RData"))
 
 out_dir<-"/home/parmentier/Data/IPLANT_project/paper_multitime_scale__analyses_tables_fig_09032013"
 setwd(out_dir)
 y_var_name <- "dailyTmax"
 y_var_month <- "TMax"
 #y_var_month <- "LSTD_bias"
-out_suffix <- "_OR_09292013"
+out_suffix <- "_OR_10102013"
 #script_path<-"/data/project/layers/commons/data_workflow/env_layers_scripts/"
 #### FUNCTION USED IN SCRIPT
 
@@ -217,22 +230,9 @@ for(i in 1:length(list_tb)){
 
 ##### Calculate differences
 
-#Calculate the difference between training and testing in two different data.frames. Columns to substract are provided.
-diff_df<-function(tb_s,tb_v,list_metric_names){
-  tb_diff<-vector("list", length(list_metric_names))
-  for (i in 1:length(list_metric_names)){
-    metric_name<-list_metric_names[i]
-    tb_diff[[i]] <-tb_s[,c(metric_name)] - tb_v[,c(metric_name)]
-  }
-  names(tb_diff)<-list_metric_names
-  tb_diff<-as.data.frame(do.call(cbind,tb_diff))
-  return(tb_diff)
-}
-
-
 metric_names <- c("mae","rmse","me","r")
 diff_kriging_CAI <- diff_df(tb_s_kriging_CAI,tb_v_kriging_CAI,metric_names)
-diff_gam_CAI <- diff_df(tb_s_gam_CAI,tb_v_gam_CAI,metric_names)
+diff_gam_CAI <- diff_df(tb_s_gam_CAI[tb_s_gam_CAI$pred_mod!="mod_kr"],tb_v_gam_CAI,metric_names)
 diff_gwr_CAI <- diff_df(tb_s_gwr_CAI,tb_v_gwr_CAI,metric_names)
 
 layout_m<-c(1,1) #one row two columns
@@ -301,7 +301,7 @@ dev.off()
 
 ### NOW PLOT OF COMPARISON BETWEEN Kriging and GAM
 
-#Now get
+#Now get variance and range for holdout an dmethods.
 
 tb_v_gam_CAI
 tb_v_gam_fus
@@ -342,6 +342,9 @@ test[1:24,]
 test2<-test[test$method_interp%in% c("gam_fus","gam_CAI"),]
 test2[1:24,]
 #head(ac_prop_tb)
+test3<-subset(test,prop_month==0 & method_interp%in%c("gam_CAI"))
+#test3<-test[test$method_interp%in% c("gam_CAI"),]
+test3[1:24,]
 
 #list_prop_obj$avg_tb
 #xyplot(as.formula(plot_formula),group=pred_mod,type="b",
@@ -352,3 +355,42 @@ test2[1:24,]
 #         pch=1:length(avg_tb$pred_mod))),
 #       auto.key=list(columns=5))
 
+## DAILY DEVIATIONS WITH MODELS
+### Examining results with models for daily deviation called 2: need to subset the models
+
+#c("mod1.dev_mod1","mod1.dev_mod2","mod2.dev_mod1","mod2.dev_mod2","mod3.dev_mod1","mod3.dev_mod2","mod4.dev_mod1",  
+#  "mod4.dev_mod2","mod5.dev_mod1","mod5.dev_mod2","mod6.dev_mod1","mod6.dev_mod2","mod7.dev_mod1","mod7.dev_mod2",  
+#  "mod_kr.dev_mod1" "mod_kr.dev_mod2")
+
+tb_s_gam_CAI_selected <-subset(tb_s_gam_CAI,prop_month==0 & pred_mod%in%c("mod1","mod4","mod5","mod6","mod7","mod8"))
+tb_v_gam_CAI_selected <-subset(tb_v_gam_CAI,prop_month==0 & pred_mod%in%c("mod1","mod4","mod5","mod6","mod7","mod8"))
+tb_s_gwr_CAI_selected <-subset(tb_s_gwr_CAI,prop_month==0 & pred_mod%in%c("mod1","mod4","mod5","mod6","mod7","mod8"))
+tb_v_gwr_CAI_selected <-subset(tb_v_gwr_CAI,prop_month==0 & pred_mod%in%c("mod1","mod4","mod5","mod6","mod7","mod8"))
+tb_s_kriging_CAI_selected <-subset(tb_s_kriging_CAI,prop_month==0 & pred_mod%in%c("mod1","mod4","mod5","mod6","mod7","mod8"))
+tb_v_kriging_CAI_selected <-subset(tb_v_kriging_CAI,prop_month==0 & pred_mod%in%c("mod1","mod4","mod5","mod6","mod7","mod8"))
+
+tb_s_gam_CAI2_selected <- subset(raster_prediction_obj16$tb_diagnostic_s,pred_mod%in%c("mod1.dev_mod1","mod1.dev_mod2","mod3.dev_mod1",
+                                                                                       "mod3.dev_mod2","mod4.dev_mod1",  "mod4.dev_mod2",
+                                                                                       "mod5.dev_mod1","mod5.dev_mod2","mod6.dev_mod1",
+                                                                                       "mod6.dev_mod2","mod7.dev_mod1","mod7.dev_mod2"))
+tb_v_gam_CAI2_selected <- subset(raster_prediction_obj16$tb_diagnostic_v,pred_mod%in%c("mod1.dev_mod1","mod1.dev_mod2","mod3.dev_mod1",
+                                                                                       "mod3.dev_mod2","mod4.dev_mod1",  "mod4.dev_mod2",
+                                                                                       "mod5.dev_mod1","mod5.dev_mod2","mod6.dev_mod1",
+                                                                                       "mod6.dev_mod2","mod7.dev_mod1","mod7.dev_mod2"))
+
+metric_names <- c("mae","rmse","me","r")
+
+diff_gam_cai2 <- diff_df(tb_s_gam_CAI2_selected,tb_v_gam_CAI2_selected,metric_names)
+diff_kriging_CAI_selected <- diff_df(tb_s_kriging_CAI_selected,tb_v_kriging_CAI_selected,metric_names)
+diff_gam_CAI_selected <- diff_df(tb_s_gam_CAI_selected,tb_v_gam_CAI_selected,metric_names)
+diff_gwr_CAI_selected <- diff_df(tb_s_gwr_CAI_selected,tb_v_gwr_CAI_selected,metric_names)
+
+layout_m<-c(1,1) #one row two columns
+par(mfrow=layout_m)
+
+png(paste("Figure__accuracy_rmse_prop_month_",plot_name,out_suffix,".png", sep=""),
+    height=480*layout_m[1],width=480*layout_m[2])
+boxplot(diff_gam_cai2$rmse,diff_gam_CAI_selected$rmse,
+        diff_kriging_CAI_selected$rmse,diff_gwr_CAI_selected$rmse,names=c("gam_cai2","gam_CAI","kriging","gwr"))
+
+dev.off()
