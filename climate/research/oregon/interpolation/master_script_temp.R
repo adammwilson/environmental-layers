@@ -10,7 +10,7 @@
 #STAGE 5: Output analyses: assessment of results for specific dates...
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 10/04/2013                                                                                 
+#DATE: 10/10/2013                                                                                 
 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363, TASK$568--   
 
@@ -67,7 +67,7 @@ source(file.path(script_path,"results_interpolation_date_output_analyses_0805201
 source(file.path(script_path,"sampling_script_functions_08252013.R"))
 source(file.path(script_path,"GAM_fusion_function_multisampling_10042013.R")) #Includes Fusion and CAI methods
 source(file.path(script_path,"interpolation_method_day_function_multisampling_07052013.R")) #Include GAM_day
-source(file.path(script_path,"GAM_fusion_function_multisampling_validation_metrics_10042013.R"))
+source(file.path(script_path,"GAM_fusion_function_multisampling_validation_metrics_10102013.R"))
 
 #stages_to_run<-c(1,2,3,4,5) #May decide on antoher strategy later on...
 #stages_to_run<-c(0,2,3,4,5) #May decide on antoher strategy later on...
@@ -80,8 +80,10 @@ met_stations_outfiles_obj_file<-"/data/project/layers/commons/data_workflow/outp
 #met_stations_outfiles_obj_file<-"met_stations_outfiles_obj_gam_CAI__365d_gam_CAI_lst_comb3_08252013.RData"
 
 var<-"TMAX" # variable being interpolated
-out_prefix<-"_365d_gam_cai_lst_comb3_10042013"                #User defined output prefix
-out_suffix<-"_OR_10042013"                                       #Regional suffix
+out_prefix<-"_365d_gam_cai_lst_comb3_10102013"                #User defined output prefix
+#out_prefix<-"_365d_kriging_daily_mults1_lst_comb3_10102013"                #User defined output prefix
+
+out_suffix<-"_OR_10102013"                                       #Regional suffix
 out_suffix_modis <-"_05302013"                       #pattern to find tiles produced previously     
 
 #interpolation_method<-c("gam_fusion","gam_CAI","gam_daily") #other otpions to be added later
@@ -299,8 +301,7 @@ list_models<-c("y_var ~ s(lat,lon) + s(elev_s)",
                 "y_var ~ s(lat,lon) + s(elev_s) + s(LST) + ti(LST,LC1)")#,
                 #"y_var ~ s(lat,lon) + s(elev_s) + s(LST) + ti(LST,CANHGHT)")
 
-list_models2<-c("y_var ~ s(lat,lon) + s(elev_s)",
-                "y_var ~ s(lat,lon) + s(LST)")
+list_models2<-c("y_var ~ s(lat,lon) + s(DISTOC)")
 
 interp_method2 <- "gam" #other options are "gwr" and "kriging"
 #list_models<-c("y_var ~ lat*lon + elev_s")
