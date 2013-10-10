@@ -143,10 +143,21 @@ calculate_accuracy_metrics<-function(i,list_param){
 #### Function to create a data.frame from validation obj
 extract_from_list_obj<-function(obj_list,list_name){
   list_tmp<-vector("list",length(obj_list))
+  #for (i in 1:length(obj_list)){
+  #  tmp<-obj_list[[i]][[list_name]] #double bracket to return data.frame
+  #  list_tmp[[i]]<-tmp
+  #}
   for (i in 1:length(obj_list)){
-    tmp<-obj_list[[i]][[list_name]] #double bracket to return data.frame
-    list_tmp[[i]]<-tmp
+    tmp<-obj_list[[i]] #double bracket to return data.frame
+    if(inherits(tmp,"try-error")){     
+      print(paste("no model generated",sep=" ")) #change message for any model type...
+      list_tmp[[i]] <- NULL #double bracket to return data.frame
+    }else{
+      tmp<-obj_list[[i]][[list_name]] #double bracket to return data.frame
+      list_tmp[[i]]<-tmp
+    }
   }
+  #list_tmp <-list_tmp[!is.null(list_tmp)]
   tb_list_tmp<-do.call(rbind,list_tmp) #long rownames
   return(tb_list_tmp) #this is  a data.frame
 }
@@ -157,9 +168,16 @@ extract_list_from_list_obj<-function(obj_list,list_name){
   
   list_tmp<-vector("list",length(obj_list))
   for (i in 1:length(obj_list)){
-    tmp<-obj_list[[i]][[list_name]] #double bracket to return data.frame
-    list_tmp[[i]]<-tmp
+    tmp<-obj_list[[i]] #double bracket to return data.frame
+    if(inherits(tmp,"try-error")){     
+      print(paste("no model generated",sep=" ")) #change message for any model type...
+      list_tmp[[i]] <- NULL #double bracket to return data.frame
+    }else{
+      tmp<-obj_list[[i]][[list_name]] #double bracket to return data.frame
+      list_tmp[[i]]<-tmp
+    }
   }
+  #list_tmp <-list_tmp[!is.null(list_tmp)]
   return(list_tmp) #this is  a data.frame
 }
 
