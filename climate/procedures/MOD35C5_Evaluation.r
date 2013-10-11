@@ -238,9 +238,12 @@ output=mclapply(nrwg,function(ti){
     tind2=tind1[!is.na(tind1)&!is.na(tval1)]  #which classes exist without NAs?
     if(length(unique(tind2))<2) return(255)  #if only one class, return 255
     if(sort(table(tind2),dec=T)[2]<5) return(254) # if too few observations of class 2, return 254
-    return(round(kruskal.test(tval1,tind1)$p.value*100))         # if it works, return p.value*100
+#    return(round(kruskal.test(tval1,tind1)$p.value*100))         # if it works, return p.value*100
+    m=mean(tval1,na.rm=T)
+    dif=round(diff(range(tapply(tval1,tind1,mean)))/m*100)
+    return(dif)         # if it works, return p.value*100
   })),nrow=nby,ncol=ncol(mod35c5),byrow=T))     # turn it back into a raster
-  ## udpate raster and write it
+  ## update raster and write it
   extent(pp_bias)=extent(mod35c5[ti:(ti+nby-1),1:ncol(mod35c5),drop=F])
   projection(pp_bias)=projection(mod35c5)
   NAvalue(pp_bias) <- 255
@@ -253,7 +256,10 @@ output=mclapply(nrwg,function(ti){
     tind2=tind1[!is.na(tind1)&!is.na(tval1)]  #which classes exist without NAs?
     if(length(unique(tind2))<2) return(255)  #if only one class, return 255
     if(sort(table(tind2),dec=T)[2]<5) return(254) # if too few observations of class 2, return 254
-    return(round(kruskal.test(tval1,tind1)$p.value*100))         # if it works, get p.value*100
+#    return(round(kruskal.test(tval1,tind1)$p.value*100))         # if it works, get p.value*100
+    m=mean(tval1,na.rm=T)
+    dif=round(diff(range(tapply(tval1,tind1,mean)))/m*100)
+    return(dif)         # if it works, return the normalized difference
   })),nrow=nby,ncol=ncol(mod35c5),byrow=T))     # turn it back into a raster
   ## udpate raster and write it
   extent(lulc_bias)=extent(mod35c5[ti:(ti+nby-1),1:ncol(mod35c5),drop=F])
@@ -269,7 +275,10 @@ output=mclapply(nrwg,function(ti){
     tind2=tind1[!is.na(tind1)&!is.na(tval1)]  #which classes exist without NAs?
     if(length(unique(tind2))<2) return(255)  #if only one class, return 255
     if(sort(table(tind2),dec=T)[2]<5) return(254) # if too few observations of class 2, return 254
-    return(round(kruskal.test(tval1,tind1)$p.value*100))         # if it works, get p.value*100
+#    return(round(kruskal.test(tval1,tind1)$p.value*100))         # if it works, get p.value*100
+    m=mean(tval1,na.rm=T)
+    dif=round(diff(range(tapply(tval1,tind1,mean)))/m*100)
+    return(dif)         # if it works, return normalized difference
   })),nrow=nby,ncol=ncol(mod35c5),byrow=T))     # turn it back into a raster
   ## udpate raster and write it
   extent(mod09_lulc_bias)=extent(mod09[ti:(ti+nby-1),1:ncol(mod09),drop=F])
