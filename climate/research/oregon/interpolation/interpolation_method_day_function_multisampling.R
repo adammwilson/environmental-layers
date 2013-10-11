@@ -275,8 +275,9 @@ runGAM_day_fun <-function(i,list_param){
   out_prefix<-list_param$out_prefix
   out_path<-list_param$out_path
   screen_data_training<-list_param$screen_data_training
-
-  ghcn.subsets<-sampling_obj$ghcn_data_day
+  
+  #ghcn.subsets<-sampling_obj$ghcn_data_day
+  ghcn.subsets <- sampling_obj$ghcn_data
   sampling_dat <- sampling_obj$sampling_dat
   sampling <- sampling_obj$sampling_index
     
@@ -439,7 +440,8 @@ runKriging_day_fun <-function(i,list_param){
   out_path<-list_param$out_path
   
   
-  ghcn.subsets<-sampling_obj$ghcn_data_day
+  #ghcn.subsets<-sampling_obj$ghcn_data_day
+  ghcn.subsets<-sampling_obj$ghcn_data
   sampling_dat <- sampling_obj$sampling_dat
   sampling <- sampling_obj$sampling_index
   
@@ -604,8 +606,8 @@ run_interp_day_fun <-function(i,list_param){
   out_prefix<-list_param$out_prefix
   out_path<-list_param$out_path
   
-  
-  ghcn.subsets<-sampling_obj$ghcn_data_day
+  #ghcn.subsets<-sampling_obj$ghcn_data_day
+  ghcn.subsets <- sampling_obj$ghcn_data
   sampling_dat <- sampling_obj$sampling_dat
   sampling <- sampling_obj$sampling_index
   
