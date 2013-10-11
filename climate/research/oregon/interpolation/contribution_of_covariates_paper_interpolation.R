@@ -37,7 +37,7 @@ library(pgirmess)                            # Krusall Wallis test with mulitple
 
 #### FUNCTION USED IN SCRIPT
 
-function_analyses_paper <-"contribution_of_covariates_paper_interpolation_functions_09092013.R"
+function_analyses_paper <-"contribution_of_covariates_paper_interpolation_functions_09232013.R"
 
 ##############################
 #### Parameters and constants  
@@ -63,7 +63,7 @@ infile_reg_outline <- "/data/project/layers/commons/data_workflow/inputs/region_
 met_stations_outfiles_obj_file<-"/data/project/layers/commons/data_workflow/output_data_365d_gam_fus_lst_test_run_07172013/met_stations_outfiles_obj_gam_fusion__365d_gam_fus_lst_test_run_07172013.RData"
 CRS_locs_WGS84<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0") #Station coords WGS84
 y_var_name <- "dailyTmax"
-out_prefix<-"analyses_09232013"
+out_prefix<-"analyses_10102013"
 
 #method_interpolation <- "gam_daily"
 covar_obj_file_1 <- "covar_obj__365d_gam_day_lst_comb3_08132013.RData"
@@ -250,45 +250,26 @@ png(filename=paste("Figure1_contribution_covariates_study_area_",out_prefix,".pn
     width=col_mfrow*res_pix,height=row_mfrow*res_pix)
 par(mfrow=c(1,1))
 
-
-#plot(elev_WGS84)
-plot(interp_area_WGS84)
+#plot(elev_WGS84,cex.axis=2.1,cex.z=2.1)
+plot(elev_WGS84,cex.axis=1.4,axis.args=list(at=seq(0,3500,500),
+               labels=seq(0, 3500, 500), 
+               cex.axis=1.4))
+plot(interp_area_WGS84,add=T)
 plot(ghcn_dat_WGS84,add=T)
-title("SStudy area with ")
-#this work on non sp plot too: Scale bar postion
-#scale_position<-c(450000, 600000)
-#arrow_position<-c(900000, 600000)
-
-#legend("topright",legend=c(0:7),title="Number of change",
-#       pt.cex=1.4,cex=2.1,fill=rev(terrain.colors(8)),bty="n")
-#label_scalebar<-c("0","125","250")
-#scalebar(d=250000, xy=scale_position, type = 'bar', 
-#         divs=3,label=label_scalebar,below="kilometers",
-#         cex=1.8)
-
-## Northern arrow
-#SpatialPolygonsRescale(layout.north.arrow(), offset = arrow_position, 
-#                       scale = 150000, fill=c("transparent","black"),plot.grid=FALSE)
-##note that scale in SpatialPolygonRescale sets the size of the north arrow!!
-
-### PLACE INSET MAP OF THE USA
-#opar <- par(fig=c(0.7, 0.95, 0.5, 0.75), new=TRUE)
-#opar <- par(fig=c(0, 0, 1, 1), new=TRUE)
+title_text <-c("Elevation (m) and meteorological"," stations in Oregon")
+legend("topleft",legend=title_text,cex=2.1,bty="n")
 
 par(mar = c(0,0,0,0)) # remove margin
 #opar <- par(fig=c(0.9,0.95,0.8, 0.85), new=TRUE)
-opar <- par(fig=c(0.85,0.95,0.8, 0.9), new=TRUE)
-
-#p1<-spplot(ghcn_dat,"station")
-#p2<-spplot(usa_map_2,"NAMES_1")
-#print(p1,position=c(0,0,1,1),more=T)
-#print(p2,position=c(0,0,0.3,0.3),more=T)
+#opar <- par(fig=c(0.85,0.95,0.8, 0.9), new=TRUE)
+#opar <- par(fig=c(0.8,0.95,0.75, 0.9), new=TRUE)
+#opar <- par(fig=c(0.75,0.95,0.7, 0.9), new=TRUE)
+opar <- par(fig=c(0.65,0.9,0.8, 0.92), new=TRUE)
 
 plot(usa_map_2,border="black") #border and lwd are options of graphics package polygon object
-plot(usa_map_OR,col="grey",add=T)
+plot(usa_map_OR,col="dark grey",add=T)
 box()
 dev.off()
-
 
 ### Figure 2:  Method comparison workflow 
 
@@ -615,21 +596,28 @@ png(filename=file.path(out_dir,png_file_name),
     width=col_mfrow*res_pix,height=row_mfrow*res_pix)
 par(mfrow=c(row_mfrow,col_mfrow))
 
+col_t<-c("red","blue","black")
+pch_t<- 1:length(col_t)
+legend_text <- c("GAM","Kriging","GWR")
+
 y_range<-range(tb1_month$mae,tb3_month$mae,tb4_month$mae)
 xlab_tick <- unique(tb1$month)
 xlab_text <-"Month"
-  
-plot(1:12,tb1_month$mae,col=c("red"),type="b",ylim=y_range,xlab=xlab_text,xaxt="n")
+ylab_text <- "MAE (C)"
+plot(1:12,tb1_month$mae,col=c("red"),type="b",ylim=y_range,xlab=xlab_text,ylab=ylab_text,xaxt="n")
 lines(1:12,tb3_month$mae,col=c("blue"),type="b")
 lines(1:12,tb4_month$mae,col=c("black"),type="b")
 axis(1,at=1:12,labels=xlab_tick)
 title(main="Monthly average MAE")
+legend("topleft",legend=legend_text, 
+       cex=0.9, pch=c(pch_t),col=c(col_t),lty=c(1,1,1),bty="n")
 
+#Second plot
 ylab_text<-"MAE (C)"
 xlab_text<-"Month"
 #y_range<-range(month_data_list$gam$mae,month_data_list$kriging$mae,month_data_list$gwr$mae)
 #y_range<-range(month_data_list$gam$mae)
-boxplot(mae~month,data=month_data_list$gam,main="GAM",ylab=ylab_text,outline=FALSE)
+boxplot(mae~month,data=month_data_list$gam,main="Monthly MAE boxplot", xlab=xlab_text,ylab=ylab_text,outline=FALSE)
 #boxplot(mae~month,data=month_data_list$kriging,ylim=y_range,main="Kriging",ylab=ylab_text,outline=FALSE)
 #boxplot(mae~month,data=month_data_list$gwr,ylim=y_range,main="GWR",ylab=ylab_text,outline=FALSE)
 
