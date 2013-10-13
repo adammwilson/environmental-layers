@@ -81,9 +81,9 @@ met_stations_outfiles_obj_file<-"/data/project/layers/commons/data_workflow/outp
 
 var<-"TMAX" # variable being interpolated
 #out_prefix<-"_365d_gam_cai_lst_comb3_10102013"                #User defined output prefix
-out_prefix<-"_365d_gam_daily_mults1_lst_comb3_10122013"                #User defined output prefix
+out_prefix<-"_365d_gwr_daily_mults1_lst_comb3_10132013"                #User defined output prefix
 
-out_suffix<-"_OR_10122013"                                       #Regional suffix
+out_suffix<-"_OR_10132013"                                       #Regional suffix
 out_suffix_modis <-"_05302013"                       #pattern to find tiles produced previously     
 
 #interpolation_method<-c("gam_fusion","gam_CAI","gam_daily") #other otpions to be added later
@@ -94,9 +94,9 @@ out_suffix_modis <-"_05302013"                       #pattern to find tiles prod
 #interpolation_method<-c("gwr_CAI") #other otpions to be added later
 #interpolation_method<-c("kriging_CAI") 
 
-interpolation_method<-c("gam_daily") #other otpions to be added later
+#interpolation_method<-c("gam_daily") #other otpions to be added later
 #interpolation_method<-c("kriging_daily") #other otpions to be added later
-#interpolation_method<-c("gwr_daily") #other otpions to be added later
+interpolation_method<-c("gwr_daily") #other otpions to be added later
 
 #out_path<-"/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/output_data"
 out_path <- "/data/project/layers/commons/Oregon_interpolation/output_data"
@@ -262,7 +262,7 @@ prop_minmax_month <-c(0,0)  #if prop_min=prop_max and step=0 then predictions ar
 #dates_selected<-c("20100101","20100102","20100103","20100901") # Note that the dates set must have a specific format: yyymmdd
 #dates_selected<-c("20100101","20100102","20100301","20100302","20100501","20100502","20100701","20100702","20100901","20100902","20101101","20101102")
 dates_selected<-"" # if empty string then predict for the full year specified earlier
-dates_selected <- 2 # if empty string then predict for the full year specified earlier
+dates_selected <- 2 # if integer then predict for the evert n dat in the year specified earlier
 
 screen_data_training<- FALSE #screen training data for NA and use same input training for all models fitted
 use_clim_image <- TRUE # use predicted image as a base...rather than average Tmin at the station for delta
@@ -309,9 +309,9 @@ list_models2 <- NULL
 interp_method2 <- NULL #other options are "gwr" and "kriging"
 
 #interp_method2 <- "gam" #other options are "gwr" and "kriging"
-#list_models<-c("y_var ~ lat*lon + elev_s")
+list_models <- c("y_var ~ lat*lon + elev_s")
 
-list_models<-c("y_var ~ s(lat,lon) + s(elev_s)")
+#list_models<-c("y_var ~ s(lat,lon) + s(elev_s)")
 
 #list_models<-c("y_var ~ lat*lon + elev_s") #,
 #               "y_var ~ lat*lon + elev_s + N_w",
@@ -342,7 +342,7 @@ names(list_param_raster_prediction)<-c("list_param_data_prep","screen_data_train
 #debug(debug_fun_test)
 #debug_fun_test(list_param_raster_prediction)
 
-raster_prediction_obj <-raster_prediction_fun(list_param_raster_prediction)
+raster_prediction_obj <- raster_prediction_fun(list_param_raster_prediction)
 
 ############## STAGE 5: OUTPUT ANALYSES ##################
 
