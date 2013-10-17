@@ -4,8 +4,8 @@
 #different covariates using two baselines. Accuracy methods are added in the the function script to evaluate results.
 #Figures, tables and data for the contribution of covariate paper are also produced in the script.
 #AUTHOR: Benoit Parmentier                                                                      
-#DATE: 09/09/2013            
-#Version: 3
+#MMODIFIED ON: 10/15/2013            
+#Version: 4
 #PROJECT: Environmental Layers project                                     
 #################################################################################################
 
@@ -37,7 +37,7 @@ library(pgirmess)                            # Krusall Wallis test with mulitple
 
 #### FUNCTION USED IN SCRIPT
 
-function_analyses_paper <-"contribution_of_covariates_paper_interpolation_functions_09232013.R"
+function_analyses_paper <-"contribution_of_covariates_paper_interpolation_functions_10152013.R"
 
 ##############################
 #### Parameters and constants  
@@ -52,9 +52,13 @@ in_dir3 <-"/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_0314
 #gwr results:
 in_dir4 <-"/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/output_data_365d_gwr_day_lst_comb3_part1_07122013"
 #multisampling results (gam)
-in_dir5<- "/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/output_data_365d_gam_daily_mults10_lst_comb3_08082013"
-in_dir6<- "/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/output_data_365d_kriging_daily_mults10_lst_comb3_08062013"
-in_dir7<- "/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/output_data_365d_gwr_daily_mults10_lst_comb3_08072013"
+#in_dir5<- "/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/output_data_365d_gam_daily_mults10_lst_comb3_08082013"
+#in_dir6<- "/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/output_data_365d_kriging_daily_mults10_lst_comb3_08062013"
+#in_dir7<- "/home/parmentier/Data/IPLANT_project/Oregon_interpolation/Oregon_03142013/output_data_365d_gwr_daily_mults10_lst_comb3_08072013"
+#Hold-out every two days over 365 days
+in_dir5 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_gam_daily_mults1_lst_comb3_10122013"
+in_dir6 <- "/data/project/layers/commons/Oregon_interpolation/output_data_365d_kriging_daily_mults1_lst_comb3_10112013"
+in_dir7 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_gwr_daily_mults1_lst_comb3_10132013"
 
 out_dir<-"/home/parmentier/Data/IPLANT_project/paper_analyses_tables_fig_08032013"
 setwd(out_dir)
@@ -63,7 +67,7 @@ infile_reg_outline <- "/data/project/layers/commons/data_workflow/inputs/region_
 met_stations_outfiles_obj_file<-"/data/project/layers/commons/data_workflow/output_data_365d_gam_fus_lst_test_run_07172013/met_stations_outfiles_obj_gam_fusion__365d_gam_fus_lst_test_run_07172013.RData"
 CRS_locs_WGS84<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0") #Station coords WGS84
 y_var_name <- "dailyTmax"
-out_prefix<-"analyses_10102013"
+out_prefix<-"analyses_10152013"
 
 #method_interpolation <- "gam_daily"
 covar_obj_file_1 <- "covar_obj__365d_gam_day_lst_comb3_08132013.RData"
@@ -77,10 +81,13 @@ raster_obj_file_2 <- "raster_prediction_obj_gam_daily_dailyTmax_365d_gam_day_lst
 raster_obj_file_3 <- "raster_prediction_obj_kriging_daily_dailyTmax_365d_kriging_day_lst_comb3_07112013.RData"
 raster_obj_file_4 <- "raster_prediction_obj_gwr_daily_dailyTmax_365d_gwr_day_lst_comb3_part1_07122013.RData"
 #multisampling using baseline lat,lon + elev
-raster_obj_file_5 <- "raster_prediction_obj_gam_daily_dailyTmax_365d_gam_daily_mults10_lst_comb3_08082013.RData"
-raster_obj_file_6 <- "raster_prediction_obj_kriging_daily_dailyTmax_365d_kriging_daily_mults10_lst_comb3_08062013.RData"
-raster_obj_file_7 <- "raster_prediction_obj_gwr_daily_dailyTmax_365d_gwr_daily_mults10_lst_comb3_08072013.RData"
-#raster_prediction_obj_gam_daily_dailyTmax_365d_gam_daily_mults10_lst_comb3_08082013.RData
+#raster_obj_file_5 <- "raster_prediction_obj_gam_daily_dailyTmax_365d_gam_daily_mults10_lst_comb3_08082013.RData"
+#raster_obj_file_6 <- "raster_prediction_obj_kriging_daily_dailyTmax_365d_kriging_daily_mults10_lst_comb3_08062013.RData"
+#raster_obj_file_7 <- "raster_prediction_obj_gwr_daily_dailyTmax_365d_gwr_daily_mults10_lst_comb3_08072013.RData"
+
+raster_obj_file_5 <- "raster_prediction_obj_gam_daily_dailyTmax_365d_gam_daily_mults1_lst_comb3_10122013.RData"
+raster_obj_file_6 <- "raster_prediction_obj_kriging_daily_dailyTmax_365d_kriging_daily_mults1_lst_comb3_10112013.RData"
+raster_obj_file_7 <- "raster_prediction_obj_gwr_daily_dailyTmax_365d_gwr_daily_mults1_lst_comb3_10132013.RData"
 
 #Load objects containing training, testing, models objects 
 
@@ -100,6 +107,7 @@ raster_prediction_obj_4 <-load_obj(file.path(in_dir4,raster_obj_file_4)) #comb3/
 raster_prediction_obj_5 <-load_obj(file.path(in_dir5,raster_obj_file_5)) #gam daily multisampling 10 to 70%
 raster_prediction_obj_6 <-load_obj(file.path(in_dir6,raster_obj_file_6)) #kriging daily multisampling 10 to 70% 
 raster_prediction_obj_7 <-load_obj(file.path(in_dir7,raster_obj_file_7)) #gwr daily multisampling 10 to 70%
+
 
 ############### BEGIN SCRIPT #################
 
@@ -292,8 +300,12 @@ l4 <- distance_to_closest_fitting_station(raster_prediction_obj_4,names_mod,dist
 
 l1$mae_tb #contains
 
-#Prepare parameters/arguments for plotting
 list_dist_obj <-list(l1,l3,l4)
+head(list_dist_obj[[1]]$dstspat_dat)
+#should add method_interp in data.frame
+
+#Prepare parameters/arguments for plotting
+
 col_t <- c("red","blue","black")
 pch_t <- 1:length(col_t)
 legend_text <- c("GAM","Kriging","GWR")
@@ -357,6 +369,24 @@ prop_obj_kriging<-calc_stat_prop_tb(names_mod,raster_prediction_obj_6)
 prop_obj_gwr<-calc_stat_prop_tb(names_mod,raster_prediction_obj_7)
 
 list_prop_obj<-list(prop_obj_gam,prop_obj_kriging,prop_obj_gwr)
+#Testing siginificance between models
+
+mod_compk1 <-kruskal.test(prop_obj_gwr$tb$rmse ~ as.factor(prop_obj_gwr$tb$prop)) #Kruskal Wallis test
+mod_compk2 <-kruskal.test(tb2$rmse ~ as.factor(tb2$pred_mod))
+print(mod_compk1) #not significant
+print(mod_compk2) #not significant
+
+#Multiple Kruskal Wallis
+mod_compk1 <-kruskalmc(prop_obj_gwr$tb$rmse ~ as.factor(prop_obj_gwr$tb$prop))
+mod_compk2 <-kruskalmc(tb2$rmse ~ as.factor(tb2$pred_mod))
+
+print(mod_compk1)
+print(mod_compk2)
+
+prop_tb <- rbind(prop_obj_gam$tb,prop_obj_kriging$tb,prop_obj_gwr$tb)
+
+mod_compk1 <-kruskal.test(prop_tb$rmse ~ as.factor(prop_tb$method_interp)+as.factor(prop_tb$prop)) #Kruskal Wallis test
+mod_prop <-lm(prop_tb$rmse ~ as.factor(prop_tb$method_interp)+as.factor(prop_tb$prop)) #This is significant!!
 
 ## plot setting for figure 4
 
@@ -378,7 +408,7 @@ png_file_name<- paste("Figure_4_proportion_of_holdout_and_accuracy_",out_prefix,
 png(filename=file.path(out_dir,png_file_name),
     width=col_mfrow*res_pix,height=row_mfrow*res_pix)
 par(mfrow=c(row_mfrow,col_mfrow))
-
+#par(mfrow=c(1,1))
 metric_name<-"mae"
 list_param_plot<-list(list_prop_obj,col_t,pch_t,legend_text,mod_name,metric_name,add_CI,CI_bar)
 names(list_param_plot)<-c("list_prop_obj","col_t","pch_t","legend_text","mod_name","metric_name","add_CI","CI_bar")
@@ -419,6 +449,18 @@ tb4_s<-extract_from_list_obj(raster_prediction_obj_4$validation_mod_obj,"metrics
 rownames(tb4_s)<-NULL #remove row names
 tb4_s$method_interp <- "gwr_daily" #add type of interpolation...out_prefix too??
 
+tb5_s<-extract_from_list_obj(raster_prediction_obj_5$validation_mod_obj,"metrics_s")
+rownames(tb5_s)<-NULL #remove row names
+tb5_s$method_interp <- "gam_daily" #add type of interpolation...out_prefix too??
+
+tb6_s<-extract_from_list_obj(raster_prediction_obj_6$validation_mod_obj,"metrics_s")
+rownames(tb6_s)<-NULL #remove row names
+tb6_s$method_interp <- "kriging_daily" #add type of interpolation...out_prefix too??
+
+tb7_s<-extract_from_list_obj(raster_prediction_obj_7$validation_mod_obj,"metrics_s")
+rownames(tb7_s)<-NULL #remove row names
+tb7_s$method_interp <- "gwr_daily" #add type of interpolation...out_prefix too??
+
 #tb1_s <-raster_prediction_obj_1$tb_diagnostic_s  #gam dailycontains the accuracy metrics for each run...
 #tb3_s <-raster_prediction_obj_3$tb_diagnostic_s  #Kriging daily methods
 #tb4_s <-raster_prediction_obj_4$tb_diagnostic_s  #gwr daily methods
@@ -427,13 +469,35 @@ tb1 <-raster_prediction_obj_1$tb_diagnostic_v  #gam dailycontains the accuracy m
 tb3 <-raster_prediction_obj_3$tb_diagnostic_v  #Kriging daily methods
 tb4 <-raster_prediction_obj_4$tb_diagnostic_v  #gwr daily methods
 
+tb5 <-raster_prediction_obj_5$tb_diagnostic_v  #gam dailycontains the accuracy metrics for each run...
+tb6 <-raster_prediction_obj_6$tb_diagnostic_v  #Kriging daily methods
+tb7 <-raster_prediction_obj_7$tb_diagnostic_v  #gwr daily methods
+
 #Calculate difference in MAE and RMSE for training and testing data: call diff_df function
 diff_tb1 <-diff_df(tb1_s[tb1_s$pred_mod=="mod1",],tb1[tb1$pred_mod=="mod1",],c("mae","rmse")) #gam select differences for mod1
 diff_tb3 <-diff_df(tb3_s[tb3_s$pred_mod=="mod1",],tb3[tb3$pred_mod=="mod1",],c("mae","rmse")) #kriging
 diff_tb4 <-diff_df(tb4_s[tb4_s$pred_mod=="mod1",],tb4[tb4$pred_mod=="mod1",],c("mae","rmse")) #gwr
 
+diff_tb5 <-diff_df(tb5_s[tb5_s$pred_mod=="mod1",],tb5[tb5$pred_mod=="mod1",],c("mae","rmse")) #gam select differences for mod1
+diff_tb6 <-diff_df(tb6_s[tb6_s$pred_mod=="mod1",],tb6[tb6$pred_mod=="mod1",],c("mae","rmse")) #kriging
+diff_tb7 <-diff_df(tb7_s[tb7_s$pred_mod=="mod1",],tb7[tb7$pred_mod=="mod1",],c("mae","rmse")) #gwr
+
+
 diff_mae_data <-data.frame(gam=diff_tb1$mae,kriging=diff_tb3$mae,gwr=diff_tb4$mae)
 diff_rmse_data <-data.frame(gam=diff_tb1$rmse,kriging=diff_tb3$rmse,gwr=diff_tb4$rmse)
+
+
+diff_mae_data_mult  <-data.frame(gam=diff_tb5$mae,kriging=diff_tb6$mae,gwr=diff_tb7$mae)
+diff_rmse_data_mult <-data.frame(gam=diff_tb5$rmse,kriging=diff_tb6$rmse,gwr=diff_tb7$rmse)
+
+diff_mae_data_mult$prop <- tb5$prop
+
+boxplot(diff_mae_data_mult$gam~diff_mae_data_mult$prop)
+boxplot(diff_mae_data_mult$kriging~diff_mae_data_mult$prop)
+
+plot(diff_mae_data_mult$gam~diff_mae_data_mult$prop,type="p")
+
+
 
 #Test the plot
 boxplot(diff_mae_data)
@@ -441,6 +505,12 @@ boxplot(diff_rmse_data) #plot differences in training and testing accuracies for
 title(main="Training and testing RMSE for hold out and interpolation methods",
       xlab="Interpolation method",
       ylab="RMSE (C)")
+
+boxplot(diff_mae_data_mult)
+boxplot(diff_rmse_data_mult) #plot differences in training and testing accuracies for three methods
+
+
+boxplot(diff_mae_data_mult)
 
 tb5 <-raster_prediction_obj_5$tb_diagnostic_v  #gam dailycontains the accuracy metrics for each run...
 tb6 <-raster_prediction_obj_6$tb_diagnostic_v  #Kriging daily methods
@@ -497,7 +567,7 @@ l_col_t <- c("red","red","black","black","blue","blue")
 l_pch_t <- c(1,1,3,3,2,2)
 l_lty_t <- c(2,1,1,2,2,1)
 add_CI <- c(FALSE,FALSE,FALSE,FALSE,FALSE,FALSE)
-#add_CI <- c(TRUE,TRUE,TRUE,TRUE,TRUE,TRUE)
+add_CI <- c(TRUE,TRUE,TRUE,TRUE,TRUE,TRUE)
 y_range<-c(0.5,3)
 
 plot_ac_holdout_prop(l_prop,l_col_t,l_pch_t,add_CI,y_range)
@@ -518,7 +588,8 @@ title(main="Training and testing RMSE for hold out and methods",
       ylab="RMSE (C)")
 
 
-boxplot(diff_mae_data) #plot differences in training and testing accuracies for three methods
+boxplot(diff_mae_data_mult[-4]) #plot differences in training and testing accuracies for three methods
+
 title(main="Difference between training and testing MAE",
       xlab="Interpolation method",
       ylab="MAE (C)")
@@ -526,7 +597,7 @@ title(main="Difference between training and testing MAE",
 dev.off()
 
 ############### STUDY TIME AND accuracy
-#########Figure 6: Monthly RMSE averages for the three interpolation methods: GAM, GWR and Kriging.
+  #########Figure 6: Monthly RMSE averages for the three interpolation methods: GAM, GWR and Kriging.
 
 mae_tmp<- data.frame(gam=tb1[tb1$pred_mod=="mod1",c("mae")],
                      kriging=tb3[tb3$pred_mod=="mod1",c("mae")],

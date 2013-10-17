@@ -4,7 +4,7 @@
 # interpolation code.
 #Figures and data for the contribution of covariate paper are also produced.
 #AUTHOR: Benoit Parmentier                                                                      #
-#DATE: 08/15/2013            
+#DATE: 10/15/2013            
 #Version: 2
 #PROJECT: Environmental Layers project                                       #
 #################################################################################################
@@ -380,7 +380,7 @@ plot_prop_metrics <-function(list_param){
     n_tb<-subset(l$n_tb,pred_mod==mod_name,select=metric_name) 
     sd_tb<-subset(l$sd_tb,pred_mod==mod_name,select=metric_name) #l$sd_abs_tb[,metric_name]
     
-    xlab_text<-"holdout proportion"
+    xlab_text<-""
     
     no <- unlist(as.data.frame(n_tb))
     y <- unlist(as.data.frame(avg_tb))
@@ -412,13 +412,13 @@ plot_prop_metrics <-function(list_param){
     if(add_CI[i]==TRUE){
       
       if (i==1){
-        plotCI(y=y, x=x, uiw=ciw, col=col_t[i], barcol="blue", lwd=1,pch=pch_t[i],main=paste(" Comparison of ",metric_name," in ",mod_name,sep=""),
-               ylab="RMSE (C)", xlab=xlab_text) 
+        plotCI(y=y, x=x, uiw=ciw, col=col_t[i], barcol="blue", lwd=1,pch=pch_t[i],
+               ylab="", xlab=xlab_text) 
         lines(y~x, pch=pch_t[i],col=col_t[i],type="b")
       }else{
         lines(y~x, pch=pch_t[i],col=col_t[i],type="b")
         plotCI(y=y, x=x, uiw=ciw, col=col_t[i], barcol="blue", lwd=1,pch=pch_t[i],
-               ylab="RMSE (C)", xlab=xlab_text,add=TRUE) 
+               ylab="", xlab=xlab_text,add=TRUE) 
       }
       
     }else{
