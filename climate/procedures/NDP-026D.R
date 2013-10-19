@@ -5,14 +5,13 @@ setwd("~/acrobates/adamw/projects/interp/data/NDP026D")
 library(multicore)
 library(latticeExtra)
 library(doMC)
-library(raster)
+library(rasterVis)
 library(rgdal)
 ## register parallel processing
-registerDoMC(20)
+registerDoMC(10)
 
 
 ## available here http://cdiac.ornl.gov/epubs/ndp/ndp026d/ndp026d.html
-
 
 ## Get station locations
 system("wget -N -nd http://cdiac.ornl.gov/ftp/ndp026d/cat01/01_STID -P data/")
@@ -70,6 +69,16 @@ cldm=do.call(rbind.data.frame,by(cld,list(month=as.factor(cld$month),StaID=as.fa
              cldsd=sd(x$Amt[x$Nobs>10]/100,na.rm=T))}))
 cldm[,c("lat","lon")]=st[match(cldm$StaID,st$StaID),c("lat","lon")]
 
+## means by year
+cldy=do.call(rbind.data.frame,by(cld,list(year=as.factor(cld$YR),StaID=as.factor(cld$StaID)),function(x){
+  data.frame(
+             year=x$YR[1],
+             StaID=x$StaID[1],
+             cld=mean(x$Amt[x$Nobs>10]/100,na.rm=T),
+             cldsd=sd(x$Amt[x$Nobs>10]/100,na.rm=T))}))
+cldy[,c("lat","lon")]=st[match(cldy$StaID,st$StaID),c("lat","lon")]
+
+
 #cldm=foreach(m=unique(cld$month),.combine='rbind')%:%
 #  foreach(s=unique(cld$StaID),.combine="rbind") %dopar% {
 #    x=cld[cld$month==m&cld$StaID==s,]
@@ -79,13 +88,15 @@ cldm[,c("lat","lon")]=st[match(cldm$StaID,st$StaID),c("lat","lon")]
 #               Amt=mean(x$Amt[x$Nobs>10],na.rm=T)/100)}
  
 
-## write out the table
+## write out the tables
+write.csv(cldy,file="cldy.csv")
 write.csv(cldm,file="cldm.csv")
 
-
+#########################################################################
 ##################
 ###
 cldm=read.csv("cldm.csv")
+cldy=read.csv("cldy.csv")
 
 
 ##make spatial object
@@ -93,23 +104,85 @@ cldms=cldm
 coordinates(cldms)=c("lon","lat")
 projection(cldms)=CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
 
+##make spatial object
+cldys=cldy
+coordinates(cldys)=c("lon","lat")
+projection(cldys)=CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
+
 #### Evaluate MOD35 Cloud data
-mod35=brick("../modis/mod35/MOD35_h11v08.nc",varname="CLD01")
-mod35sd=brick("../modis/mod35/MOD35_h11v08.nc",varname="CLD_sd")
+mod35c6=brick("~/acrobates/adamw/projects/MOD35C5/data/MOD35C6_2009_new.tif")
+#projection(mod35c6)="+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
 
-projection(mod35)="+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
-projection(mod35sd)="+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
 
-cldms=spTransform(cldms,CRS(projection(mod35)))
+### use data from google earth engine
+mod35c5=raster("../modis/mod09/global_2009/MOD35_2009.tif")
+mod09=raster("../modis/mod09/global_2009/MOD09_2009.tif")
 
-mod35v=foreach(m=unique(cldm$month),.combine="rbind") %do% {
-  dr=subset(mod35,subset=m);projection(dr)=projection(mod35)
-  dr2=subset(mod35sd,subset=m);projection(dr2)=projection(mod35)
-  ds=cldms[cldms$month==m,]
-  ds$mod35=unlist(extract(dr,ds,buffer=10,fun=mean,na.rm=T))
+## LULC
+#system(paste("gdalwarp -r near -co \"COMPRESS=LZW\" -tr ",paste(res(mod09),collapse=" ",sep=""),
+#             "-tap -multi -t_srs \"",   projection(mod09),"\" /mnt/data/jetzlab/Data/environ/global/landcover/MODIS/MCD12Q1_IGBP_2005_v51.tif ../modis/mod12/MCD12Q1_IGBP_2005_v51.tif"))
+lulc=raster("../modis/mod12/MCD12Q1_IGBP_2005_v51.tif")
+lulc=ratify(lulc)
+require(plotKML); data(worldgrids_pal)  #load IGBP palette
+IGBP=data.frame(ID=0:16,col=worldgrids_pal$IGBP[-c(18,19)],stringsAsFactors=F)
+IGBP$class=rownames(IGBP);rownames(IGBP)=1:nrow(IGBP)
+levels(lulc)=list(IGBP)
+lulc=crop(lulc,mod09)
+
+n=100
+at=seq(0,100,length=n)
+colr=colorRampPalette(c("black","green","red"))
+cols=colr(n)
+
+#dif=mod35-mod09
+#bwplot(dif~as.factor(lulc))
+
+#levelplot(mod35,col.regions=cols,at=at,margins=F,maxpixels=1e6)#,xlim=c(-100,-50),ylim=c(0,10))
+#levelplot(lulc,att="class",col.regions=levels(lulc)[[1]]$col,margin=F,maxpixels=1e6)
+
+#cldys=spTransform(cldys,CRS(projection(mod35)))
+
+#mod35v=foreach(m=unique(cldm$month),.combine="rbind") %do% {
+#  dr=subset(mod35,subset=m);projection(dr)=projection(mod35)
+#  dr2=subset(mod35sd,subset=m);projection(dr2)=projection(mod35)
+#  ds=cldms[cldms$month==m,]
+#  ds$mod35=unlist(extract(dr,ds,buffer=10,fun=mean,na.rm=T))
 #  ds$mod35sd=extract(dr2,ds,buffer=10)
-  print(m)
-  return(ds@data[!is.na(ds$mod35),])}
+#  print(m)
+#  return(ds@data[!is.na(ds$mod35),])}
+
+y=2009
+d=cldys[cldys$year==y,]
+
+d$mod35c6_10=unlist(extract(mod35c6,d,buffer=10000,fun=mean,na.rm=T))
+d$mod35c5_10=unlist(extract(mod35c5,d,buffer=10000,fun=mean,na.rm=T))
+d$mod09_10=unlist(extract(mod09,d,buffer=10000,fun=mean,na.rm=T))
+#d$dif=d$mod35_10-d$mod09_10
+#d$dif2=d$mod35_10-d$cld
+
+d$lulc=unlist(extract(lulc,d))
+d$lulc_10=unlist(extract(lulc,d,buffer=10000,fun=mode,na.rm=T))
+d$lulc=factor(d$lulc,labels=IGBP$class)
+
+save(d,file="annualsummary.Rdata")
+
+## quick model to explore fit
+plot(cld~mod35,groups=lulc,data=d)
+summary(lm(cld~mod35+as.factor(lulc),data=d))
+summary(lm(cld~mod09_10,data=d))
+summary(lm(cld~mod09_10+as.factor(lulc),data=d))
+summary(lm(cld~mod09_10+as.factor(lulc),data=d))
+
+### exploratory plots
+xyplot(cld~mod09_10,groups=lulc,data=d@data,pch=16,cex=.5)+layer(panel.abline(0,1,col="red"))
+xyplot(cld~mod09_10+mod35c5_10|as.factor(lulc),data=d@data,type=c("p","r"),pch=16,cex=.25,auto.key=T)+layer(panel.abline(0,1,col="green"))
+xyplot(cld~mod35_10|as.factor(lulc),data=d@data,pch=16,cex=.5)+layer(panel.abline(0,1,col="red"))
+xyplot(mod35_10~mod09_10|as.factor(lulc),data=d@data,pch=16,cex=.5)+layer(panel.abline(0,1,col="red"))
+
+densityplot(stack(mod35,mod09))
+boxplot(mod35,lulc)
+
+bwplot(mod09~mod35|cut(y,5),data=stack(mod09,mod35))
 
 ## month factors
 cldm$month2=factor(cldm$month,labels=month.name)
