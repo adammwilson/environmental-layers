@@ -34,7 +34,7 @@ library(rgeos)                               # Geometric, topologic library of f
 
 #Additional libraries not used in workflow
 library(pgirmess)                            # Krusall Wallis test with mulitple options, Kruskalmc {pgirmess}  
-
+library(ncf)
 #### FUNCTION USED IN SCRIPT
 
 function_analyses_paper <-"contribution_of_covariates_paper_interpolation_functions_10152013.R"
@@ -234,6 +234,13 @@ write.table(as.data.frame(table4_paper),file=file_name,sep=",")
 #infile_monthly<-list_outfiles$monthly_covar_ghcn_data #outile4 from database_covar script
 #infile_daily<-list_outfiles$daily_covar_ghcn_data  #outfile3 from database_covar script
 #infile_locs<- list_outfiles$loc_stations_ghcn #outfile2? from database covar script
+#
+#
+#ghcn_day_dat <- readOGR(dsn=dirname(met_stations_obj$daily_covar_ghcn_data),
+#                    sub(".shp","",basename(met_stations_obj$daily_covar_ghcn_data)))
+#ghcn_dayq_dat <- readOGR(dsn=dirname(met_stations_obj$daily_query_ghcn_data),
+#                        sub(".shp","",basename(met_stations_obj$daily_query_ghcn_data)))
+
 
 ghcn_dat <- readOGR(dsn=dirname(met_stations_obj$monthly_covar_ghcn_data),
         sub(".shp","",basename(met_stations_obj$monthly_covar_ghcn_data)))
@@ -313,7 +320,9 @@ mod_name <- c("res_mod1","res_mod1","res_mod1")#selected models
 x_tick_labels <- limit_val<-seq(5,125, by=10)
 metric_name <-"rmse_tb"
 title_plot <- "RMSE and distance to closest station for baseline 2"
-y_lab_text <- "RMSE (C)"
+#y_lab_text <- "RMSE (C)"
+#y_lab_text <- expression(paste("RMSE", ("^o","C")"), sep="")) 
+y_lab_text <- "RMSE (°C)"
 #quick test
 add_CI <- c(TRUE,TRUE,TRUE)
 
@@ -323,7 +332,7 @@ plot_dst_MAE(list_param_plot)
 
 metric_name <-"mae_tb"
 title_plot <- "MAE and distance to closest fitting station"
-y_lab_text <- "MAE (C)"
+y_lab_text <- "MAE (°C)"
 add_CI <- c(TRUE,TRUE,TRUE)
 #Now set up plotting device
 res_pix<-480
@@ -417,7 +426,7 @@ names(list_param_plot)<-c("list_prop_obj","col_t","pch_t","legend_text","mod_nam
 plot_prop_metrics(list_param_plot)
 title(main="MAE for hold out and methods",
       xlab="Hold out validation/testing proportion",
-      ylab="MAE (C)")
+      ylab="MAE (°C)")
 
 #now figure 4b
 metric_name<-"rmse"
@@ -426,7 +435,7 @@ names(list_param_plot)<-c("list_prop_obj","col_t","pch_t","legend_text","mod_nam
 plot_prop_metrics(list_param_plot)
 title(main="RMSE for hold out and methods",
       xlab="Hold out validation/testing proportion",
-      ylab="RMSE (C)")
+      ylab="RMSE (°C)")
 
 dev.off()
 
@@ -504,7 +513,7 @@ boxplot(diff_mae_data)
 boxplot(diff_rmse_data) #plot differences in training and testing accuracies for three methods
 title(main="Training and testing RMSE for hold out and interpolation methods",
       xlab="Interpolation method",
-      ylab="RMSE (C)")
+      ylab="RMSE (°C)")
 
 boxplot(diff_mae_data_mult)
 boxplot(diff_rmse_data_mult) #plot differences in training and testing accuracies for three methods
@@ -585,19 +594,19 @@ legend("top",legend=legend_text_data,
 
 title(main="Training and testing RMSE for hold out and methods",
       xlab="Hold out validation/testing proportion",
-      ylab="RMSE (C)")
+      ylab="RMSE (°C)")
 
 
 boxplot(diff_mae_data_mult[-4]) #plot differences in training and testing accuracies for three methods
 
 title(main="Difference between training and testing MAE",
       xlab="Interpolation method",
-      ylab="MAE (C)")
+      ylab="MAE (°C)")
 
 dev.off()
 
 ############### STUDY TIME AND accuracy
-  #########Figure 6: Monthly RMSE averages for the three interpolation methods: GAM, GWR and Kriging.
+#########Figure 6: Monthly RMSE averages for the three interpolation methods: GAM, GWR and Kriging.
 
 mae_tmp<- data.frame(gam=tb1[tb1$pred_mod=="mod1",c("mae")],
                      kriging=tb3[tb3$pred_mod=="mod1",c("mae")],
@@ -674,7 +683,7 @@ legend_text <- c("GAM","Kriging","GWR")
 y_range<-range(tb1_month$mae,tb3_month$mae,tb4_month$mae)
 xlab_tick <- unique(tb1$month)
 xlab_text <-"Month"
-ylab_text <- "MAE (C)"
+ylab_text <- "MAE (°C)"
 plot(1:12,tb1_month$mae,col=c("red"),type="b",ylim=y_range,xlab=xlab_text,ylab=ylab_text,xaxt="n")
 lines(1:12,tb3_month$mae,col=c("blue"),type="b")
 lines(1:12,tb4_month$mae,col=c("black"),type="b")
@@ -684,7 +693,7 @@ legend("topleft",legend=legend_text,
        cex=0.9, pch=c(pch_t),col=c(col_t),lty=c(1,1,1),bty="n")
 
 #Second plot
-ylab_text<-"MAE (C)"
+ylab_text<-"MAE (°C)"
 xlab_text<-"Month"
 #y_range<-range(month_data_list$gam$mae,month_data_list$kriging$mae,month_data_list$gwr$mae)
 #y_range<-range(month_data_list$gam$mae)
@@ -734,7 +743,7 @@ write.table(as.data.frame(table5_paper),file=file_name,sep=",")
 ####### FIGURE 7: Spatial pattern ######
 
 y_var_name <-"dailyTmax"
-index<-244 #index corresponding to January 1
+index<-244 #index corresponding to Sept 1
 
 lf1 <- raster_prediction_obj_1$method_mod_obj[[index]][[y_var_name]] #select relevant raster images for the given dates
 lf3 <- raster_prediction_obj_3$method_mod_obj[[index]][[y_var_name]]
@@ -760,17 +769,18 @@ min_val <-s.range[1]
 min_val <- 0
 layout_m<-c(1,3) #one row two columns
 
-png(paste("Figure7__spatial_pattern_tmax_prediction_levelplot_",date_selected,out_prefix,".png", sep=""),
-    height=480*layout_m[1],width=480*layout_m[2])
+#png(paste("Figure7__spatial_pattern_tmax_prediction_levelplot_",date_selected,out_prefix,".png", sep=""),
+#    height=480*layout_m[1],width=480*layout_m[2])
 
-levelplot(pred_temp_s,main="Interpolated Surfaces Method Comparison", ylab=NULL,xlab=NULL,
+p<-levelplot(pred_temp_s,main="Interpolated Surfaces Method Comparison", ylab=NULL,xlab=NULL,
           par.settings = list(axis.text = list(font = 2, cex = 1.3),layout=layout_m,
                               par.main.text=list(font=2,cex=2),strip.background=list(col="white")),par.strip.text=list(font=2,cex=1.5),
           names.attr=names_layers,col.regions=temp.colors,at=seq(max_val,min_val,by=0.01))
+print(p)
 #col.regions=temp.colors(25))
-dev.off()
+#dev.off()
 
-## FIGURE COMPARISON OF  MODELS COVARRIATES
+## FIGURE COMPARISON OF  MODELS COVARRIATES: Figure 7...
 
 lf2 <- raster_prediction_obj_2$method_mod_obj[[index]][[y_var_name]]
 lf2 #contains the models for gam
@@ -779,8 +789,8 @@ pred_temp_s <-stack(lf2)
 date_selected <- "20109101"
 #names_layers <-c("mod1=s(lat,long)+s(elev)","mod4=s(lat,long)+s(LST)","diff=mod1-mod4")
 names_layers <-c("mod1 = s(lat,long)","mod2 = s(lat,long)+s(elev)","mod3 = s(lat,long)+s(N_w)","mod4 = s(lat,long)+s(E_w)",
-                 "mod5 = s(lat,long)+s(LST)","mod6 = s(lat,long)+s(DISTOC)","mod7 = s(lat,long)+s(LC1)",
-                 "mod8 = s(lat,long)+s(LC1,LST)","mod9 = s(lat,long)+s(CANHGHT)","mod10 = s(lat,long)+s(LST,CANHGHT)")
+                 "mod5 = s(lat,long)+s(LST)","mod6 = s(lat,long)+s(DISTOC)","mod7 = s(lat,long)+s(FOREST)",
+                 "mod8 = s(lat,long)+s(CANHGHT)","mod9 = s(lat,long)+s(LST,FOREST)","mod10 = s(lat,long)+s(LST,CANHGHT)")
 
 #names_layers<-names(pred_temp_s)
 #names(pred_temp_s)<-names_layers
@@ -799,15 +809,75 @@ layout_m<-c(4,3) #one row two columns
 png(paste("Figure_7_spatial_pattern_tmax_prediction_models_baseline1_gam_levelplot_",date_selected,out_prefix,".png", sep=""),
     height=480*layout_m[1],width=480*layout_m[2])
 
-levelplot(pred_temp_s,main="Interpolated Surfaces Model Comparison baseline 1", ylab=NULL,xlab=NULL,
+p<- levelplot(pred_temp_s,main="Interpolated Surfaces Model Comparison baseline 1", ylab=NULL,xlab=NULL,
           par.settings = list(axis.text = list(font = 2, cex = 1.3),layout=layout_m,
                               par.main.text=list(font=2,cex=2),strip.background=list(col="white")),par.strip.text=list(font=2,cex=1.5),
           names.attr=names_layers,col.regions=temp.colors,at=seq(max_val,min_val,by=0.01))
 #col.regions=temp.colors(25))
+print(p)
 dev.off()
 
+########################################################
+#### Examining spatial correlograms for each model...use spedep but can be problematic when many datapoints
+#The follwing method using Moran's I raster command works for now but does not provide CI/std dev...
 
-################ #FIGURE 8
+r_stack <-pred_temp_s
+
+r<- subset(r_stack,"mod1")
+Moran(r) #with lag 1 and default rooks lag correlation
+
+#generate filters for 10 lags: quick solution
+
+list_filters<-lapply(1:10,FUN=autocor_filter_fun,f_type="queen") #generate 10 filters
+#moran_list <- lapply(list_filters,FUN=Moran,x=r)
+
+list_param_moran <- list(list_filters=list_filters,r_stack=r_stack)
+#moran_r <-moran_multiple_fun(1,list_param=list_param_moran)
+nlayers(r_stack) 
+moran_I_df <-mclapply(1:nlayers(r_stack), list_param=list_param_moran, FUN=moran_multiple_fun,mc.preschedule=FALSE,mc.cores = 10) #This is the end bracket from mclapply(...) statement
+
+moran_df <- do.call(cbind,moran_I_df) #bind Moran's I value 10*nlayers data.frame
+moran_df$lag <-1:nrow(moran_df)
+
+#prepare to automate the plotting of   all columns
+mydata<-moran_df
+dd <- do.call(make.groups, mydata[,-ncol(mydata)]) 
+dd$lag <- mydata$lag 
+
+layout_m<-c(4,3) #one row two columns
+
+png(paste("Figure_7b_spatial_correlogram_tmax_prediction_models_baseline1_gam_levelplot_",date_selected,out_prefix,".png", sep=""),
+    height=480*layout_m[1],width=480*layout_m[2])
+
+p<-xyplot(data ~ lag | which, dd,type="b",
+          par.settings = list(axis.text = list(font = 2, cex = 1.3),layout=layout_m,
+                              par.main.text=list(font=2,cex=2),strip.background=list(col="white")),par.strip.text=list(font=2,cex=1.5),
+          strip=strip.custom(factor.levels=names_layers),
+          xlab=list(label="Spatial lag neighbor", cex=2,font=2),
+          ylab=list(label="Moran's I", cex=2, font=2))
+print(p)
+
+dev.off()
+
+### median for first neighbour distances in data
+ghcn_day_dat <- readOGR(dsn=dirname(met_stations_obj$daily_covar_ghcn_data),
+                        sub(".shp","",basename(met_stations_obj$daily_covar_ghcn_data)))
+loc_spdf <- readOGR(dsn=dirname(met_stations_obj$loc_stations),
+                        sub(".shp","",basename(met_stations_obj$loc_stations)))
+loc_2010_spdf<-subset(loc_spdf,loc_spdf$STAT_ID%in%ghcn_day_dat$station) #stations in 2010
+loc_2010_spdf <- spTransform(loc_2010_spdf, CRS=CRS(proj4string(ghcn_day_dat)))
+loc_knn1 <- knearneigh(coordinates(loc_2010_spdf), k=1) #lag1
+class(loc_knn1) #knn object
+loc_nb1 <- knn2nb(loc_knn1) #nb object
+dsts_nb1 <-unlist(nbdists(loc_nb1,coordinates(loc_2010_spdf))) #vector with first nearest neighbour distance for each station
+
+median(dsts_nb1) #median first nearest neighbour distance: 20023.03 m
+mean(dsts_nb1) #mean first nearest neighbour distance : 22480.91 meters
+sd(dsts_nb1) #
+hist(dsts_nb1)
+
+################ #FIGURE 8: difference image
+
 lf1 <- raster_prediction_obj_1$method_mod_obj[[index]][[y_var_name]]
 lf1 #contains the models for gam
 
@@ -830,12 +900,12 @@ layout_m<-c(1,2) #one row two columns
 png(paste("Figure_8a_spatial_pattern_tmax_prediction_models_gam_levelplot_",date_selected,out_prefix,".png", sep=""),
     height=480*layout_m[1],width=480*layout_m[2])
 
-levelplot(pred_temp_s,main="Interpolated Surfaces Model Comparison", ylab=NULL,xlab=NULL,
+p<-levelplot(pred_temp_s,main="Interpolated Surfaces Model Comparison", ylab=NULL,xlab=NULL,
           par.settings = list(axis.text = list(font = 2, cex = 1.3),layout=layout_m,
                               par.main.text=list(font=2,cex=2),strip.background=list(col="white")),par.strip.text=list(font=2,cex=1.5),
           names.attr=names_layers,col.regions=temp.colors,at=seq(max_val,min_val,by=0.01))
 #col.regions=temp.colors(25))
-
+print(p)
 #col.regions=temp.colors(25))
 dev.off()
 
@@ -853,7 +923,7 @@ plot(diff,col=temp.colors(100),main=names_layers)
 #          par.settings = list(axis.text = list(font = 2, cex = 1.3),layout=c(1,1),
 #                              par.main.text=list(font=2,cex=2),strip.background=list(col="white")),par.strip.text=list(font=2,cex=1.5),
 #          names.attr=names_layers,col.regions=temp.colors)
-dev.off()
+dev.off
 
 ######## NOW GET A ACCURACY BY STATIONS
 

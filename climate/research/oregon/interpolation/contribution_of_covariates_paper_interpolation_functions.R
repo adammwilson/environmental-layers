@@ -579,6 +579,33 @@ calc_stat_month_from_raster_prediction_obj <-function(raster_prediction_obj,stat
   return(stat_tb)
 }
 
+### generate filter for Moran's I function in raster package
+autocor_filter_fun <-function(no_lag=1,f_type="queen"){
+  if(f_type=="queen"){
+    no_rows <- 2*no_lag +1
+    border_row <-rep(1,no_rows)
+    other_row <- c(1,rep(0,no_rows-2),1)
+    other_rows <- rep(other_row,no_rows-2)
+    mat_data<- c(border_row,other_rows,border_row)
+    autocor_filter<-matrix(mat_data,nrow=no_rows)
+  }
+  #if(f_type=="rook){} #add later
+  return(autocor_filter)
+}
+
+#Now run Moran's I for raster image given a list of  filters for different lags and raster stack
+moran_multiple_fun<-function(i,list_param){
+  #Parameters:
+  #list_filters: list of filters with different lags in the image
+  #r_stack: stack of raster image, only the selected layer is used...
+  list_filters <-list_param$list_filters
+  r <- subset(list_param$r_stack,i)
+  moran_list <- lapply(list_filters,FUN=Moran,x=r)
+  moran_v <-as.data.frame(unlist(moran_list))
+  names(moran_v)<-names(r)
+  return(moran_v)
+}
+
 
 ################### END OF SCRIPT ###################
 
