@@ -880,7 +880,7 @@ run_prediction_daily_deviation <- function(i,list_param) {            # loop ove
                          sampling_dat$date[index_d],"_",sampling_dat$prop[index_d],"_",sampling_dat$run_samp[index_d],sep="")
         raster_name_delta<-file.path(out_path,paste(interpolation_method,"_",var,"_",data_name,out_prefix,".tif", sep=""))
         
-        writeRaster(delta_rast_s, filename=raster_name_delta,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
+        writeRaster(daily_delta_rast, filename=raster_name_delta,overwrite=TRUE)  #Writing the data in a raster file format...(IDRISI)
         #writeRaster(r_spat, NAflag=NA_flag_val,filename=raster_name,bylayer=TRUE,bandorder="BSQ",overwrite=TRUE)   
         
         #raster_name_delta <- list_daily_delta_rast
