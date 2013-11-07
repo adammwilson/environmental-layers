@@ -11,6 +11,21 @@ library(reshape)
 library(rgeos)
 library(splancs)
 
+
+## add tags for distribution
+## MOD35
+tags=c("TIFFTAG_IMAGEDESCRIPTION='Collection 5 MOD35 Cloud Frequency for 2009 extracted from MOD09GA state_1km bits 0-1. The MOD35 bits encode four categories (with associated confidence that the pixel is actually clear): confidently clear (confidence > 0.99), probably clear (0.99 >= confidence > 0.95), probably cloudy (0.95 >= confidence > 0.66), and confidently cloudy (confidence <= 0.66).  Following the advice of the MODIS science team (Frey, 2010), we binned confidently clear and probably clear together as clear and the other two classes as cloudy.  The daily cloud mask time series were summarized to mean cloud frequency (CF) by calculating the proportion of cloudy days during 2009'",
+  "TIFFTAG_DOCUMENTNAME='Collection 5 MOD35 Cloud Frequency'",
+  "TIFFTAG_DATETIME='20090101'",
+  "TIFFTAG_ARTIST='Adam M. Wilson (adam.wilson@yale.edu)'")
+system(paste("/usr/local/src/gdal-1.10.0/swig/python/scripts/gdal_edit.py data/MOD35_2009.tif ",paste("-mo ",tags,sep="",collapse=" "),sep=""))
+## MOD09
+tags=c("TIFFTAG_IMAGEDESCRIPTION='Collection 5 MOD09 Cloud Frequency for 2009 extracted from MOD09GA \'PGE11\' internal cloud mask algorithm (embedded in MOD09GA \'state_1km\' bit 10. The daily cloud mask time series were summarized to mean cloud frequency (CF) by calculating the proportion of cloudy days during 2009'",
+  "TIFFTAG_DOCUMENTNAME='Collection 5 MOD09 Cloud Frequency'",
+  "TIFFTAG_DATETIME='20090101'",
+  "TIFFTAG_ARTIST='Adam M. Wilson (adam.wilson@yale.edu)'")
+system(paste("/usr/local/src/gdal-1.10.0/swig/python/scripts/gdal_edit.py data/MOD09_2009.tif ",paste("-mo ",tags,sep="",collapse=" "),sep=""))
+
 ## get % cloudy
 mod09=raster("data/MOD09_2009.tif")
 names(mod09)="C5MOD09CF"
@@ -20,17 +35,13 @@ mod35c5=raster("data/MOD35_2009.tif")
 names(mod35c5)="C5MOD35CF"
 NAvalue(mod35c5)=0
 
+
 ## mod35C6 annual
 if(!file.exists("data/MOD35C6_2009.tif")){
   system("/usr/local/gdal-1.10.0/bin/gdalbuildvrt  -a_srs '+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs' -sd 1 -b 1 data/MOD35C6.vrt `find /home/adamw/acrobates/adamw/projects/interp/data/modis/mod35/summary/ -name '*h[1-9]*_mean.nc'` ")
-#  system("gdalbuildvrt data/MOD35C6.vrt `find /home/adamw/acrobates/adamw/projects/interp/data/modis/mod35/summary/ -name '*h[1-9]*_mean.nc'` ")
-
-#  system("/usr/local/gdal-1.10.0/bin/gdalbuildvrt -a_srs '+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs' -sd 4 -b 1 data/MOD35C6_CFday_pmiss.vrt `find /home/adamw/acrobates/adamw/projects/interp/data/modis/mod35/summary/ -name '*h[1]*.nc'` ")
-#  system("gdalwarp data/MOD35C6_CFday_pmiss.vrt data/MOD35C6_CFday_pmiss.tif -r bilinear")
-
   system("align.sh data/MOD35C6.vrt data/MOD09_2009.tif data/MOD35C6_2009.tif")
-#  system("align.sh data/MOD35C6_CFday_pmiss.vrt data/MOD09_2009.tif data/MOD35C6_CFday_pmiss.tif")
 }
+
 mod35c6=raster("data/MOD35C6_2009.tif")
 names(mod35c6)="C6MOD35CF"
 NAvalue(mod35c6)=255
@@ -44,13 +55,11 @@ if(!file.exists("data/MCD12Q1_IGBP_2009_051_wgs84_1km.tif")){
                "data/MCD12Q1_IGBP_2009_051_wgs84_1km.tif -overwrite ",sep=""))}
 lulc=raster("data/MCD12Q1_IGBP_2009_051_wgs84_1km.tif")
 
-#  lulc=ratify(lulc)
   data(worldgrids_pal)  #load palette
   IGBP=data.frame(ID=0:16,col=worldgrids_pal$IGBP[-c(18,19)],
     lulc_levels2=c("Water","Forest","Forest","Forest","Forest","Forest","Shrublands","Shrublands","Savannas","Savannas","Grasslands","Permanent wetlands","Croplands","Urban and built-up","Cropland/Natural vegetation mosaic","Snow and ice","Barren or sparsely vegetated"),stringsAsFactors=F)
   IGBP$class=rownames(IGBP);rownames(IGBP)=1:nrow(IGBP)
   levels(lulc)=list(IGBP)
-#lulc=crop(lulc,mod09)
 names(lulc)="MCD12Q1"
 
 ## make land mask
@@ -58,15 +67,10 @@ if(!file.exists("data/land.tif"))
   land=calc(lulc,function(x) ifelse(x==0,NA,1),file="data/land.tif",options=c("COMPRESS=LZW","ZLEVEL=9","PREDICTOR=2"),datatype="INT1U",overwrite=T)
 land=raster("data/land.tif")
 
-## mask cloud masks to land pixels
-#mod09l=mask(mod09,land)
-#mod35l=mask(mod35,land)
-
 #####################################
 ### compare MOD43 and MOD17 products
 
 ## MOD17
-#extent(mod17)=alignExtent(mod17,mod09)
 if(!file.exists("data/MOD17.tif"))
 system("align.sh ~/acrobates/adamw/projects/interp/data/modis/MOD17/MOD17A3_Science_NPP_mean_00_12.tif data/MOD09_2009.tif data/MOD17.tif")
 mod17=raster("data/MOD17.tif",format="GTiff")
@@ -98,23 +102,13 @@ NAvalue(pp)=255
 names(pp)="MOD35pp"
 
 
-#hist(dif,maxsamp=1000000)
-## draw lulc-stratified random sample of mod35-mod09 differences 
-#samp=sampleStratified(lulc, 1000, exp=10)
-#save(samp,file="LULC_StratifiedSample_10000.Rdata")
-#mean(dif[samp],na.rm=T)
-#Stats(dif,function(x) c(mean=mean(x),sd=sd(x)))
-
-
 ###
-
 n=100
 at=seq(0,100,len=n)
 cols=grey(seq(0,1,len=n))
 cols=rainbow(n)
 bgyr=colorRampPalette(c("blue","green","yellow","red"))
 cols=bgyr(n)
-
 
 ### Transects
 r1=Lines(list(
@@ -209,8 +203,6 @@ if(!file.exists("data/dif_c5_09.tif"))
   overlay(mod35c5,mod09,fun=function(x,y) {return(x-y)},file="data/dif_c5_09.tif",format="GTiff",options=c("COMPRESS=LZW","ZLEVEL=9"),overwrite=T)
 dif_c5_09=raster("data/dif_c5_09.tif",format="GTiff")
 
-#dif_c6_09=mod35c6-mod09
-#dif_c5_c6=mod35c5-mod35c6
 
 ##################################################################################
 ## Identify problematic areas with hard edges in cloud frequency
@@ -310,13 +302,36 @@ showTmpFiles()
 ### read them back in
 pp_bias=raster("data/pp_bias.tif")
 names(pp_bias)="Processing Path"
+NAvalue(pp_bias)=255
 lulc_bias=raster("data/lulc_bias.tif")
 names(lulc_bias)="Land Use Land Cover"
+NAvalue(lulc_bias)=255
 
-pat=c(0,0.05,1)#seq(0,0.-5,len=2) #,seq(0.05,.1,len=50))
-grayr2=colorRampPalette(c("red","transparent"))#grey(c(.75,.5,.25))))
+## read in WWF biome data to summarize by biome
+if(!file.exists("data/teow/wwf_terr_ecos.shp"){
+  system("wget -O data/teow.zip http://assets.worldwildlife.org/publications/15/files/original/official_teow.zip?1349272619")
+  system("unzip data/teow.zip -d data/teow/")
+   biome=readOGR("data/teow/wwf_terr_ecos.shp","wwf_terr_ecos")
+   biome=biome[biome$BIOME<50,]
+   biome2=gUnaryUnion(biome,id=biome$BIOME)
+  ## create biome.csv using names in html file   
+  biomeid=read.csv("data/teow/biome.csv",stringsAsFactors=F)
+  biome2=SpatialPolygonsDataFrame(biome2,data=biomeid)
+  writeOGR(biome2,"data/teow","biomes",driver="ESRI Shapefile")
+}
+   biome=readOGR("data/teow/biomes.shp","biomes")
+
+biome2=extract(pp_bias,biome[biome$Biome==12,],df=T,fun=function(x) data.frame(mean=mean(x,na.rm=T),sd=sd(x,na.rm=T),prop=(sum(!is.na(x))/length(x))))
+
+pat=c(seq(0,100,len=100),254)#seq(0,0.-5,len=2) #,seq(0.05,.1,len=50))
+grayr2=colorRampPalette(c("grey","green","red"))#
+#grayr2=colorRampPalette(grey(c(.75,.5,.25)))
 levelplot(stack(pp_bias,lulc_bias),col.regions=c(grayr2(2)),at=pat,
           colorkey=F,margin=F,maxpixels=1e6)+layer(sp.lines(coast,lwd=.5))
+levelplot(lulc_bias,col.regions=c(grayr2(100),"black"),at=pat,
+          colorkey=T,margin=F,maxpixels=1e4)+layer(sp.lines(coast,lwd=.5))
+
+histogram(lulc_bias)
 
 cor(td1$MOD17,td1$C6MOD35,use="complete",method="spearman")
 cor(td1$MOD17[td1$edgeb==1],td1$C5MOD35[td1$edgeb==1],use="complete",method="spearman")
