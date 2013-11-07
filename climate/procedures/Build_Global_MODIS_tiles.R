@@ -3,7 +3,7 @@ library(raster)
 
 ######
 ### proceed by raster using information at http://code.env.duke.edu/projects/mget/wiki/SinusoidalMODIS
-maketile=function(tile,outdir="MODTILES"){
+maketile=function(tile,type="raster",outdir="MODTILES"){
   ## check tile
   ## list of tile outside valid region
   nodata=c('h00v00','h01v00','h02v00','h03v00','h04v00','h05v00','h06v00','h07v00','h08v00','h09v00','h10v00',
@@ -42,8 +42,15 @@ maketile=function(tile,outdir="MODTILES"){
   ext=extent(llx,llx+(nc*cs),lly,lly+(nc*cs))
   grid=raster(ext,nrows=nc,ncol=nc,crs=proj)
   names(grid)=tile
-  writeRaster(grid,paste(outdir,"/",tile,".tif",sep=""),options=c("COMPRESS=LZW"),datatype="INT1U",overwrite=T)
-  return(grid)
+  if(type=="raster") {
+    writeRaster(grid,paste(outdir,"/",tile,".tif",sep=""),options=c("COMPRESS=LZW"),datatype="INT1U",overwrite=T)
+    return(grid)
+  }
+  if(type=="extent") {
+    grid2=data.frame(tile=tile,t(as.vector(extent(grid))))
+    names(grid2)=c("tile","xmin", "xmax", "ymin", "ymax")
+  return(grid2)
+}
 }
 
 ## run it and save the extents as an Rdata object for easy retrieval
@@ -51,7 +58,6 @@ gs=expand.grid(h=0:35,v=0:17)
 gs$tile=paste("h",sprintf("%02d",gs$h),"v",sprintf("%02d",gs$v),sep="")
 modtiles=lapply(1:nrow(gs),function(i) maketile(gs$tile[i]))
 names(modtiles)=gs$tile
-
 
 ## function to confirm that this method results in identical (e same extent, number of rows and columns, projection, resolution, and origin) rasters as MODIS LST data
 checkgrid<-function(tile){
@@ -71,3 +77,16 @@ if(testing){
   ## summarize the results
   table(dat)
 }
+
+### make table of extents
+modtiles=do.call(rbind,lapply(1:nrow(gs),function(i) maketile(gs$tile[i],type="extent")))
+
+## get list of tiles with some land
+land=read.table("http://modis-land.gsfc.nasa.gov/pdf/sn_bound_10deg.txt",skip=6,nrows=648,header=T)
+land$tile=paste("h",sprintf("%02d",land$ih),"v",sprintf("%02d",land$iv),sep="")
+land=land[land$lon_min!=-999,]
+modtiles$land=modtiles$tile%in%land$tile
+
+
+## write the table as text
+write.csv(modtiles,"MODIS_Tiles.csv",row.names=F,quote=F)

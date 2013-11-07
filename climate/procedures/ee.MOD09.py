@@ -37,7 +37,6 @@ yearstop=2010
 monthstart=1
 monthstop=12
 
-
 #////////////////////////////////////////////////////
 # Loop through months and get monthly % missing data
 
@@ -69,12 +68,15 @@ region='[[-72, -1], [-72, 11], [-59, 11], [-59, -1]]'  #h11v08
 #  '[[-180, -90], [-180, 90], [180, 90], [180, -90]]'  //global
 #  '[[-180, -60], [-180, 90], [180, 90], [180, -60]]'  // Western Hemisphere
 
+## Define tiles
+
+
 ## build the URL and name the object (so that when it's unzipped we know what it is!)
 path =mod09a.getDownloadUrl({
   'name': 'mod09_'+str(year)+"_"+str(month),  # name the file (otherwise it will be a uninterpretable hash)
   'scale': 926,                               # resolution in meters
   'crs': 'EPSG:4326',                         # MODIS sinusoidal
-  'region': region
+  'region': region                            # region defined above
 });
 
 ## download with wget
