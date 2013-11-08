@@ -30,20 +30,21 @@ ee.Initialize(ee.ServiceAccountCredentials(MY_SERVICE_ACCOUNT, MY_PRIVATE_KEY_FI
 
 #///////////////////////////////////
 #// Function to extract cloud flags
-def getmod09(img): return(img.select(['state_1km']).expression("((b(0)/1024)%2)")); 
- 
+def getmod09(img): return(img.select(['state_1km']).expression("((b(0)/1024)%2)>0.5")); 
+# added the >0.5 because some values are coming out >1.  Need to look into this further as they should be bounded 0-1...
+
 #// Date ranges
-yearstart=2001
-yearstop=2001
+yearstart=2000
+yearstop=2012
 monthstart=1
-monthstop=2
+monthstop=12
 
 #////////////////////////////////////////////////////
 # Loop through months and get monthly % missing data
 
 ## set a year-month if you don't want to run the loop (for testing)
-year=2001
-month=2
+#year=2001
+#month=2
 
 
 ## define the regions to be processed
