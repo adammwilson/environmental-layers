@@ -7,6 +7,8 @@ library(latticeExtra)
 library(doMC)
 library(rasterVis)
 library(rgdal)
+library(reshape)
+library(hexbin)
 ## register parallel processing
 registerDoMC(10)
 
@@ -20,22 +22,14 @@ colnames(st)=c("StaID","LAT","LON","ELEV","ny1","fy1","ly1","ny7","fy7","ly7","S
 st$lat=st$LAT/100
 st$lon=st$LON/100
 st$lon[st$lon>180]=st$lon[st$lon>180]-360
+st=st[,c("StaID","ELEV","lat","lon")]
+colnames(st)=c("id","elev","lat","lon")
+write.csv(st,"stations.csv",row.names=F)
 
 ## download data
 system("wget -N -nd ftp://cdiac.ornl.gov/pub/ndp026d/cat67_78/* -A '.tc.Z' -P data/")
-system("gunzip data/*.Z")
 
-## get monthly mean cloud amount MMCF
-#system("wget -N -nd ftp://cdiac.ornl.gov/pub/ndp026d/cat08_09/* -A '.tc.Z' -P data/")
-#system("gunzip data/*.Z")
-#f121=c(6,6,6,7,6,7,6,2) #format 121
-#c121=c("StaID","NobD","AvgDy","NobN","AvgNt","NobDN","AvgDN","Acode")
-#cld=do.call(rbind.data.frame,lapply(sprintf("%02d",1:12),function(m) {
-#  d=read.fwf(list.files("data",pattern=paste("MMCA.",m,".tc",sep=""),full=T),skip=1,widths=f162)
-#  colnames(d)=c121
-#  d$month=as.numeric(m)
-#  return(d)}
-#  ))
+system("gunzip data/*.Z")
 
 ## define FWF widths
 f162=c(5,5,4,7,7,7,4) #format 162
@@ -78,26 +72,33 @@ cldy=do.call(rbind.data.frame,by(cld,list(year=as.factor(cld$YR),StaID=as.factor
              cldsd=sd(x$Amt[x$Nobs>10]/100,na.rm=T))}))
 cldy[,c("lat","lon")]=st[match(cldy$StaID,st$StaID),c("lat","lon")]
 
+## add the MOD09 data to cld
+#### Evaluate MOD35 Cloud data
+mod09=brick("~/acrobates/adamw/projects/cloud/data/mod09.nc")
 
-#cldm=foreach(m=unique(cld$month),.combine='rbind')%:%
-#  foreach(s=unique(cld$StaID),.combine="rbind") %dopar% {
-#    x=cld[cld$month==m&cld$StaID==s,]
-#    data.frame(
-#               month=x$month[1],
-#               StaID=x$StaID[1],
-#               Amt=mean(x$Amt[x$Nobs>10],na.rm=T)/100)}
- 
+## overlay the data with 5km radius buffer
+mod09st=extract(mod09,st,buffer=5000,fun=mean,na.rm=T,df=T)
+mod09st$id=st$id
+mod09stl=melt(mod09st[,-1],id.vars="id")
+mod09stl[,c("year","month")]=do.call(rbind,strsplit(sub("X","",mod09stl$variable),"[.]"))[,1:2]
+## add it to cld
+cld$mod09=mod09stl$value[match(paste(cld$StaID,cld$YR,cld$month),paste(mod09stl$id,mod09stl$year,as.numeric(mod09stl$month)))]
 
 ## write out the tables
+write.csv(cld,file="cld.csv",row.names=F)
 write.csv(cldy,file="cldy.csv")
 write.csv(cldm,file="cldm.csv")
 
 #########################################################################
 ##################
 ###
+cld=read.csv("cld.csv")
 cldm=read.csv("cldm.csv")
 cldy=read.csv("cldy.csv")
+st=read.csv("stations.csv")
 
+coordinates(st)=c("lon","lat")
+projection(st)=CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
 
 ##make spatial object
 cldms=cldm
@@ -110,55 +111,40 @@ coordinates(cldys)=c("lon","lat")
 projection(cldys)=CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
 
 #### Evaluate MOD35 Cloud data
-mod35c6=brick("~/acrobates/adamw/projects/MOD35C5/data/MOD35C6_2009_new.tif")
-#projection(mod35c6)="+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
+mod09=brick("~/acrobates/adamw/projects/cloud/data/mod09.nc")
 
-
-### use data from google earth engine
-mod35c5=raster("../modis/mod09/global_2009/MOD35_2009.tif")
-mod09=raster("../modis/mod09/global_2009/MOD09_2009.tif")
 
 ## LULC
 #system(paste("gdalwarp -r near -co \"COMPRESS=LZW\" -tr ",paste(res(mod09),collapse=" ",sep=""),
 #             "-tap -multi -t_srs \"",   projection(mod09),"\" /mnt/data/jetzlab/Data/environ/global/landcover/MODIS/MCD12Q1_IGBP_2005_v51.tif ../modis/mod12/MCD12Q1_IGBP_2005_v51.tif"))
 lulc=raster("../modis/mod12/MCD12Q1_IGBP_2005_v51.tif")
-lulc=ratify(lulc)
+#lulc=ratify(lulc)
 require(plotKML); data(worldgrids_pal)  #load IGBP palette
 IGBP=data.frame(ID=0:16,col=worldgrids_pal$IGBP[-c(18,19)],stringsAsFactors=F)
 IGBP$class=rownames(IGBP);rownames(IGBP)=1:nrow(IGBP)
 levels(lulc)=list(IGBP)
-lulc=crop(lulc,mod09)
+#lulc=crop(lulc,mod09)
 
 n=100
 at=seq(0,100,length=n)
 colr=colorRampPalette(c("black","green","red"))
 cols=colr(n)
 
-#dif=mod35-mod09
-#bwplot(dif~as.factor(lulc))
 
-#levelplot(mod35,col.regions=cols,at=at,margins=F,maxpixels=1e6)#,xlim=c(-100,-50),ylim=c(0,10))
-#levelplot(lulc,att="class",col.regions=levels(lulc)[[1]]$col,margin=F,maxpixels=1e6)
+hexbinplot(Amt/100~mod09,data=cld[cld$Nobs>100,])+
+  layer(panel.abline(lm(y~x),col="blue"))+
+  layer(panel.abline(0,1,col="red"))
 
-#cldys=spTransform(cldys,CRS(projection(mod35)))
+xyplot(Amt/100~mod09,grpups="month",data=cld[cld$Nobs>75,],cex=.2,pch=16)+
+  layer(panel.abline(lm(y~x),col="blue"))+
+#  layer(panel.lines(x,predict(lm(y~x),type="prediction")))+
+  layer(panel.abline(0,1,col="red"))
 
-#mod35v=foreach(m=unique(cldm$month),.combine="rbind") %do% {
-#  dr=subset(mod35,subset=m);projection(dr)=projection(mod35)
-#  dr2=subset(mod35sd,subset=m);projection(dr2)=projection(mod35)
-#  ds=cldms[cldms$month==m,]
-#  ds$mod35=unlist(extract(dr,ds,buffer=10,fun=mean,na.rm=T))
-#  ds$mod35sd=extract(dr2,ds,buffer=10)
-#  print(m)
-#  return(ds@data[!is.na(ds$mod35),])}
+xyplot(Amt/100~mod09|month,data=cld[cld$Nobs>75,],cex=.2,pch=16)+
+  layer(panel.abline(lm(y~x),col="blue"))+
+#  layer(panel.lines(x,predict(lm(y~x),type="prediction")))+
+  layer(panel.abline(0,1,col="red"))
 
-y=2009
-d=cldys[cldys$year==y,]
-
-d$mod35c6_10=unlist(extract(mod35c6,d,buffer=10000,fun=mean,na.rm=T))
-d$mod35c5_10=unlist(extract(mod35c5,d,buffer=10000,fun=mean,na.rm=T))
-d$mod09_10=unlist(extract(mod09,d,buffer=10000,fun=mean,na.rm=T))
-#d$dif=d$mod35_10-d$mod09_10
-#d$dif2=d$mod35_10-d$cld
 
 d$lulc=unlist(extract(lulc,d))
 d$lulc_10=unlist(extract(lulc,d,buffer=10000,fun=mode,na.rm=T))
@@ -166,10 +152,14 @@ d$lulc=factor(d$lulc,labels=IGBP$class)
 
 save(d,file="annualsummary.Rdata")
 
+
+
+load("annualsummary.Rdata")
+
 ## quick model to explore fit
-plot(cld~mod35,groups=lulc,data=d)
-summary(lm(cld~mod35+as.factor(lulc),data=d))
-summary(lm(cld~mod09_10,data=d))
+xyplot(cld~mod35c5_10,groups=lulc,data=d@data)
+summary(lm(cld~mod35c5_10+as.factor(lulc),data=d@data))
+summary(lm(Amt~mod09,data=cld))
 summary(lm(cld~mod09_10+as.factor(lulc),data=d))
 summary(lm(cld~mod09_10+as.factor(lulc),data=d))
 
