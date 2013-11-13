@@ -10,7 +10,7 @@
 #STAGE 5: Output analyses: assessment of results for specific dates...
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 11/08/2013                                                                                 
+#DATE: 11/13/2013                                                                                 
 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363, TASK$568--   
 
@@ -81,15 +81,15 @@ met_stations_outfiles_obj_file<-"/data/project/layers/commons/data_workflow/outp
 
 var<-"TMAX" # variable being interpolated
 #out_prefix<-"_365d_gam_cai_lst_comb3_10102013"                #User defined output prefix
-out_prefix<-"_365d_gam_fss_lst_mults_0_70_comb5_11082013"                #User defined output prefix
+out_prefix<-"_365d_kriging_fss_lst_mults_0_70_comb5_11132013"                #User defined output prefix
 
-out_suffix<-"_OR_11082013"                                       #Regional suffix
+out_suffix<-"_OR_11132013"                                       #Regional suffix
 out_suffix_modis <-"_05302013"                       #pattern to find tiles produced previously     
 
 #interpolation_method<-c("gam_fusion","gam_CAI","gam_daily") #other otpions to be added later
 #interpolation_method<-c("gam_CAI") #other otpions to be added later
-interpolation_method<-c("gam_fusion") #other otpions to be added later
-#interpolation_method<-c("kriging_fusion") #other otpions to be added later
+#interpolation_method<-c("gam_fusion") #other otpions to be added later
+interpolation_method<-c("kriging_fusion") #other otpions to be added later
 #interpolation_method<-c("gwr_fusion") #other otpions to be added later
 #interpolation_method<-c("gwr_CAI") #other otpions to be added later
 #interpolation_method<-c("kriging_CAI") 
@@ -274,22 +274,22 @@ join_daily <- FALSE # join monthly and daily station before calucating delta
 #LC1: Evergreen/deciduous needleleaf trees
 
 #Combination 5: for paper multi-timescale  paper
-list_models<-c("y_var ~ s(lat,lon)",
-               "y_var ~ s(lat,lon) + s(LST)",
-               "y_var ~ s(lat,lon) + s(elev_s)",
-               "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w)",
-               "y_var ~ s(lat,lon) + s(elev_s) + s(DISTOC)",
-               "y_var ~ s(lat,lon) + s(elev_s) + s(LST)",
-               "y_var ~ s(lat,lon) + s(elev_s) + s(LST) + ti(LST,LC1)")
+#list_models<-c("y_var ~ s(lat,lon)",
+#               "y_var ~ s(lat,lon) + s(LST)",
+#               "y_var ~ s(lat,lon) + s(elev_s)",
+#               "y_var ~ s(lat,lon) + s(elev_s) + s(N_w,E_w)",
+#               "y_var ~ s(lat,lon) + s(elev_s) + s(DISTOC)",
+#               "y_var ~ s(lat,lon) + s(elev_s) + s(LST)",
+#               "y_var ~ s(lat,lon) + s(elev_s) + s(LST) + ti(LST,LC1)")
 
 #Combination 5: for paper multi-timescale  paper
-#list_models<-c("y_var ~ lat*lon",
-#               "y_var ~ lat*lon + LST",
-#               "y_var ~ lat*lon + elev_s",
-#               "y_var ~ lat*lon + elev_s + N_w*E_w",
-#               "y_var ~ lat*lon + elev_s + DISTOC",
-#               "y_var ~ lat*lon + elev_s + LST",
-#               "y_var ~ lat*lon + elev_s + LST + I(LST*LC1)")
+list_models<-c("y_var ~ lat*lon",
+               "y_var ~ lat*lon + LST",
+               "y_var ~ lat*lon + elev_s",
+               "y_var ~ lat*lon + elev_s + N_w*E_w",
+               "y_var ~ lat*lon + elev_s + DISTOC",
+               "y_var ~ lat*lon + elev_s + LST",
+               "y_var ~ lat*lon + elev_s + LST + I(LST*LC1)")
 
 #Combination 3: for paper baseline=s(lat,lon)+s(elev)
 #list_models<-c("y_var ~ s(lat,lon) + s(elev_s)",
