@@ -15,7 +15,7 @@ from subprocess import call
 #logging.basicConfig()
 
 ## set working directory (where files will be downloaded)
-os.chdir('/home/adamw/acrobates/adamw/projects/cloud/data/mod09')
+os.chdir('/mnt/data2/projects/cloud/mod09')
 
 MY_SERVICE_ACCOUNT = '511722844190@developer.gserviceaccount.com'  # replace with your service account
 MY_PRIVATE_KEY_FILE = '/home/adamw/EarthEngine-privatekey.p12'       # replace with you private key file path
@@ -45,7 +45,7 @@ monthstop=12
 ## set a year-month if you don't want to run the loop (for testing)
 #year=2001
 #month=2
-
+#r=1
 
 ## define the regions to be processed
 regions=['[[-180, -60], [-180, 0], [0, 0], [0, -60]]',  # SW
@@ -64,23 +64,31 @@ for r in range(0,len(regions)):                                    # loop over r
 
       # output filename
       filename='mod09_'+rnames[r]+"_"+str(year)+"_"+str(month)
+      unzippedfilename='mod09_'+rnames[r]+"_"+str(year)+"_"+str(month)+".MOD09_"+str(year)+"_"+str(month)+".tif"
 
       # Check if file already exists and continue if so...
-      if(os.path.exists(filename+".zip")):
+      if(os.path.exists(unzippedfilename)):
         print("File exists:"+filename)
         continue
 
       # MOD09 internal cloud flag for this year-month
       # to filter by a date range:  filterDate(datetime.datetime(yearstart,monthstart,1),datetime.datetime(yearstop,monthstop,31))
       mod09 = ee.ImageCollection("MOD09GA").filter(ee.Filter.calendarRange(year,year,"year")).filter(ee.Filter.calendarRange(month,month,"month")).map(getmod09);
+#      myd09 = ee.ImageCollection("MYD09GA").filter(ee.Filter.calendarRange(year,year,"year")).filter(ee.Filter.calendarRange(month,month,"month")).map(getmod09);
       # calculate mean cloudiness (%), rename band, multiply by 100, and convert to integer
       mod09a=mod09.mean().select([0], ['MOD09_'+str(year)+'_'+str(month)]).multiply(ee.Image(100)).byte();
+#      myd09a=myd09.mean().select([0], ['MYD09_'+str(year)+'_'+str(month)]).multiply(ee.Image(100)).byte();
       
-      # Next few lines for testing only
-      # print info to confirm there is data
-      # mod09a.getInfo()
-      # add to plot to confirm it's working
-      # ee.mapclient.addToMap(mod09a, {'range': '0,100'}, 'MOD09')
+```
+# Next few lines for testing only
+# print info to confirm there is data
+mod09a.getInfo()
+myd09a.getInfo()
+
+# add to plot to confirm it's working
+ee.mapclient.addToMap(mod09a, {'range': '0,100'}, 'MOD09')
+ee.mapclient.addToMap(myd09a, {'range': '0,100'}, 'MOD09')
+```
 
       # build the URL and name the object (so that when it's unzipped we know what it is!)
       path =mod09a.getDownloadUrl({
@@ -101,7 +109,7 @@ for r in range(0,len(regions)):                                    # loop over r
         # try to unzip it
         print("Unzipping "+filename)
         zipstatus=call("unzip "+filename+".zip",shell=True)
-        # if file doesn't exists or it didn't unzip, remove it and try again      
+         # if file doesn't exists or it didn't unzip, remove it and try again      
         if(zipstatus==9):
           print("ERROR: "+filename+" unzip-able")
           os.remove(filename)
