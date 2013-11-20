@@ -76,11 +76,12 @@ system(paste("cdo -O mergetime ",paste(list.files(tempdir,pattern="mod09.*.nc$",
 
 
 ### generate the monthly mean and sd
-system(paste("cdo -O merge -ymonmean data/mod09.nc -chname,CF,CF_sd -ymonstd data/mod09.nc data/mod09_clim.nc"))
-system(paste("cdo -O -ymonmean data/mod09.nc data/mod09_clim2.nc"))
+#system(paste("cdo -P 10 -O merge -ymonmean data/mod09.nc -chname,CF,CF_sd -ymonstd data/mod09.nc data/mod09_clim.nc"))
+system(paste("cdo  -O -ymonmean data/mod09.nc data/mod09_clim_mean.nc"))
+system(paste("cdo  -O -chname,CF,CF_sd -ymonstd data/mod09.nc data/mod09_clim_sd.nc"))
 
 #  Overall mean
-system(paste("cdo -O  -chname,CF,CF_annual -timmean data/mod09.nc  data/mod09_clim2.nc"))
+system(paste("cdo -O  -chname,CF,CF_annual -timmean data/mod09.nc  data/mod09_clim_mac.nc"))
 
 ### Long term summaries
 seasconc <- function(x,return.Pc=T,return.thetat=F) {
@@ -114,9 +115,10 @@ seasconc <- function(x,return.Pc=T,return.thetat=F) {
 
 
 ## read in monthly dataset
-mod09=brick("data/mod09_clim.nc",varname="CF")
+mod09=brick("data/mod09_clim_mean.nc",varname="CF")
 plot(mod09[1])
 
 mod09_seas=calc(mod09,seasconc,return.Pc=T,return.thetat=F,overwrite=T,filename="data/mod09_seas.nc",NAflag=255,datatype="INT1U")
+mod09_seas2=calc(mod09,seasconc,return.Pc=F,return.thetat=T,overwrite=T,filename="data/mod09_seas_theta.nc",datatype="INT1U")
 
 plot(mod09_seas)

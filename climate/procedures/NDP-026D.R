@@ -25,7 +25,7 @@ st$lon[st$lon>180]=st$lon[st$lon>180]-360
 st=st[,c("StaID","ELEV","lat","lon")]
 colnames(st)=c("id","elev","lat","lon")
 write.csv(st,"stations.csv",row.names=F)
-
+coordinates(st)=c("lon","lat")
 ## download data
 system("wget -N -nd ftp://cdiac.ornl.gov/pub/ndp026d/cat67_78/* -A '.tc.Z' -P data/")
 
@@ -45,14 +45,15 @@ cld=do.call(rbind.data.frame,mclapply(sprintf("%02d",1:12),function(m) {
   ))
 
 ## add lat/lon
-cld[,c("lat","lon")]=st[match(cld$StaID,st$StaID),c("lat","lon")]
+cld[,c("lat","lon")]=st[match(cld$StaID,st$id),c("lat","lon")]
 
 ## drop missing values
+cld=cld[,!grepl("Fq|AWP|NC",colnames(cld))]
 cld$Amt[cld$Amt<0]=NA
-cld$Fq[cld$Fq<0]=NA
-cld$AWP[cld$AWP<0]=NA
-cld$NC[cld$NC<0]=NA
-cld=cld[cld$Nobs>0,]
+#cld$Fq[cld$Fq<0]=NA
+#cld$AWP[cld$AWP<0]=NA
+#cld$NC[cld$NC<0]=NA
+#cld=cld[cld$Nobs>0,]
 
 ## add the MOD09 data to cld
 #### Evaluate MOD35 Cloud data
@@ -61,7 +62,8 @@ mod09=brick("~/acrobates/adamw/projects/cloud/data/mod09.nc")
 ## overlay the data with 32km diameter (16km radius) buffer
 ## buffer size from Dybbroe, et al. (2005) doi:10.1175/JAM-2189.1.
 buf=16000
-mod09st=do.call(cbind.data.frame,mclapply(1:nlayers(mod09),function(l) extract(mod09[[l]],st,buffer=buf,fun=mean,na.rm=T,df=T)[,2]))
+mod09sta=lapply(1:nlayers(mod09),function(l) {print(l); extract(mod09[[l]],st,buffer=buf,fun=mean,na.rm=T,df=T)[,2]})
+mod09st=do.call(cbind.data.frame,mod09sta)
 #mod09st=mod09st[,!is.na(colnames(mod09st))]
 colnames(mod09st)=names(mod09)
 mod09st$id=st$id
@@ -82,14 +84,14 @@ IGBP$class=rownames(IGBP);rownames(IGBP)=1:nrow(IGBP)
 levels(lulc)=list(IGBP)
 #lulc=crop(lulc,mod09)
   Mode <- function(x) {
-      ux <- unique(x)
-        ux[which.max(tabulate(match(x, ux)))]
+      ux <- na.omit(unique(x))
+        ux[which.max(tabulate(match(x, ux)),na.rm=T)]
       }
-lulcst=extract(lulc,st,fun=Mode,buffer=buf,df=T)
+lulcst=extract(lulc,st,fun=Mode,na.rm=T,buffer=buf,df=T)
 colnames(lulcst)=c("id","lulc")
 ## add it to cld
 cld$lulc=lulcst$lulc[match(cld$StaID,lulcst$id)]
-cld$lulc=factor(cld$lulc,labels=IGBP$class)
+cld$lulc=factor(as.integer(cld$lulc),labels=IGBP$class)
 
 ## update cld column names
 colnames(cld)[grep("Amt",colnames(cld))]="cld"
@@ -135,8 +137,8 @@ clda[,c("lat","lon")]=coordinates(st)[match(clda$StaID,st$id),c("lat","lon")]
 write.csv(cld,file="cld.csv",row.names=F)
 write.csv(cldy,file="cldy.csv",row.names=F)
 write.csv(cldm,file="cldm.csv",row.names=F)
-write.csv(clda,file="clda.csv",row.names=F)
-
+write.csv(clda,file="clda.csv",row.names=F
+)
 #########################################################################
 ##################
 ###
