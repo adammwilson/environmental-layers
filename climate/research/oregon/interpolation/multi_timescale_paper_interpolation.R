@@ -64,7 +64,7 @@ plot_transect_m2<-function(list_trans,r_stack,title_plot,disp=FALSE,m_layers){
     transect<-readOGR(dirname(filename), basename(filename))                 #reading shapefile 
     trans_data<-extract(r_stack, transect)
     if (disp==FALSE){
-      png(file=paste(list_trans[[i]]),".png",sep="")
+      png(file=paste(list_trans[[i]][2],".png",sep=""))
     }
     #Plot layer values for specific transect
     for (k in 1:ncol(trans_data[[1]])){
@@ -95,9 +95,9 @@ plot_transect_m2<-function(list_trans,r_stack,title_plot,disp=FALSE,m_layers){
       } 
     }
     title(title_plot[i])
-    legend("topleft",legend=layerNames(r_stack)[1:2], 
+    legend("topleft",legend=names(r_stack)[1:2], 
            cex=1.2, col=t_col,lty=1,bty="n")
-    legend("topright",legend=layerNames(r_stack)[3], 
+    legend("topright",legend=names(r_stack)[3], 
            cex=1.2, col=t_col[3],lty="dotted",bty="n")
     if (disp==TRUE){
       savePlot(file=paste(list_trans[[i]][2],".png",sep=""),type="png")
@@ -153,7 +153,7 @@ infile_reg_outline <- "/data/project/layers/commons/data_workflow/inputs/region_
 met_stations_outfiles_obj_file<-"/data/project/layers/commons/data_workflow/output_data_365d_gam_fus_lst_test_run_07172013/met_stations_outfiles_obj_gam_fusion__365d_gam_fus_lst_test_run_07172013.RData"
 CRS_locs_WGS84<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0") #Station coords WGS84
 y_var_name <- "dailyTmax"
-out_prefix<-"analyses_11082013"
+out_prefix<-"analyses_11252013"
 ref_rast_name<- "/data/project/layers/commons/data_workflow/inputs/region_outlines_ref_files/mean_day244_rescaled.rst"                     #This is the shape file of outline of the study area. #local raster name defining resolution, exent, local projection--. set on the fly??
 infile_reg_outline <- "/data/project/layers/commons/data_workflow/inputs/region_outlines_ref_files/OR83M_state_outline.shp"  #input region outline defined by polygon: Oregon
 ref_rast_name <-"/data/project/layers/commons/data_workflow/inputs/region_outlines_ref_files/mean_day244_rescaled.rst"  #local raster name defining resolution, exent: oregon
@@ -178,17 +178,17 @@ covar_names<- covar_obj$covar_names
 s_raster <- brick(infile_covariates)
 names(s_raster)<-covar_names
 
-raster_prediction_obj_1 <-load_obj(file.path(in_dir1,raster_obj_file_1)) #comb5 gam_daily
-raster_prediction_obj_2 <-load_obj(file.path(in_dir2,raster_obj_file_2)) #comb5 kriging_daily
-raster_prediction_obj_3 <-load_obj(file.path(in_dir3,raster_obj_file_3)) #comb5 gwr_daily mod1 to mod3
-raster_prediction_obj_3b <-load_obj(file.path(in_dir3b,raster_obj_file_3b)) #comb5 gwr_daily mod4 to mod7
+#raster_prediction_obj_1 <-load_obj(file.path(in_dir1,raster_obj_file_1)) #comb5 gam_daily
+#raster_prediction_obj_2 <-load_obj(file.path(in_dir2,raster_obj_file_2)) #comb5 kriging_daily
+#raster_prediction_obj_3 <-load_obj(file.path(in_dir3,raster_obj_file_3)) #comb5 gwr_daily mod1 to mod3
+#raster_prediction_obj_3b <-load_obj(file.path(in_dir3b,raster_obj_file_3b)) #comb5 gwr_daily mod4 to mod7
                              
-raster_prediction_obj_4 <-load_obj(file.path(in_dir4,raster_obj_file_4)) #comb5 gam_CAI
-raster_prediction_obj_5 <-load_obj(file.path(in_dir5,raster_obj_file_5)) #comb5 kriging_CAI
-raster_prediction_obj_6 <-load_obj(file.path(in_dir6,raster_obj_file_6)) #comb5 gwr_CAI 
-raster_prediction_obj_7 <-load_obj(file.path(in_dir7,raster_obj_file_7)) #comb5 gam_fss
-raster_prediction_obj_8 <-load_obj(file.path(in_dir8,raster_obj_file_8)) #comb5 kriging_fss 
-raster_prediction_obj_9 <-load_obj(file.path(in_dir9,raster_obj_file_9)) #comb5 gwr_fss
+#raster_prediction_obj_4 <-load_obj(file.path(in_dir4,raster_obj_file_4)) #comb5 gam_CAI
+#raster_prediction_obj_5 <-load_obj(file.path(in_dir5,raster_obj_file_5)) #comb5 kriging_CAI
+#raster_prediction_obj_6 <-load_obj(file.path(in_dir6,raster_obj_file_6)) #comb5 gwr_CAI 
+#raster_prediction_obj_7 <-load_obj(file.path(in_dir7,raster_obj_file_7)) #comb5 gam_fss
+#raster_prediction_obj_8 <-load_obj(file.path(in_dir8,raster_obj_file_8)) #comb5 kriging_fss 
+#raster_prediction_obj_9 <-load_obj(file.path(in_dir9,raster_obj_file_9)) #comb5 gwr_fss
 
 ############### BEGIN SCRIPT #################
 
@@ -229,10 +229,11 @@ table4_paper$Methods <- c(rep("gam",7),
                           rep("gwr",7))    
                              
 #Check input covariates and model formula:
-list_formulas <-raster_prediction_obj_2$method_mod_obj[[1]]$formulas #formulas for models run comb5
+#list_formulas <-raster_prediction_obj_2$method_mod_obj[[1]]$formulas #formulas for models run comb5
+list_formulas <-unlist(lapply(list_raster_obj_files[[1]],FUN=function(x){x<-load_obj(x);x$method_mod_obj[[1]]$formulas}))
 #strsplit(list_formulas,"~")
                              
-table4_paper$Forumulas<-rep(list_formulas,3)                             
+table4_paper$Formulas<-rep(list_formulas,3)                             
 table4_paper<-table4_paper[(c(5,4,1,2,3))]                             
 
 #Testing siginificance between models
@@ -291,7 +292,7 @@ elev_WGS84 <- projectRaster(from=elev,crs=CRS_locs_WGS84,method="ngb")
 res_pix<-960
 col_mfrow<-1
 row_mfrow<-1
-png(filename=paste("Figure1_contribution_covariates_study_area_",out_prefix,".png",sep=""),
+png(filename=paste("Figure1_paper_study_area_",out_prefix,".png",sep=""),
     width=col_mfrow*res_pix,height=row_mfrow*res_pix)
 par(mfrow=c(1,1))
 
@@ -303,7 +304,7 @@ plot(interp_area_WGS84,add=T)
 plot(ghcn_dat_WGS84,add=T)
 title_text <-c("Elevation (m) and meteorological"," stations in Oregon")
 legend("topleft",legend=title_text,cex=2.1,bty="n")
-
+#Add region label
 par(mar = c(0,0,0,0)) # remove margin
 #opar <- par(fig=c(0.9,0.95,0.8, 0.85), new=TRUE)
 #opar <- par(fig=c(0.85,0.95,0.8, 0.9), new=TRUE)
@@ -323,8 +324,6 @@ dev.off()
 
 ################################################
 ######### Figure 3: LST averaging: daily mean compared to monthly mean
-
-### CREATE FIGURE MEAN DAILY AND MEAN MONTHLY: AAG 2013  ####
 
 lst_md<-raster(ref_rast_name)
 projection(lst_md)<-projection(s_raster)
@@ -356,16 +355,20 @@ dev.off()
 y_var_name <-"dailyTmax"
 index<-244 #index corresponding to Sept 1
 
-lf1 <- raster_prediction_obj_1$method_mod_obj[[index]][[y_var_name]] #select relevant raster images for the given dates
-lf4 <- raster_prediction_obj_4$method_mod_obj[[index]][[y_var_name]]
-lf7 <- raster_prediction_obj_7$method_mod_obj[[index]][[y_var_name]]
+lf_list<-lapply(list_raster_obj_files[c("gam_daily","gam_CAI","gam_fss")],
+                               FUN=function(x){x<-load_obj(x);x$method_mod_obj[[index]][[y_var_name]]})                           
+
+#lf1 <- raster_prediction_obj_1$method_mod_obj[[index]][[y_var_name]] #select relevant raster images for the given dates
+#lf4 <- raster_prediction_obj_4$method_mod_obj[[index]][[y_var_name]]
+#lf7 <- raster_prediction_obj_7$method_mod_obj[[index]][[y_var_name]]
 
 date_selected <- "20109101"
 #methods_names <-c("gam","kriging","gwr")
 methods_names <-c("gam_daily","gam_CAI","gam_FSS")
 
 names_layers<-methods_names
-lf <- (list(lf1,lf4[1:7],lf7[1:7]))
+#lf <- (list(lf1,lf4[1:7],lf7[1:7]))
+lf<-list(lf_list[[1]],lf_list[[2]][1:7],lf_list[[3]][1:7])
 
 names_layers <-c("mod1 = lat*long","mod2 = lat*long + LST","mod3 = lat*long + elev","mod4 = lat*long + N_w*E_w",
                  "mod5 = lat*long + elev + DISTOC","mod6 = lat*long + elev + LST","mod7 = lat*long + elev + LST*FOREST")
@@ -390,10 +393,10 @@ for (i in 1:length(lf)){
   png(paste("Figure_",nb_fig[i],"_spatial_pattern_tmax_prediction_models_gam_levelplot_",date_selected,out_prefix,".png", sep=""),
     height=480*layout_m[1],width=480*layout_m[2])
 
-  p <- levelplot(pred_temp_s,main="Interpolated Surfaces Model Comparison baseline 1", ylab=NULL,xlab=NULL,
+  p <- levelplot(pred_temp_s,main=methods_names[i], ylab=NULL,xlab=NULL,
           par.settings = list(axis.text = list(font = 2, cex = 1.3),layout=layout_m,
                               par.main.text=list(font=2,cex=2),strip.background=list(col="white")),par.strip.text=list(font=2,cex=1.5),
-          names.attr=names_layers,col.regions=temp.colors,at=seq(min_val,max_val,by=0.2))
+          names.attr=names_layers,col.regions=temp.colors,at=seq(min_val,max_val,by=0.25))
   #col.regions=temp.colors(25))
   print(p)
   dev.off()
@@ -424,10 +427,28 @@ list_transect2[[3]]<-c(transect_list[3],paste("figure_3_tmax_elevation_transect3
 
 names(list_transect2)<-c("transect_OR1","transect_OR2","transect_OR3")
 
-#X11(width=9,height=9)
-#png(paste("fig3_elevation_transect1_path_CAI_fusion_",date_selected,out_prefix,".png", sep=""))
-#plot(elev)
+names(rast_pred2)<-layers_names
+title_plot2<-paste(names(list_transect2),date_selected,sep=" ")
+title_plot2<-paste(rep("Oregon transect on ",3), date_selected,sep="")
+#r_stack<-rast_pred
+m_layers_sc<-c(3) #elevation in the third layer
+#title_plot2
+#rast_pred2
+debug(plot_transect_m2)
+trans_data2<-plot_transect_m2(list_transect2,rast_pred2,title_plot2,disp=FALSE,m_layers_sc)
+
+#png(filename=paste("Comparison_daily_monthly_mean_lst",out_prefix,".png",sep=""),width=960,height=480)
+#par(mfrow=c(1,2))
+
+dev.off()
+
+## Transects image location in OR             
+png(paste("Fig7_elevation_transect_paths_",date_selected,out_prefix,".png", sep=""),
+    height=480*layout_m[1],width=480*layout_m[2])
+
+plot(elev_s)
 #k<-1  #transect to plot
+list_transect2[[3]]
 #trans_file<-list_transect2[[k]][[1]]
 #filename<-sub(".shp","",trans_file)             #Removing the extension from file.
 #transect<-readOGR(".", filename)                 #reading shapefile 
@@ -435,22 +456,12 @@ names(list_transect2)<-c("transect_OR1","transect_OR2","transect_OR3")
 #title("Transect Oregon")
 #dev.off()
 
-layerNames(rast_pred2)<-layers_names
-title_plot2<-paste(names(list_transect2),date_selected,sep=" ")
-title_plot2<-paste(rep("Oregon transect on ",3), date_selected,sep="")
-#r_stack<-rast_pred
-m_layers_sc<-c(3)
-#title_plot2
-#rast_pred2
-debug(plot_transect_m2)
-trans_data2<-plot_transect_m2(list_transect2,rast_pred2,title_plot2,disp=FALSE,m_layers_sc)
+################################################
+#Figure 9: Image differencing and land cover  
 
-png(filename=paste("Comparison_daily_monthly_mean_lst",out_prefix,".png",sep=""),width=960,height=480)
-par(mfrow=c(1,2))
+png(paste("Fig9_image_difference_",date_selected,out_prefix,".png", sep=""),
+    height=480*layout_m[1],width=480*layout_m[2])
 
-dev.off()
-
-             
 ###################### END OF SCRIPT #######################
 
 
