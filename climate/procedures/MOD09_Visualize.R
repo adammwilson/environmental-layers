@@ -15,7 +15,7 @@ coast=as(coast,"SpatialLines")
 
 #### Evaluate MOD35 Cloud data
 mc=brick("~/acrobates/adamw/projects/cloud/data/mod09.nc",varname="CF")
-NAvalue(mod09)=-1
+NAvalue(mc)=-1
 
 cols=colorRampPalette(c("#000000","#00FF00","#FF0000"))#"black","blue","red"))
 for(i in 1:156){
@@ -60,27 +60,22 @@ npp=raster("/mnt/data/jetzlab/Data/environ/global/MODIS/MOD17A3/MOD17A3_Science_
 
 
 pdf("output/mod09_worldclim.pdf",width=11,height=8.5)
-p1=levelplot(wc_map,col.regions=grey(seq(0,1,len=100)),cuts=99,margin=F,maxpixels=1e5,colorkey=list("top"))
-p2=levelplot(mac,col.regions=grey(seq(0,1,len=100)),cuts=99,margin=F,maxpixels=1e5,colorkey=list("bottom"))
-p3=c(p1,p2,x.same=T,y.same=T,merge.legends=T)
-print(p3)
-
-
 regs=list(
+  Cascades=extent(c(-122.8,-118,44.9,47)),
   Hawaii=extent(c(-156.5,-154,18.75,20.5)),
   Boliva=extent(c(-71,-63,-20,-15)),
   Venezuela=extent(c(-69,-59,0,7)),
-  reg=extent(c(-83,-45,-5,13)),
-  reg2=extent(c(-81,-70,-4,10))
+  CFR=extent(c(17.75,22.5,-34.8,-32.6)),
+  Madagascar=extent(c(46,52,-17,-12))
+  #reg2=extent(c(-81,-70,-4,10))
   )
-
-r=3  #set region
+for(r in 1:length(regs)){
 p_map=levelplot(crop(wc_map,regs[[r]]),col.regions=grey(seq(0,1,len=100)),cuts=99,margin=F,maxpixels=1e5,colorkey=list(space="bottom",height=.75),xlab="",ylab="",main=names(regs)[r],useRaster=T)
 p_mac=levelplot(crop(mac,regs[[r]]),col.regions=grey(seq(0,1,len=100)),cuts=99,margin=F,maxpixels=1e5,colorkey=list(space="bottom",height=.75),useRaster=T)
-p_npp=levelplot(crop(npp,regs[[r]]),col.regions=grey(seq(0,1,len=100)),cuts=99,margin=F,maxpixels=1e5,colorkey=list(space="bottom",height=.5),zscaleLog=T,useRaster=T)
-p3=c("WorldClim Mean Annual Precip (mm)"=p_map,"MOD09 Cloud Frequency (%)"=p_mac,"NPP"=p_npp,x.same=T,y.same=T,merge.legends=T,layout=c(3,1))
+#p_npp=levelplot(crop(npp,regs[[r]]),col.regions=grey(seq(0,1,len=100)),cuts=99,margin=F,maxpixels=1e5,colorkey=list(space="bottom",height=.5),zscaleLog=T,useRaster=T)  #"NPP"=p_npp,
+p3=c("WorldClim Mean Annual Precip (mm)"=p_map,"MOD09 Cloud Frequency (%)"=p_mac,x.same=T,y.same=T,merge.legends=T,layout=c(2,1))
 print(p3)
-
+}
 dev.off()
 
 

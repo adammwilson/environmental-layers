@@ -62,11 +62,24 @@ mod09=brick("~/acrobates/adamw/projects/cloud/data/mod09.nc")
 ## overlay the data with 32km diameter (16km radius) buffer
 ## buffer size from Dybbroe, et al. (2005) doi:10.1175/JAM-2189.1.
 buf=16000
-mod09sta=lapply(1:nlayers(mod09),function(l) {print(l); extract(mod09[[l]],st,buffer=buf,fun=mean,na.rm=T,df=T)[,2]})
-mod09st=do.call(cbind.data.frame,mod09sta)
+#mod09sta=lapply(1:nlayers(mod09),function(l) {print(l); extract(mod09[[l]],st,buffer=buf,fun=mean,na.rm=T,df=T)[,2]})
+bins=cut(1:nrow(st),100)
+mod09sta=lapply(levels(bins),function(lb) {
+  l=which(bins==lb)
+  td=extract(mod09,st[l,],buffer=buf,fun=mean,na.rm=T,df=T)
+  td$id=st$id[l]
+  print(lb)#as.vector(c(l,td[,1:4])))
+  write.table(td,"valid.csv",append=T,col.names=F,quote=F,sep=",",row.names=F)
+  td
+})#,mc.cores=3)
+
+#mod09sta=extract(mod09,st,buffer=buf,fun=mean,na.rm=T,df=T)
+mod09st=read.csv("valid.csv",header=F)[,-c(1,2)]
+
+#mod09st=do.call(rbind.data.frame,mod09sta)
 #mod09st=mod09st[,!is.na(colnames(mod09st))]
-colnames(mod09st)=names(mod09)
-mod09st$id=st$id
+colnames(mod09st)=c(names(mod09),"id")
+#mod09st$id=st$id
 mod09stl=melt(mod09st,id.vars="id")
 mod09stl[,c("year","month")]=do.call(rbind,strsplit(sub("X","",mod09stl$variable),"[.]"))[,1:2]
 ## add it to cld
@@ -85,13 +98,13 @@ levels(lulc)=list(IGBP)
 #lulc=crop(lulc,mod09)
   Mode <- function(x) {
       ux <- na.omit(unique(x))
-        ux[which.max(tabulate(match(x, ux)),na.rm=T)]
+        ux[which.max(tabulate(match(x, ux)))]
       }
-lulcst=extract(lulc,st,fun=Mode,na.rm=T,buffer=buf,df=T)
+lulcst=extract(lulc,st,fun=Mode,buffer=buf,df=T)
 colnames(lulcst)=c("id","lulc")
 ## add it to cld
 cld$lulc=lulcst$lulc[match(cld$StaID,lulcst$id)]
-cld$lulc=factor(as.integer(cld$lulc),labels=IGBP$class)
+#cld$lulc=factor(as.integer(cld$lulc),labels=IGBP$class[sort(unique(cld$lulc))])
 
 ## update cld column names
 colnames(cld)[grep("Amt",colnames(cld))]="cld"
