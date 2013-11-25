@@ -38,84 +38,15 @@ library(pgirmess)                            # Krusall Wallis test with mulitple
 
 #### FUNCTION USED IN SCRIPT
 
-function_analyses_paper <-"contribution_of_covariates_paper_interpolation_functions_10152013.R"
-
-plot_transect_m2<-function(list_trans,r_stack,title_plot,disp=FALSE,m_layers){
-  #This function creates plot of transects for stack of raster images.
-  #Arguments:
-  #list_trans: list of files containing the transects lines in shapefile format
-  #r_stack: raster stack containing the information to extect
-  #title_plot: plot title
-  #disp: display and save from X11 if TRUE or plot to png file if FALSE
-  #m_layers: index for layerers containing alternate units to be drawned on a differnt scale
-  #RETURN:
-  #list containing transect information
-  
-  nb<-length(list_trans)
-  t_col<-rainbow(nb)
-  t_col<-c("red","green","black")
-  lty_list<-c("dashed","solid","dotted")
-  list_trans_data<-vector("list",nb)
-  
-  #For scale 1
-  for (i in 1:nb){
-    trans_file<-list_trans[[i]][1]
-    filename<-sub(".shp","",trans_file)             #Removing the extension from file.
-    transect<-readOGR(dirname(filename), basename(filename))                 #reading shapefile 
-    trans_data<-extract(r_stack, transect)
-    if (disp==FALSE){
-      png(file=paste(list_trans[[i]][2],".png",sep=""))
-    }
-    #Plot layer values for specific transect
-    for (k in 1:ncol(trans_data[[1]])){
-      y<-trans_data[[1]][,k]
-      x<-1:length(y)
-      m<-match(k,m_layers)
-      
-      if (k==1 & is.na(m)){
-        plot(x,y,type="l",xlab="transect distance from coastal origin (km)", ylab=" maximum temperature (degree C)",
-             ,cex=1.2,col=t_col[k])
-        #axis(2)
-      }
-      if (k==1 & !is.na(m)){
-        plot(x,y,type="l",col=t_col[k],lty="dotted",axes=F) #plotting fusion profile
-        #axis(4,xlab="",ylab="elevation(m)")  
-        axis(4,cex=1.2)
-      }
-      if (k!=1 & is.na(m)){
-        #par(new=TRUE)              # new plot without erasing old
-        lines(x,y,type="l",xlab="",ylab="",col=t_col[k],axes=F) #plotting fusion profile
-        #axis(2,xlab="",ylab="tmax (in degree C)")
-      }
-      if (k!=1 & !is.na(m)){
-        par(new=TRUE)              # key: ask for new plot without erasing old
-        plot(x,y,type="l",col=t_col[k],xlab="",ylab="",lty="dotted",axes=F) #plotting fusion profile
-        #axis(4,xlab="",ylab="elevation(m)")  
-        axis(4,cex=1.2)
-      } 
-    }
-    title(title_plot[i])
-    legend("topleft",legend=names(r_stack)[1:2], 
-           cex=1.2, col=t_col,lty=1,bty="n")
-    legend("topright",legend=names(r_stack)[3], 
-           cex=1.2, col=t_col[3],lty="dotted",bty="n")
-    if (disp==TRUE){
-      savePlot(file=paste(list_trans[[i]][2],".png",sep=""),type="png")
-    }
-    if (disp==FALSE){
-      dev.off()
-    }
-    list_trans_data[[i]]<-trans_data
-  }
-  names(list_trans_data)<-names(list_trans)
-  return(list_trans_data)
-}
+function_analyses_paper1 <-"contribution_of_covariates_paper_interpolation_functions_10222013.R"
+function_analyses_paper2 <-"multi_timescales_paper_interpolation_functions_11252013.R"
 
 ##############################
 #### Parameters and constants  
 
 script_path<-"/home/parmentier/Data/IPLANT_project/env_layers_scripts/" #path to script
-source(file.path(script_path,function_analyses_paper)) #source all functions used in this script.
+source(file.path(script_path,function_analyses_paper1)) #source all functions used in this script.
+source(file.path(script_path,function_analyses_paper2)) #source all functions used in this script.
 
 #direct methods: gam, kriging, gwr
 in_dir1 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_gam_daily_lst_comb5_11012013"
@@ -407,15 +338,36 @@ for (i in 1:length(lf)){
 
 #######Figure 7a: Map of transects
 
-nb_transect<-3
+## Transects image location in OR             
+png(paste("Fig7_elevation_transect_paths_",date_selected,out_prefix,".png", sep=""),
+    height=480*layout_m[1],width=480*layout_m[2])
+
+plot(elev)
+for(i in 1:length(transect_list)){
+  filename<-sub(".shp","",transect_list[i])             #Removing the extension from file.
+  transect<-readOGR(dirname(filename), basename(filename))                 #reading shapefile 
+  plot(transect_list[i],add=TRUE)
+}
+title("Transect Oregon")
+dev.off()
+
+#### TRANSECT PROFILES
+nb_transect <- 3
 list_transect2<-vector("list",nb_transect)
+list_transect3<-vector("list",nb_transect)
+list_transect4<-vector("list",nb_transect)
+
 rast_pred<-stack(lf[[2]]) #GAM_CAI
-rast_pred_selected<-subset(rast_pred,c(1,6)) #3 is referring to FSS, plot it first because it has the
-                                             # the largest range.
-rast_pred2<-stack(rast_pred_selected,subset(s_raster,"elev_s"))
+rast_pred_selected2<-subset(rast_pred,c(1,6)) #3 is referring to FSS, plot it first because it has the
+rast_pred_selected3<-subset(rast_pred,c(1,2)) #3 is referring to FSS, plot it first because it has the
+rast_pred3<-stack(lf[[2]]) #GAM_CAI
+                                          # the largest range.
+rast_pred2 <- stack(rast_pred_selected2,subset(s_raster,"elev_s"))
+rast_pred3 <- stack(rast_pred_selected3,subset(s_raster,"elev_s"))
 
 #layers_names<-layerNames(rast_pred2)<-c("lat*lon","lat*lon + elev + LST","elev")
-layers_names<-layerNames(rast_pred2)<-c("mod1","mod6","elev")
+layers_names<- names(rast_pred2)<-c("mod1","mod6","elev")
+layers_names<- names(rast_pred3)<-c("mod1","mod2","elev")
 pos<-c(1,2) # postions in the layer prection
 transect_list
 list_transect2[[1]]<-c(transect_list[1],paste("figure_3_tmax_elevation_transect1_OR_",date_selected,
@@ -425,42 +377,49 @@ list_transect2[[2]]<-c(transect_list[2],paste("figure_3_tmax_elevation_transect2
 list_transect2[[3]]<-c(transect_list[3],paste("figure_3_tmax_elevation_transect3_OR_",date_selected,
                                            paste("mod1_mod6",collapse="_"),out_prefix,sep="_"))
 
+list_transect3[[1]]<-c(transect_list[1],paste("figure_3_tmax_elevation_transect1_OR_",date_selected,
+                                           paste("mod1_mod2",collapse="_"),out_prefix,sep="_"))
+list_transect3[[2]]<-c(transect_list[2],paste("figure_3_tmax_elevation_transect2_OR_",date_selected,
+                                           paste("mod1_mod2",collapse="_"),out_prefix,sep="_"))
+list_transect3[[3]]<-c(transect_list[3],paste("figure_3_tmax_elevation_transect3_OR_",date_selected,
+                                           paste("mod1_mod2",collapse="_"),out_prefix,sep="_"))
+
 names(list_transect2)<-c("transect_OR1","transect_OR2","transect_OR3")
+names(list_transect3)<-c("transect_OR1","transect_OR2","transect_OR3")
 
 names(rast_pred2)<-layers_names
+names(rast_pred3)<-layers_names
+
 title_plot2<-paste(names(list_transect2),date_selected,sep=" ")
 title_plot2<-paste(rep("Oregon transect on ",3), date_selected,sep="")
+title_plot3<-paste(names(list_transect3),date_selected,sep=" ")
+title_plot3<-paste(rep("Oregon transect on ",3), date_selected,sep="")
+
 #r_stack<-rast_pred
 m_layers_sc<-c(3) #elevation in the third layer
+#m_layers_sc<-c(4) #elevation in the third layer
+
 #title_plot2
 #rast_pred2
-debug(plot_transect_m2)
+#debug(plot_transect_m2)
 trans_data2<-plot_transect_m2(list_transect2,rast_pred2,title_plot2,disp=FALSE,m_layers_sc)
-
-#png(filename=paste("Comparison_daily_monthly_mean_lst",out_prefix,".png",sep=""),width=960,height=480)
-#par(mfrow=c(1,2))
-
-dev.off()
-
-## Transects image location in OR             
-png(paste("Fig7_elevation_transect_paths_",date_selected,out_prefix,".png", sep=""),
-    height=480*layout_m[1],width=480*layout_m[2])
-
-plot(elev_s)
-#k<-1  #transect to plot
-list_transect2[[3]]
-#trans_file<-list_transect2[[k]][[1]]
-#filename<-sub(".shp","",trans_file)             #Removing the extension from file.
-#transect<-readOGR(".", filename)                 #reading shapefile 
-#plot(transect,add=TRUE)
-#title("Transect Oregon")
-#dev.off()
+trans_data3<-plot_transect_m2(list_transect3,rast_pred3,title_plot3,disp=FALSE,m_layers_sc)
 
 ################################################
 #Figure 9: Image differencing and land cover  
-
+#Do for january and September...
 png(paste("Fig9_image_difference_",date_selected,out_prefix,".png", sep=""),
     height=480*layout_m[1],width=480*layout_m[2])
+
+  pred_temp <-subset(rast_pred,c(1,2,6)) #3 
+
+  p <- levelplot(pred_temp_s,main=methods_names[i], ylab=NULL,xlab=NULL,
+          par.settings = list(axis.text = list(font = 2, cex = 1.3),layout=layout_m,
+                              par.main.text=list(font=2,cex=2),strip.background=list(col="white")),par.strip.text=list(font=2,cex=1.5),
+          names.attr=names_layers,col.regions=temp.colors,at=seq(min_val,max_val,by=0.25))
+  #col.regions=temp.colors(25))
+  print(p)
+dev.off()
 
 ###################### END OF SCRIPT #######################
 
