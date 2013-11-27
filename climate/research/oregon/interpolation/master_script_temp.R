@@ -10,7 +10,7 @@
 #STAGE 5: Output analyses: assessment of results for specific dates...
 #
 #AUTHOR: Benoit Parmentier                                                                       
-#DATE: 11/16/2013                                                                                 
+#DATE: 11/27/2013                                                                                 
 
 #PROJECT: NCEAS INPLANT: Environment and Organisms --TASK#363, TASK$568--   
 
@@ -81,18 +81,18 @@ met_stations_outfiles_obj_file<-"/data/project/layers/commons/data_workflow/outp
 
 var<-"TMAX" # variable being interpolated
 #out_prefix<-"_365d_gam_cai_lst_comb3_10102013"                #User defined output prefix
-out_prefix<-"_365d_gwr_fss_lst_mults_0_70_comb5_11162013"                #User defined output prefix
+out_prefix<-"_365d_kriging_cai_lst_mults_0_70_comb5_11272013"                #User defined output prefix
 
-out_suffix<-"_OR_11162013"                                       #Regional suffix
+out_suffix<-"_OR_11272013"                                       #Regional suffix
 out_suffix_modis <-"_05302013"                       #pattern to find tiles produced previously     
 
 #interpolation_method<-c("gam_fusion","gam_CAI","gam_daily") #other otpions to be added later
 #interpolation_method<-c("gam_CAI") #other otpions to be added later
 #interpolation_method<-c("gam_fusion") #other otpions to be added later
 #interpolation_method<-c("kriging_fusion") #other otpions to be added later
-interpolation_method<-c("gwr_fusion") #other otpions to be added later
+#interpolation_method<-c("gwr_fusion") #other otpions to be added later
 #interpolation_method<-c("gwr_CAI") #other otpions to be added later
-#interpolation_method<-c("kriging_CAI") 
+interpolation_method<-c("kriging_CAI") 
 
 #interpolation_method<-c("gam_daily") #other otpions to be added later
 #interpolation_method<-c("kriging_daily") #other otpions to be added later
@@ -255,7 +255,7 @@ prop_minmax<-c(0.3,0.3)  #if prop_min=prop_max and step=0 then predictions are d
 #prop_minmax<-c(0.1,0.7)  #if prop_min=prop_max and step=0 then predictions are done for the number of dates...
 
 seed_number_month <- 100
-nb_sample_month <-1           #number of time random sampling must be repeated for every hold out proportion
+nb_sample_month <- 1           #number of time random sampling must be repeated for every hold out proportion
 #step_month <-0         
 step_month <-0.1
 constant_month <- 0             #if value 1 then use the same samples as date one for the all set of dates
