@@ -5,7 +5,7 @@
 #Figures, tables and data for the  paper are also produced in the script.
 #AUTHOR: Benoit Parmentier 
 #CREATED ON: 10/31/2013  
-#MODIFIED ON: 11/15/2013            
+#MODIFIED ON: 12/02/2013            
 #Version: 1
 #PROJECT: Environmental Layers project                                     
 #################################################################################################
@@ -32,14 +32,14 @@ library(spgwr)                               # GWR method
 library(automap)                             # Kriging automatic fitting of variogram using gstat
 library(rgeos)                               # Geometric, topologic library of functions
 #RPostgreSQL                                 # Interface R and Postgres, not used in this script
-
+library(gridExtra)
 #Additional libraries not used in workflow
 library(pgirmess)                            # Krusall Wallis test with mulitple options, Kruskalmc {pgirmess}  
 
 #### FUNCTION USED IN SCRIPT
 
 function_analyses_paper1 <-"contribution_of_covariates_paper_interpolation_functions_10222013.R"
-function_analyses_paper2 <-"multi_timescales_paper_interpolation_functions_11252013.R"
+function_analyses_paper2 <-"multi_timescales_paper_interpolation_functions_12022013.R"
 
 ##############################
 #### Parameters and constants  
@@ -51,7 +51,9 @@ source(file.path(script_path,function_analyses_paper2)) #source all functions us
 #direct methods: gam, kriging, gwr
 in_dir1 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_gam_daily_lst_comb5_11012013"
 in_dir2 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_kriging_daily_lst_comb5_11022013"
-in_dir3 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_gwr_daily_lst_comb5p1_3_11062013"
+in_dir3a <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_gwr_daily_lst_comb5p1_3_11062013"
+in_dir3b <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_gwr_daily_lst_comb5p4_7_11292013"
+
 #CAI: gam, kriging, gwr
 in_dir4 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_gam_cai_lst_comb5_11032013"
 in_dir5 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_kriging_cai_lst_comb5_11032013"
@@ -60,14 +62,23 @@ in_dir6 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_gw
 in_dir7 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_gam_fss_lst_comb5_11062013"
 in_dir8 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_kriging_fss_lst_comb5_11052013"
 in_dir9 <- "/data/project/layers/commons/Oregon_interpolation/output_data_365d_gwr_fss_lst_comb5_11052013"
-#
+###
+
+### hold out 0-70
+
+in_dir10 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_gam_fss_lst_mults_0_70_comb5_11082013"
+in_dir11 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_kriging_fss_lst_mults_0_70_comb5_11132013"
+in_dir12 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_gwr_fss_lst_mults_0_70_comb5_11162013"
+in_dir13 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_gam_cai_lst_mults_0_70_comb5_11192013"
+in_dir14 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_kriging_cai_lst_mults_0_70_comb5_11272013"
+in_dir15 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_gwr_cai_lst_mults_0_70_comb5_11222013"
 
 ##raster_prediction object for comb5
 #direct methods
 raster_obj_file_1 <- "raster_prediction_obj_gam_daily_dailyTmax_365d_gam_daily_lst_comb5_11012013.RData" 
 raster_obj_file_2 <- "raster_prediction_obj_kriging_daily_dailyTmax_365d_kriging_daily_lst_comb5_11022013.RData"
-raster_obj_file_3 <- "raster_prediction_obj_gwr_daily_dailyTmax_365d_gwr_daily_lst_comb5p1_3_11062013.RData"
-raster_obj_file_3b <- "raster_prediction_obj_gwr_daily_dailyTmax_365d_gwr_daily_lst_comb5p1_3_11062013.RData"
+raster_obj_file_3a <- "raster_prediction_obj_gwr_daily_dailyTmax_365d_gwr_daily_lst_comb5p1_3_11062013.RData"
+raster_obj_file_3b <- "raster_prediction_obj_gwr_daily_dailyTmax_365d_gwr_daily_lst_comb5p4_7_11292013.RData"
 #CAI
 raster_obj_file_4 <- "raster_prediction_obj_gam_CAI_dailyTmax_365d_gam_cai_lst_comb5_11032013.RData"
 raster_obj_file_5 <- "raster_prediction_obj_kriging_CAI_dailyTmax_365d_kriging_cai_lst_comb5_11032013.RData"
@@ -77,6 +88,15 @@ raster_obj_file_7 <- "raster_prediction_obj_gam_fusion_dailyTmax_365d_gam_fss_ls
 raster_obj_file_8 <- "raster_prediction_obj_kriging_fusion_dailyTmax_365d_kriging_fss_lst_comb5_11052013.RData"
 raster_obj_file_9 <- "raster_prediction_obj_gwr_fusion_dailyTmax_365d_gwr_fss_lst_comb5_11052013.RData"
 
+## holdout
+
+raster_obj_file_10 <- "raster_prediction_obj_gam_fusion_dailyTmax_365d_gam_fss_lst_mults_0_70_comb5_11082013.RData"
+raster_obj_file_11 <- "raster_prediction_obj_kriging_fusion_dailyTmax_365d_kriging_fss_lst_mults_0_70_comb5_11132013.RData"
+raster_obj_file_12 <- "raster_prediction_obj_gwr_fusion_dailyTmax_365d_gwr_fss_lst_mults_0_70_comb5_11162013.RData"
+raster_obj_file_13 <- "raster_prediction_obj_gam_CAI_dailyTmax_365d_gam_cai_lst_mults_0_70_comb5_11192013.RData"
+raster_obj_file_14 <- "raster_prediction_obj_kriging_CAI_dailyTmax_365d_kriging_cai_lst_mults_0_70_comb5_11272013.RData"
+raster_obj_file_15 <- "raster_prediction_obj_gwr_CAI_dailyTmax_365d_gwr_cai_lst_mults_0_70_comb5_11222013.RData"
+
 out_dir<-"/home/parmentier/Data/IPLANT_project/paper_multitime_scale__analyses_tables_fig_09032013"
 setwd(out_dir)
 
@@ -84,7 +104,7 @@ infile_reg_outline <- "/data/project/layers/commons/data_workflow/inputs/region_
 met_stations_outfiles_obj_file<-"/data/project/layers/commons/data_workflow/output_data_365d_gam_fus_lst_test_run_07172013/met_stations_outfiles_obj_gam_fusion__365d_gam_fus_lst_test_run_07172013.RData"
 CRS_locs_WGS84<-CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +towgs84=0,0,0") #Station coords WGS84
 y_var_name <- "dailyTmax"
-out_prefix<-"analyses_11252013"
+out_prefix<-"analyses_12022013"
 ref_rast_name<- "/data/project/layers/commons/data_workflow/inputs/region_outlines_ref_files/mean_day244_rescaled.rst"                     #This is the shape file of outline of the study area. #local raster name defining resolution, exent, local projection--. set on the fly??
 infile_reg_outline <- "/data/project/layers/commons/data_workflow/inputs/region_outlines_ref_files/OR83M_state_outline.shp"  #input region outline defined by polygon: Oregon
 ref_rast_name <-"/data/project/layers/commons/data_workflow/inputs/region_outlines_ref_files/mean_day244_rescaled.rst"  #local raster name defining resolution, exent: oregon
@@ -110,16 +130,6 @@ s_raster <- brick(infile_covariates)
 names(s_raster)<-covar_names
 
 #raster_prediction_obj_1 <-load_obj(file.path(in_dir1,raster_obj_file_1)) #comb5 gam_daily
-#raster_prediction_obj_2 <-load_obj(file.path(in_dir2,raster_obj_file_2)) #comb5 kriging_daily
-#raster_prediction_obj_3 <-load_obj(file.path(in_dir3,raster_obj_file_3)) #comb5 gwr_daily mod1 to mod3
-#raster_prediction_obj_3b <-load_obj(file.path(in_dir3b,raster_obj_file_3b)) #comb5 gwr_daily mod4 to mod7
-                             
-#raster_prediction_obj_4 <-load_obj(file.path(in_dir4,raster_obj_file_4)) #comb5 gam_CAI
-#raster_prediction_obj_5 <-load_obj(file.path(in_dir5,raster_obj_file_5)) #comb5 kriging_CAI
-#raster_prediction_obj_6 <-load_obj(file.path(in_dir6,raster_obj_file_6)) #comb5 gwr_CAI 
-#raster_prediction_obj_7 <-load_obj(file.path(in_dir7,raster_obj_file_7)) #comb5 gam_fss
-#raster_prediction_obj_8 <-load_obj(file.path(in_dir8,raster_obj_file_8)) #comb5 kriging_fss 
-#raster_prediction_obj_9 <-load_obj(file.path(in_dir9,raster_obj_file_9)) #comb5 gwr_fss
 
 ############### BEGIN SCRIPT #################
 
@@ -128,12 +138,12 @@ names(s_raster)<-covar_names
 ## This is a table of accuracy  
 
 list_raster_obj_files  <- list(file.path(in_dir1,raster_obj_file_1),file.path(in_dir2,raster_obj_file_2),
-                               file.path(in_dir3,raster_obj_file_3),file.path(in_dir4,raster_obj_file_4),
-                               file.path(in_dir5,raster_obj_file_5),file.path(in_dir6,raster_obj_file_6),
-                               file.path(in_dir7,raster_obj_file_7),file.path(in_dir8,raster_obj_file_8),
-                               file.path(in_dir9,raster_obj_file_9))
+                               file.path(in_dir3a,raster_obj_file_3a),file.path(in_dir3b,raster_obj_file_3b),
+                               file.path(in_dir4,raster_obj_file_4),file.path(in_dir5,raster_obj_file_5),
+                               file.path(in_dir6,raster_obj_file_6),file.path(in_dir7,raster_obj_file_7),
+                               file.path(in_dir8,raster_obj_file_8),file.path(in_dir9,raster_obj_file_9))
  
-names(list_raster_obj_files)<- c("gam_daily","kriging_daily","gwr_daily",
+names(list_raster_obj_files)<- c("gam_daily","kriging_daily","gwr_daily","gwr_daily",
                                  "gam_CAI","kriging_CAI","gwr_CAI",
                                  "gam_fss","kriging_fss","gwr_fss")
 summary_metrics_v_list<-lapply(list_raster_obj_files,FUN=function(x){x<-load_obj(x);x[["summary_metrics_v"]]$avg$rmse})                           
@@ -148,7 +158,7 @@ table_kriging <- summary_metrics_v_list[grep("kriging",names(summary_metrics_v_l
 table_kriging <- do.call(cbind,table_kriging)
 table_kriging <- table_kriging[1:7,]                         
 
-#for kriging models
+#for gwr models
 table_gwr <- summary_metrics_v_list[grep("gwr",names(summary_metrics_v_list))]
 table_gwr <- do.call(cbind,table_gwr)
 table_gwr <- table_gwr[1:7,]                         
@@ -277,9 +287,149 @@ dev.off()
 ################################################
 ######### Figure 4. RMSE multi-timescale mulitple hold out for FSS and CAI
 
+raster_prediction_obj_9 <-load_obj(file.path(in_dir9,raster_obj_file_9)) #comb5 gwr_fss
+
+list_raster_obj_files_holdout  <- list(file.path(in_dir10,raster_obj_file_10),file.path(in_dir11,raster_obj_file_11),
+                                  file.path(in_dir12,raster_obj_file_12),file.path(in_dir13,raster_obj_file_13),
+                                  file.path(in_dir14,raster_obj_file_14),file.path(in_dir15,raster_obj_file_15))
+ 
+names(list_raster_obj_files_holdout)<- c("gam_fss","kriging_fss","gwr_fss",
+                                         "gam_CAI","kriging_CAI","gwr_CAI")
+tb_v_list<-lapply(list_raster_obj_files_holdout,FUN=function(x){x<-load_obj(x);x[["tb_diagnostic_v"]]})                           
+tb_s_list<-lapply(list_raster_obj_files_holdout,FUN=function(x){x<-load_obj(x);x[["tb_diagnostic_s"]]})                           
+#tb_s_list<-mclapply(list_raster_obj_files_holdout,FUN=function(x){x<-load_obj(x);x[["tb_diagnostic_s"]]},mc.preschedule=FALSE,mc.cores = 6)                           
+#tb_v_list<-mclapply(list_raster_obj_files_holdout,FUN=function(x){x<-load_obj(x);x[["tb_diagnostic_v"]]},mc.preschedule=FALSE,mc.cores = 6)                           
+names(tb_s_list) <- paste("tb_s_",names(tb_s_list),sep="")
+names(tb_v_list) <- paste("tb_v_",names(tb_v_list),sep="")
+
+tb_mv_list<-lapply(list_raster_obj_files_holdout,FUN=function(x){x<-load_obj(x);x[["tb_month_diagnostic_mv"]]})                           
+tb_ms_list<-lapply(list_raster_obj_files_holdout,FUN=function(x){x<-load_obj(x);x[["tb_month_diagnostic_ms"]]})                           
+#tb_mv_list<-mclapply(list_raster_obj_files_holdout,FUN=function(x){x<-load_obj(x);x[["tb_month_diagnostic_v"]]},mc.preschedule=FALSE,mc.cores = 6)                           
+#tb_ms_list<-mclapply(list_raster_obj_files_holdout,FUN=function(x){x<-load_obj(x);x[["tb_month_diagnostic_s"]]},mc.preschedule=FALSE,mc.cores = 6)                           
+names(tb_ms_list) <- paste("tb_ms_",names(tb_ms_list),sep="") #monthly training accuracy
+names(tb_mv_list) <- paste("tb_mv_",names(tb_mv_list),sep="") #monthly testing accuracy
+
+list_tb <- c(tb_s_list,tb_v_list,tb_ms_list,tb_mv_list) #combined in one list
+ac_metric <- "rmse"
+#Quick function to explore accuracy make this a function to create solo figure...and run only a subset...
+plot_accuracy_by_holdout_fun <-function(list_tb,ac_metric){
+  #
+  for(i in 1:length(list_tb)){
+    #i <- i+1
+    tb <-list_tb[[i]]
+    plot_name <- names(list_tb)[i]
+    pat_str <- "tb_m"
+    if(substr(plot_name,start=1,stop=4)== pat_str){
+      names_id <- c("pred_mod","prop")
+      plot_formula <- paste(ac_metric,"~prop",sep="",collapse="") 
+    }else{
+      names_id <- c("pred_mod","prop_month")
+      plot_formula <- paste(ac_metric,"~prop_month",collapse="")
+    }
+    names_mod <-unique(tb$pred_mod)
+    prop_obj <- calc_stat_prop_tb_diagnostic(names_mod,names_id,tb)
+    avg_tb <- prop_obj$avg_tb
+  
+    layout_m<-c(1,1) #one row two columns
+    par(mfrow=layout_m)
+    
+    png(paste("Figure__accuracy_",ac_metric,"_prop_month_",plot_name,"_",out_prefix,".png", sep=""),
+      height=480*layout_m[1],width=480*layout_m[2])
+    
+    p<- xyplot(as.formula(plot_formula),group=pred_mod,type="b",
+          data=avg_tb,
+          main=paste(ac_metric,plot_name,sep=" "),
+          pch=1:length(avg_tb$pred_mod),
+          par.settings=list(superpose.symbol = list(
+          pch=1:length(avg_tb$pred_mod))),
+          auto.key=list(columns=5))
+    print(p)
+  
+    dev.off()
+  }
+  #end of function
+}
+
+#For paper...
+#Combine figures... tb_v for GWR, Kriging and GAM for both FSS and CAI
+
 ################################################
 ######### Figure 5. RMSE multi-timescale mulitple hold out Overtraining tendency
-                             
+
+#For paper...
+#Combine figures... tb_v for GWR, Kriging and GAM for both FSS and CAI
+
+##### Calculate differences
+
+metric_names <- c("mae","rmse","me","r")
+diff_kriging_CAI <- diff_df(list_tb[["tb_s_kriging_CAI"]],list_tb[["tb_v_kriging_CAI"]],metric_names)
+diff_gam_CAI <- diff_df(list_tb[["tb_s_gam_CAI"]][tb_s_gam_CAI$pred_mod!="mod_kr"],list_tb[["tb_v_gam_CAI"]],metric_names)
+diff_gwr_CAI <- diff_df(tb_s_gwr_CAI,tb_v_gwr_CAI,metric_names)
+
+layout_m<-c(1,1) #one row two columns
+par(mfrow=layout_m)
+
+png(paste("Figure__accuracy_rmse_prop_month_",plot_name,out_suffix,".png", sep=""),
+    height=480*layout_m[1],width=480*layout_m[2])
+boxplot(diff_kriging_CAI$rmse,diff_gam_CAI$rmse,diff_gwr_CAI$rmse,names=c("kriging_CAI","gam_CAI","gwr_CAI"),
+        main="Difference between training and testing daily rmse")
+dev.off()
+
+#remove prop 0,
+diff_kriging_CAI <- diff_df(tb_s_kriging_CAI[tb_s_kriging_CAI$prop_month!=0,],tb_v_kriging_CAI[tb_v_kriging_CAI$prop_month!=0,],metric_names)
+diff_gam_CAI <- diff_df(tb_s_gam_CAI[tb_s_gam_CAI$prop_month!=0,],tb_v_gam_CAI[tb_v_gam_CAI$prop_month!=0,],metric_names)
+diff_gwr_CAI <- diff_df(tb_s_gwr_CAI[tb_s_gwr_CAI$prop_month!=0,],tb_v_gwr_CAI[tb_v_gwr_CAI$prop_month!=0,],metric_names)
+boxplot(diff_kriging_CAI$rmse,diff_gam_CAI$rmse,diff_gwr_CAI$rmse,names=c("kriging_CAI","gam_CAI","gwr_CAI"),
+        main="Difference between training and testing daily rmse")
+
+#now monthly accuracy: use mapply and provide  a list of of inputs...
+metric_names <- c("mae","rmse","me","r")
+diff_kriging_m_CAI <- diff_df(tb_ms_kriging_CAI[tb_ms_kriging_CAI$prop!=0,],tb_mv_kriging_CAI,metric_names)
+diff_gam_m_CAI <- diff_df(tb_ms_gam_CAI[tb_ms_gam_CAI$prop!=0,],tb_mv_gam_CAI,metric_names)
+diff_gwr_m_CAI <- diff_df(tb_ms_gwr_CAI[tb_ms_gwr_CAI$prop!=0,],tb_mv_gwr_CAI,metric_names)
+
+layout_m<-c(1,1) #one row two columns
+par(mfrow=layout_m)
+
+png(paste("Figure__accuracy_rmse_prop_month_",plot_name,out_suffix,".png", sep=""),
+    height=480*layout_m[1],width=480*layout_m[2])
+boxplot(diff_kriging_m_CAI$rmse,diff_gam_m_CAI$rmse,diff_gwr_m_CAI$rmse,names=c("kriging_CAI","gam_CAI","gwr_CAI"),
+        main="Difference between training and monhtly testing rmse")
+dev.off()
+
+#boxplot(diff_kriging_m_CAI$rmse,diff_gam_m_CAI$rmse,diff_gwr_CAI,names=c("kriging_CAI","gam_CAI","gwr_CAI"),
+#        main="Difference between training and monhtly testing rmse")
+
+### For fusion
+
+metric_names <- c("mae","rmse","me","r")
+diff_kriging_fus <- diff_df(tb_s_kriging_fus,tb_v_kriging_fus,metric_names)
+diff_gam_fus <- diff_df(tb_s_gam_fus,tb_v_gam_fus,metric_names)
+diff_gwr_fus <- diff_df(tb_s_gwr_fus,tb_v_gwr_fus,metric_names)
+
+layout_m<-c(1,1) #one row two columns
+par(mfrow=layout_m)
+
+png(paste("Figure__accuracy_rmse_prop_month_",plot_name,out_suffix,".png", sep=""),
+    height=480*layout_m[1],width=480*layout_m[2])
+boxplot(diff_kriging_fus$rmse,diff_gam_fus$rmse,diff_gwr_fus$rmse,names=c("kriging_fus","gam_fus","gwr_fus"),
+        main="Difference between training and testing daily rmse")
+dev.off()
+
+metric_names <- c("mae","rmse","me","r")
+diff_kriging_m_fus <- diff_df(tb_ms_kriging_fus[tb_ms_kriging_fus$prop!=0,],tb_mv_kriging_fus[tb_mv_kriging_fus$prop!=0,],metric_names)
+diff_gam_m_fus <- diff_df(tb_ms_gam_fus[tb_ms_gam_fus$prop!=0,],tb_mv_gam_fus[tb_mv_gam_fus$prop!=0,],metric_names)
+diff_gwr_m_fus <- diff_df(tb_ms_gwr_fus[tb_ms_gwr_fus$prop!=0,],tb_mv_gwr_fus[tb_mv_gwr_fus$prop!=0,],metric_names)
+
+layout_m<-c(1,1) #one row two columns
+par(mfrow=layout_m)
+
+png(paste("Figure__accuracy_rmse_prop_month_",plot_name,out_suffix,".png", sep=""),
+    height=480*layout_m[1],width=480*layout_m[2])
+boxplot(diff_kriging_m_fus$rmse,diff_gam_m_fus$rmse,diff_gwr_m_fus$rmse, names=c("kriging_fus","gam_fus","gwr_fus"),
+        main="Difference between training and testing FUS rmse")
+dev.off()
+
 ################################################
 ######### Figure 6: Spatial pattern of prediction for one day (maps)
 
@@ -402,10 +552,11 @@ m_layers_sc<-c(3) #elevation in the third layer
 #title_plot2
 #rast_pred2
 #debug(plot_transect_m2)
-trans_data2<-plot_transect_m2(list_transect2,rast_pred2,title_plot2,disp=FALSE,m_layers_sc)
-trans_data3<-plot_transect_m2(list_transect3,rast_pred3,title_plot3,disp=FALSE,m_layers_sc)
+trans_data2 <-plot_transect_m2(list_transect2,rast_pred2,title_plot2,disp=FALSE,m_layers_sc)
+trans_data3 <-plot_transect_m2(list_transect3,rast_pred3,title_plot3,disp=FALSE,m_layers_sc)
 
 ################################################
+
 #Figure 9: Image differencing and land cover  
 #Do for january and September...
 png(paste("Fig9_image_difference_",date_selected,out_prefix,".png", sep=""),
