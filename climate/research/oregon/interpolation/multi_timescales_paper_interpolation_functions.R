@@ -4,7 +4,8 @@
 # interpolation code.
 #Functions used in the production of figures and data for the multi timescale paper are recorded.
 #AUTHOR: Benoit Parmentier                                                                      #
-#DATE: 11/25/2013            
+#DATE CREATED: 11/25/2013            
+#DATE MODIFIED: 12/04/2013            
 #Version: 1
 #PROJECT: Environmental Layers project                                       #
 #################################################################################################
@@ -29,7 +30,7 @@ library(plyr)
 
 #### FUNCTION USED IN SCRIPT
 
-function_analyses_paper <-"multi_timescales_paper_interpolation_functions_11252013.R"
+function_analyses_paper <-"multi_timescales_paper_interpolation_functions_11022013.R"
 
 plot_transect_m2<-function(list_trans,r_stack,title_plot,disp=FALSE,m_layers){
   #This function creates plot of transects for stack of raster images.
@@ -103,6 +104,39 @@ plot_transect_m2<-function(list_trans,r_stack,title_plot,disp=FALSE,m_layers){
   return(list_trans_data)
 }
 
+### Need to improve this function!!!
+calc_stat_prop_tb_diagnostic <-function(names_mod,names_id,tb){
+  
+  t<-melt(subset(tb,pred_mod==names_mod),
+          measure=c("mae","rmse","r","me","m50"), 
+          id=names_id,
+          na.rm=T)
+  char_tmp <-rep("+",length=length(names_id)-1)
+  var_summary <-paste(names_id,sep="",collapse=char_tmp)
+  var_summary_formula <-paste(var_summary,collpase="~variable")
+  avg_tb<-cast(t,var_summary_formula,mean)
+  sd_tb<-cast(t,var_summary_formula,sd)
+  n_tb<-cast(t,var_summary_formula,length)
+  #n_NA<-cast(t,dst_cat1~variable,is.na)
+  
+  #### prepare returning object
+  prop_obj<-list(tb,avg_tb,sd_tb,n_tb)
+  names(prop_obj) <-c("tb","avg_tb","sd_tb","n_tb")
+  
+  return(prop_obj)
+}
+
+#Calculate the difference between training and testing in two different data.frames. Columns to substract are provided.
+diff_df<-function(tb_s,tb_v,list_metric_names){
+  tb_diff<-vector("list", length(list_metric_names))
+  for (i in 1:length(list_metric_names)){
+    metric_name<-list_metric_names[i]
+    tb_diff[[i]] <-tb_s[,c(metric_name)] - tb_v[,c(metric_name)]
+  }
+  names(tb_diff)<-list_metric_names
+  tb_diff<-as.data.frame(do.call(cbind,tb_diff))
+  return(tb_diff)
+}
 
 ### generate filter for Moran's I function in raster package
 autocor_filter_fun <-function(no_lag=1,f_type="queen"){
