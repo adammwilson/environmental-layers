@@ -198,14 +198,14 @@ write.table(table4_paper,file=file_name,sep=",")
 ####### Now create figures #############
 
 #figure 1: study area
-#figure 2: methodological worklfow
-#figure 3: daily mean compared to monthly mean
-#Figure 4. RMSE and MAE, mulitisampling and hold out for FSS and GAM.
-#Figure 5. Overtraining tendency
-#Figure 6: Spatial pattern of prediction for one day (maps)
-#Figure 7: Spatial transects for one day (maps)
-#Figure 8: Spatial lag profiles and stations data  
-#Figure 9: Image differencing and land cover                               
+#figure 2: methodological worklfow: outside R
+#figure 3: LST climatology production: daily mean compared to monthly mean: 
+#Figure 4. RMSE and MAE, monthly hold out for FSS and GAM methods
+#Figure 5. Overtraining tendency, monhtly hold out
+#Figure 6: Spatial pattern of prediction for one day (3 maps)
+#Figure 7: Spatial transects for one day (transect map + transect profiles)
+#Figure 8: Image differencing and land cover: spatial patterns     
+#Figure 9: Spatial lag profiles and stations data  
 
 ################################################
 ######### Figure 1: Oregon study area, add labeling names to  Willamette Valley an Mountain Ranges?
@@ -312,46 +312,29 @@ names(tb_mv_list) <- paste("tb_mv_",names(tb_mv_list),sep="") #monthly testing a
 list_tb <- c(tb_s_list,tb_v_list,tb_ms_list,tb_mv_list) #combined in one list
 ac_metric <- "rmse"
 #Quick function to explore accuracy make this a function to create solo figure...and run only a subset...
-plot_accuracy_by_holdout_fun <-function(list_tb,ac_metric){
-  #
-  for(i in 1:length(list_tb)){
-    #i <- i+1
-    tb <-list_tb[[i]]
-    plot_name <- names(list_tb)[i]
-    pat_str <- "tb_m"
-    if(substr(plot_name,start=1,stop=4)== pat_str){
-      names_id <- c("pred_mod","prop")
-      plot_formula <- paste(ac_metric,"~prop",sep="",collapse="") 
-    }else{
-      names_id <- c("pred_mod","prop_month")
-      plot_formula <- paste(ac_metric,"~prop_month",collapse="")
-    }
-    names_mod <-unique(tb$pred_mod)
-    prop_obj <- calc_stat_prop_tb_diagnostic(names_mod,names_id,tb)
-    avg_tb <- prop_obj$avg_tb
-  
-    layout_m<-c(1,1) #one row two columns
-    par(mfrow=layout_m)
-    
-    png(paste("Figure__accuracy_",ac_metric,"_prop_month_",plot_name,"_",out_prefix,".png", sep=""),
-      height=480*layout_m[1],width=480*layout_m[2])
-    
-    p<- xyplot(as.formula(plot_formula),group=pred_mod,type="b",
-          data=avg_tb,
-          main=paste(ac_metric,plot_name,sep=" "),
-          pch=1:length(avg_tb$pred_mod),
-          par.settings=list(superpose.symbol = list(
-          pch=1:length(avg_tb$pred_mod))),
-          auto.key=list(columns=5))
-    print(p)
-  
-    dev.off()
-  }
-  #end of function
-}
 
+list_plots <- plot_accuracy_by_holdout_fun(list_tb,ac_metric)
+names(list_tb)
+tb_v_list 
 #For paper...
 #Combine figures... tb_v for GWR, Kriging and GAM for both FSS and CAI
+#grid.arrange(p1,p2, ncol=2)
+
+layout_m<-c(2,3) #one row two columns
+#par(mfrow=layout_m)
+    
+##add option for plot title? 
+png(paste("Figure4__accuracy_",ac_metric,"_prop_month","_",out_prefix,".png", sep=""),
+    height=480*layout_m[1],width=480*layout_m[2])
+p1<-list_plots[[7]]
+p2<-list_plots[[8]]
+p3<-list_plots[[9]]
+p4<-list_plots[[10]]
+p5<-list_plots[[11]]
+p6<-list_plots[[12]]
+
+grid.arrange(p1,p2,p3,p4,p5,p6,ncol=3)
+dev.off()
 
 ################################################
 ######### Figure 5. RMSE multi-timescale mulitple hold out Overtraining tendency
@@ -359,13 +342,23 @@ plot_accuracy_by_holdout_fun <-function(list_tb,ac_metric){
 #For paper...
 #Combine figures... tb_v for GWR, Kriging and GAM for both FSS and CAI
 
-##### Calculate differences
+metric_names <- c("mae","rmse","me","r")
+list_metric_names <- vector("list", length=6) #list(metric_names)
+list_metric_names[[1]] <- metric_names
+list_metric_names <-lapply(1:6,FUN=function(i,list_metric_names,metric_names){list_metric_names[[i]]<-metric_names},
+       list_metric_names,metric_names)
+list_diff <-mapply(tb_s_list,FUN=diff_df,tb_v_list,list_metric_names)                           
+
+#list_diff <-mapply(tb_s_list,FUN=diff_df,tb_v_list,metric_names) # run all at once fix it...                          
+
+##### Calculate differences: change all the following...shorten
 
 metric_names <- c("mae","rmse","me","r")
 diff_kriging_CAI <- diff_df(list_tb[["tb_s_kriging_CAI"]],list_tb[["tb_v_kriging_CAI"]],metric_names)
 diff_gam_CAI <- diff_df(list_tb[["tb_s_gam_CAI"]][tb_s_gam_CAI$pred_mod!="mod_kr"],list_tb[["tb_v_gam_CAI"]],metric_names)
 diff_gwr_CAI <- diff_df(tb_s_gwr_CAI,tb_v_gwr_CAI,metric_names)
 
+# mapply()
 layout_m<-c(1,1) #one row two columns
 par(mfrow=layout_m)
 
@@ -454,6 +447,7 @@ lf<-list(lf_list[[1]],lf_list[[2]][1:7],lf_list[[3]][1:7])
 names_layers <-c("mod1 = lat*long","mod2 = lat*long + LST","mod3 = lat*long + elev","mod4 = lat*long + N_w*E_w",
                  "mod5 = lat*long + elev + DISTOC","mod6 = lat*long + elev + LST","mod7 = lat*long + elev + LST*FOREST")
 nb_fig<- c("7a","7b","7c")
+list_plots_spt <- vector("list",length=length(nb_fig))
 for (i in 1:length(lf)){
   pred_temp_s <-stack(lf[[i]])
 
@@ -481,7 +475,22 @@ for (i in 1:length(lf)){
   #col.regions=temp.colors(25))
   print(p)
   dev.off()
+  list_plots_spt[[i]] <-p
 }
+
+layout_m<-c(2,4) # works if set to this?? ok set the resolution...
+#layout_m<-c(2*3,4) # works if set to this?? ok set the resolution...
+
+png(paste("Figure7_","_spatial_pattern_tmax_prediction_models_gam_levelplot_",date_selected,out_prefix,".png", sep=""),
+    height=480*layout_m[1],width=480*layout_m[2])
+    #height=480*6,width=480*4)
+
+p1<-list_plots_spt[[1]]
+p2<-list_plots_spt[[2]]
+p3<-list_plots_spt[[3]]
+
+grid.arrange(p1,p2,p3,ncol=1)
+dev.off()
 
 ################################################
 #Figure 7: Spatial transects for one day (maps)
@@ -557,19 +566,89 @@ trans_data3 <-plot_transect_m2(list_transect3,rast_pred3,title_plot3,disp=FALSE,
 
 ################################################
 
-#Figure 9: Image differencing and land cover  
-#Do for january and September...
-png(paste("Fig9_image_difference_",date_selected,out_prefix,".png", sep=""),
+#Figure 8: Spatial pattern: Image differencing and land cover  
+#Do for january and September...?
+
+################################################
+#Figure 9: Spatial lag profiles and stations data  
+
+y_var_name <-"dailyTmax"
+index<-244 #index corresponding to Sept 1 #For now create Moran's I for only one date...
+
+lf_moran_list<-lapply(list_raster_obj_files[c("gam_daily","gam_CAI","gam_fss")],
+                               FUN=function(x){x<-load_obj(x);x$method_mod_obj[[index]][[y_var_name]]})                           
+#lf1 <- raster_prediction_obj_1$method_mod_obj[[index]][[y_var_name]] #select relevant raster images for the given dates
+
+date_selected <- "20109101"
+#methods_names <-c("gam","kriging","gwr")
+methods_names <-c("gam_daily","gam_CAI","gam_FSS")
+
+names_layers<-methods_names
+#lf <- (list(lf1,lf4[1:7],lf7[1:7]))
+lf<-list(lf_moran_list[[1]],lf_moran_list[[2]][1:7],lf_moran_list[[3]][1:7])
+
+names_layers <-c("mod1 = lat*long","mod2 = lat*long + LST","mod3 = lat*long + elev","mod4 = lat*long + N_w*E_w",
+                 "mod5 = lat*long + elev + DISTOC","mod6 = lat*long + elev + LST","mod7 = lat*long + elev + LST*FOREST")
+
+list_filters<-lapply(1:10,FUN=autocor_filter_fun,f_type="queen") #generate lag 10 filters
+#moran_list <- lapply(list_filters,FUN=Moran,x=r)
+list_moran_df <- vector("list",length=length(lf))
+for (j in 1:length(lf)){
+  r_stack <- stack(lf[[j]])
+  list_param_moran <- list(list_filters=list_filters,r_stack=r_stack) #prepare parameters list for function
+  #moran_r <-moran_multiple_fun(1,list_param=list_param_moran)
+  nlayers(r_stack) 
+  moran_I_df <-mclapply(1:nlayers(r_stack), list_param=list_param_moran, FUN=moran_multiple_fun,mc.preschedule=FALSE,mc.cores = 10) #This is the end bracket from mclapply(...) statement
+
+  moran_df <- do.call(cbind,moran_I_df) #bind Moran's I value 10*nlayers data.frame
+  moran_df$lag <-1:nrow(moran_df)
+  
+  list_moran_df[[j]] <- moran_df
+
+}
+
+names(list_moran_df)<-c("gam_daily","gam_CAI","gam_fss")
+list_dd <- vector("list",length=length(list_moran_df))
+
+for(j in 1:length(lf)){
+  method_name <- names(list_moran_df)[j]
+  mydata <- list_moran_df[[j]]
+  dd <- do.call(make.groups, mydata[,-ncol(mydata)]) 
+  dd$lag <- mydata$lag
+  dd$method_v <- method_name
+  list_dd[[j]] <- dd
+}
+
+dd_combined<- do.call(rbind,list_dd)
+
+layout_m<-c(4,3) #one row two columns
+
+png(paste("Figure_9_spatial_correlogram_tmax_prediction_models_gam_levelplot_",date_selected,out_prefix,".png", sep=""),
     height=480*layout_m[1],width=480*layout_m[2])
 
-  pred_temp <-subset(rast_pred,c(1,2,6)) #3 
+p<-xyplot(data ~ lag | which , data=dd_combined,group=method_v,type="b",
+          pch=1:3,auto.key=list(columns=3,cex=1.5,font=2),
+          par.settings = list(
+          superpose.symbol = list(pch=1:3,col=1:3,pch.cex=1.4),
+          axis.text = list(font = 2, cex = 1.3),layout=layout_m,
+                              par.main.text=list(font=2,cex=2),strip.background=list(col="white")),
+                              par.strip.text=list(font=2,cex=1.5),
+          strip=strip.custom(factor.levels=names_layers),
+          xlab=list(label="Spatial lag neighbor", cex=2,font=2),
+          ylab=list(label="Moran's I", cex=2, font=2))
 
-  p <- levelplot(pred_temp_s,main=methods_names[i], ylab=NULL,xlab=NULL,
-          par.settings = list(axis.text = list(font = 2, cex = 1.3),layout=layout_m,
-                              par.main.text=list(font=2,cex=2),strip.background=list(col="white")),par.strip.text=list(font=2,cex=1.5),
-          names.attr=names_layers,col.regions=temp.colors,at=seq(min_val,max_val,by=0.25))
-  #col.regions=temp.colors(25))
-  print(p)
+
+#p<-xyplot(data ~ lag | which , dd_combined,group=method_v,type="b",
+#          par.settings = list(axis.text = list(font = 2, cex = 1.3),layout=layout_m,
+#                              par.main.text=list(font=2,cex=2),strip.background=list(col="white")),
+#                              par.strip.text=list(font=2,cex=1.5),
+#          strip=strip.custom(factor.levels=names_layers),
+#          xlab=list(label="Spatial lag neighbor", cex=2,font=2),
+#          ylab=list(label="Moran's I", cex=2, font=2))
+
+print(p)
+
+
 dev.off()
 
 ###################### END OF SCRIPT #######################
