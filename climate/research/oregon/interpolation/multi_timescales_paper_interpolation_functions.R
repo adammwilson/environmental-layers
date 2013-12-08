@@ -5,7 +5,7 @@
 #Functions used in the production of figures and data for the multi timescale paper are recorded.
 #AUTHOR: Benoit Parmentier                                                                      #
 #DATE CREATED: 11/25/2013            
-#DATE MODIFIED: 12/04/2013            
+#DATE MODIFIED: 12/09/2013            
 #Version: 1
 #PROJECT: Environmental Layers project                                       #
 #################################################################################################
@@ -30,7 +30,7 @@ library(plyr)
 
 #### FUNCTION USED IN SCRIPT
 
-function_analyses_paper <-"multi_timescales_paper_interpolation_functions_11022013.R"
+function_analyses_paper <-"multi_timescales_paper_interpolation_functions_12092013.R"
 
 plot_transect_m2<-function(list_trans,r_stack,title_plot,disp=FALSE,m_layers){
   #This function creates plot of transects for stack of raster images.
@@ -187,6 +187,48 @@ stat_moran_std_raster_fun<-function(i){
   return(dat_var_stat)
 }
 
+plot_accuracy_by_holdout_fun <-function(list_tb,ac_metric){
+  #
+  list_plots <- vector("list",length=length(list_tb))
+  for (i in 1:length(list_tb)){
+    #i <- i+1
+    tb <-list_tb[[i]]
+    plot_name <- names(list_tb)[i]
+    pat_str <- "tb_m"
+    if(substr(plot_name,start=1,stop=4)== pat_str){
+      names_id <- c("pred_mod","prop")
+      plot_formula <- paste(ac_metric,"~prop",sep="",collapse="") 
+    }else{
+      names_id <- c("pred_mod","prop_month")
+      plot_formula <- paste(ac_metric,"~prop_month",collapse="")
+    }
+    names_mod <-unique(tb$pred_mod)
+    prop_obj <- calc_stat_prop_tb_diagnostic(names_mod,names_id,tb)
+    avg_tb <- prop_obj$avg_tb
+  
+    layout_m<-c(1,1) #one row two columns
+    par(mfrow=layout_m)
+    
+    #add option for plot title?
+    png(paste("Figure__accuracy_",ac_metric,"_prop_month_",plot_name,"_",out_prefix,".png", sep=""),
+      height=480*layout_m[1],width=480*layout_m[2])
+    
+    p <- xyplot(as.formula(plot_formula),group=pred_mod,type="b",
+          data=avg_tb,
+          main=paste(ac_metric,plot_name,sep=" "),
+          pch=1:length(avg_tb$pred_mod),
+          par.settings=list(superpose.symbol = list(
+          pch=1:length(avg_tb$pred_mod))),
+          auto.key=list(columns=5))
+    print(p)
+  
+    dev.off()
+    list_plots[[i]] <- p
+  }
+  names(list_plots) <- names
+  return(list_plots)
+  #end of function
+}
 
 ################### END OF SCRIPT ###################
 
