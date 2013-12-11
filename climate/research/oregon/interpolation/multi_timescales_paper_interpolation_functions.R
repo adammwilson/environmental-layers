@@ -45,12 +45,12 @@ plot_transect_m2<-function(list_trans,r_stack,title_plot,disp=FALSE,m_layers){
   
   nb<-length(list_trans) #number of transects
   t_col<-rainbow(nb)
-  t_col<-c("red","green","black")
-  lty_list<-c("dashed","solid","dotted")
+  t_col<-c("red","green","darkblue","black")
+  lty_list<-c("dashed","solid","dotted","twodash")
   list_trans_data<-vector("list",nb)
   
   #For scale 1
-  for (i in 1:nb){
+  for (i in 1:nb){ #nb is the number of transects
     trans_file<-list_trans[[i]][1]
     filename<-sub(".shp","",trans_file)             #Removing the extension from file.
     transect<-readOGR(dirname(filename), basename(filename))                 #reading shapefile 
@@ -59,6 +59,11 @@ plot_transect_m2<-function(list_trans,r_stack,title_plot,disp=FALSE,m_layers){
       png(file=paste(list_trans[[i]][2],".png",sep=""),
           height=480*1,width=480*2)
     }
+    
+    y_comb <- trans_data[[1]][,-m_layers]
+    y_comb <- as.vector(y_comb)
+    y_range <- range(y_comb,na.rm=T)
+    
     #Plot layer values for specific transect
     for (k in 1:ncol(trans_data[[1]])){
       y<-trans_data[[1]][,k]
@@ -67,10 +72,10 @@ plot_transect_m2<-function(list_trans,r_stack,title_plot,disp=FALSE,m_layers){
       
       if (k==1 & is.na(m)){
         plot(x,y,type="l",xlab="transect distance from coastal origin (km)", ylab=" maximum temperature (degree C)",
-             ,cex=1.2,col=t_col[k])
+             ylim=y_range,cex=1.2,col=t_col[k])
         #axis(2)
       }
-      if (k==1 & !is.na(m)){
+      if (k==1 & !is.na(m)){ #if layer sc (i.e. ellevation then plot on another scale)
         plot(x,y,type="l",col=t_col[k],lty="dotted",axes=F) #plotting fusion profile
         #axis(4,xlab="",ylab="elevation(m)")  
         axis(4,cex=1.2)
@@ -88,9 +93,9 @@ plot_transect_m2<-function(list_trans,r_stack,title_plot,disp=FALSE,m_layers){
       } 
     }
     title(title_plot[i])
-    legend("topleft",legend=names(r_stack)[1:2], 
+    legend("topleft",legend=names(r_stack)[1:(nlayers(r_stack)-1)], 
            cex=1.2, col=t_col,lty=1,bty="n")
-    legend("topright",legend=names(r_stack)[3], 
+    legend("topright",legend=names(r_stack)[m_layers], 
            cex=1.2, col=t_col[3],lty="dotted",bty="n")
     if (disp==TRUE){
       savePlot(file=paste(list_trans[[i]][2],".png",sep=""),type="png")
@@ -128,6 +133,20 @@ calc_stat_prop_tb_diagnostic <-function(names_mod,names_id,tb){
 
 #Calculate the difference between training and testing in two different data.frames. Columns to substract are provided.
 diff_df<-function(tb_s,tb_v,list_metric_names){
+  tb_diff<-vector("list", length(list_metric_names))
+  for (i in 1:length(list_metric_names)){
+    metric_name<-list_metric_names[i]
+    tb_diff[[i]] <-tb_s[,c(metric_name)] - tb_v[,c(metric_name)]
+  }
+  names(tb_diff)<-list_metric_names
+  tb_diff<-as.data.frame(do.call(cbind,tb_diff))
+  return(tb_diff)
+}
+
+list_diff_df_fun <- function(i,list_tb_s,list_tb_v,list_of_list_metric_names){
+  list_metric_names <- list_of_list_metric_names[[i]]
+  tb_s <- list_tb_s[[i]]
+  tb_v <- list_tb_v[[i]]
   tb_diff<-vector("list", length(list_metric_names))
   for (i in 1:length(list_metric_names)){
     metric_name<-list_metric_names[i]
@@ -225,7 +244,7 @@ plot_accuracy_by_holdout_fun <-function(list_tb,ac_metric){
     dev.off()
     list_plots[[i]] <- p
   }
-  names(list_plots) <- names
+  names(list_plots) <- names(list_tb)
   return(list_plots)
   #end of function
 }
