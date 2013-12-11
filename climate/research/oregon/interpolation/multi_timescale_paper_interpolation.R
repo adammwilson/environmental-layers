@@ -5,7 +5,7 @@
 #Figures, tables and data for the  paper are also produced in the script.
 #AUTHOR: Benoit Parmentier 
 #CREATED ON: 10/31/2013  
-#MODIFIED ON: 12/02/2013            
+#MODIFIED ON: 12/10/2013            
 #Version: 1
 #PROJECT: Environmental Layers project                                     
 #################################################################################################
@@ -39,7 +39,7 @@ library(pgirmess)                            # Krusall Wallis test with mulitple
 #### FUNCTION USED IN SCRIPT
 
 function_analyses_paper1 <-"contribution_of_covariates_paper_interpolation_functions_10222013.R"
-function_analyses_paper2 <-"multi_timescales_paper_interpolation_functions_12022013.R"
+function_analyses_paper2 <-"multi_timescales_paper_interpolation_functions_12102013.R"
 
 ##############################
 #### Parameters and constants  
@@ -302,8 +302,9 @@ tb_s_list<-lapply(list_raster_obj_files_holdout,FUN=function(x){x<-load_obj(x);x
 names(tb_s_list) <- paste("tb_s_",names(tb_s_list),sep="")
 names(tb_v_list) <- paste("tb_v_",names(tb_v_list),sep="")
 
-tb_mv_list<-lapply(list_raster_obj_files_holdout,FUN=function(x){x<-load_obj(x);x[["tb_month_diagnostic_mv"]]})                           
-tb_ms_list<-lapply(list_raster_obj_files_holdout,FUN=function(x){x<-load_obj(x);x[["tb_month_diagnostic_ms"]]})                           
+#Extract object element...
+tb_mv_list<-lapply(list_raster_obj_files_holdout,FUN=function(x){x<-load_obj(x);x[["tb_month_diagnostic_v"]]})                           
+tb_ms_list<-lapply(list_raster_obj_files_holdout,FUN=function(x){x<-load_obj(x);x[["tb_month_diagnostic_s"]]})                           
 #tb_mv_list<-mclapply(list_raster_obj_files_holdout,FUN=function(x){x<-load_obj(x);x[["tb_month_diagnostic_v"]]},mc.preschedule=FALSE,mc.cores = 6)                           
 #tb_ms_list<-mclapply(list_raster_obj_files_holdout,FUN=function(x){x<-load_obj(x);x[["tb_month_diagnostic_s"]]},mc.preschedule=FALSE,mc.cores = 6)                           
 names(tb_ms_list) <- paste("tb_ms_",names(tb_ms_list),sep="") #monthly training accuracy
@@ -339,6 +340,13 @@ dev.off()
 ################################################
 ######### Figure 5. RMSE multi-timescale mulitple hold out Overtraining tendency
 
+#x<-tb_ms_list[[1]]
+tb_ms_list_diff <- lapply(tb_ms_list,FUN=function(x){x[x$prop!=0,]})                           
+tb_mv_list_diff <- lapply(tb_mv_list,FUN=function(x){x[x$prop!=0,]})                           
+
+tb_s_list_diff <- lapply(tb_s_list,FUN=function(x){x[x$prop_month!=0,]})                           
+tb_v_list_diff <- lapply(tb_v_list,FUN=function(x){x[x$prop_month!=0,]}) 
+
 #For paper...
 #Combine figures... tb_v for GWR, Kriging and GAM for both FSS and CAI
 
@@ -347,82 +355,58 @@ list_metric_names <- vector("list", length=6) #list(metric_names)
 list_metric_names[[1]] <- metric_names
 list_metric_names <-lapply(1:6,FUN=function(i,list_metric_names,metric_names){list_metric_names[[i]]<-metric_names},
        list_metric_names,metric_names)
-list_diff <-mapply(tb_s_list,FUN=diff_df,tb_v_list,list_metric_names)                           
 
-#list_diff <-mapply(tb_s_list,FUN=diff_df,tb_v_list,metric_names) # run all at once fix it...                          
+##### Calculate differences between training and testing for all multi-timescale mehtods
+list_diff <-lapply(1:6,FUN=list_diff_df_fun,list_tb_s=tb_s_list, list_tb_v=tb_v_list,list_of_list_metric_names=list_metric_names)  
+names(list_diff) <- c("gam_fss","kriging_fss","gwr_fss",
+                                         "gam_CAI","kriging_CAI","gwr_CAI")
 
-##### Calculate differences: change all the following...shorten
+#Check results
+#metric_names <- c("mae","rmse","me","r")
+#diff_kriging_CAI <- diff_df(list_tb[["tb_s_kriging_CAI"]],list_tb[["tb_v_kriging_CAI"]],metric_names)
+#diff_gwr_CAI <- diff_df(list_tb[["tb_s_gwr_CAI"]],list_tb[["tb_v_gwr_CAI"]],metric_names)
+#head(diff_gwr_CAI)
+#head(list_diff[[6]]
 
-metric_names <- c("mae","rmse","me","r")
-diff_kriging_CAI <- diff_df(list_tb[["tb_s_kriging_CAI"]],list_tb[["tb_v_kriging_CAI"]],metric_names)
-diff_gam_CAI <- diff_df(list_tb[["tb_s_gam_CAI"]][tb_s_gam_CAI$pred_mod!="mod_kr"],list_tb[["tb_v_gam_CAI"]],metric_names)
-diff_gwr_CAI <- diff_df(tb_s_gwr_CAI,tb_v_gwr_CAI,metric_names)
+list_m_diff <-lapply(1:6,FUN=list_diff_df_fun,list_tb_s=tb_ms_list_diff, list_tb_v=tb_mv_list_diff,list_of_list_metric_names=list_metric_names)  
+names(list_m_diff) <- c("gam_fss","kriging_fss","gwr_fss",
+                                         "gam_CAI","kriging_CAI","gwr_CAI")
 
-# mapply()
-layout_m<-c(1,1) #one row two columns
+## Now create boxplots...
+layout_m<-c(2,2) #one row two columns
+
+png(paste("Figure_5_boxplot_overtraining_",out_prefix,".png", sep=""),
+    height=480*layout_m[1],width=480*layout_m[2])
+#boxplot(diff_kriging_CAI$rmse,diff_gam_CAI$rmse,diff_gwr_CAI$rmse,names=c("kriging_CAI","gam_CAI","gwr_CAI"),
+#        main="Difference between training and testing daily rmse")
 par(mfrow=layout_m)
 
-png(paste("Figure__accuracy_rmse_prop_month_",plot_name,out_suffix,".png", sep=""),
-    height=480*layout_m[1],width=480*layout_m[2])
-boxplot(diff_kriging_CAI$rmse,diff_gam_CAI$rmse,diff_gwr_CAI$rmse,names=c("kriging_CAI","gam_CAI","gwr_CAI"),
+#monthly CAI
+boxplot(list_m_diff$kriging_CAI$rmse,list_m_diff$gam_CAI$rmse,list_m_diff$gwr_CAI$rmse,
+        names=c("kriging_CAI","gam_CAI","gwr_CAI"),
+        main="Difference between training and testing for monhtly rmse")
+
+#daily CAI
+boxplot(list_diff$kriging_CAI$rmse,list_diff$gam_CAI$rmse,list_diff$gwr_CAI$rmse,
+        names=c("kriging_CAI","gam_CAI","gwr_CAI"),
         main="Difference between training and testing daily rmse")
-dev.off()
+#monthly fss
+boxplot(list_m_diff$kriging_fss$rmse,list_m_diff$gam_fss$rmse,list_diff$gwr_fss$rmse,
+        names=c("kriging_fss","gam_fss","gwr_fss"),
+        main="Difference between training and testing for monhtly rmse")
 
-#remove prop 0,
-diff_kriging_CAI <- diff_df(tb_s_kriging_CAI[tb_s_kriging_CAI$prop_month!=0,],tb_v_kriging_CAI[tb_v_kriging_CAI$prop_month!=0,],metric_names)
-diff_gam_CAI <- diff_df(tb_s_gam_CAI[tb_s_gam_CAI$prop_month!=0,],tb_v_gam_CAI[tb_v_gam_CAI$prop_month!=0,],metric_names)
-diff_gwr_CAI <- diff_df(tb_s_gwr_CAI[tb_s_gwr_CAI$prop_month!=0,],tb_v_gwr_CAI[tb_v_gwr_CAI$prop_month!=0,],metric_names)
-boxplot(diff_kriging_CAI$rmse,diff_gam_CAI$rmse,diff_gwr_CAI$rmse,names=c("kriging_CAI","gam_CAI","gwr_CAI"),
+#daily fss
+boxplot(list_diff$kriging_fss$rmse,list_diff$gam_fss$rmse,list_diff$gwr_fss$rmse,
+        names=c("kriging_fss","gam_fss","gwr_fss"),
         main="Difference between training and testing daily rmse")
 
-#now monthly accuracy: use mapply and provide  a list of of inputs...
-metric_names <- c("mae","rmse","me","r")
-diff_kriging_m_CAI <- diff_df(tb_ms_kriging_CAI[tb_ms_kriging_CAI$prop!=0,],tb_mv_kriging_CAI,metric_names)
-diff_gam_m_CAI <- diff_df(tb_ms_gam_CAI[tb_ms_gam_CAI$prop!=0,],tb_mv_gam_CAI,metric_names)
-diff_gwr_m_CAI <- diff_df(tb_ms_gwr_CAI[tb_ms_gwr_CAI$prop!=0,],tb_mv_gwr_CAI,metric_names)
-
-layout_m<-c(1,1) #one row two columns
-par(mfrow=layout_m)
-
-png(paste("Figure__accuracy_rmse_prop_month_",plot_name,out_suffix,".png", sep=""),
-    height=480*layout_m[1],width=480*layout_m[2])
-boxplot(diff_kriging_m_CAI$rmse,diff_gam_m_CAI$rmse,diff_gwr_m_CAI$rmse,names=c("kriging_CAI","gam_CAI","gwr_CAI"),
-        main="Difference between training and monhtly testing rmse")
 dev.off()
 
-#boxplot(diff_kriging_m_CAI$rmse,diff_gam_m_CAI$rmse,diff_gwr_CAI,names=c("kriging_CAI","gam_CAI","gwr_CAI"),
-#        main="Difference between training and monhtly testing rmse")
-
-### For fusion
-
-metric_names <- c("mae","rmse","me","r")
-diff_kriging_fus <- diff_df(tb_s_kriging_fus,tb_v_kriging_fus,metric_names)
-diff_gam_fus <- diff_df(tb_s_gam_fus,tb_v_gam_fus,metric_names)
-diff_gwr_fus <- diff_df(tb_s_gwr_fus,tb_v_gwr_fus,metric_names)
-
-layout_m<-c(1,1) #one row two columns
-par(mfrow=layout_m)
-
-png(paste("Figure__accuracy_rmse_prop_month_",plot_name,out_suffix,".png", sep=""),
-    height=480*layout_m[1],width=480*layout_m[2])
-boxplot(diff_kriging_fus$rmse,diff_gam_fus$rmse,diff_gwr_fus$rmse,names=c("kriging_fus","gam_fus","gwr_fus"),
-        main="Difference between training and testing daily rmse")
-dev.off()
-
-metric_names <- c("mae","rmse","me","r")
-diff_kriging_m_fus <- diff_df(tb_ms_kriging_fus[tb_ms_kriging_fus$prop!=0,],tb_mv_kriging_fus[tb_mv_kriging_fus$prop!=0,],metric_names)
-diff_gam_m_fus <- diff_df(tb_ms_gam_fus[tb_ms_gam_fus$prop!=0,],tb_mv_gam_fus[tb_mv_gam_fus$prop!=0,],metric_names)
-diff_gwr_m_fus <- diff_df(tb_ms_gwr_fus[tb_ms_gwr_fus$prop!=0,],tb_mv_gwr_fus[tb_mv_gwr_fus$prop!=0,],metric_names)
-
-layout_m<-c(1,1) #one row two columns
-par(mfrow=layout_m)
-
-png(paste("Figure__accuracy_rmse_prop_month_",plot_name,out_suffix,".png", sep=""),
-    height=480*layout_m[1],width=480*layout_m[2])
-boxplot(diff_kriging_m_fus$rmse,diff_gam_m_fus$rmse,diff_gwr_m_fus$rmse, names=c("kriging_fus","gam_fus","gwr_fus"),
-        main="Difference between training and testing FUS rmse")
-dev.off()
-
+#bwplot(cyl.f~mpg|gear.f,
+#        ylab="Cylinders", xlab="Miles per Gallon", 
+#        main="Mileage by Cylinders and Gears", 
+#        layout=(c(1,3)))
+     
 ################################################
 ######### Figure 6: Spatial pattern of prediction for one day (maps)
 
@@ -447,7 +431,7 @@ lf<-list(lf_list[[1]],lf_list[[2]][1:7],lf_list[[3]][1:7])
 names_layers <-c("mod1 = lat*long","mod2 = lat*long + LST","mod3 = lat*long + elev","mod4 = lat*long + N_w*E_w",
                  "mod5 = lat*long + elev + DISTOC","mod6 = lat*long + elev + LST","mod7 = lat*long + elev + LST*FOREST")
 nb_fig<- c("7a","7b","7c")
-list_plots_spt <- vector("list",length=length(nb_fig))
+list_plots_spt <- vector("list",length=length(lf))
 for (i in 1:length(lf)){
   pred_temp_s <-stack(lf[[i]])
 
@@ -475,7 +459,7 @@ for (i in 1:length(lf)){
   #col.regions=temp.colors(25))
   print(p)
   dev.off()
-  list_plots_spt[[i]] <-p
+  list_plots_spt[[i]] <- p
 }
 
 layout_m<-c(2,4) # works if set to this?? ok set the resolution...
@@ -485,9 +469,9 @@ png(paste("Figure7_","_spatial_pattern_tmax_prediction_models_gam_levelplot_",da
     height=480*layout_m[1],width=480*layout_m[2])
     #height=480*6,width=480*4)
 
-p1<-list_plots_spt[[1]]
-p2<-list_plots_spt[[2]]
-p3<-list_plots_spt[[3]]
+p1 <- list_plots_spt[[1]]
+p2 <- list_plots_spt[[2]]
+p3 <- list_plots_spt[[3]]
 
 grid.arrange(p1,p2,p3,ncol=1)
 dev.off()
@@ -505,7 +489,7 @@ plot(elev)
 for(i in 1:length(transect_list)){
   filename<-sub(".shp","",transect_list[i])             #Removing the extension from file.
   transect<-readOGR(dirname(filename), basename(filename))                 #reading shapefile 
-  plot(transect_list[i],add=TRUE)
+  plot(transect,add=TRUE)
 }
 title("Transect Oregon")
 dev.off()
@@ -516,38 +500,40 @@ list_transect2<-vector("list",nb_transect)
 list_transect3<-vector("list",nb_transect)
 list_transect4<-vector("list",nb_transect)
 
+#names_layers <-c("mod1 = lat*long","mod2 = lat*long + LST","mod3 = lat*long + elev","mod4 = lat*long + N_w*E_w",
+#                 "mod5 = lat*long + elev + DISTOC","mod6 = lat*long + elev + LST","mod7 = lat*long + elev + LST*FOREST")
+
 rast_pred<-stack(lf[[2]]) #GAM_CAI
-rast_pred_selected2<-subset(rast_pred,c(1,6)) #3 is referring to FSS, plot it first because it has the
-rast_pred_selected3<-subset(rast_pred,c(1,2)) #3 is referring to FSS, plot it first because it has the
-rast_pred3<-stack(lf[[2]]) #GAM_CAI
+rast_pred_selected2<-subset(rast_pred,c(1,2,6)) #3 is referring to FSS, plot it first because it has the
+rast_pred_selected3<-subset(rast_pred,c(1,3,6)) #3 is referring to FSS, plot it first because it has the
                                           # the largest range.
 rast_pred2 <- stack(rast_pred_selected2,subset(s_raster,"elev_s"))
 rast_pred3 <- stack(rast_pred_selected3,subset(s_raster,"elev_s"))
 
 #layers_names<-layerNames(rast_pred2)<-c("lat*lon","lat*lon + elev + LST","elev")
-layers_names<- names(rast_pred2)<-c("mod1","mod6","elev")
-layers_names<- names(rast_pred3)<-c("mod1","mod2","elev")
-pos<-c(1,2) # postions in the layer prection
-transect_list
+layers_names2 <- names(rast_pred2)<-c("mod1","mod2","mod6","elev")
+layers_names3 <- names(rast_pred3)<-c("mod1","mod3","mod6","elev")
+#pos<-c(1,2) # postions in the layer prection
+#transect_list
 list_transect2[[1]]<-c(transect_list[1],paste("figure_3_tmax_elevation_transect1_OR_",date_selected,
-                                           paste("mod1_mod6",collapse="_"),out_prefix,sep="_"))
+                                           paste("mod1_2_6",collapse="_"),out_prefix,sep="_"))
 list_transect2[[2]]<-c(transect_list[2],paste("figure_3_tmax_elevation_transect2_OR_",date_selected,
-                                           paste("mod1_mod6",collapse="_"),out_prefix,sep="_"))
+                                           paste("mod1_2_6",collapse="_"),out_prefix,sep="_"))
 list_transect2[[3]]<-c(transect_list[3],paste("figure_3_tmax_elevation_transect3_OR_",date_selected,
-                                           paste("mod1_mod6",collapse="_"),out_prefix,sep="_"))
+                                           paste("mod1_2_6",collapse="_"),out_prefix,sep="_"))
 
 list_transect3[[1]]<-c(transect_list[1],paste("figure_3_tmax_elevation_transect1_OR_",date_selected,
-                                           paste("mod1_mod2",collapse="_"),out_prefix,sep="_"))
+                                           paste("mod1_3_6",collapse="_"),out_prefix,sep="_"))
 list_transect3[[2]]<-c(transect_list[2],paste("figure_3_tmax_elevation_transect2_OR_",date_selected,
-                                           paste("mod1_mod2",collapse="_"),out_prefix,sep="_"))
+                                           paste("mod1_3_6",collapse="_"),out_prefix,sep="_"))
 list_transect3[[3]]<-c(transect_list[3],paste("figure_3_tmax_elevation_transect3_OR_",date_selected,
-                                           paste("mod1_mod2",collapse="_"),out_prefix,sep="_"))
+                                           paste("mod1_3_6",collapse="_"),out_prefix,sep="_"))
 
 names(list_transect2)<-c("transect_OR1","transect_OR2","transect_OR3")
 names(list_transect3)<-c("transect_OR1","transect_OR2","transect_OR3")
 
-names(rast_pred2)<-layers_names
-names(rast_pred3)<-layers_names
+names(rast_pred2)<-layers_names2
+names(rast_pred3)<-layers_names3
 
 title_plot2<-paste(names(list_transect2),date_selected,sep=" ")
 title_plot2<-paste(rep("Oregon transect on ",3), date_selected,sep="")
@@ -555,8 +541,8 @@ title_plot3<-paste(names(list_transect3),date_selected,sep=" ")
 title_plot3<-paste(rep("Oregon transect on ",3), date_selected,sep="")
 
 #r_stack<-rast_pred
-m_layers_sc<-c(3) #elevation in the third layer
-#m_layers_sc<-c(4) #elevation in the third layer
+#m_layers_sc<-c(3) #elevation in the third layer
+m_layers_sc<-c(4) #elevation in the third layer
 
 #title_plot2
 #rast_pred2
@@ -568,6 +554,8 @@ trans_data3 <-plot_transect_m2(list_transect3,rast_pred3,title_plot3,disp=FALSE,
 
 #Figure 8: Spatial pattern: Image differencing and land cover  
 #Do for january and September...?
+
+
 
 ################################################
 #Figure 9: Spatial lag profiles and stations data  
@@ -590,7 +578,7 @@ lf<-list(lf_moran_list[[1]],lf_moran_list[[2]][1:7],lf_moran_list[[3]][1:7])
 names_layers <-c("mod1 = lat*long","mod2 = lat*long + LST","mod3 = lat*long + elev","mod4 = lat*long + N_w*E_w",
                  "mod5 = lat*long + elev + DISTOC","mod6 = lat*long + elev + LST","mod7 = lat*long + elev + LST*FOREST")
 
-list_filters<-lapply(1:10,FUN=autocor_filter_fun,f_type="queen") #generate lag 10 filters
+list_filters<-lapply(1:20,FUN=autocor_filter_fun,f_type="queen") #generate lag 10 filters
 #moran_list <- lapply(list_filters,FUN=Moran,x=r)
 list_moran_df <- vector("list",length=length(lf))
 for (j in 1:length(lf)){
@@ -626,7 +614,7 @@ layout_m<-c(4,3) #one row two columns
 png(paste("Figure_9_spatial_correlogram_tmax_prediction_models_gam_levelplot_",date_selected,out_prefix,".png", sep=""),
     height=480*layout_m[1],width=480*layout_m[2])
 
-p<-xyplot(data ~ lag | which , data=dd_combined,group=method_v,type="b",
+p<-xyplot(data ~ lag | which , data=dd_combined,group=method_v,type="b", as.table=TRUE,
           pch=1:3,auto.key=list(columns=3,cex=1.5,font=2),
           par.settings = list(
           superpose.symbol = list(pch=1:3,col=1:3,pch.cex=1.4),
@@ -637,6 +625,7 @@ p<-xyplot(data ~ lag | which , data=dd_combined,group=method_v,type="b",
           xlab=list(label="Spatial lag neighbor", cex=2,font=2),
           ylab=list(label="Moran's I", cex=2, font=2))
 
+#Use as.table to reverse order of panel from top to bottom.
 
 #p<-xyplot(data ~ lag | which , dd_combined,group=method_v,type="b",
 #          par.settings = list(axis.text = list(font = 2, cex = 1.3),layout=layout_m,
