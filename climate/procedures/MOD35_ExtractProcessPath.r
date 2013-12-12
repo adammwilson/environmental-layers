@@ -6,7 +6,6 @@ library(multicore)
 library(raster)
 library(spgrass6)
 library(rgeos)
-##download 3 days of modis swath data:
 
 #### Set up command for running swtif to grid and mosaic the swath data
 stitch=paste("sudo MRTDATADIR=\"/usr/local/heg/2.12/data\" PGSHOME=/usr/local/heg/2.12/TOOLKIT_MTD PWD=/home/adamw /usr/local/heg/2.12b/bin/swtif")
@@ -15,6 +14,7 @@ stitch=paste("sudo MRTDATADIR=\"/usr/local/heg/2.12/data\" PGSHOME=/usr/local/he
 url="ftp://ladsweb.nascom.nasa.gov/allData/51/MOD35_L2/2012/"
 dir.create("swath")
 
+##download 3 days of modis swath data:
 getdata=F
 if(getdata)
   system(paste("wget -S --recursive --no-parent --no-directories -N -P swath --accept \"hdf\" --accept \"002|003|004\" ",url))
