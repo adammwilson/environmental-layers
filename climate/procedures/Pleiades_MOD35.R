@@ -28,7 +28,7 @@ tiles=apply(expand.grid(paste("h",11:17,sep=""),v=c("v00","v01","v02","v03","v04
 alltiles=system("ls -r MODTILES/ | grep tif$ | cut -c1-6 | sort | uniq - ",intern=T)
 
 ## or run all tiles
-#tiles=alltiles
+tiles=alltiles
 
 ## subset to tiles in global region (not outside global boundary in sinusoidal projection)
 tiles=tiles[tiles%in%alltiles]
@@ -142,7 +142,7 @@ queue="devel"
 queue="normal" #"devel"
 queue="long" #"devel"
 nodes=120
-walltime=24
+walltime=2
 
 ### write qsub script to disk
 cat(paste("
@@ -220,7 +220,7 @@ job="2031668.pbspl1.nas.nasa.gov"
 
 
 queue="devel"
-nodes=50
+nodes=1
 walltime=2
 
 ### qsub script
