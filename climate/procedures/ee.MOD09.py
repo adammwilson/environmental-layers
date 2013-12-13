@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 ## Example script that downloads data from Google Earth Engine using the python API
 ## MODIS MOD09GA data is processed to extract the MOD09 cloud flag and calculate monthly cloud frequency
 
@@ -9,19 +11,40 @@ import ee.mapclient
 import datetime
 import wget
 import os
+import sys
 from subprocess import call
 
-#import logging
-#logging.basicConfig()
+import logging
+logging.basicConfig(filename='error.log',level=logging.DEBUG)
+
+def Usage():
+    print('Usage: ee.MOD9.py -projwin  ulx uly lrx lry -year year -month month -regionname 1') 
+    sys.exit( 1 )
+
+ulx = float(sys.argv[2])
+uly = float(sys.argv[3])
+lrx = float(sys.argv[4])
+lry = float(sys.argv[5])
+year = int(sys.argv[7])
+month = int(sys.argv[9])
+regionname = str(sys.argv[11])
+
+#```
+#ulx=-159
+#uly=20
+#lrx=-154.5
+#lry=18.5
+#year=2001
+#month=6
+#```
+## Define output filename
+output=regionname+'_'+str(year)+'_'+str(month)
 
 ## set working directory (where files will be downloaded)
 os.chdir('/mnt/data2/projects/cloud/mod09')
 
 MY_SERVICE_ACCOUNT = '511722844190@developer.gserviceaccount.com'  # replace with your service account
 MY_PRIVATE_KEY_FILE = '/home/adamw/EarthEngine-privatekey.p12'       # replace with you private key file path
-
-#MY_SERVICE_ACCOUNT = '205878743334-4mrtqgu0n5rnsv1vanrvv6atqk6vu8am@developer.gserviceaccount.com'
-#MY_PRIVATE_KEY_FILE = '/home/adamw/EarthEngine_Jeremy-privatekey.p12'
 
 ee.Initialize(ee.ServiceAccountCredentials(MY_SERVICE_ACCOUNT, MY_PRIVATE_KEY_FILE))
 
@@ -33,87 +56,76 @@ ee.Initialize(ee.ServiceAccountCredentials(MY_SERVICE_ACCOUNT, MY_PRIVATE_KEY_FI
 def getmod09(img): return(img.select(['state_1km']).expression("((b(0)/1024)%2)>0.5")); 
 # added the >0.5 because some values are coming out >1.  Need to look into this further as they should be bounded 0-1...
 
-#// Date ranges
-yearstart=2000
-yearstop=2012
-monthstart=1
-monthstop=12
-
 #////////////////////////////////////////////////////
-# Loop through months and get monthly % missing data
-
-## set a year-month if you don't want to run the loop (for testing)
-#year=2001
-#month=2
-#r=1
-
-## define the regions to be processed
-regions=['[[-180, -60], [-180, 0], [0, 0], [0, -60]]',  # SW
-         '[[-180, 0], [-180, 90], [0, 90], [0, 0]]',    # NW
-         '[[0, 0], [0, 90], [180, 90], [180, 0]]',      # NE
-         '[[0, 0], [0, -60], [180, -60], [180, 0]]']    # SE
-## name the regions (these names will be used in the file names
-## must be same length as regions list above
-rnames=['SW','NW','NE','SE']
-
-## Loop over regions, years, months to generate monthly timeseries
-for r in range(0,len(regions)):                                    # loop over regions
-  for year in range(yearstart,yearstop+1):              # loop over years
-    for month in range(monthstart,monthstop+1):         # loop over months
-      print('Processing '+rnames[r]+"_"+str(year)+'_'+str(month))
 
       # output filename
-      filename='mod09_'+rnames[r]+"_"+str(year)+"_"+str(month)
-      unzippedfilename='mod09_'+rnames[r]+"_"+str(year)+"_"+str(month)+".MOD09_"+str(year)+"_"+str(month)+".tif"
+unzippedfilename=output+".mod09.tif"
 
       # Check if file already exists and continue if so...
-      if(os.path.exists(unzippedfilename)):
-        print("File exists:"+filename)
-        continue
+if(os.path.exists(unzippedfilename)):
+    sys.exit("File exists:"+output)    
 
-      # MOD09 internal cloud flag for this year-month
+
+#####################################################
+# Processing Function
+# MOD09 internal cloud flag for this year-month
       # to filter by a date range:  filterDate(datetime.datetime(yearstart,monthstart,1),datetime.datetime(yearstop,monthstop,31))
-      mod09 = ee.ImageCollection("MOD09GA").filter(ee.Filter.calendarRange(year,year,"year")).filter(ee.Filter.calendarRange(month,month,"month")).map(getmod09);
+mod09 = ee.ImageCollection("MOD09GA").filter(ee.Filter.calendarRange(year,year,"year")).filter(ee.Filter.calendarRange(month,month,"month")).map(getmod09);
 #      myd09 = ee.ImageCollection("MYD09GA").filter(ee.Filter.calendarRange(year,year,"year")).filter(ee.Filter.calendarRange(month,month,"month")).map(getmod09);
       # calculate mean cloudiness (%), rename band, multiply by 100, and convert to integer
-      mod09a=mod09.mean().select([0], ['MOD09_'+str(year)+'_'+str(month)]).multiply(ee.Image(100)).byte();
-#      myd09a=myd09.mean().select([0], ['MYD09_'+str(year)+'_'+str(month)]).multiply(ee.Image(100)).byte();
-      
-```
+mod09a=mod09.mean().select([0], ['mod09']).multiply(ee.Image(1000)).int16();
+#      myd09a=myd09.mean().select([0], ['MYD09_'+str(year)+'_'+str(month)]).multiply(ee.Image(100)).int8();
+## Set data equal to whatver you want downloaded
+data=mod09a
+######################################################
+
+## define region for download
+region=[ulx,lry], [ulx, uly], [lrx, uly], [lrx, lry]  #h11v08
+strregion=str(list(region))
 # Next few lines for testing only
 # print info to confirm there is data
-mod09a.getInfo()
-myd09a.getInfo()
+#data.getInfo()
+
+## print a status update
+print(output+' Processing....      Coords:'+strregion)
+
 
 # add to plot to confirm it's working
-ee.mapclient.addToMap(mod09a, {'range': '0,100'}, 'MOD09')
-ee.mapclient.addToMap(myd09a, {'range': '0,100'}, 'MOD09')
-```
+#ee.mapclient.addToMap(data, {'range': '0,100'}, 'MOD09')
+#```
+
+# TODO:  
+#  use MODIS projection
 
       # build the URL and name the object (so that when it's unzipped we know what it is!)
-      path =mod09a.getDownloadUrl({
-          'name': filename,  # name the file (otherwise it will be a uninterpretable hash)
-          'scale': 1000,                              # resolution in meters
-          'crs': 'EPSG:4326',                         # MODIS sinusoidal
-          'region': regions[r]                        # region defined above
-          });
+path =mod09a.getDownloadUrl({
+        'name': output,  # name the file (otherwise it will be a uninterpretable hash)
+        'scale': 926,                              # resolution in meters
+        'crs': 'EPSG:4326',                         #  projection
+        'region': strregion                        # region defined above
+        });
 
       # Sometimes EE will serve a corrupt zipped file with no error
       # to check this, use a while loop that keeps going till there is an unzippable file.  
       # This has the potential for an infinite loop...
 
-      while(not(os.path.exists(filename+".zip"))):
-        # download with wget
-        print("Downloading "+filename) 
-        wget.download(path)
+#if(not(os.path.exists(output+".tif"))):
+    # download with wget
+print("Downloading "+output) 
+wget.download(path)
+#call(["wget"+path,shell=T])
         # try to unzip it
-        print("Unzipping "+filename)
-        zipstatus=call("unzip "+filename+".zip",shell=True)
+print("Unzipping "+output)
+zipstatus=call("unzip "+output+".zip",shell=True)
          # if file doesn't exists or it didn't unzip, remove it and try again      
-        if(zipstatus==9):
-          print("ERROR: "+filename+" unzip-able")
-          os.remove(filename)
+if(zipstatus==9):
+    sys.exit("File exists:"+output)    
+#        print("ERROR: "+output+" unzip-able")
+#        os.remove(output+".zip")
 
-print 'Finished'
+## delete the zipped file (the unzipped version is kept)
+os.remove(output+".zip")
+       
+print(output+' Finished!')
 
 

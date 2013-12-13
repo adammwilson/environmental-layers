@@ -10,12 +10,34 @@ beginCluster(4)
 tempdir="tmp"
 if(!file.exists(tempdir)) dir.create(tempdir)
 
+
+## Load list of tiles
+tiles=read.table("tile_lat_long_10d.txt",header=T)
+
+jobs=expand.grid(tile=tiles$Tile,year=2000:2012,month=1:12)
+jobs[,c("ULX","ULY","LRX","LRY")]=tiles[match(jobs$tile,tiles$Tile),c("ULX","ULY","LRX","LRY")]
+
+## Run the python downloading script
+#system("~/acrobates/adamw/projects/environmental-layers/climate/procedures/ee.MOD09.py -projwin -159 20 -154.5 18.5 -year 2001 -month 6 -region test")   
+i=6715
+testtiles=c("h02v07","h02v06","h02v08","h03v07","h03v06")
+todo=which(jobs$tile%in%testtiles)
+#todo=todo[1:3]
+#todo=1:nrow(jobs)
+lapply(todo,function(i)
+         system(paste("~/acrobates/adamw/projects/environmental-layers/climate/procedures/ee.MOD09.py -projwin ",jobs$ULX[i]," ",jobs$ULY[i]," ",jobs$LRX[i]," ",jobs$LRY[i],
+       "  -year ",jobs$year[i]," -month ",jobs$month[i]," -region ",jobs$tile[i],sep="")))
+
+
 ##  Get list of available files
 df=data.frame(path=list.files("/mnt/data2/projects/cloud/mod09",pattern="*.tif$",full=T),stringsAsFactors=F)
-df[,c("region","year","month")]=do.call(rbind,strsplit(basename(df$path),"_|[.]"))[,c(2,3,4)]
+df[,c("region","year","month")]=do.call(rbind,strsplit(basename(df$path),"_|[.]"))[,c(1,2,3)]
 df$date=as.Date(paste(df$year,"_",df$month,"_15",sep=""),"%Y_%m_%d")
 
-table(df$year,df$month)#,df$region)
+## subset to testtiles?
+df=df[df$region%in%testtiles,]
+
+table(df$year,df$month)
 
 ## drop some if not complete
 #df=df[df$year<=2009,]
@@ -29,7 +51,7 @@ foreach(date=unique(df$date)) %dopar% {
   ncfile=paste(tempdir,"/mod09_",date,".nc",sep="")
   if(!rerun&file.exists(ncfile)) next
   ## merge regions to a new netcdf file
-  system(paste("gdal_merge.py -o ",ncfile," -of netCDF -ot Byte ",paste(df$path[df$date==date],collapse=" ")))
+  system(paste("gdal_merge.py -o ",ncfile," -n -32768 -of netCDF -ot Int16 ",paste(df$path[df$date==date],collapse=" ")))
   system(paste("ncecat -O -u time ",ncfile," ",ncfile,sep=""))
 ## create temporary nc file with time information to append to MOD06 data
   cat(paste("
@@ -49,14 +71,14 @@ system(paste("ncks -A ",tempdir,"/",date,"_time.nc ",ncfile,sep=""))
 ## add other attributes
   system(paste("ncrename -v Band1,CF ",ncfile,sep=""))
   system(paste("ncatted ",
-" -a units,CF,o,c,\"Proportion Days Cloudy\" ",
-" -a valid_range,CF,o,b,\"0,100\" ",
-" -a long_name,CF,o,c,\"Proportion cloudy days (%)\" ",
-ncfile,sep=""))
-#" -a missing_value,CF,o,b,0 ",
-#" -a _FillValue,CF,o,b,0 ", 
-## add the fillvalue attribute back (without changing the actual values)
-#system(paste("ncatted -a _FillValue,CF,o,b,255 ",ncfile,sep=""))
+               " -a units,CF,o,c,\"Proportion Days Cloudy\" ",
+#               " -a valid_range,CF,o,b,\"0,100\" ",
+               " -a scale_factor,CF,o,f,\"0.1\" ",
+               " -a long_name,CF,o,c,\"Proportion cloudy days (%)\" ",
+               ncfile,sep=""))
+
+               ## add the fillvalue attribute back (without changing the actual values)
+#system(paste("ncatted -a _FillValue,CF,o,b,-32768 ",ncfile,sep=""))
 
 if(as.numeric(system(paste("cdo -s ntime ",ncfile),intern=T))<1) {
   print(paste(ncfile," has no time, deleting"))
