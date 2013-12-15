@@ -5,7 +5,7 @@
 #Functions used in the production of figures and data for the multi timescale paper are recorded.
 #AUTHOR: Benoit Parmentier                                                                      #
 #DATE CREATED: 11/25/2013            
-#DATE MODIFIED: 12/09/2013            
+#DATE MODIFIED: 12/12/2013            
 #Version: 1
 #PROJECT: Environmental Layers project                                       #
 #################################################################################################
@@ -247,6 +247,87 @@ plot_accuracy_by_holdout_fun <-function(list_tb,ac_metric){
   names(list_plots) <- names(list_tb)
   return(list_plots)
   #end of function
+}
+
+diff_date_rast_pred_fun <- function(i,list_param){
+  
+  index <- i #index date
+  list_raster_obj_files <- list_param$list_raster_obj_files
+  methods_name <- list_param$methods_name
+  y_var_name <- list_param$y_var_name
+  ref_mod <- list_param$ref_mod
+  alt_mod <- list_param$alt_mod
+  NA_flag_val <- list_param$NA_flag_val
+  file_format <- list_param$file_format
+  out_dir <- list_param$out_dir
+  out_prefix <- list_param$out_prefix
+  
+  #index<-244 #index corresponding to Sept 1
+
+  #lf_list<-lapply(list_raster_obj_files[c("gam_daily","gam_CAI","gam_fss")],
+  #                             FUN=function(x){x<-load_obj(x);x$method_mod_obj[[index]][[y_var_name]]})  
+  lf_list<-lapply(list_raster_obj_files[methods_name],
+                               FUN=function(x){x<-load_obj(x);x$method_mod_obj[[index]][[y_var_name]]})  
+  diff_pred_list <- vector("list",length=length(lf_list))
+  for (i in 1:length(lf_list)){
+    interpolation_method <- methods_name[i]
+    r_diff <- raster(lf_list[[i]][[ref_mod]]) - raster(lf_list[[i]][[alt_mod]])
+    data_name <-paste(index,"_",y_var_name,"_diff_",ref_mod,"_",alt_mod,sep="")
+    raster_name <-file.path(out_dir,paste(interpolation_method,"_",data_name,out_prefix,file_format, sep=""))
+    diff_pred_list[[i]] <-raster_name 
+    writeRaster(r_diff, filename=raster_name,NAflag=NA_flag_val,bylayer=FALSE,bandorder="BSQ",overwrite=TRUE)  #Writing the data in a raster file format...  
+
+  }
+  return(unlist(diff_pred_list))
+}
+
+#Extract statistic by zones...make this general by changing names?
+extract_diff_by_landcover <- function(r_stack_diff,s_raster,LC_subset,LC_names,avl){
+  
+  rclmat<-matrix(avl,ncol=3,byrow=TRUE)
+  
+  LC_s <- subset(s_raster,LC_subset)
+  LC_s_rec <-reclassify(LC_s,rclmat)
+  names(LC_s_rec)<- LC_names
+  #plot(LC_s)  
+  #plot average difference per class of forest and LC2
+  list_avg_diff <- vector("list",length=nlayers(r_stack_diff))
+  list_sd_diff <- vector("list",length=nlayers(r_stack_diff))
+
+  for (i in 1:nlayers(r_stack_diff)){
+    rast_diff  <- subset(r_stack_diff,i)
+    list_avg <- vector("list",length=nlayers(LC_s_rec))
+    list_sd <- vector("list",length=nlayers(LC_s_rec))
+    for(k in 1:nlayers(LC_s_rec)){
+      LC_rec <- subset(LC_s_rec,k)
+      list_avg[[k]] <- zonal(rast_diff,z=LC_rec,stat="mean",na.rm=TRUE)[,2]
+      list_sd[[k]]  <- zonal(rast_diff,z=LC_rec,stat="sd",na.rm=TRUE)[,2]
+    }
+    zones_avg <- do.call(cbind,list_avg) 
+    zones_sd <- do.call(cbind,list_sd) 
+    colnames(zones_avg)<- LC_names
+    colnames(zones_sd)<-LC_names
+    list_avg_diff[[i]] <- zones_avg
+    list_sd_diff[[i]] <- zones_sd    
+  }
+  
+  
+  list_zones <- list(avg=list_avg_diff,sd=list_sd_diff)
+  return(list_zones)
+}
+   
+## Utilit function to quickly write out a stack or brick of rasterlayer to disk using names of layers
+# Note that each layers are written individually, default NA value and format is provided
+write_out_raster_fun <-function(r_stack,out_suffix,out_dir,NA_flag_val=-9999,file_format=".rst"){
+  for(i in 1:nlayers(r_stack)){
+    list_raster_name <- vector("list",length=nlayers(r_stack))
+    r<-subset(r_stack,i)
+    raster_name <- paste(names(r_stack)[i],"_",out_suffix,file_format,sep="")
+    writeRaster(r, NAflag=NA_flag_val,filename=file.path(out_dir,raster_name)
+                   ,bylayer=FALSE,bandorder="BSQ",overwrite=TRUE)
+    list_raster_name[[i]] <- file.path(out_dir,raster_name) 
+  }
+  return(unlist(list_raster_name))
 }
 
 ################### END OF SCRIPT ###################
