@@ -5,7 +5,7 @@
 #Figures, tables and data for the  paper are also produced in the script.
 #AUTHOR: Benoit Parmentier 
 #CREATED ON: 10/31/2013  
-#MODIFIED ON: 12/10/2013            
+#MODIFIED ON: 12/14/2013            
 #Version: 1
 #PROJECT: Environmental Layers project                                     
 #################################################################################################
@@ -39,7 +39,7 @@ library(pgirmess)                            # Krusall Wallis test with mulitple
 #### FUNCTION USED IN SCRIPT
 
 function_analyses_paper1 <-"contribution_of_covariates_paper_interpolation_functions_10222013.R"
-function_analyses_paper2 <-"multi_timescales_paper_interpolation_functions_12102013.R"
+function_analyses_paper2 <-"multi_timescales_paper_interpolation_functions_12122013.R"
 
 ##############################
 #### Parameters and constants  
@@ -146,6 +146,7 @@ list_raster_obj_files  <- list(file.path(in_dir1,raster_obj_file_1),file.path(in
 names(list_raster_obj_files)<- c("gam_daily","kriging_daily","gwr_daily","gwr_daily",
                                  "gam_CAI","kriging_CAI","gwr_CAI",
                                  "gam_fss","kriging_fss","gwr_fss")
+
 summary_metrics_v_list<-lapply(list_raster_obj_files,FUN=function(x){x<-load_obj(x);x[["summary_metrics_v"]]$avg$rmse})                           
 names(summary_metrics_v_list)
 
@@ -551,16 +552,141 @@ trans_data2 <-plot_transect_m2(list_transect2,rast_pred2,title_plot2,disp=FALSE,
 trans_data3 <-plot_transect_m2(list_transect3,rast_pred3,title_plot3,disp=FALSE,m_layers_sc)
 
 ################################################
-
 #Figure 8: Spatial pattern: Image differencing and land cover  
 #Do for january and September...?
 
+#names_layers <-c("mod1 = lat*long","mod2 = lat*long + LST","mod3 = lat*long + elev","mod4 = lat*long + N_w*E_w",
+#                 "mod5 = lat*long + elev + DISTOC","mod6 = lat*long + elev + LST","mod7 = lat*long + elev + LST*FOREST")
 
+methods_name <-c("gam_daily","gam_CAI","gam_fss")
+index<-244 #index corresponding to Sept 1
+y_var_name <-"dailyTmax"
+ref_mod <- 3 #mod1
+alt_mod <- 6
+file_format <- ".rst"
+NA_flag_val <- -9999
+
+list_param_diff <- list(index,list_raster_obj_files,methods_name,y_var_name,ref_mod,alt_mod,NA_flag_val,file_format,out_dir,out_prefix)
+names(list_param_diff) <- c("index","list_raster_obj_files","methods_name","y_var_name","ref_mod","alt_mod","NA_flag_val","file_format","out_dir","out_prefix")
+
+#diff_list <- mclapply(1:365, list_param=list_param_diff, FUN=diff_date_rast_pred_fun,mc.preschedule=FALSE,mc.cores = 11) #This is the end bracket from mclapply(...) statement
+
+diff_pred_date1_list<- diff_date_rast_pred_fun(1,list_param_diff)
+diff_pred_date2_list<- diff_date_rast_pred_fun(244,list_param_diff)
+r_stack_diff <-stack(c(diff_pred_date1_list,diff_pred_date2_list))
+names(r_stack_diff) <- c("Jan_Daily","Jan_CAI","Jan_FSS","Sept_Daily","Sept_CAI","Sept_FSS")
+temp.colors <- colorRampPalette(c('blue', 'white', 'red'))
+
+layout_m<-c(1,1) #one row two columns
+png(paste("Figure_9_difference_image_",out_prefix,".png", sep=""),
+    height=480*layout_m[1],width=480*layout_m[2])
+plot(r_stack_diff,col=temp.colors(25))
+#levelplot(r_stack_diff)
+dev.off()
+###
+
+LC_subset <- c("LC1","LC5","LC6","LC7","LC9","LC11")  
+LC_names <- c("LC1_forest", "LC5_shrub", "LC6_grass", "LC7_crop", "LC9_urban","LC11_barren")
+plot()
+avl<-c(0,10,1,10,20,2,20,30,3,30,40,4,40,50,5,50,60,6,60,70,7,70,80,8,80,90,9,90,100,10)#Note that category 1 does not include 0!!
+
+stat_list <- extract_diff_by_landcover(r_stack_diff,s_raster,LC_subset,LC_names,avl)
+
+#stat_list <- extract_diff_by_landcover(s_raster,LC_subset,LC_names,avl)
+
+#write_out_raster_fun(s_raster,out_suffix=out_prefix,out_dir=out_dir,NA_flag_val=-9999,file_format=".rst")
+
+#show correlation with LST by day over the year, ok writeout s_raster of coveriate??
+
+title_plots_list <-c("Jan_Daily","Jan_CAI","Jan_FSS","Sept_Daily","Sept_CAI","Sept_FSS")
+
+## Now create plots
+layout_m<-c(2,3) #one row two columns
+#savePlot(paste("fig6_diff_prediction_tmax_difference_land cover",mf_selected,mc_selected,date_selected,out_prefix,".png", sep="_"), type="png")
+
+png(paste("Figure_9_diff_prediction_tmax_difference_land cover,ac_metric","_",out_prefix,".png", sep=""),
+      height=480*layout_m[1],width=480*layout_m[2])
+par(mfrow=layout_m)    
+#funciton plot
+for (i in 1:length(stat_list$avg)){
+  #i=i+1
+  zones_stat <- as.data.frame(stat_list$avg[[i]])
+  zones_stat$zones <- 0:10
+
+  plot(zones_stat$zones,zones_stat[,1],type="b",ylim=c(-4.5,6),
+       ylab="",xlab="",axes=FALSE)
+  #mtext("difference between mod3 and mod6 (degree C)",line=3,side=2,cex=1.2,font=2) #Add ylab with distance 3 from box
+  #mtext("land cover percent classes",side=1,cex=1.2,line=3,font=2)
+  lines(zones_stat$zones,zones_stat[,2],col="red",lty="dashed",pch=2) #shrub
+  points(zones_stat$zones,zones_stat[,2],col="red",lty="dashed",pch=2) #shrub
+  lines(zones_stat$zones,zones_stat[,3],col="green",lty="dotted",pch=3) #grass
+  points(zones_stat$zones,zones_stat[,3],col="green",lty="dotted",pch=3) #grass
+  lines(zones_stat$zones,zones_stat[,4],col="blue",lty="dashed",pch=4) #crop
+  points(zones_stat$zones,zones_stat[,4],col="blue",lty="dashed",pch=4) #crop
+  lines(zones_stat$zones,zones_stat[,5],col="darkgreen",lty="dashed",pch=5)
+  points(zones_stat$zones,zones_stat[,5],col="darkgreen",lty="dashed",pch=5)
+  lines(zones_stat$zones,zones_stat[,6],col="purple",lty="dashed",pch=6)
+  points(zones_stat$zones,zones_stat[,6],col="purple",lty="dashed",pch=6)
+
+  breaks_lab<-zones_stat$zones
+  tick_lab<-c("0","1-10","","20-30","","40-50","","60-70","","80-90","90-100") #Not enough space for  
+  #tick_lab<-c("0","10-20","30-40","60-70","80-90","90-100")
+  axis(side=1,las=1,tick=TRUE,
+       at=breaks_lab,labels=tick_lab, cex.axis=1.2,font=2) #reduce number of labels to Jan and June
+  #text(tick_lab, par(\u201cusr\u201d)[3], labels = tick_lab, srt = 45, adj = c(1.1,1.1), xpd = TRUE, cex=.9)
+  axis(2,cex.axis=1.2,font=2)
+  box()
+  legend("topleft",legend=names(zones_stat)[-7], 
+        cex=1, col=c("black","red","green","blue","darkgreen","purple"),bty="n",
+        lty=1,pch=1:7)
+  title(paste(title_plots_list[i],sep=""),cex=1.4, font=2)
+  #title(paste("Prediction tmax difference (",mf_selected,"-",mc_selected,") and land cover ",sep=""),cex=1.4,font=2) 
+}
+dev.off()
+
+#### Now elev?
+#LC1<-mask(LC1,mask_ELEV_SRTM)
+#  cellStats(LC1,"countNA")        #Check that NA have been assigned to water and areas below 0 m
+  
+#LC1_50_m<- LC1>50
+#LC1_100_m<- LC1>=100
+#LC1_50_m[LC1_50_m==0]<-NA
+#LC1_100_m[LC1_100_m==0]<-NA
+#LC1_50<-LC1_50_m*LC1
+#LC1_100<-LC1_100_m*LC1
+#avl<-c(0,500,1,500,1000,2,1000,1500,3,1500,2000,4,2000,4000,5)
+#rclmat<-matrix(avl,ncol=3,byrow=TRUE)
+#elev_rec<-reclass(ELEV_SRTM,rclmat)  #Loss of layer names when using reclass
+  
+#elev_rec_forest<-elev_rec*LC1_100_m
+#avg_elev_rec<-zonal(rast_diff,zones=elev_rec,stat="mean",na.rm=TRUE)
+#std_elev_rec<-zonal(rast_diff,zones=elev_rec,stat="sd",na.rm=TRUE)
+#avg_elev_rec_forest<-zonal(rast_diff,zones=elev_rec_forest,stat="mean",na.rm=TRUE)
+#std_elev_rec_forest<-zonal(rast_diff,zones=elev_rec_forest,stat="sd",na.rm=TRUE)
+  
+## CREATE plots
+#X11()
+#plot(avg_elev_rec[,1],avg_elev_rec[,2],type="b",ylim=c(-10,1),
+#       ylab="",xlab="",axes=FALSE)
+#mtext("tmax difference between FSS and CAI (degree C)",side=2,cex=1.2,line=3,font=2)
+#mtext("elevation classes (m)",side=1,cex=1.2,line=3,font=2)
+#lines(avg_elev_rec_forest[,1],avg_elev_rec_forest[,2],col="green",type="b") #Elevation and 100% forest...
+#breaks_lab<-avg_elev_rec[,1]
+#elev_lab<-c("0-500","500-1000","1000-1500","1500-2000","2000-4000")
+#axis(side=1,las=1,
+#       at=breaks_lab,labels=elev_lab, cex=1.5,font=2) #reduce number of labels to Jan and June
+#axis(2,cex.axis=1.2,font=2)
+#legend("bottomleft",legend=c("Elevation", "elev_forest"), 
+#         cex=1, lwd=1.3,col=c("black","green"),bty="n",
+#         lty=1)
+#box()
+#title(paste("Prediction tmax difference (",mf_selected,"-",mc_selected,") and elevation ",sep=""),cex=1.4,font=2)
+#savePlot(paste("fig7_diff_prediction_tmax_difference_elevation",mf_selected,mc_selected,date_selected,out_prefix,".png", sep="_"), type="png")
+#dev.off()
 
 ################################################
 #Figure 9: Spatial lag profiles and stations data  
 
-y_var_name <-"dailyTmax"
 index<-244 #index corresponding to Sept 1 #For now create Moran's I for only one date...
 
 lf_moran_list<-lapply(list_raster_obj_files[c("gam_daily","gam_CAI","gam_fss")],
@@ -577,8 +703,8 @@ lf<-list(lf_moran_list[[1]],lf_moran_list[[2]][1:7],lf_moran_list[[3]][1:7])
 
 names_layers <-c("mod1 = lat*long","mod2 = lat*long + LST","mod3 = lat*long + elev","mod4 = lat*long + N_w*E_w",
                  "mod5 = lat*long + elev + DISTOC","mod6 = lat*long + elev + LST","mod7 = lat*long + elev + LST*FOREST")
-
-list_filters<-lapply(1:20,FUN=autocor_filter_fun,f_type="queen") #generate lag 10 filters
+nb_lag <-10
+list_filters<-lapply(1:nb_lag,FUN=autocor_filter_fun,f_type="queen") #generate lag 10 filters
 #moran_list <- lapply(list_filters,FUN=Moran,x=r)
 list_moran_df <- vector("list",length=length(lf))
 for (j in 1:length(lf)){
@@ -637,9 +763,25 @@ p<-xyplot(data ~ lag | which , data=dd_combined,group=method_v,type="b", as.tabl
 
 print(p)
 
-
 dev.off()
 
 ###################### END OF SCRIPT #######################
+
+# #LAND COVER INFORMATION
+
+# LC1: Evergreen/deciduous needleleaf trees
+# LC2: Evergreen broadleaf trees
+# LC3: Deciduous broadleaf trees
+# LC4: Mixed/other trees
+# LC5: Shrubs
+# LC6: Herbaceous vegetation
+# LC7: Cultivated and managed vegetation
+# LC8: Regularly flooded shrub/herbaceous vegetation
+# LC9: Urban/built-up
+# LC10: Snow/ice
+# LC11: Barren lands/sparse vegetation
+# LC12: Open water
+#1,5,79,11
+###
 
 
