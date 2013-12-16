@@ -17,16 +17,19 @@ tiles=read.table("tile_lat_long_10d.txt",header=T)
 jobs=expand.grid(tile=tiles$Tile,year=2000:2012,month=1:12)
 jobs[,c("ULX","ULY","LRX","LRY")]=tiles[match(jobs$tile,tiles$Tile),c("ULX","ULY","LRX","LRY")]
 
+
+jobs=jobs[jobs$month==1,]
 ## Run the python downloading script
 #system("~/acrobates/adamw/projects/environmental-layers/climate/procedures/ee.MOD09.py -projwin -159 20 -154.5 18.5 -year 2001 -month 6 -region test")   
 i=6715
 testtiles=c("h02v07","h02v06","h02v08","h03v07","h03v06")
 todo=which(jobs$tile%in%testtiles)
-#todo=todo[1:3]
-#todo=1:nrow(jobs)
-lapply(todo,function(i)
+todo=todo[1:3]
+todo=1:nrow(jobs)
+#todo=todo[500:503]
+mclapply(todo,function(i)
          system(paste("~/acrobates/adamw/projects/environmental-layers/climate/procedures/ee.MOD09.py -projwin ",jobs$ULX[i]," ",jobs$ULY[i]," ",jobs$LRX[i]," ",jobs$LRY[i],
-       "  -year ",jobs$year[i]," -month ",jobs$month[i]," -region ",jobs$tile[i],sep="")))
+       "  -year ",jobs$year[i]," -month ",jobs$month[i]," -region ",jobs$tile[i],sep="")),mc.cores=1)
 
 
 ##  Get list of available files
@@ -35,8 +38,8 @@ df[,c("region","year","month")]=do.call(rbind,strsplit(basename(df$path),"_|[.]"
 df$date=as.Date(paste(df$year,"_",df$month,"_15",sep=""),"%Y_%m_%d")
 
 ## subset to testtiles?
-df=df[df$region%in%testtiles,]
-
+#df=df[df$region%in%testtiles,]
+df=df[df$month==1,]
 table(df$year,df$month)
 
 ## drop some if not complete

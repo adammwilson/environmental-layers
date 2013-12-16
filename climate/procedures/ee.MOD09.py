@@ -84,7 +84,7 @@ region=[ulx,lry], [ulx, uly], [lrx, uly], [lrx, lry]  #h11v08
 strregion=str(list(region))
 # Next few lines for testing only
 # print info to confirm there is data
-#data.getInfo()
+print(data.getInfo())
 
 ## print a status update
 print(output+' Processing....      Coords:'+strregion)
@@ -101,7 +101,7 @@ print(output+' Processing....      Coords:'+strregion)
 path =mod09a.getDownloadUrl({
         'name': output,  # name the file (otherwise it will be a uninterpretable hash)
         'scale': 926,                              # resolution in meters
-        'crs': 'EPSG:4326',                         #  projection
+        'crs': 'EPSG:4326', #4326                         #  projection
         'region': strregion                        # region defined above
         });
 
