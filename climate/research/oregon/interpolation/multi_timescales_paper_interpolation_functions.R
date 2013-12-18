@@ -5,7 +5,7 @@
 #Functions used in the production of figures and data for the multi timescale paper are recorded.
 #AUTHOR: Benoit Parmentier                                                                      #
 #DATE CREATED: 11/25/2013            
-#DATE MODIFIED: 12/12/2013            
+#DATE MODIFIED: 12/16/2013            
 #Version: 1
 #PROJECT: Environmental Layers project                                       #
 #################################################################################################
@@ -184,25 +184,29 @@ moran_multiple_fun<-function(i,list_param){
   return(moran_v)
 }
 
-#Modfiy...temporal plot for 1,10,20
-stat_moran_std_raster_fun<-function(i){
-  list_var_stat<-vector("list",ncol(lf_list))
+#Modfiy...to allow any stat: min, max, mean,sd etc.
+stat_moran_std_raster_fun<-function(i,list_param){
+  f <-list_param$filter
+  lf_list <- list_param$lf_list[[i]]
+  list_var_stat<-vector("list",length(lf_list))
   for (k in 1:length(lf_list)){
     
-    raster_pred<-raster(lf_list[i,k]) 
-    tmp_rast<-mask(raster_pred,mask_rast)
+    raster_pred<-raster(unlist(lf_list[k])) 
+    #tmp_rast<-mask(raster_pred,mask_rast)
     #tmp_rast<-raster_pred
-    raster_pred2<-tmp_rast
+    #raster_pred2<-tmp_rast
     
-    t1<-cellStats(raster_pred,na.rm=TRUE,stat=sd)    #Calculating the standard deviation for the 
-    m1<-Moran(raster_pred,w=3) #Calculating Moran's I with window of 3 an default Queen's case
+    t1<-cellStats(raster_pred,na.rm=TRUE,stat=sd)    #Calculating the standard deviation for the     
+    m1 <- Moran(x=raster_pred,w=f) #Calculating Moran's I with window of 3 an default Queen's case
+    #m1 <- Moran(raster_pred,w=3) #Calculating Moran's I with window of 3 an default Queen's case
+    
     stat<-as.data.frame(t(c(m1,t1)))
     names(stat)<-c("moranI","std")
     list_var_stat[[k]]<-stat
   }
   dat_var_stat<-do.call(rbind,list_var_stat)
   dat_var_stat$lf_names<-names(lf_list)
-  dat_var_stat$dates<-dates[i]
+  dat_var_stat$index<- i
   return(dat_var_stat)
 }
 
@@ -316,7 +320,7 @@ extract_diff_by_landcover <- function(r_stack_diff,s_raster,LC_subset,LC_names,a
   return(list_zones)
 }
    
-## Utilit function to quickly write out a stack or brick of rasterlayer to disk using names of layers
+## Utility function to quickly write out a stack or brick of rasterlayer to disk using names of layers
 # Note that each layers are written individually, default NA value and format is provided
 write_out_raster_fun <-function(r_stack,out_suffix,out_dir,NA_flag_val=-9999,file_format=".rst"){
   for(i in 1:nlayers(r_stack)){
