@@ -3,9 +3,11 @@
 setwd("~/acrobates/adamw/projects/cloud")
 library(raster)
 library(doMC)
-
-registerDoMC(4)
-beginCluster(4)
+library(multicore)
+library(foreach)
+#library(doMPI)
+registerDoMC(10)
+#beginCluster(4)
 
 tempdir="tmp"
 if(!file.exists(tempdir)) dir.create(tempdir)
@@ -14,36 +16,78 @@ if(!file.exists(tempdir)) dir.create(tempdir)
 ## Load list of tiles
 tiles=read.table("tile_lat_long_10d.txt",header=T)
 
-jobs=expand.grid(tile=tiles$Tile,year=2000:2012,month=1:12)
-jobs[,c("ULX","ULY","LRX","LRY")]=tiles[match(jobs$tile,tiles$Tile),c("ULX","ULY","LRX","LRY")]
+### Build Tiles
+
+## bin sizes
+ybin=30
+xbin=30
+
+tiles=expand.grid(ulx=seq(-180,180-xbin,by=xbin),uly=seq(90,-90+ybin,by=-ybin))
+tiles$h=factor(tiles$ulx,labels=paste("h",sprintf("%02d",1:length(unique(tiles$ulx))),sep=""))
+tiles$v=factor(tiles$uly,labels=paste("v",sprintf("%02d",1:length(unique(tiles$uly))),sep=""))
+tiles$tile=paste(tiles$h,tiles$v,sep="")
+tiles$urx=tiles$ulx+xbin
+tiles$ury=tiles$uly
+tiles$lrx=tiles$ulx+xbin
+tiles$lry=tiles$uly-ybin
+tiles$llx=tiles$ulx
+tiles$lly=tiles$uly-ybin
+tiles$cy=(tiles$uly+tiles$lry)/2
+tiles$cx=(tiles$ulx+tiles$urx)/2
+tiles=tiles[,c("tile","h","v","ulx","uly","urx","ury","lrx","lry","llx","lly","cx","cy")]
+
+jobs=expand.grid(tile=tiles$tile,year=2000:2012,month=1:12)
+jobs[,c("ulx","uly","urx","ury","lrx","lry","llx","lly")]=tiles[match(jobs$tile,tiles$tile),c("ulx","uly","urx","ury","lrx","lry","llx","lly")]
+
+## drop Janurary 2000 from list (pre-modis)
+jobs=jobs[!(jobs$year==2000&jobs$month==1),]
+
+#jobs=jobs[jobs$month==1,]
 
 
-jobs=jobs[jobs$month==1,]
+#jobs=jobs[jobs$month==7,]
 ## Run the python downloading script
 #system("~/acrobates/adamw/projects/environmental-layers/climate/procedures/ee.MOD09.py -projwin -159 20 -154.5 18.5 -year 2001 -month 6 -region test")   
-i=6715
-testtiles=c("h02v07","h02v06","h02v08","h03v07","h03v06")
-todo=which(jobs$tile%in%testtiles)
-todo=todo[1:3]
+i=1
+#testtiles=c("h02v07","h02v06","h02v08","h03v07","h03v06","h03v08")
+#todo=which(jobs$tile%in%testtiles)
+#todo=todo[1:3]
+#todo=1
 todo=1:nrow(jobs)
-#todo=todo[500:503]
-mclapply(todo,function(i)
-         system(paste("~/acrobates/adamw/projects/environmental-layers/climate/procedures/ee.MOD09.py -projwin ",jobs$ULX[i]," ",jobs$ULY[i]," ",jobs$LRX[i]," ",jobs$LRY[i],
-       "  -year ",jobs$year[i]," -month ",jobs$month[i]," -region ",jobs$tile[i],sep="")),mc.cores=1)
+
+checkcomplete=T
+if(checkcomplete&exists("df")){  #if desired (and "df" exists from below) drop complete date-tiles
+todo=which(!paste(jobs$tile,jobs$year,jobs$month)%in%paste(df$region,df$year,df$month))
+}
+
+writeLines(paste("Tiling options will produce",nrow(tiles),"tiles and ",nrow(jobs),"tile-months.  Current todo list is ",length(todo)))
+
+foreach(i=todo) %dopar%{
+    system(paste("python ~/acrobates/adamw/projects/environmental-layers/climate/procedures/ee.MOD09.py -projwin ",
+                      jobs$ulx[i]," ",jobs$uly[i]," ",jobs$urx[i]," ",jobs$ury[i]," ",jobs$lrx[i]," ",jobs$lry[i]," ",jobs$llx[i]," ",jobs$lly[i]," ",
+                      "  -year ",jobs$year[i]," -month ",jobs$month[i]," -region ",jobs$tile[i],sep=""))
+     }
 
 
 ##  Get list of available files
-df=data.frame(path=list.files("/mnt/data2/projects/cloud/mod09",pattern="*.tif$",full=T),stringsAsFactors=F)
+df=data.frame(path=list.files("/mnt/data2/projects/cloud/mod09",pattern="*.tif$",full=T,recur=T),stringsAsFactors=F)
 df[,c("region","year","month")]=do.call(rbind,strsplit(basename(df$path),"_|[.]"))[,c(1,2,3)]
 df$date=as.Date(paste(df$year,"_",df$month,"_15",sep=""),"%Y_%m_%d")
 
+## add stats to test for missing data
+addstats=F
+if(addstats){
+    df[,c("max","min","mean","sd")]=do.call(rbind.data.frame,mclapply(1:nrow(df),function(i) as.numeric(sub("^.*[=]","",grep("STATISTICS",system(paste("gdalinfo -stats",df$path[i]),inter=T),value=T)))))
+    table(df$sd==0)
+}
+
 ## subset to testtiles?
 #df=df[df$region%in%testtiles,]
-df=df[df$month==1,]
+#df=df[df$month==1,]
 table(df$year,df$month)
 
 ## drop some if not complete
-#df=df[df$year<=2009,]
+df=df[df$month==1&df$year%in%c(2001:2002,2005),]
 rerun=T  # set to true to recalculate all dates even if file already exists
 
 ## Loop over existing months to build composite netcdf files
@@ -51,10 +95,14 @@ foreach(date=unique(df$date)) %dopar% {
 ## get date
   print(date)
   ## Define output and check if it already exists
+  tffile=paste(tempdir,"/mod09_",date,".tif",sep="")
   ncfile=paste(tempdir,"/mod09_",date,".nc",sep="")
   if(!rerun&file.exists(ncfile)) next
   ## merge regions to a new netcdf file
-  system(paste("gdal_merge.py -o ",ncfile," -n -32768 -of netCDF -ot Int16 ",paste(df$path[df$date==date],collapse=" ")))
+#  system(paste("gdal_merge.py -tap -init 5 -o ",ncfile," -n -32768.000 -of netCDF -ot Int16 ",paste(df$path[df$date==date],collapse=" ")))
+  system(paste("gdal_merge.py -o ",tffile," -init -32768  -n -32768.000 -ot Int16 ",paste(df$path[df$date==date],collapse=" ")))
+  system(paste("gdal_translate -of netCDF ",tffile," ",ncfile," -ot Int16 "))
+  file.remove(tffile)
   system(paste("ncecat -O -u time ",ncfile," ",ncfile,sep=""))
 ## create temporary nc file with time information to append to MOD06 data
   cat(paste("
@@ -102,7 +150,7 @@ system(paste("cdo -O mergetime ",paste(list.files(tempdir,pattern="mod09.*.nc$",
 
 ### generate the monthly mean and sd
 #system(paste("cdo -P 10 -O merge -ymonmean data/mod09.nc -chname,CF,CF_sd -ymonstd data/mod09.nc data/mod09_clim.nc"))
-system(paste("cdo  -O -ymonmean data/mod09.nc data/mod09_clim_mean.nc"))
+xosystem(paste("cdo  -O -ymonmean data/mod09.nc data/mod09_clim_mean.nc"))
 system(paste("cdo  -O -chname,CF,CF_sd -ymonstd data/mod09.nc data/mod09_clim_sd.nc"))
 
 #  Overall mean

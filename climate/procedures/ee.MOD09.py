@@ -12,23 +12,27 @@ import datetime
 import wget
 import os
 import sys
-from subprocess import call
+import subprocess
+import time
 
 import logging
 logging.basicConfig(filename='error.log',level=logging.DEBUG)
 
 def Usage():
-    print('Usage: ee.MOD9.py -projwin  ulx uly lrx lry -year year -month month -regionname 1') 
+    print('Usage: ee.MOD9.py -projwin  ulx uly urx ury lrx lry llx lly -year year -month month -regionname 1') 
     sys.exit( 1 )
 
 ulx = float(sys.argv[2])
 uly = float(sys.argv[3])
-lrx = float(sys.argv[4])
-lry = float(sys.argv[5])
-year = int(sys.argv[7])
-month = int(sys.argv[9])
-regionname = str(sys.argv[11])
-
+urx = float(sys.argv[4])
+ury = float(sys.argv[5])
+lrx = float(sys.argv[6])
+lry = float(sys.argv[7])
+llx = float(sys.argv[8])
+lly = float(sys.argv[9])
+year = int(sys.argv[11])
+month = int(sys.argv[13])
+regionname = str(sys.argv[15])
 #```
 #ulx=-159
 #uly=20
@@ -41,11 +45,22 @@ regionname = str(sys.argv[11])
 output=regionname+'_'+str(year)+'_'+str(month)
 
 ## set working directory (where files will be downloaded)
-os.chdir('/mnt/data2/projects/cloud/mod09')
+cwd='/mnt/data2/projects/cloud/mod09/'
+## Wget always starts with a temporary file called "download", so move to a subdirectory to
+## prevent overwrting when parallel downloading 
+if not os.path.exists(cwd+output):
+    os.makedirs(cwd+output)
+os.chdir(cwd+output)
 
+      # output filename
+unzippedfilename=output+".mod09.tif"
+      # Check if file already exists and continue if so...
+if(os.path.exists(unzippedfilename)):
+    sys.exit("File exists:"+output)    
+
+## initialize GEE
 MY_SERVICE_ACCOUNT = '511722844190@developer.gserviceaccount.com'  # replace with your service account
 MY_PRIVATE_KEY_FILE = '/home/adamw/EarthEngine-privatekey.p12'       # replace with you private key file path
-
 ee.Initialize(ee.ServiceAccountCredentials(MY_SERVICE_ACCOUNT, MY_PRIVATE_KEY_FILE))
 
 ## set map center to speed up viewing
@@ -57,15 +72,6 @@ def getmod09(img): return(img.select(['state_1km']).expression("((b(0)/1024)%2)>
 # added the >0.5 because some values are coming out >1.  Need to look into this further as they should be bounded 0-1...
 
 #////////////////////////////////////////////////////
-
-      # output filename
-unzippedfilename=output+".mod09.tif"
-
-      # Check if file already exists and continue if so...
-if(os.path.exists(unzippedfilename)):
-    sys.exit("File exists:"+output)    
-
-
 #####################################################
 # Processing Function
 # MOD09 internal cloud flag for this year-month
@@ -80,52 +86,75 @@ data=mod09a
 ######################################################
 
 ## define region for download
-region=[ulx,lry], [ulx, uly], [lrx, uly], [lrx, lry]  #h11v08
+region=[llx, lly],[lrx, lry],[urx, ury],[ulx,uly]  #h11v08
 strregion=str(list(region))
-# Next few lines for testing only
-# print info to confirm there is data
-print(data.getInfo())
-
-## print a status update
-print(output+' Processing....      Coords:'+strregion)
-
 
 # add to plot to confirm it's working
 #ee.mapclient.addToMap(data, {'range': '0,100'}, 'MOD09')
-#```
-
-# TODO:  
-#  use MODIS projection
 
       # build the URL and name the object (so that when it's unzipped we know what it is!)
 path =mod09a.getDownloadUrl({
+        'crs': 'SR-ORG:6974',          # MODIS Sinusoidal
+        'scale': '926.625433055833',   # MODIS ~1km
         'name': output,  # name the file (otherwise it will be a uninterpretable hash)
-        'scale': 926,                              # resolution in meters
-        'crs': 'EPSG:4326', #4326                         #  projection
         'region': strregion                        # region defined above
         });
 
-      # Sometimes EE will serve a corrupt zipped file with no error
-      # to check this, use a while loop that keeps going till there is an unzippable file.  
-      # This has the potential for an infinite loop...
+# print info to confirm there is data
+#print(data.getInfo())
+print(' Processing.... '+output+'     Coords:'+strregion)
 
-#if(not(os.path.exists(output+".tif"))):
-    # download with wget
-print("Downloading "+output) 
-wget.download(path)
-#call(["wget"+path,shell=T])
-        # try to unzip it
-print("Unzipping "+output)
-zipstatus=call("unzip "+output+".zip",shell=True)
-         # if file doesn't exists or it didn't unzip, remove it and try again      
-if(zipstatus==9):
-    sys.exit("File exists:"+output)    
-#        print("ERROR: "+output+" unzip-able")
-#        os.remove(output+".zip")
+#test=wget.download(path)
+test=subprocess.call(['-c','-q','--timeout=0','--ignore-length','--no-http-keep-alive','-O','mod09.zip',path],executable='wget')
+print('download sucess for'+output+':   '+str(test))
+
+## Sometimes EE will serve a corrupt zipped file with no error
+# try to unzip it
+zipstatus=subprocess.call("unzip -o mod09.zip",shell=True)
+
+if zipstatus==0:  #if sucessful, quit
+    os.remove("mod09.zip")
+    sys.exit("Finished:  "+output)
+
+# if file doesn't exists or it didn't unzip, try again      
+if zipstatus!=0:
+    print("Zip Error for:  "+output+"...         Trying again (#2)")    
+    time.sleep(15)
+    test=subprocess.call(['-c','-q','--timeout=0','--ignore-length','--no-http-keep-alive','-O','mod09.zip',path],executable='wget')
+
+zipstatus=subprocess.call("unzip -o mod09.zip",shell=True)
+
+if zipstatus==0:  #if sucessful, quit
+    os.remove("mod09.zip")
+    sys.exit("Finished:  "+output)
+
+# if file doesn't exists or it didn't unzip, try again      
+if zipstatus!=0:
+    print("Zip Error for:  "+output+"...         Trying again (#3)")    
+    time.sleep(30)
+    test=subprocess.call(['-c','-q','--timeout=0','--ignore-length','--no-http-keep-alive','-O','mod09.zip',path],executable='wget')
+
+# try again #4
+zipstatus=subprocess.call("unzip -o mod09.zip",shell=True)
+
+if zipstatus==0:  #if sucessful, quit
+    os.remove("mod09.zip")
+    sys.exit("Finished:  "+output)
+
+# if file doesn't exists or it didn't unzip, try again      
+if zipstatus!=0:
+    print("Zip Error for:  "+output+"...         Trying again (#4)")    
+    time.sleep(30)
+    test=subprocess.call(['-c','-q','--timeout=0','--ignore-length','--no-http-keep-alive','-O','mod09.zip',path],executable='wget')
+
+zipstatus=subprocess.call("unzip -o mod09.zip",shell=True)
+
+if zipstatus==0:  #if sucessful, quit
+    os.remove("mod09.zip")
+    sys.exit("Finished:  "+output)
 
 ## delete the zipped file (the unzipped version is kept)
-os.remove(output+".zip")
-       
-print(output+' Finished!')
+os.remove("mod09.zip")
+sys.exit("Zip Error for:  "+output)    
 
 
