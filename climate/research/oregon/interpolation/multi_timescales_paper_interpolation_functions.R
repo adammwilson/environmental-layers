@@ -5,7 +5,7 @@
 #Functions used in the production of figures and data for the multi timescale paper are recorded.
 #AUTHOR: Benoit Parmentier                                                                      #
 #DATE CREATED: 11/25/2013            
-#DATE MODIFIED: 12/16/2013            
+#DATE MODIFIED: 12/23/2013            
 #Version: 1
 #PROJECT: Environmental Layers project                                       #
 #################################################################################################
@@ -31,6 +31,45 @@ library(plyr)
 #### FUNCTION USED IN SCRIPT
 
 function_analyses_paper <-"multi_timescales_paper_interpolation_functions_12092013.R"
+
+calc_stat_by_month_tb <-function(names_mod,tb,month_holdout=F){
+  #function
+  add_month_tag<-function(tb){
+  date<-strptime(tb$date, "%Y%m%d")   # interpolation date being processed
+  month<-strftime(date, "%m")          # current month of the date being processed
+  }
+  
+  #begin
+  
+  tb$month<-add_month_tag(tb)
+  if(month_holdout==F){
+    t<-melt(subset(tb,pred_mod==names_mod),
+          measure=c("mae","rmse","r","me","m50"), 
+          id=c("pred_mod","prop","month"),
+          na.rm=T)
+    avg_tb<-cast(t,pred_mod+prop+month~variable,mean)
+    sd_tb<-cast(t,pred_mod+prop+month~variable,sd)
+    n_tb<-cast(t,pred_mod+prop+month~variable,length)
+
+  }
+  if(month_holdout==T){
+    t<-melt(subset(tb,pred_mod==names_mod),
+          measure=c("mae","rmse","r","me","m50"), 
+          id=c("pred_mod","prop_month","month"),
+          na.rm=T)
+    avg_tb<-cast(t,pred_mod+prop_month+month~variable,mean)
+    sd_tb<-cast(t,pred_mod+prop_month+month~variable,sd)
+    n_tb<-cast(t,pred_mod+prop_month+month~variable,length)
+
+  }
+  #n_NA<-cast(t,dst_cat1~variable,is.na)
+  
+  #### prepare returning object
+  prop_obj<-list(tb,avg_tb,sd_tb,n_tb)
+  names(prop_obj) <-c("tb","avg_tb","sd_tb","n_tb")
+  
+  return(prop_obj)
+}
 
 plot_transect_m2<-function(list_trans,r_stack,title_plot,disp=FALSE,m_layers){
   #This function creates plot of transects for stack of raster images.
@@ -184,6 +223,75 @@ moran_multiple_fun<-function(i,list_param){
   return(moran_v)
 }
 
+#Extract moran's I profile from list of images...the list may contain sublist!!! e.g. for diffeferent
+#methods in interpolation
+calculate_moranI_profile <- function(lf,nb_lag){
+  list_filters<-lapply(1:nb_lag,FUN=autocor_filter_fun,f_type="queen") #generate lag 10 filters
+  #moran_list <- lapply(list_filters,FUN=Moran,x=r)
+  list_moran_df <- vector("list",length=length(lf))
+  for (j in 1:length(lf)){
+    r_stack <- stack(lf[[j]])
+    list_param_moran <- list(list_filters=list_filters,r_stack=r_stack) #prepare parameters list for function
+    #moran_r <-moran_multiple_fun(1,list_param=list_param_moran)
+    nlayers(r_stack) 
+    moran_I_df <-mclapply(1:nlayers(r_stack), list_param=list_param_moran, FUN=moran_multiple_fun,mc.preschedule=FALSE,mc.cores = 10) #This is the end bracket from mclapply(...) statement
+
+    moran_df <- do.call(cbind,moran_I_df) #bind Moran's I value 10*nlayers data.frame
+    moran_df$lag <-1:nrow(moran_df)
+  
+    list_moran_df[[j]] <- moran_df
+  }
+  names(list_moran_df) <- names(lf)
+  return(list_moran_df)
+}
+
+plot_moranI_profile_fun <- function(i,list_param){
+  #extract relevant parameters
+  list_moran_df <- list_param$list_moran_df[[i]]
+  title_plot <- list_param$list_title_plot[[i]]
+  layout_m <- list_param$layout_m
+  names_panel_plot <- list_param$names_panel_plot
+  
+  #date_selected <- list_param$list_date_selected[i]
+  list_dd <- vector("list",length=length(list_moran_df))
+
+  ## Reorganize data to use xyplot
+  for(j in 1:length(list_moran_df)){
+    method_name <- names(list_moran_df)[j]
+    mydata <- list_moran_df[[j]]
+    dd <- do.call(make.groups, mydata[,-ncol(mydata)]) 
+    dd$lag <- mydata$lag
+    dd$method_v <- method_name
+    list_dd[[j]] <- dd
+  }
+  dd_combined<- do.call(rbind,list_dd)
+  
+  ## Set up plot
+  #layout_m<-c(2,4) #one row two columns
+  
+  png(paste("Spatial_correlogram_prediction_models_levelplot_",i,"_",out_prefix,".png", sep=""),
+      height=480*layout_m[1],width=480*layout_m[2])
+  par(mfrow=layout_m)
+  p<-xyplot(data ~ lag | which , data=dd_combined,group=method_v,type="b", as.table=TRUE,
+            pch=1:3,auto.key=list(columns=3,cex=1.5,font=2),
+            main=title_plot,
+            par.settings = list(
+              superpose.symbol = list(pch=1:3,col=1:3,pch.cex=1.4),
+              axis.text = list(font = 2, cex = 1.3),layout=layout_m,
+              par.main.text=list(font=2,cex=2),strip.background=list(col="white")),
+            par.strip.text=list(font=2,cex=1.5),
+            strip=strip.custom(factor.levels=names_panel_plot),
+            xlab=list(label="Spatial lag neighbor", cex=2,font=2),
+            ylab=list(label="Moran's I", cex=2, font=2))
+  
+  print(p)
+  
+  dev.off()
+  
+  return(p)
+}
+
+### Calulate Moran's I and std for every image in a year for a specific model...
 #Modfiy...to allow any stat: min, max, mean,sd etc.
 stat_moran_std_raster_fun<-function(i,list_param){
   f <-list_param$filter
@@ -210,41 +318,51 @@ stat_moran_std_raster_fun<-function(i,list_param){
   return(dat_var_stat)
 }
 
-plot_accuracy_by_holdout_fun <-function(list_tb,ac_metric){
+#Add option for plotname
+plot_accuracy_by_holdout_fun <-function(list_tb,ac_metric,plot_names,names_mod){
   #
   list_plots <- vector("list",length=length(list_tb))
   for (i in 1:length(list_tb)){
     #i <- i+1
     tb <-list_tb[[i]]
-    plot_name <- names(list_tb)[i]
+    tb_name <- names(list_tb)[i]
+    plot_name <- plot_names[i]
     pat_str <- "tb_m"
-    if(substr(plot_name,start=1,stop=4)== pat_str){
+    if(substr(tb_name,start=1,stop=4)== pat_str){
       names_id <- c("pred_mod","prop")
       plot_formula <- paste(ac_metric,"~prop",sep="",collapse="") 
     }else{
       names_id <- c("pred_mod","prop_month")
       plot_formula <- paste(ac_metric,"~prop_month",collapse="")
     }
-    names_mod <-unique(tb$pred_mod)
+    names_mod <- unique(tb$pred_mod)#should take a closer look later...
+    #calc_stat_prop_tb_diagnostic <-function(names_mod,names_id,tb){
+
     prop_obj <- calc_stat_prop_tb_diagnostic(names_mod,names_id,tb)
     avg_tb <- prop_obj$avg_tb
-  
+    
+    avg_tb <- subset(avg_tb,pred_mod!="mod_kr") #removes mod_kr
     layout_m<-c(1,1) #one row two columns
     par(mfrow=layout_m)
     
     #add option for plot title?
-    png(paste("Figure__accuracy_",ac_metric,"_prop_month_",plot_name,"_",out_prefix,".png", sep=""),
+    png(paste("Accuracy_",ac_metric,"_prop_month_",plot_name,"_",out_prefix,".png", sep=""),
       height=480*layout_m[1],width=480*layout_m[2])
-    
+    #correct label:ylabel: monthly holdout proprotion
+    #ylabel: RMSE (degred C)
     p <- xyplot(as.formula(plot_formula),group=pred_mod,type="b",
           data=avg_tb,
-          main=paste(ac_metric,plot_name,sep=" "),
+          main=plot_name,
           pch=1:length(avg_tb$pred_mod),
           par.settings=list(superpose.symbol = list(
           pch=1:length(avg_tb$pred_mod))),
-          auto.key=list(columns=5))
+          auto.key=list(columns=5),
+          xlab="Monthly Hold out proportion",
+          ylab="RMSE (°C)")
+
     print(p)
   
+    
     dev.off()
     list_plots[[i]] <- p
   }
@@ -332,6 +450,74 @@ write_out_raster_fun <-function(r_stack,out_suffix,out_dir,NA_flag_val=-9999,fil
     list_raster_name[[i]] <- file.path(out_dir,raster_name) 
   }
   return(unlist(list_raster_name))
+}
+
+
+#computer averages and nobs per month for a givenvarialbe
+plot_mean_nobs_r_stack_by_month <-function(var_s,var_nobs,y_range_nobs,y_range_avg,var_name,out_prefix){
+  
+  LST_s <- var_s 
+  LST_nobs <- var_nobs
+
+  #make this more efficient...
+  min_values<-cellStats(LST_s,"min")
+  max_values<-cellStats(LST_s,"max")
+  mean_values<-cellStats(LST_s,"mean")
+  sd_values<-cellStats(LST_s,"sd")
+  #median_values<-cellStats(molst,"median") Does not extist
+  statistics_LST_s<-cbind(min_values,max_values,mean_values,sd_values) #This shows that some values are extremes...especially in October
+  LST_stat_data<-as.data.frame(statistics_LST_s)
+  rownames(LST_stat_data) <- month.abb
+  names(LST_stat_data)<-c("min","max","mean","sd")
+  # Statistics for number of valid observation stack
+  min_values<-cellStats(LST_nobs,"min")
+  max_values<-cellStats(LST_nobs,"max")
+  mean_values<-cellStats(LST_nobs,"mean")
+  sd_values<-cellStats(LST_nobs,"sd")
+  LST_nobs_stat_data<-cbind(min_values,max_values,mean_values,sd_values) #This shows that some values are extremes...especially in October
+  LST_nobs_stat_data <- as.data.frame(LST_nobs_stat_data)
+  rownames(LST_nobs_stat_data) <- month.abb
+  
+  layout_m <- c(1,1)
+  png(paste(var_name,"_","mean_by_month","_",out_prefix,".png", sep=""),
+    height=480*layout_m[1],width=480*layout_m[2])
+  par(mfrow=layout_m)    
+
+  plot(1:12,LST_stat_data$mean,type="b",ylim=y_range_avg,col="black",xlab="month",ylab="tmax (degree C)")
+  lines(1:12,LST_stat_data$min,type="b",col="blue")
+  lines(1:12,LST_stat_data$max,type="b",col="red")
+  text(1:12,LST_stat_data$mean,rownames(LST_stat_data),cex=1,pos=2)
+  
+  legend("topleft",legend=c("min","mean","max"), cex=1.5, col=c("blue","black","red"),
+         lty=1,bty="n")
+  
+  title(paste(var_name,"statistics for Oregon", "2010",sep=" "))
+  #title(paste("LST statistics for Oregon", "2010",sep=" "))
+  dev.off()
+  
+  layout_m <- c(1,1)
+  png(paste(var_name,"_","avg_by_month","_",out_prefix,".png", sep=""),
+    height=480*layout_m[1],width=480*layout_m[2])
+  par(mfrow=layout_m)    
+
+  #Plot number of valid observations for LST
+  plot(1:12,LST_nobs_stat_data$mean,type="b",ylim=y_range_nobs,col="black",xlab="month",ylab="tmax (degree C)")
+  lines(1:12,LST_nobs_stat_data$min,type="b",col="blue")
+  lines(1:12,LST_nobs_stat_data$max,type="b",col="red")
+  text(1:12,LST_nobs_stat_data$mean,rownames(LST_stat_data),cex=1,pos=2)
+  
+  legend("topleft",legend=c("min","mean","max"), cex=1.5, col=c("blue","black","red"),
+         lty=1,bty="n")
+  
+  title(paste(var_name,"number of valid observations for Oregon", "2010",sep=" "))
+  #title(paste("LST number of valid observations for Oregon", "2010",sep=" "))
+  dev.off()
+  
+  #Add plot of number of NA per month...
+  
+  list_obj <- list(avg=LST_stat_data,nobs=LST_nobs_stat_data)
+  return(list_obj)
+
 }
 
 ################### END OF SCRIPT ###################
