@@ -5,8 +5,8 @@
 #Functions used in the production of figures and data for the multi timescale paper are recorded.
 #AUTHOR: Benoit Parmentier                                                                      #
 #DATE CREATED: 11/25/2013            
-#DATE MODIFIED: 12/23/2013            
-#Version: 1
+#DATE MODIFIED: 12/25/2013            
+#Version: 2
 #PROJECT: Environmental Layers project                                       #
 #################################################################################################
 
@@ -454,6 +454,7 @@ write_out_raster_fun <-function(r_stack,out_suffix,out_dir,NA_flag_val=-9999,fil
 
 
 #computer averages and nobs per month for a givenvarialbe
+#plot_mean_nobs_r_stack_by_month
 plot_mean_nobs_r_stack_by_month <-function(var_s,var_nobs,y_range_nobs,y_range_avg,var_name,out_prefix){
   
   LST_s <- var_s 

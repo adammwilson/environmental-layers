@@ -1,12 +1,14 @@
 ####################################  INTERPOLATION OF TEMPERATURES  #######################################
-############################  Script for manuscript analyses,tables and figures: MULTITIME SCALE  ##############################
-#This script uses the worklfow code applied to the Oregon case study. Multitime scale methods (GAM,GWR, Kriging) are tested with
-#different covariates using FUSION and CAI. Accuracy methods are added in the the function script to evaluate results.
-#Figures, tables and data for the  paper are also produced in the script.
+############################  Script for manuscript analyses,tables and figures: MULTI TIME SCALE  ##############################
+#This script uses the worklfow code applied to the Oregon case study. Single and Multi timescale procedures are compared.
+#Single and Multitime scale (CAI and FSS)procedures are tested with different covariate combinations
+#using GAM,GWR, Kriging. Results conurrently reside on NCEAS ATLAS server.
+#Accuracy methods are added in the the function scripts to evaluate results.
+#Analyses, figures, tables and data for the  paper are also produced in the script.
 #AUTHOR: Benoit Parmentier 
 #CREATED ON: 10/31/2013  
-#MODIFIED ON: 12/23/2013            
-#Version: 2
+#MODIFIED ON: 12/25/2013            
+#Version: 3
 #PROJECT: Environmental Layers project                                     
 #################################################################################################
 
@@ -38,34 +40,33 @@ library(pgirmess)                            # Krusall Wallis test with mulitple
 
 #### FUNCTION USED IN SCRIPT
 
-function_analyses_paper1 <-"contribution_of_covariates_paper_interpolation_functions_10222013.R"
-function_analyses_paper2 <-"multi_timescales_paper_interpolation_functions_12232013.R"
+function_analyses_paper1 <-"contribution_of_covariates_paper_interpolation_functions_10222013.R" #first interp paper
+function_analyses_paper2 <-"multi_timescales_paper_interpolation_functions_12252013.R"
 
 ##############################
 #### Parameters and constants  
 
 script_path<-"/home/parmentier/Data/IPLANT_project/env_layers_scripts/" #path to script
-source(file.path(script_path,function_analyses_paper1)) #source all functions used in this script.
-source(file.path(script_path,function_analyses_paper2)) #source all functions used in this script.
+source(file.path(script_path,function_analyses_paper1)) #source all functions used in this script 1.
+source(file.path(script_path,function_analyses_paper2)) #source all functions used in this script 2.
 
-#direct methods: gam, kriging, gwr
+#Singlte time scale -direct methods: gam, kriging, gwr (no monthly holdout but 30%daily hold out)
 in_dir1 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_gam_daily_lst_comb5_11012013"
 in_dir2 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_kriging_daily_lst_comb5_11022013"
 in_dir3a <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_gwr_daily_lst_comb5p1_3_11062013"
 in_dir3b <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_gwr_daily_lst_comb5p4_7_11292013"
 
-#CAI: gam, kriging, gwr
+#Multi time scale - CAI: gam, kriging, gwr
 in_dir4 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_gam_cai_lst_comb5_11032013"
 in_dir5 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_kriging_cai_lst_comb5_11032013"
 in_dir6 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_gwr_cai_lst_comb5_11042013"
-#FSS: gam, kriging, gwr
+#Multi time scale - FSS: gam, kriging, gwr
 in_dir7 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_gam_fss_lst_comb5_11062013"
 in_dir8 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_kriging_fss_lst_comb5_11052013"
 in_dir9 <- "/data/project/layers/commons/Oregon_interpolation/output_data_365d_gwr_fss_lst_comb5_11052013"
 ###
 
-### hold out 0-70
-
+### Multi time scale: Results from monthly hold out 0-70%
 in_dir10 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_gam_fss_lst_mults_0_70_comb5_11082013"
 in_dir11 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_kriging_fss_lst_mults_0_70_comb5_11132013"
 in_dir12 <-"/data/project/layers/commons/Oregon_interpolation/output_data_365d_gwr_fss_lst_mults_0_70_comb5_11162013"
@@ -149,7 +150,7 @@ names(s_raster)<-covar_names
 ###################################################################
 ############### BEGIN SCRIPT ##################################
 
-#############################PART I: Generate tables for paper ##########
+###################### PART I: Generate tables for paper ##########
 #Table 1: Covariates used (not produced in R)
 #Table 2: Covariates models and functional form (not produced in R)
 #Table 3: Combinations of models tested (not produced in R)
@@ -192,8 +193,7 @@ list_formulas <-unlist(lapply(list_raster_obj_files[[1]],FUN=function(x){x<-load
 table4_paper$Formulas<-rep(list_formulas,3)                             
 table4_paper<-table4_paper[(c(5,4,1,2,3))]  #reordering columns                           
 
-#Testing siginificance between models
-                             
+#Testing siginificance between models                    
 #mod_compk1 <-kruskal.test(tb1$rmse ~ as.factor(tb1$pred_mod)) #Kruskal Wallis test
 #mod_compk2 <-kruskal.test(tb2$rmse ~ as.factor(tb2$pred_mod))
 #print(mod_compk1) #not significant
@@ -339,6 +339,8 @@ dev.off()
 
 ################################################
 ######### Figure 3: Prediction procedures: direct, CAI and FSS 
+
+
 #(figure created outside R)
 
 
@@ -540,16 +542,23 @@ dev.off()
 
 #######Figure 7a: Map of transects
 
-## Transects image location in OR             
-png(paste("Figrue7_paper_elevation_transect_paths_",date_selected,out_prefix,".png", sep=""),
+## Transects image location in OR  
+layout_m<-c(1,1)
+png(paste("Figure7_paper_elevation_transect_paths_",out_prefix,".png", sep=""),
     height=480*layout_m[1],width=480*layout_m[2])
+vx_text <- c(395770.1,395770.1,395770.1) #location of labels
+vy_text  <-c(473000,297045.9,112611.5)
 
 plot(elev)
 for(i in 1:length(transect_list)){
   filename<-sub(".shp","",transect_list[i])             #Removing the extension from file.
   transect<-readOGR(dirname(filename), basename(filename))                 #reading shapefile 
+  #transect2 <- elide(transect, shift=c(0, -24000))
+  #plot(transect2,add=TRUE)
+  #writeOGR(transect2,dsn=".",layer="transect_OR_1_12282013",driver="ESRI Shapefile")
   plot(transect,add=TRUE)
 }
+text(x=vx_text,y=vy_text,labels=c("Transect 1","Transect 2","Transect 3"))
 title("Transect Oregon")
 dev.off()
 
@@ -667,9 +676,11 @@ stat_list <- extract_diff_by_landcover(r_stack_diff,s_raster,LC_subset,LC_names,
 #show correlation with LST by day over the year, ok writeout s_raster of coveriate??
 
 title_plots_list <-c("Jan_Daily","Jan_CAI","Jan_FSS","Sept_Daily","Sept_CAI","Sept_FSS")
+#reorder the list
+order_list<- c(1,4,2,5,3,6)
 
 ## Now create plots
-layout_m<-c(2,3) #one row two columns
+layout_m<-c(3,2) #one row two columns
 #savePlot(paste("fig6_diff_prediction_tmax_difference_land cover",mf_selected,mc_selected,date_selected,out_prefix,".png", sep="_"), type="png")
 
 png(paste("Figure10_paper_diff_prediction_tmax_difference_land cover,ac_metric","_",out_prefix,".png", sep=""),
@@ -678,7 +689,8 @@ par(mfrow=layout_m)
 #funciton plot
 for (i in 1:length(stat_list$avg)){
   #i=i+1
-  zones_stat <- as.data.frame(stat_list$avg[[i]])
+  index <- order_list[i]
+  zones_stat <- as.data.frame(stat_list$avg[[index]])
   zones_stat$zones <- 0:10
 
   plot(zones_stat$zones,zones_stat[,1],type="b",ylim=c(-4.5,6),
@@ -708,7 +720,7 @@ for (i in 1:length(stat_list$avg)){
   legend("topleft",legend=names(zones_stat)[-7], 
         cex=1.4, col=c("black","red","green","blue","darkgreen","purple"),bty="n",
         lty=1,pch=1:7)
-  title(paste(title_plots_list[i],sep=""),cex=1.6, font=2)
+  title(paste(title_plots_list[index],sep=""),cex=1.6, font=2)
   #title(paste("Prediction tmax difference (",mf_selected,"-",mc_selected,") and land cover ",sep=""),cex=1.4,font=2) 
 }
 dev.off()
@@ -759,7 +771,7 @@ names(list_moran_df2)<-c("gam_daily","gam_CAI","gam_FSS")
 list_title_plot<- list(c("Spatial lag profile on January 1, 2010"),
                   c("Spatial lag profile on September 1, 2010"))
 #name used in the panel!!!
-names_panel_plot <-c("mod1 = lat*long","mod2 = lat*long + LST","mod3 = lat*long + elev","mod4 = lat*long + N_w*E_w",
+names_panel_plot <-c("mod1 = lat*long","mod2 = lat*long + LST","mod3 = lat*long + elev","mod4 = lat*long + elev + N_w*E_w",
                  "mod5 = lat*long + elev + DISTOC","mod6 = lat*long + elev + LST","mod7 = lat*long + elev + LST*FOREST")
 layout_m<-c(2,4) # works if set to this?? ok set the resolution...
 list_moran_df <- list(list_moran_df1,list_moran_df2)
@@ -794,23 +806,43 @@ dev.off()
 ################################################
 #Figure 12: Monthly climatology, Daily deviation and bias
 
+#The list of files for 365 days in 2010...
 lf_delta_gam_fss <-extract_list_from_list_obj(load_obj(list_raster_obj_files[["gam_fss"]])$method_mod_obj,"delta") #getting objet
+lf_daily_gam_fss <-extract_list_from_list_obj(load_obj(list_raster_obj_files[["gam_fss"]])$method_mod_obj,"daily") #getting objet
+lf_clim_gam_fss <-extract_list_from_list_obj(load_obj(list_raster_obj_files[["gam_fss"]])$method_mod_obj,"clim") #getting objet
 
-test01 <-stack(lf_delta_gam_fss[[287]]) #Ot.14
+#The list of files for 365 days in 2010...
+#y_var_name <- dailyTmax
+lf_delta_gam_CAI <-extract_list_from_list_obj(load_obj(list_raster_obj_files[["gam_CAI"]])$method_mod_obj,"delta") #getting objet
+lf_daily_gam_CAI <-extract_list_from_list_obj(load_obj(list_raster_obj_files[["gam_CAI"]])$method_mod_obj,y_var_name) #getting objet
+lf_clim_gam_CAI <-extract_list_from_list_obj(load_obj(list_raster_obj_files[["gam_CAI"]])$method_mod_obj,"clim") #getting objet
 
-test0 <-stack(lf_delta_gam_fss[[288]]) #Ot.15
-test1 <-stack(lf_delta_gam_fss[[289]]) #Ot.16
-test2<-stack(lf_delta_gam_fss[[290]]) #Ot.17
+index <- 289
+temp_day_s <- stack(lf_clim_gam_CAI[[index]]$mod7,lf_delta_gam_CAI[[index]]$mod7,lf_daily_gam_CAI[[index]]$mod7)
+names(temp_day_s) <- c("Monhtly Climatology","Daily Devation","Daily Prediction")
 
-plot(test01)
+layout_m <- c(1,3)
+png(paste("Figure12_paper_climatology_daily_deviation_daily_prediction_model7_levelplot_",out_prefix,".png", sep=""),
+    height=480*layout_m[1],width=480*layout_m[2])
+    #height=3*480*layout_m[1],width=2*480*layout_m[2])
+    #height=480*6,width=480*4)
+#par(mfrow=layout_m)    
 
-plot(test0)
-plot(test1)
-plot(test2)
+#plot(temp_day_s,col=  temp.colors(25),nr=layout_m,nc=layout_m,
+#     cex=1.5) #use nr to choose number of columns in layout!!
+
+p1 <- levelplot(temp_day_s,col.region=temp.colors(25),layer=1)
+p2 <- levelplot(temp_day_s,col.region=temp.colors(25),layer=2)
+p3 <- levelplot(temp_day_s,col.region=temp.colors(25),layer=3)
+grid.arrange(p1,p2,p3,ncol=3)
+dev.off()
 
 
-################################################
-#Figure 13: Tmax and LST averagees
+##################################################
+####### Figure 13 : Disussion section
+
+############################
+#Get Tmax and LST averages
 
 names_tmp<-c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_09","mm_10","mm_11","mm_12")
 LST_s<-subset(s_raster,names_tmp)
@@ -826,8 +858,13 @@ var_name <- "LST"
 #It works for any variable with stack of monthly values...!!
 LST_stat <- plot_mean_nobs_r_stack_by_month(var_s=LST_s,var_nobs=LST_nobs,y_range_nobs,y_range_avg,var_name,out_prefix)
 
-##################################################
-####### Figure 13 : disussion  
+
+## open device for plottging
+layout_m<-c(2,2) # works if set to this?? ok set the resolution...
+
+png(paste("Figure13_paper_TMax_and_LST_relationship_",out_prefix,".png", sep=""),
+    height=480*layout_m[1],width=480*layout_m[2])
+par(mfrow=layout_m)    
 
 ##################################################
 ####### Figure 13a: spatial variation -MoranI and  std  
@@ -843,27 +880,26 @@ year_nbs <- sapply(list_data_month_s,FUN=length) #number of observations per mon
 data_month_all <-convert_spdf_to_df_from_list(list_data_month_s) #long rownames
 #LSTD_bias_avgm<-aggregate(LSTD_bias~month,data=data_month_all,mean)
 #LSTD_bias_sdm<-aggregate(LSTD_bias~month,data=data_month_all,sd)
-LST_avgm<-aggregate(LST~month,data=data_month_all,mean)
-TMax_avgm<-aggregate(TMax~month,data=data_month_all,mean)
+LST_avgm <- aggregate(LST~month,data=data_month_all,mean)
+LST_avgm_min <- aggregate(LST~month,data=data_month_all,min)
+LST_avgm_max <- aggregate(LST~month,data=data_month_all,max)
+TMax_avgm <- aggregate(TMax~month,data=data_month_all,mean)
 
 #plot(LST_avgm,type="b")
 #lines(TMax_avgm,col="blue",add=T)
-plot(data_month_all$month,data_month_all$LST, xlab="month",ylab="LST at station")
-title(paste("Monthly LST at stations in Oregon", "2010",sep=" "))
-png(paste("LST_at_stations_per_month_",out_prefix,".png", sep=""), type="png")
-                  
+#plot(data_month_all$month,data_month_all$LST, xlab="month",ylab="LST at station")                  
 
 statistics_LST_s<- LST_stat$avg #extracted earlier!!!
 
-png(paste("Monthly_mean_TMax_LST_at_Stations_",out_prefix,".png", sep=""), type="png")
-
-plot(TMax_avgm,type="b",ylim=c(0,35),col="red",xlab="month",ylab="tmax (degree C)")
-lines(1:12,LST_avgm$LST,type="b",col="blue")
+##Now plot Figure 13a
+plot(TMax_avgm,type="b",ylim=c(-10,50),col="black",xlab="month",ylab="tmax (degree C)")
+lines(1:12,LST_avgm$LST,type="b",col="black",lty="dashed",pch=2)
 #lines(1:12,statistics_LST_s$mean,type="b",col="darkgreen")
-text(TMax_avgm[,1],TMax_avgm[,2],rownames(statistics_LST_s),cex=0.8,pos=2)
-                  
-legend("topleft",legend=c("TMax","LST"), cex=1, col=c("red","blue"),
-              lty=1,bty="n")
+lines(1:12,LST_avgm_min$LST,type="b",col="black",lty="dashed",pch=3)
+lines(1:12,LST_avgm_max$LST,type="b",col="black",lty="dashed",pch=4)
+text(1:12,LST_avgm$LST,month.abb,cex=0.8,pos=2)
+legend("topleft",legend=c("TMax","LST","LST min","LST max"), cex=1, col=c("black","black","black","black"),
+              lty=c("solid","dashed","dashed","dashed"),pch=1:4,bty="n")
 title(paste("Monthly mean tmax and LST at stations in Oregon", "2010",sep=" "))           
 
 ##################################################
@@ -876,20 +912,19 @@ data_month_all_grass<-data_month_all[data_month_all$LC6>=50,]
 #data_month_all_grass<-data_month_all[data_month_all$LC6>=10,]
 data_month_all_urban<-data_month_all[data_month_all$LC9>=50,]
 
-LST_avgm_forest<-aggregate(LST~month,data=data_month_all_forest,mean)
-LST_avgm_grass<-aggregate(LST~month,data=data_month_all_grass,mean)
-LST_avgm_urban<-aggregate(LST~month,data=data_month_all_urban,mean)
+LST_avgm_forest <-aggregate(LST~month,data=data_month_all_forest,mean)
+LST_avgm_grass <-aggregate(LST~month,data=data_month_all_grass,mean)
+LST_avgm_urban <-aggregate(LST~month,data=data_month_all_urban,mean)
 
-plot(TMax_avgm,type="b",ylim=c(-7,42))
-lines(LST_avgm$LST,col="blue",add=T)
-lines(LST_avgm_forest,col="green",add=T)
-lines(LST_avgm_grass,col="red",add=T)
-lines(LST_avgm_urban,col="pink",add=T)
-legend("topleft",legend=c("TMax","LST","LST_forest","LST_grass","LST_urban"), cex=0.8, col=c("black","blue","green","red","pink"),
-       lty=1,bty="n")
+##Now plot Figure 13b
+plot(TMax_avgm,type="b",ylim=c(-7,50),col="black",xlab="month",ylab="tmax (degree C)")
+lines(1:12,LST_avgm$LST,type="b",col="black",lty="dashed",pch=2)
+lines(LST_avgm_forest,type="b",col="black",lty="dotted",pch=3)
+lines(LST_avgm_grass,type="b",col="black",lty="dotdash",pch=4)
+#lines(LST_avgm_urban,type="b",col="black",lty="longdash",pch=4)
+legend("topleft",legend=c("TMax","LST","LST_forest","LST_grass"), cex=0.8, col=c("black","black","black","black","black"),
+       lty=1:4,pch=1:4,bty="n")
 title(paste("Monthly average tmax for stations in Oregon ", "2010",sep=""))
-
-savePlot(paste("Temporal_profile_res",id[i],out_prefix,".png", sep=""), type="png")  
 
 ##################################################
 ####### Figure 13c: spatial variation -MoranI and  std  
@@ -899,26 +934,26 @@ savePlot(paste("Temporal_profile_res",id[i],out_prefix,".png", sep=""), type="pn
 list_lf_gam_CAI <-extract_list_from_list_obj(load_obj(list_raster_obj_files[["gam_CAI"]])$method_mod_obj,"dailyTmax") #getting objet
 list_lf_gam_fss <-extract_list_from_list_obj(load_obj(list_raster_obj_files[["gam_fss"]])$method_mod_obj,"dailyTmax") #getting objet
 
-#nb_lag <- 10
+nb_lag <- 10
 list_filters<-lapply(1:nb_lag,FUN=autocor_filter_fun,f_type="queen") #generate lag 10 filters
-list_param_stat_moran <- list(filter=list_filters[[10]],lf_list=list_lf_gam_CAI)
-tt <- stat_moran_std_raster_fun(1,list_param=list_param_stat_moran)
-tt <- mclapply(1:11, list_param=list_param_stat_moran, FUN=stat_moran_std_raster_fun,mc.preschedule=FALSE,mc.cores = 11) #This is the end bracket from mclapply(...) statement
-list_param_stat_moran <- list(filter=list_filters[[10]],lf_list=list_lf_gam_fss)
+list_param_stat_moran_CAI <- list(filter=list_filters[[10]],lf_list=list_lf_gam_CAI)
+#tt <- stat_moran_std_raster_fun(1,list_param=list_param_stat_moran)
+tt <- mclapply(1:11, list_param=list_param_stat_moran_CAI, FUN=stat_moran_std_raster_fun,mc.preschedule=FALSE,mc.cores = 11) #This is the end bracket from mclapply(...) statement
 
 #Takes 1 hour to get the average moran's I for the whole year so load moran_std_tt_fss2.RData
+#list_param_stat_moran <- list(filter=list_filters[[10]],lf_list=list_lf_gam_fss)
 #tt_fss <- mclapply(1:365, list_param=list_param_stat_moran, FUN=stat_moran_std_raster_fun,mc.preschedule=FALSE,mc.cores = 11) #This is the end bracket from mclapply(...) statement
 #save(tt_fss,file=file.path(out_dir,"moran_std_tt_fss.RData"))
+#list_param_stat_moran <- list(filter=list_filters[[10]],lf_list=list_lf_gam_CAI)
+#tt_CAI <- mclapply(1:365, list_param=list_param_stat_moran, FUN=stat_moran_std_raster_fun,mc.preschedule=FALSE,mc.cores = 11) #This is the end bracket from mclapply(...) statement
+#save(tt_CAI,file=file.path(out_dir,"moran_std_tt_CAI.RData"))
+
 #tx<- do.call(rbind,tt_fss)
-
-#dates <-strptime(dates, "%Y%m%d")   # interpolation date being processed
-#mo<-as.integer(strftime(dates, "%m"))          # current month of the date being processed
-
-dates<-unique(raster_obj$tb_diagnostic_v$date)
 tt_fss2 <- load_obj("moran_std_tt_fss2.RData")
 tx<- do.call(rbind,tt_fss2)
-dates_proc<-strptime(dates, "%Y%m%d")   # interpolation date being processed
 
+dates<-unique(raster_obj$tb_diagnostic_v$date)
+dates_proc<-strptime(dates, "%Y%m%d")   # interpolation date being processed
 dates_proc <- as.data.frame(dates_proc)
 dates_proc$index <- 1:365
 tx2 <- merge(tx,dates_proc,by="index")
@@ -937,81 +972,48 @@ tb_mod_m_avg <-cast(t,pred_mod+month~variable,mean) #monthly mean for every mode
 # end of pasted
 x<-subset(tb_mod_m_avg,pred_mod=="mod7")
 
-plot(x$month,x$moranI,type="b",col="blue")
+##Now plot Figure 13c
+plot(x$month,x$moranI,ylim=c(0.72,0.92),ylab="Lag 10 Moran's I autocorrelation",
+     xlab="Month",
+     type="b",col="black",lty="solid",pch=1)
 par(new=TRUE)              # key: ask for new plot without erasing old
-plot(x$month,x$std,type="b",col="red",axes=F)
+plot(x$month,x$std,type="b",col="black",lty="dashed",pch=2,axes=F,
+     xlab="",ylab="")
   #axis(4,xlab="",ylab="elevation(m)")  
 axis(4,cex=1.2)
+legend("topleft",legend=c("Moran's I","Stand Dev."), cex=0.8, col=c("black","black"),
+       lty=1:2,pch=1:2,bty="n")
+
+title("Spatial variation in FSS surfaces")
 
 ##################################################
 ####### Figure 13d: correlation between elevation and LST
 
 LST_s <- subset(s_raster,c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_09","mm_10","mm_11","mm_12"))
-LST1 <- subset(LST_s,1)
+elev <- subset(s_raster,"elev_s")
+LC1 <- subset(s_raster,"LC1")
 
-test<-stack(LST_s,elev)
-names(test) <- c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_09","mm_10","mm_11","mm_12","elev")
-x_cor <-layerStats(test,stat="pearson",na.rm=T)
-corr(values(LST1),values(elev))
-plot(1:12,x_cor[[1]][1:12,13],type="b",ylab="corelation",xlab="month",main="correlation between elevation and LST")
+#### Now elev
 
-#now summarize by month...
+r_tmp1 <-stack(LST_s,elev)
+names(r_tmp1) <- c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_09","mm_10","mm_11","mm_12","elev")
+x_cor_tmp1 <-layerStats(r_tmp,stat="pearson",na.rm=T)
 
-#plot(data_month$TMax,add=TRUE)
-#list_data_s <-extract_list_from_list_obj(load_obj(list_raster_obj_files$gam_CAI)$validation_mod_obj,"data_s")
-#list_data_v <-extract_list_from_list_obj(load_obj(list_raster_obj_files$gam_CAI)$validation_mod_obj,"data_v")
+r_tmp2 <-stack(LST_s,LC1)
+names(r_tmp2) <- c("mm_01","mm_02","mm_03","mm_04","mm_05","mm_06","mm_07","mm_08","mm_09","mm_10","mm_11","mm_12","LC1")
+x_cor_tmp2 <-layerStats(r_tmp2,stat="pearson",na.rm=T)
 
-#data_s <- list_data_s[[1]]
-#res_m <- data_s$dailyTmax - data_s$mod3
-#SSRES_m <- sum((res_m)^2,na.rm=T)
-#res_dev <- data_s$dailyTmax - data_s$mod3_del
-#SSRES_dev <- sum((res_dev)^2,na.rm=T)
-#SST <- sum((data_s$dailyTmax - mean(data_s$dailyTmax))^2,na.rm=T)
+##Now plot Figure 13d
+plot(1:12,x_cor_tmp1[[1]][1:12,13],ylim=c(-0.8,0.5),
+     type="b",lty="solid",pch=1,
+     ylab="Pearson corelation",xlab="month",main="Correlation between LST-elevation and LST-Forest")
+lines(1:12,x_cor_tmp2[[1]][1:12,13],type="b",lty="dashed",pch=2)
 
-#1- (SSRES_m/SST)
-#1- (SSRES_dev/SST)
+legend("topleft",legend=c("Correlation LST-Elevation","Correlation LST-Forest"), cex=1.1, col=c("black","black"),
+       lty=1:2,pch=1:2,bty="n")
 
-
-
-#### Now elev?
-#LC1<-mask(LC1,mask_ELEV_SRTM)
-#  cellStats(LC1,"countNA")        #Check that NA have been assigned to water and areas below 0 m
-  
-#LC1_50_m<- LC1>50
-#LC1_100_m<- LC1>=100
-#LC1_50_m[LC1_50_m==0]<-NA
-#LC1_100_m[LC1_100_m==0]<-NA
-#LC1_50<-LC1_50_m*LC1
-#LC1_100<-LC1_100_m*LC1
-#avl<-c(0,500,1,500,1000,2,1000,1500,3,1500,2000,4,2000,4000,5)
-#rclmat<-matrix(avl,ncol=3,byrow=TRUE)
-#elev_rec<-reclass(ELEV_SRTM,rclmat)  #Loss of layer names when using reclass
-  
-#elev_rec_forest<-elev_rec*LC1_100_m
-#avg_elev_rec<-zonal(rast_diff,zones=elev_rec,stat="mean",na.rm=TRUE)
-#std_elev_rec<-zonal(rast_diff,zones=elev_rec,stat="sd",na.rm=TRUE)
-#avg_elev_rec_forest<-zonal(rast_diff,zones=elev_rec_forest,stat="mean",na.rm=TRUE)
-#std_elev_rec_forest<-zonal(rast_diff,zones=elev_rec_forest,stat="sd",na.rm=TRUE)
-  
-## CREATE plots
-#X11()
-#plot(avg_elev_rec[,1],avg_elev_rec[,2],type="b",ylim=c(-10,1),
-#       ylab="",xlab="",axes=FALSE)
-#mtext("tmax difference between FSS and CAI (degree C)",side=2,cex=1.2,line=3,font=2)
-#mtext("elevation classes (m)",side=1,cex=1.2,line=3,font=2)
-#lines(avg_elev_rec_forest[,1],avg_elev_rec_forest[,2],col="green",type="b") #Elevation and 100% forest...
-#breaks_lab<-avg_elev_rec[,1]
-#elev_lab<-c("0-500","500-1000","1000-1500","1500-2000","2000-4000")
-#axis(side=1,las=1,
-#       at=breaks_lab,labels=elev_lab, cex=1.5,font=2) #reduce number of labels to Jan and June
-#axis(2,cex.axis=1.2,font=2)
-#legend("bottomleft",legend=c("Elevation", "elev_forest"), 
-#         cex=1, lwd=1.3,col=c("black","green"),bty="n",
-#         lty=1)
-#box()
-#title(paste("Prediction tmax difference (",mf_selected,"-",mc_selected,") and elevation ",sep=""),cex=1.4,font=2)
-#savePlot(paste("fig7_diff_prediction_tmax_difference_elevation",mf_selected,mc_selected,date_selected,out_prefix,".png", sep="_"), type="png")
-#dev.off()
+#closing file for figure 13
+dev.off()
 
 
 ###################### END OF SCRIPT #######################
