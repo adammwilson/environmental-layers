@@ -45,23 +45,14 @@ mod09=brick("data/mod09.nc")
 mod09c=brick("data/mod09_clim_mean.nc",varname="CF");names(mod09c)=month.name
 mod09a=brick("data/mod09_clim_mac.nc",varname="CF_annual")#;names(mod09c)=month.name
 
-## derivatives
-if(!file.exists("data/mod09_std.nc")) {
-  system("cdo -chname,CF,CFmin -timmin data/mod09_clim_mean.nc data/mod09_min.nc")
-  system("cdo -chname,CF,CFmax -timmax data/mod09_clim_mean.nc data/mod09_max.nc")
-  system("cdo -chname,CF,CFsd -timstd data/mod09_clim_mean.nc data/mod09_std.nc")
-  system("cdo -f nc2 merge data/mod09_std.nc data/mod09_min.nc data/mod09_max.nc data/mod09_metrics.nc") 
-}
-
 mod09min=raster("data/mod09_metrics.nc",varname="CFmin")
 mod09max=raster("data/mod09_metrics.nc",varname="CFmax")
 mod09sd=raster("data/mod09_metrics.nc",varname="CFsd")
 mod09mean=raster("data/mod09_clim_mac.nc")
 
-
 names(mod09d)=c("Mean","Minimum","Maximum","Standard Deviation")
 
-plot(mod09a,layers=1,margin=F,maxpixels=100)
+#plot(mod09a,layers=1,margin=F,maxpixels=100)
 
 ## calculated differences
 cldm$dif=cldm$mod09-cldm$cld
@@ -82,9 +73,9 @@ colr=colorRampPalette(c("black","green","red"))
 cols=colr(n)
 
 
-pdf("output/validation.pdf",width=11,height=8.5)
+pdf("output/Figures.pdf",width=11,height=8.5)
 
-## 4-panel maps
+## Figure 1: 4-panel summaries
 #- Annual average
 levelplot(mod09a,col.regions=colr(100),cuts=100,at=seq(0,100,len=100),colorkey=list(space="bottom",adj=1),
   margin=F,maxpixels=1e6,ylab="Latitude",xlab="Longitude",useRaster=T)+
@@ -92,6 +83,12 @@ levelplot(mod09a,col.regions=colr(100),cuts=100,at=seq(0,100,len=100),colorkey=l
 #- Monthly minimum
 #- Monthly maximum
 #- STDEV or Min-Max
+p_mac=levelplot(mac,col.regions=grey(seq(0,1,len=100)),cuts=99,margin=F,maxpixels=1e5,colorkey=list(space="bottom",height=.75),xlab="",ylab="",main=names(regs)[r],useRaster=T)
+p_min=levelplot(mod09min,col.regions=grey(seq(0,1,len=100)),cuts=99,margin=F,maxpixels=1e5,colorkey=list(space="bottom",height=.75),useRaster=T)
+p_max=levelplot(mod09max,col.regions=grey(seq(0,1,len=100)),cuts=99,margin=F,maxpixels=1e5,colorkey=list(space="bottom",height=.75),useRaster=T)
+p_sd=levelplot(mod09sd,col.regions=grey(seq(0,1,len=100)),cuts=99,margin=F,maxpixels=1e5,colorkey=list(space="bottom",height=.75),useRaster=T)
+p3=c("Mean Cloud Frequency (%)"=p_mac,"Max Cloud Frequency (%)"=p_max,"Min Cloud Frequency (%)"=p_min,"Cloud Frequency Variability (SD)"=p_sd,x.same=T,y.same=T,merge.legends=T,layout=c(2,2))
+print(p3)
 
 
 ### maps of mod09 and NDP

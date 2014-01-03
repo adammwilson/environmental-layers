@@ -68,8 +68,7 @@ ee.Initialize(ee.ServiceAccountCredentials(MY_SERVICE_ACCOUNT, MY_PRIVATE_KEY_FI
 
 #///////////////////////////////////
 #// Function to extract cloud flags
-def getmod09(img): return(img.select(['state_1km']).expression("((b(0)/1024)%2)>0.5")); 
-# added the >0.5 because some values are coming out >1.  Need to look into this further as they should be bounded 0-1...
+def getmod09(img): return(img.select(['state_1km']).expression("((b(0)/1024)%2)").gte(1)); 
 
 #////////////////////////////////////////////////////
 #####################################################
@@ -101,12 +100,13 @@ path =mod09a.getDownloadUrl({
         });
 
 # print info to confirm there is data
-#print(data.getInfo())
+print(data.getInfo())
 print(' Processing.... '+output+'     Coords:'+strregion)
+print(path)
 
 #test=wget.download(path)
 test=subprocess.call(['-c','-q','--timeout=0','--ignore-length','--no-http-keep-alive','-O','mod09.zip',path],executable='wget')
-print('download sucess for'+output+':   '+str(test))
+print('download sucess for tile '+output+':   '+str(test))
 
 ## Sometimes EE will serve a corrupt zipped file with no error
 # try to unzip it

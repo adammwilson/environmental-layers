@@ -1,72 +1,15 @@
 ###  Script to compile the monthly cloud data from earth engine into a netcdf file for further processing
 
-setwd("~/acrobates/adamw/projects/cloud")
 library(raster)
 library(doMC)
 library(multicore)
 library(foreach)
 #library(doMPI)
-registerDoMC(10)
+registerDoMC(4)
 #beginCluster(4)
 
-tempdir="tmp"
-if(!file.exists(tempdir)) dir.create(tempdir)
-
-
-## Load list of tiles
-tiles=read.table("tile_lat_long_10d.txt",header=T)
-
-### Build Tiles
-
-## bin sizes
-ybin=30
-xbin=30
-
-tiles=expand.grid(ulx=seq(-180,180-xbin,by=xbin),uly=seq(90,-90+ybin,by=-ybin))
-tiles$h=factor(tiles$ulx,labels=paste("h",sprintf("%02d",1:length(unique(tiles$ulx))),sep=""))
-tiles$v=factor(tiles$uly,labels=paste("v",sprintf("%02d",1:length(unique(tiles$uly))),sep=""))
-tiles$tile=paste(tiles$h,tiles$v,sep="")
-tiles$urx=tiles$ulx+xbin
-tiles$ury=tiles$uly
-tiles$lrx=tiles$ulx+xbin
-tiles$lry=tiles$uly-ybin
-tiles$llx=tiles$ulx
-tiles$lly=tiles$uly-ybin
-tiles$cy=(tiles$uly+tiles$lry)/2
-tiles$cx=(tiles$ulx+tiles$urx)/2
-tiles=tiles[,c("tile","h","v","ulx","uly","urx","ury","lrx","lry","llx","lly","cx","cy")]
-
-jobs=expand.grid(tile=tiles$tile,year=2000:2012,month=1:12)
-jobs[,c("ulx","uly","urx","ury","lrx","lry","llx","lly")]=tiles[match(jobs$tile,tiles$tile),c("ulx","uly","urx","ury","lrx","lry","llx","lly")]
-
-## drop Janurary 2000 from list (pre-modis)
-jobs=jobs[!(jobs$year==2000&jobs$month==1),]
-
-#jobs=jobs[jobs$month==1,]
-
-
-#jobs=jobs[jobs$month==7,]
-## Run the python downloading script
-#system("~/acrobates/adamw/projects/environmental-layers/climate/procedures/ee.MOD09.py -projwin -159 20 -154.5 18.5 -year 2001 -month 6 -region test")   
-i=1
-#testtiles=c("h02v07","h02v06","h02v08","h03v07","h03v06","h03v08")
-#todo=which(jobs$tile%in%testtiles)
-#todo=todo[1:3]
-#todo=1
-todo=1:nrow(jobs)
-
-checkcomplete=T
-if(checkcomplete&exists("df")){  #if desired (and "df" exists from below) drop complete date-tiles
-todo=which(!paste(jobs$tile,jobs$year,jobs$month)%in%paste(df$region,df$year,df$month))
-}
-
-writeLines(paste("Tiling options will produce",nrow(tiles),"tiles and ",nrow(jobs),"tile-months.  Current todo list is ",length(todo)))
-
-foreach(i=todo) %dopar%{
-    system(paste("python ~/acrobates/adamw/projects/environmental-layers/climate/procedures/ee.MOD09.py -projwin ",
-                      jobs$ulx[i]," ",jobs$uly[i]," ",jobs$urx[i]," ",jobs$ury[i]," ",jobs$lrx[i]," ",jobs$lry[i]," ",jobs$llx[i]," ",jobs$lly[i]," ",
-                      "  -year ",jobs$year[i]," -month ",jobs$month[i]," -region ",jobs$tile[i],sep=""))
-     }
+wd="~/acrobates/adamw/projects/cloud"
+setwd(wd)
 
 
 ##  Get list of available files
@@ -87,22 +30,30 @@ if(addstats){
 table(df$year,df$month)
 
 ## drop some if not complete
-df=df[df$month==1&df$year%in%c(2001:2002,2005),]
-rerun=T  # set to true to recalculate all dates even if file already exists
+#df=df[df$month%in%1:9&df$year%in%c(2001:2012),]
+rerun=F  # set to true to recalculate all dates even if file already exists
 
 ## Loop over existing months to build composite netcdf files
 foreach(date=unique(df$date)) %dopar% {
-## get date
+    ## get date
   print(date)
   ## Define output and check if it already exists
-  tffile=paste(tempdir,"/mod09_",date,".tif",sep="")
+  vrtfile=paste(tempdir,"/mod09_",date,".vrt",sep="")
   ncfile=paste(tempdir,"/mod09_",date,".nc",sep="")
-  if(!rerun&file.exists(ncfile)) next
+  tffile=paste(tempdir,"/mod09_",date,".tif",sep="")
+
+  if(!rerun&file.exists(ncfile)) return(NA)
   ## merge regions to a new netcdf file
-#  system(paste("gdal_merge.py -tap -init 5 -o ",ncfile," -n -32768.000 -of netCDF -ot Int16 ",paste(df$path[df$date==date],collapse=" ")))
-  system(paste("gdal_merge.py -o ",tffile," -init -32768  -n -32768.000 -ot Int16 ",paste(df$path[df$date==date],collapse=" ")))
-  system(paste("gdal_translate -of netCDF ",tffile," ",ncfile," -ot Int16 "))
-  file.remove(tffile)
+#  system(paste("gdal_merge.py -o ",tffile," -init -32768  -n -32768.000 -ot Int16 ",paste(df$path[df$date==date],collapse=" ")))
+  system(paste("gdalbuildvrt -overwrite -srcnodata -32768 ",vrtfile," ",paste(df$path[df$date==date],collapse=" ")))
+  ## Warp to WGS84 grid and convert to netcdf
+  ops="-t_srs 'EPSG:4326' -multi -r cubic -te -90 -90 0 90 -tr 0.008333333333333 -0.008333333333333"
+  ops="-t_srs 'EPSG:4326' -multi -r cubic -te -180 -90 180 90 -tr 0.008333333333333 -0.008333333333333"
+
+  system(paste("gdalwarp -overwrite ",ops," -srcnodata -32768 -dstnodata -32768 -of netCDF ",vrtfile," ",ncfile," -ot Int16"))
+#  system(paste("gdalwarp -overwrite ",ops," -srcnodata -32768 -dstnodata -32768 -of netCDF ",vrtfile," ",tffile," -ot Int16"))
+
+  setwd(wd)
   system(paste("ncecat -O -u time ",ncfile," ",ncfile,sep=""))
 ## create temporary nc file with time information to append to MOD06 data
   cat(paste("
@@ -122,10 +73,16 @@ system(paste("ncks -A ",tempdir,"/",date,"_time.nc ",ncfile,sep=""))
 ## add other attributes
   system(paste("ncrename -v Band1,CF ",ncfile,sep=""))
   system(paste("ncatted ",
-               " -a units,CF,o,c,\"Proportion Days Cloudy\" ",
+               " -a units,CF,o,c,\"%\" ",
 #               " -a valid_range,CF,o,b,\"0,100\" ",
                " -a scale_factor,CF,o,f,\"0.1\" ",
-               " -a long_name,CF,o,c,\"Proportion cloudy days (%)\" ",
+               " -a _FillValue,CF,o,f,\"-32768\" ",
+               " -a long_name,CF,o,c,\"Cloud Frequency(%)\" ",
+               " -a NETCDF_VARNAME,CF,o,c,\"Cloud Frequency(%)\" ",
+               " -a title,global,o,c,\"Cloud Climatology from MOD09 Cloud Mask\" ",
+               " -a institution,global,o,c,\"Jetz Lab, EEB, Yale University, New Haven, CT\" ",
+               " -a source,global,o,c,\"Derived from MOD09GA Daily Data\" ",
+               " -a comment,global,o,c,\"Developed by Adam M. Wilson (adam.wilson@yale.edu / http://adamwilson.us)\" ",
                ncfile,sep=""))
 
                ## add the fillvalue attribute back (without changing the actual values)
@@ -137,24 +94,35 @@ if(as.numeric(system(paste("cdo -s ntime ",ncfile),intern=T))<1) {
 }
   print(paste(basename(ncfile)," Finished"))
 
+
 }
-
-
-
 
 
 ### merge all the tiles to a single global composite
 #system(paste("ncdump -h ",list.files(tempdir,pattern="mod09.*.nc$",full=T)[10]))
-system(paste("cdo -O mergetime ",paste(list.files(tempdir,pattern="mod09.*.nc$",full=T),collapse=" ")," data/mod09.nc"))
+system(paste("cdo -O  mergetime ",paste(list.files(tempdir,pattern="mod09.*.nc$",full=T),collapse=" ")," data/cloud_daily.nc"))
 
+#  Overall mean
+system(paste("cdo -O  -chname,CF,CF_annual -timmean data/cloud_daily.nc  data/cloud_mean.nc"))
 
 ### generate the monthly mean and sd
 #system(paste("cdo -P 10 -O merge -ymonmean data/mod09.nc -chname,CF,CF_sd -ymonstd data/mod09.nc data/mod09_clim.nc"))
-xosystem(paste("cdo  -O -ymonmean data/mod09.nc data/mod09_clim_mean.nc"))
-system(paste("cdo  -O -chname,CF,CF_sd -ymonstd data/mod09.nc data/mod09_clim_sd.nc"))
+system(paste("cdo  -O -ymonmean data/cloud_daily.nc data/cloud_ymonmean.nc"))
+system(paste("cdo  -O -chname,CF,CF_sd -ymonstd data/cloud_daily.nc data/cloud_ymonsd.nc"))
 
-#  Overall mean
-system(paste("cdo -O  -chname,CF,CF_annual -timmean data/mod09.nc  data/mod09_clim_mac.nc"))
+#if(!file.exists("data/mod09_metrics.nc")) {
+#    system("cdo -chname,CF,CFmin -timmin data/mod09_clim_mean.nc data/mod09_min.nc")
+#    system("cdo -chname,CF,CFmax -timmax data/mod09_clim_mean.nc data/mod09_max.nc")
+#    system("cdo -chname,CF,CFsd -timstd data/mod09_clim_mean.nc data/mod09_std.nc")
+#    system("cdo -f nc2 merge data/mod09_std.nc data/mod09_min.nc data/mod09_max.nc data/mod09_metrics.nc")
+    system("cdo merge -chname,CF,CFmin -timmin data/cloud_clim_mean.nc -chname,CF,CFmax -timmax data/cloud_clim_mean.nc  -chname,CF,CFsd -timstd data/cloud_clim_mean.nc  data/cloud_metrics.nc")
+#}
+
+
+
+
+
+
 
 ### Long term summaries
 seasconc <- function(x,return.Pc=T,return.thetat=F) {
@@ -185,6 +153,7 @@ seasconc <- function(x,return.Pc=T,return.thetat=F) {
                   if(return.Pc)          return(Pc)
                   if(return.thetat)  return(thetat)
         }
+
 
 
 ## read in monthly dataset

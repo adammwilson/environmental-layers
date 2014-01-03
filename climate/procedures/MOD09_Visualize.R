@@ -80,8 +80,11 @@ dev.off()
 
 
 ## reduced resolution
+
+## read in GEWEX 1-degree data
+gewex=raster("data/gewex/CA_PATMOSX_NOAA.nc")
+
 mod09_8km=aggregate(mod09_mac,8)
-mod09_1deg=aggregate(mod09_mac,110)
 
 pdf("output/mod09_resolution.pdf",width=11,height=8.5)
 p1=levelplot(mod09_mac,col.regions=grey(seq(0,1,len=100)),cuts=99,margin=F,max.pixels=1e5)
