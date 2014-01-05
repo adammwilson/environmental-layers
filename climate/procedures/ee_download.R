@@ -5,10 +5,6 @@ registerDoMC(4)
 wd="~/acrobates/adamw/projects/cloud"
 setwd(wd)
 
-tempdir="tmp"
-if(!file.exists(tempdir)) dir.create(tempdir)
-
-
 ### Build Tiles
 
 ## bin sizes in degrees

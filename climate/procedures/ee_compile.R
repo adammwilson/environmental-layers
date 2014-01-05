@@ -11,6 +11,8 @@ registerDoMC(4)
 wd="~/acrobates/adamw/projects/cloud"
 setwd(wd)
 
+tempdir="tmp"
+if(!file.exists(tempdir)) dir.create(tempdir)
 
 ##  Get list of available files
 df=data.frame(path=list.files("/mnt/data2/projects/cloud/mod09",pattern="*.tif$",full=T,recur=T),stringsAsFactors=F)
@@ -29,9 +31,12 @@ if(addstats){
 #df=df[df$month==1,]
 table(df$year,df$month)
 
+writeLines(paste("Tiling options will produce",nrow(tiles),"tiles and ",nrow(jobs),"tile-months.  Current todo list is ",length(todo)))
+
+
 ## drop some if not complete
 #df=df[df$month%in%1:9&df$year%in%c(2001:2012),]
-rerun=F  # set to true to recalculate all dates even if file already exists
+rerun=T  # set to true to recalculate all dates even if file already exists
 
 ## Loop over existing months to build composite netcdf files
 foreach(date=unique(df$date)) %dopar% {
@@ -45,14 +50,15 @@ foreach(date=unique(df$date)) %dopar% {
   if(!rerun&file.exists(ncfile)) return(NA)
   ## merge regions to a new netcdf file
 #  system(paste("gdal_merge.py -o ",tffile," -init -32768  -n -32768.000 -ot Int16 ",paste(df$path[df$date==date],collapse=" ")))
-  system(paste("gdalbuildvrt -overwrite -srcnodata -32768 ",vrtfile," ",paste(df$path[df$date==date],collapse=" ")))
+  system(paste("gdalbuildvrt -overwrite -srcnodata -32768 -vrtnodata -32768 ",vrtfile," ",paste(df$path[df$date==date],collapse=" ")))
   ## Warp to WGS84 grid and convert to netcdf
-  ops="-t_srs 'EPSG:4326' -multi -r cubic -te -90 -90 0 90 -tr 0.008333333333333 -0.008333333333333"
-  ops="-t_srs 'EPSG:4326' -multi -r cubic -te -180 -90 180 90 -tr 0.008333333333333 -0.008333333333333"
+  ##ops="-t_srs 'EPSG:4326' -multi -r cubic -te -180 0 180 10 -tr 0.008333333333333 -0.008333333333333 -wo SOURCE_EXTRA=50" #-wo SAMPLE_GRID=YES -wo SAMPLE_STEPS=100
+  ops="-t_srs 'EPSG:4326' -multi -r cubic -te -180 -90 180 90 -tr 0.008333333333333 -0.008333333333333  -wo SOURCE_EXTRA=50"
 
-  system(paste("gdalwarp -overwrite ",ops," -srcnodata -32768 -dstnodata -32768 -of netCDF ",vrtfile," ",ncfile," -ot Int16"))
-#  system(paste("gdalwarp -overwrite ",ops," -srcnodata -32768 -dstnodata -32768 -of netCDF ",vrtfile," ",tffile," -ot Int16"))
-
+  system(paste("gdalwarp -overwrite ",ops," -et 0 -srcnodata -32768 -dstnodata -32768 ",vrtfile," ",tffile," -ot Int16"))
+  system(paste("gdal_translate -of netCDF ",tffile," ",ncfile))
+                                        #  system(paste("gdalwarp -overwrite ",ops," -srcnodata -32768 -dstnodata -32768 -of netCDF ",vrtfile," ",tffile," -ot Int16"))
+  file.remove(tffile)
   setwd(wd)
   system(paste("ncecat -O -u time ",ncfile," ",ncfile,sep=""))
 ## create temporary nc file with time information to append to MOD06 data
