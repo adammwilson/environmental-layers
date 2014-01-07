@@ -41,16 +41,15 @@ coordinates(cldys)=c("lon","lat")
 projection(cldys)=CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
 
 #### Evaluate MOD35 Cloud data
-mod09=brick("data/mod09.nc")
-mod09c=brick("data/mod09_clim_mean.nc",varname="CF");names(mod09c)=month.name
-mod09a=brick("data/mod09_clim_mac.nc",varname="CF_annual")#;names(mod09c)=month.name
+mod09=brick("data/cloud_daily.nc")
+mod09c=brick("data/cloud_ymonmean.nc",varname="CF");names(mod09c)=month.name
+mod09a=brick("data/cloud_mean.nc",varname="CF_annual")#;names(mod09c)=month.name
 
-mod09min=raster("data/mod09_metrics.nc",varname="CFmin")
-mod09max=raster("data/mod09_metrics.nc",varname="CFmax")
-mod09sd=raster("data/mod09_metrics.nc",varname="CFsd")
-mod09mean=raster("data/mod09_clim_mac.nc")
-
-names(mod09d)=c("Mean","Minimum","Maximum","Standard Deviation")
+mod09min=raster("data/cloud_min.nc",varname="CFmin")
+mod09max=raster("data/cloud_max.nc",varname="CFmax")
+mod09sd=raster("data/cloud_std.nc",varname="CFsd")
+#mod09mean=raster("data/mod09_clim_mac.nc")
+#names(mod09d)=c("Mean","Minimum","Maximum","Standard Deviation")
 
 #plot(mod09a,layers=1,margin=F,maxpixels=100)
 

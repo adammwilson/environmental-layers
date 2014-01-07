@@ -36,7 +36,7 @@ writeLines(paste("Tiling options will produce",nrow(tiles),"tiles and ",nrow(job
 
 ## drop some if not complete
 #df=df[df$month%in%1:9&df$year%in%c(2001:2012),]
-rerun=T  # set to true to recalculate all dates even if file already exists
+rerun=F  # set to true to recalculate all dates even if file already exists
 
 ## Loop over existing months to build composite netcdf files
 foreach(date=unique(df$date)) %dopar% {
@@ -106,22 +106,22 @@ if(as.numeric(system(paste("cdo -s ntime ",ncfile),intern=T))<1) {
 
 ### merge all the tiles to a single global composite
 #system(paste("ncdump -h ",list.files(tempdir,pattern="mod09.*.nc$",full=T)[10]))
-system(paste("cdo -O  mergetime ",paste(list.files(tempdir,pattern="mod09.*.nc$",full=T),collapse=" ")," data/cloud_daily.nc"))
+system(paste("cdo -O  mergetime -setctomiss,-32768 ",paste(list.files(tempdir,pattern="mod09.*.nc$",full=T),collapse=" ")," data/cloud_monthly.nc"))
 
 #  Overall mean
-system(paste("cdo -O  -chname,CF,CF_annual -timmean data/cloud_daily.nc  data/cloud_mean.nc"))
+system(paste("cdo -O  -chname,CF,CF_annual -timmean data/cloud_monthly.nc  data/cloud_mean.nc"))
 
 ### generate the monthly mean and sd
 #system(paste("cdo -P 10 -O merge -ymonmean data/mod09.nc -chname,CF,CF_sd -ymonstd data/mod09.nc data/mod09_clim.nc"))
-system(paste("cdo  -O -ymonmean data/cloud_daily.nc data/cloud_ymonmean.nc"))
-system(paste("cdo  -O -chname,CF,CF_sd -ymonstd data/cloud_daily.nc data/cloud_ymonsd.nc"))
+system(paste("cdo  -f nc4c -O -ymonmean data/cloud_monthly.nc data/cloud_ymonmean.nc"))
+system(paste("cdo  -f nc4c -O -chname,CF,CF_sd -ymonstd data/cloud_monthly.nc data/cloud_ymonsd.nc"))
 
 #if(!file.exists("data/mod09_metrics.nc")) {
-#    system("cdo -chname,CF,CFmin -timmin data/mod09_clim_mean.nc data/mod09_min.nc")
-#    system("cdo -chname,CF,CFmax -timmax data/mod09_clim_mean.nc data/mod09_max.nc")
-#    system("cdo -chname,CF,CFsd -timstd data/mod09_clim_mean.nc data/mod09_std.nc")
-#    system("cdo -f nc2 merge data/mod09_std.nc data/mod09_min.nc data/mod09_max.nc data/mod09_metrics.nc")
-    system("cdo merge -chname,CF,CFmin -timmin data/cloud_clim_mean.nc -chname,CF,CFmax -timmax data/cloud_clim_mean.nc  -chname,CF,CFsd -timstd data/cloud_clim_mean.nc  data/cloud_metrics.nc")
+    system("cdo -f nc4c -chname,CF,CFmin -timmin data/cloud_ymonmean.nc data/cloud_min.nc")
+    system("cdo -f nc4c -chname,CF,CFmax -timmax data/cloud_ymonmean.nc data/cloud_max.nc")
+    system("cdo -f nc4c -chname,CF,CFsd -timstd data/cloud_ymonmean.nc data/cloud_std.nc")
+#    system("cdo -f nc2 merge data/mod09_std.nc data/mod09_min.nc data/cloud_max.nc data/cloud_metrics.nc")
+#    system("cdo merge -chname,CF,CFmin -timmin data/cloud_ymonmean.nc -chname,CF,CFmax -timmax data/cloud_ymonmean.nc  -chname,CF,CFsd -timstd data/cloud_ymonmean.nc  data/cloud_metrics.nc")
 #}
 
 
@@ -163,7 +163,7 @@ seasconc <- function(x,return.Pc=T,return.thetat=F) {
 
 
 ## read in monthly dataset
-mod09=brick("data/mod09_clim_mean.nc",varname="CF")
+mod09=brick("data/cloud_ymonmean.nc",varname="CF")
 plot(mod09[1])
 
 mod09_seas=calc(mod09,seasconc,return.Pc=T,return.thetat=F,overwrite=T,filename="data/mod09_seas.nc",NAflag=255,datatype="INT1U")

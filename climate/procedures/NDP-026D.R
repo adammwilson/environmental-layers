@@ -6,7 +6,7 @@ library(multicore)
 library(doMC)
 library(rasterVis)
 library(rgdal)
-
+library(reshape)
 
 
 ## Data available here http://cdiac.ornl.gov/epubs/ndp/ndp026d/ndp026d.html
@@ -22,6 +22,8 @@ st=st[,c("StaID","ELEV","lat","lon")]
 colnames(st)=c("id","elev","lat","lon")
 write.csv(st,"stations.csv",row.names=F)
 coordinates(st)=c("lon","lat")
+projection(st)="+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
+
 ## download data
 system("wget -N -nd ftp://cdiac.ornl.gov/pub/ndp026d/cat67_78/* -A '.tc.Z' -P data/")
 
@@ -33,7 +35,7 @@ c162=c("StaID","YR","Nobs","Amt","Fq","AWP","NC")
 
 ## use monthly timeseries
 cld=do.call(rbind.data.frame,mclapply(sprintf("%02d",1:12),function(m) {
-  d=read.fwf(list.files("data",pattern=paste("MNYDC.",m,".tc",sep=""),full=T),skip=1,widths=f162)
+  d=read.fwf(list.files("data",pattern=paste("MNYDC.",m,".tc$",sep=""),full=T),skip=1,widths=f162)
   colnames(d)=c162
   d$month=as.numeric(m)
   print(m)
@@ -53,12 +55,13 @@ cld$Amt[cld$Amt<0]=NA
 
 ## add the MOD09 data to cld
 #### Evaluate MOD35 Cloud data
-mod09=brick("~/acrobates/adamw/projects/cloud/data/mod09.nc")
+mod09=brick("~/acrobates/adamw/projects/cloud/data/cloud_ymonmean.nc")
 
 ## overlay the data with 32km diameter (16km radius) buffer
 ## buffer size from Dybbroe, et al. (2005) doi:10.1175/JAM-2189.1.
 buf=16000
 bins=cut(1:nrow(st),100)
+if(file.exists("valid.csv")) file.remove("valid.csv")
 mod09sta=lapply(levels(bins),function(lb) {
   l=which(bins==lb)
   td=extract(mod09,st[l,],buffer=buf,fun=mean,na.rm=T,df=T)
