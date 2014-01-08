@@ -23,6 +23,7 @@ colnames(st)=c("id","elev","lat","lon")
 write.csv(st,"stations.csv",row.names=F)
 coordinates(st)=c("lon","lat")
 projection(st)="+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
+st@data[,c("lon","lat")]=coordinates(st)
 
 ## download data
 system("wget -N -nd ftp://cdiac.ornl.gov/pub/ndp026d/cat67_78/* -A '.tc.Z' -P data/")
@@ -53,21 +54,39 @@ cld$Amt[cld$Amt<0]=NA
 #cld$NC[cld$NC<0]=NA
 #cld=cld[cld$Nobs>0,]
 
+## calculate means and sds
+cldm=do.call(rbind.data.frame,by(cld,list(month=as.factor(cld$month),StaID=as.factor(cld$StaID)),function(x){
+  data.frame(
+             month=x$month[1],
+             StaID=x$StaID[1],
+             cld=mean(x$cld[x$Nobs>60],na.rm=T),
+             cldsd=sd(x$cld[x$Nobs>60],na.rm=T))}))
+cldm[,c("lat","lon")]=coordinates(st)[match(cldm$StaID,st$id),c("lat","lon")]
+
+
 ## add the MOD09 data to cld
 #### Evaluate MOD35 Cloud data
 mod09=brick("~/acrobates/adamw/projects/cloud/data/cloud_ymonmean.nc")
+mod09std=brick("~/acrobates/adamw/projects/cloud/data/cloud_ymonstd.nc")
 
 ## overlay the data with 32km diameter (16km radius) buffer
 ## buffer size from Dybbroe, et al. (2005) doi:10.1175/JAM-2189.1.
 buf=16000
-bins=cut(1:nrow(st),100)
-if(file.exists("valid.csv")) file.remove("valid.csv")
+bins=cut(st$lat,10)
+rerun=F
+if(rerun&file.exists("valid.csv")) file.remove("valid.csv")
 mod09sta=lapply(levels(bins),function(lb) {
   l=which(bins==lb)
+  ## mean
   td=extract(mod09,st[l,],buffer=buf,fun=mean,na.rm=T,df=T)
   td$id=st$id[l]
+  td$type="mean"
+  ## std
+  td2=extract(mod09std,st[l,],buffer=buf,fun=mean,na.rm=T,df=T)
+  td2$id=st$id[l]
+  td2$type="sd"
   print(lb)#as.vector(c(l,td[,1:4])))
-  write.table(td,"valid.csv",append=T,col.names=F,quote=F,sep=",",row.names=F)
+  write.table(rbind(td,td2),"valid.csv",append=T,col.names=F,quote=F,sep=",",row.names=F)
   td
 })#,mc.cores=3)
 
@@ -75,11 +94,12 @@ mod09sta=lapply(levels(bins),function(lb) {
 mod09st=read.csv("valid.csv",header=F)[,-c(1,2)]
 
 colnames(mod09st)=c(names(mod09)[-1],"id")
-mod09stl=melt(mod09st,id.vars="id")
+mod09stl=melt(mod09st,id.vars=c("id","sd"))
 mod09stl[,c("year","month")]=do.call(rbind,strsplit(sub("X","",mod09stl$variable),"[.]"))[,1:2]
+mod09stl$value[mod09stl$value<0]=NA
 
 ## add it to cld
-cld$mod09=mod09stl$value[match(paste(cld$StaID,cld$YR,cld$month),paste(mod09stl$id,mod09stl$year,as.numeric(mod09stl$month)))]
+cldm$mod09=mod09stl$value[match(paste(cldm$StaID,cldm$month),paste(mod09stl$id,as.numeric(mod09stl$month)))]
 
 
 ## LULC
@@ -98,53 +118,53 @@ Mode <- function(x) {
 lulcst=extract(lulc,st,fun=Mode,buffer=buf,df=T)
 colnames(lulcst)=c("id","lulc")
 ## add it to cld
-cld$lulc=lulcst$lulc[match(cld$StaID,lulcst$id)]
-cld$lulcc=IGBP$class[match(cld$lulc,IGBP$ID)]
+cldm$lulc=lulcst$lulc[match(cldm$StaID,lulcst$id)]
+cldm$lulcc=IGBP$class[match(cldm$lulc,IGBP$ID)]
 
 ## update cld column names
-colnames(cld)[grep("Amt",colnames(cld))]="cld"
-cld$cld=cld$cld/100
-cld[,c("lat","lon")]=coordinates(st)[match(cld$StaID,st$id),c("lat","lon")]
-
-## calculate means and sds
-cldm=do.call(rbind.data.frame,by(cld,list(month=as.factor(cld$month),StaID=as.factor(cld$StaID)),function(x){
-  data.frame(
-             month=x$month[1],
-             lulc=x$lulc[1],
-             StaID=x$StaID[1],
-             mod09=mean(x$mod09,na.rm=T),
-             mod09sd=sd(x$mod09,na.rm=T),
-             cld=mean(x$cld[x$Nobs>50],na.rm=T),
-             cldsd=sd(x$cld[x$Nobs>50],na.rm=T))}))
+colnames(cldm)[grep("Amt",colnames(cldm))]="cld"
+cldm$cld=cldm$cld/100
 cldm[,c("lat","lon")]=coordinates(st)[match(cldm$StaID,st$id),c("lat","lon")]
 
+## calculate means and sds
+#cldm=do.call(rbind.data.frame,by(cld,list(month=as.factor(cld$month),StaID=as.factor(cld$StaID)),function(x){
+#  data.frame(
+#             month=x$month[1],
+#             lulc=x$lulc[1],
+#             StaID=x$StaID[1],
+#             mod09=mean(x$mod09,na.rm=T),
+#             mod09sd=sd(x$mod09,na.rm=T),
+#             cld=mean(x$cld[x$Nobs>50],na.rm=T),
+#             cldsd=sd(x$cld[x$Nobs>50],na.rm=T))}))
+#cldm[,c("lat","lon")]=coordinates(st)[match(cldm$StaID,st$id),c("lat","lon")]
+
 ## means by year
-cldy=do.call(rbind.data.frame,by(cld,list(year=as.factor(cld$YR),StaID=as.factor(cld$StaID)),function(x){
-  data.frame(
-             year=x$YR[1],
-             StaID=x$StaID[1],
-             lulc=x$lulc[1],
-             mod09=mean(x$mod09,na.rm=T),
-             mod09sd=sd(x$mod09,na.rm=T),
-             cld=mean(x$cld[x$Nobs>50]/100,na.rm=T),
-             cldsd=sd(x$cld[x$Nobs>50]/100,na.rm=T))}))
-cldy[,c("lat","lon")]=coordinates(st)[match(cldy$StaID,st$id),c("lat","lon")]
+#cldy=do.call(rbind.data.frame,by(cld,list(year=as.factor(cld$YR),StaID=as.factor(cld$StaID)),function(x){
+#  data.frame(
+#             year=x$YR[1],
+#             StaID=x$StaID[1],
+#             lulc=x$lulc[1],
+#             mod09=mean(x$mod09,na.rm=T),
+#             mod09sd=sd(x$mod09,na.rm=T),
+#             cld=mean(x$cld[x$Nobs>50]/100,na.rm=T),
+#             cldsd=sd(x$cld[x$Nobs>50]/100,na.rm=T))}))
+#cldy[,c("lat","lon")]=coordinates(st)[match(cldy$StaID,st$id),c("lat","lon")]
 
 ## overall mean
-clda=do.call(rbind.data.frame,by(cld,list(StaID=as.factor(cld$StaID)),function(x){
+clda=do.call(rbind.data.frame,by(cldm,list(StaID=as.factor(cldm$StaID)),function(x){
   data.frame(
              StaID=x$StaID[1],
              lulc=x$lulc[1],
              mod09=mean(x$mod09,na.rm=T),
              mod09sd=sd(x$mod09,na.rm=T),
-             cld=mean(x$cld[x$Nobs>10],na.rm=T),
-             cldsd=sd(x$cld[x$Nobs>10],na.rm=T))}))
+             cld=mean(x$cld,na.rm=T),
+             cldsd=sd(x$cld,na.rm=T))}))
 clda[,c("lat","lon")]=coordinates(st)[match(clda$StaID,st$id),c("lat","lon")]
 
 
 ## write out the tables
 write.csv(cld,file="cld.csv",row.names=F)
-write.csv(cldy,file="cldy.csv",row.names=F)
+#write.csv(cldy,file="cldy.csv",row.names=F)
 write.csv(cldm,file="cldm.csv",row.names=F)
 write.csv(clda,file="clda.csv",row.names=F)
 

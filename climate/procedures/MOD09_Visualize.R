@@ -45,7 +45,7 @@ dev.off()
 
 
 ## climatologies
-mac=brick("~/acrobates/adamw/projects/cloud/data/mod09_clim_mac.nc",varname="CF_annual")
+mac=brick("~/acrobates/adamw/projects/cloud/data/cloud_mean.nc",varname="CF_annual")
 
 pdf("output/mod09_climatology.pdf",width=11,height=8.5)
 levelplot(mac,col.regions=grey(seq(0,1,len=100)),cuts=99,margin=F,max.pixels=1e6)+
@@ -82,26 +82,25 @@ dev.off()
 ## reduced resolution
 
 ## read in GEWEX 1-degree data
-gewex=raster("data/gewex/CA_PATMOSX_NOAA.nc")
+gewex=mean(brick("data/gewex/CA_PATMOSX_NOAA.nc",varname="a_CA"))
 
 mod09_8km=aggregate(mod09_mac,8)
 
 pdf("output/mod09_resolution.pdf",width=11,height=8.5)
 p1=levelplot(mod09_mac,col.regions=grey(seq(0,1,len=100)),cuts=99,margin=F,max.pixels=1e5)
-p2=levelplot(mod09_8km,col.regions=grey(seq(0,1,len=100)),cuts=99,margin=F,max.pixels=1e5)
-p3=levelplot(mod09_1deg,col.regions=grey(seq(0,1,len=100)),cuts=99,margin=F,max.pixels=1e5)
-print(c(p1,p2,p3,x.same=T,y.same=T,merge.legends=F))
+#p2=levelplot(mod09_8km,col.regions=grey(seq(0,1,len=100)),cuts=99,margin=F,max.pixels=1e5)
+p3=levelplot(gewex,col.regions=grey(seq(0,1,len=100)),cuts=99,margin=F,max.pixels=1e5)
+print(c(p1,p3,x.same=T,y.same=T,merge.legends=F))
 
-
-p1=levelplot(crop(mod09_mac,reg2),col.regions=grey(seq(0,1,len=100)),cuts=99,margin=F,max.pixels=1e5)
-p2=levelplot(crop(mod09_8km,reg2),col.regions=grey(seq(0,1,len=100)),cuts=99,margin=F,max.pixels=1e5)
-p3=levelplot(crop(mod09_1deg,reg2),col.regions=grey(seq(0,1,len=100)),cuts=99,margin=F,max.pixels=1e5)
-print(c(p1,p2,p3,x.same=T,y.same=T,merge.legends=F))
+p1=levelplot(crop(mac,regs[["Venezuela"]]),col.regions=grey(seq(0,1,len=100)),cuts=99,margin=F,max.pixels=1e5)
+#p2=levelplot(crop(mod09_8km,reg2),col.regions=grey(seq(0,1,len=100)),cuts=99,margin=F,max.pixels=1e5)
+p3=levelplot(crop(gewex,regs[["Venezuela"]]),col.regions=grey(seq(0,1,len=100)),cuts=99,margin=F,max.pixels=1e5)
+print(c(MOD09=p1,GEWEX=p3,x.same=T,y.same=T,merge.legends=F))
 
 p1=levelplot(crop(mod09_mac,reg3),col.regions=grey(seq(0,1,len=100)),cuts=99,margin=F,max.pixels=1e5)
-p2=levelplot(crop(mod09_8km,reg3),col.regions=grey(seq(0,1,len=100)),cuts=99,margin=F,max.pixels=1e5)
+#p2=levelplot(crop(mod09_8km,reg3),col.regions=grey(seq(0,1,len=100)),cuts=99,margin=F,max.pixels=1e5)
 p3=levelplot(crop(mod09_1deg,reg3),col.regions=grey(seq(0,1,len=100)),cuts=99,margin=F,max.pixels=1e5)
-print(c(p1,p2,p3,x.same=T,y.same=T,merge.legends=F))
+print(c(p1,p3,x.same=T,y.same=T,merge.legends=F))
 
 dev.off()
 

@@ -41,7 +41,7 @@ coordinates(cldys)=c("lon","lat")
 projection(cldys)=CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
 
 #### Evaluate MOD35 Cloud data
-mod09=brick("data/cloud_daily.nc")
+mod09=brick("data/cloud_monthly.nc")
 mod09c=brick("data/cloud_ymonmean.nc",varname="CF");names(mod09c)=month.name
 mod09a=brick("data/cloud_mean.nc",varname="CF_annual")#;names(mod09c)=month.name
 
@@ -76,16 +76,16 @@ pdf("output/Figures.pdf",width=11,height=8.5)
 
 ## Figure 1: 4-panel summaries
 #- Annual average
-levelplot(mod09a,col.regions=colr(100),cuts=100,at=seq(0,100,len=100),colorkey=list(space="bottom",adj=1),
+levelplot(mod09a,col.regions=colr(n),cuts=100,at=seq(0,100,len=100),colorkey=list(space="bottom",adj=1),
   margin=F,maxpixels=1e6,ylab="Latitude",xlab="Longitude",useRaster=T)+
   layer(sp.lines(coast,col="black"),under=F)
 #- Monthly minimum
 #- Monthly maximum
 #- STDEV or Min-Max
-p_mac=levelplot(mac,col.regions=grey(seq(0,1,len=100)),cuts=99,margin=F,maxpixels=1e5,colorkey=list(space="bottom",height=.75),xlab="",ylab="",main=names(regs)[r],useRaster=T)
-p_min=levelplot(mod09min,col.regions=grey(seq(0,1,len=100)),cuts=99,margin=F,maxpixels=1e5,colorkey=list(space="bottom",height=.75),useRaster=T)
-p_max=levelplot(mod09max,col.regions=grey(seq(0,1,len=100)),cuts=99,margin=F,maxpixels=1e5,colorkey=list(space="bottom",height=.75),useRaster=T)
-p_sd=levelplot(mod09sd,col.regions=grey(seq(0,1,len=100)),cuts=99,margin=F,maxpixels=1e5,colorkey=list(space="bottom",height=.75),useRaster=T)
+p_mac=levelplot(mod09a,col.regions=colr(n),cuts=99,margin=F,maxpixels=1e5,colorkey=list(space="bottom",height=.75),xlab="",ylab="",main=names(regs)[r],useRaster=T)
+p_min=levelplot(mod09min,col.regions=colr(n),cuts=99,margin=F,maxpixels=1e5,colorkey=list(space="bottom",height=.75),useRaster=T)
+p_max=levelplot(mod09max,col.regions=colr(n),cuts=99,margin=F,maxpixels=1e5,colorkey=list(space="bottom",height=.75),useRaster=T)
+p_sd=levelplot(mod09sd,col.regions=colr(n),cuts=99,margin=F,maxpixels=1e5,colorkey=list(space="bottom",height=.75),useRaster=T)
 p3=c("Mean Cloud Frequency (%)"=p_mac,"Max Cloud Frequency (%)"=p_max,"Min Cloud Frequency (%)"=p_min,"Cloud Frequency Variability (SD)"=p_sd,x.same=T,y.same=T,merge.legends=T,layout=c(2,2))
 print(p3)
 

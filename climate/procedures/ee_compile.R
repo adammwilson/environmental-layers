@@ -114,7 +114,11 @@ system(paste("cdo -O  -chname,CF,CF_annual -timmean data/cloud_monthly.nc  data/
 ### generate the monthly mean and sd
 #system(paste("cdo -P 10 -O merge -ymonmean data/mod09.nc -chname,CF,CF_sd -ymonstd data/mod09.nc data/mod09_clim.nc"))
 system(paste("cdo  -f nc4c -O -ymonmean data/cloud_monthly.nc data/cloud_ymonmean.nc"))
-system(paste("cdo  -f nc4c -O -chname,CF,CF_sd -ymonstd data/cloud_monthly.nc data/cloud_ymonsd.nc"))
+## standard deviations, had to break to limit memory usage
+system(paste("cdo  -f nc4c -O -chname,CF,CF_sd -ymonstd -selmon,1,2,3,4,5,6 data/cloud_monthly.nc data/cloud_ymonsd_1-6.nc"))
+system(paste("cdo  -f nc4c -O -chname,CF,CF_sd -ymonstd -selmon,7,8,9,10,11,12 data/cloud_monthly.nc data/cloud_ymonsd_7-12.nc"))
+system(paste("cdo  -f nc4c -O mergetime  data/cloud_ymonsd_1-6.nc  data/cloud_ymonsd_7-12.nc data/cloud_ymonstd.nc"))
+
 
 #if(!file.exists("data/mod09_metrics.nc")) {
     system("cdo -f nc4c -chname,CF,CFmin -timmin data/cloud_ymonmean.nc data/cloud_min.nc")
