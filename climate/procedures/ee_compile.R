@@ -106,14 +106,21 @@ if(as.numeric(system(paste("cdo -s ntime ",ncfile),intern=T))<1) {
 
 ### merge all the tiles to a single global composite
 #system(paste("ncdump -h ",list.files(tempdir,pattern="mod09.*.nc$",full=T)[10]))
-system(paste("cdo -O  mergetime -setctomiss,-32768 ",paste(list.files(tempdir,pattern="mod09.*.nc$",full=T),collapse=" ")," data/cloud_monthly.nc"))
+file.remove("tmp/mod09_2000-01-15.nc")
+system(paste("cdo -O  mergetime -setrtomiss,-32768,-1 ",paste(list.files(tempdir,pattern="mod09.*.nc$",full=T),collapse=" ")," data/cloud_monthly.nc"))
 
 #  Overall mean
-system(paste("cdo -O  -chname,CF,CF_annual -timmean data/cloud_monthly.nc  data/cloud_mean.nc"))
+system(paste("cdo -O  timmean data/cloud_monthly.nc  data/cloud_mean.nc"))
 
 ### generate the monthly mean and sd
 #system(paste("cdo -P 10 -O merge -ymonmean data/mod09.nc -chname,CF,CF_sd -ymonstd data/mod09.nc data/mod09_clim.nc"))
 system(paste("cdo  -f nc4c -O -ymonmean data/cloud_monthly.nc data/cloud_ymonmean.nc"))
+
+
+## Seasonal Means
+system(paste("cdo  -f nc4c -O -yseasmean data/cloud_monthly.nc data/cloud_yseasmean.nc"))
+system(paste("cdo  -f nc4c -O -yseasstd data/cloud_monthly.nc data/cloud_yseasstd.nc"))
+
 ## standard deviations, had to break to limit memory usage
 system(paste("cdo  -f nc4c -O -chname,CF,CF_sd -ymonstd -selmon,1,2,3,4,5,6 data/cloud_monthly.nc data/cloud_ymonsd_1-6.nc"))
 system(paste("cdo  -f nc4c -O -chname,CF,CF_sd -ymonstd -selmon,7,8,9,10,11,12 data/cloud_monthly.nc data/cloud_ymonsd_7-12.nc"))
@@ -121,14 +128,21 @@ system(paste("cdo  -f nc4c -O mergetime  data/cloud_ymonsd_1-6.nc  data/cloud_ym
 
 
 #if(!file.exists("data/mod09_metrics.nc")) {
-    system("cdo -f nc4c -chname,CF,CFmin -timmin data/cloud_ymonmean.nc data/cloud_min.nc")
-    system("cdo -f nc4c -chname,CF,CFmax -timmax data/cloud_ymonmean.nc data/cloud_max.nc")
+    system("cdo -f nc4c  timmin data/cloud_ymonmean.nc data/cloud_min.nc")
+    system("cdo -f nc4c  timmax data/cloud_ymonmean.nc data/cloud_max.nc")
     system("cdo -f nc4c -chname,CF,CFsd -timstd data/cloud_ymonmean.nc data/cloud_std.nc")
 #    system("cdo -f nc2 merge data/mod09_std.nc data/mod09_min.nc data/cloud_max.nc data/cloud_metrics.nc")
 #    system("cdo merge -chname,CF,CFmin -timmin data/cloud_ymonmean.nc -chname,CF,CFmax -timmax data/cloud_ymonmean.nc  -chname,CF,CFsd -timstd data/cloud_ymonmean.nc  data/cloud_metrics.nc")
 #}
 
 
+# Regressions through time by season
+s=c("DJF","MAM","JJA","SON")
+
+system(paste("cdo  -f nc4c -O regres -selseas,",s[1]," data/cloud_monthly.nc data/slope_",s[1],".nc &",sep=""))
+system(paste("cdo  -f nc4c -O regres -selseas,",s[2]," data/cloud_monthly.nc data/slope_",s[2],".nc &",sep=""))
+system(paste("cdo  -f nc4c -O regres -selseas,",s[3]," data/cloud_monthly.nc data/slope_",s[3],".nc &",sep=""))
+system(paste("cdo  -f nc4c -O regres -selseas,",s[4]," data/cloud_monthly.nc data/slope_",s[4],".nc &",sep=""))
 
 
 

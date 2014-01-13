@@ -49,19 +49,21 @@ cld[,c("lat","lon")]=coordinates(st)[match(cld$StaID,st$id),]
 ## drop missing values
 cld=cld[,!grepl("Fq|AWP|NC",colnames(cld))]
 cld$Amt[cld$Amt<0]=NA
-#cld$Fq[cld$Fq<0]=NA
-#cld$AWP[cld$AWP<0]=NA
-#cld$NC[cld$NC<0]=NA
-#cld=cld[cld$Nobs>0,]
+cld$Amt=cld$Amt/100
 
-## calculate means and sds
+## calculate means and sds for full record (1970-2009)
+Nobsthresh=20 #minimum number of observations to include 
+
 cldm=do.call(rbind.data.frame,by(cld,list(month=as.factor(cld$month),StaID=as.factor(cld$StaID)),function(x){
   data.frame(
-             month=x$month[1],
-             StaID=x$StaID[1],
-             cld=mean(x$cld[x$Nobs>60],na.rm=T),
-             cldsd=sd(x$cld[x$Nobs>60],na.rm=T))}))
+      month=x$month[1],
+      StaID=x$StaID[1],
+      cld_all=mean(x$Amt[x$Nobs>=Nobsthresh],na.rm=T),  # full record
+      cldsd_all=sd(x$Amt[x$Nobs>=Nobsthresh],na.rm=T),
+      cld=mean(x$Amt[x$YR>=2000&x$Nobs>=Nobsthresh],na.rm=T), #only MODIS epoch
+      cldsd=sd(x$Amt[x$YR>=2000&x$Nobs>=Nobsthresh],na.rm=T))}))
 cldm[,c("lat","lon")]=coordinates(st)[match(cldm$StaID,st$id),c("lat","lon")]
+
 
 
 ## add the MOD09 data to cld
@@ -91,15 +93,16 @@ mod09sta=lapply(levels(bins),function(lb) {
 })#,mc.cores=3)
 
 ## read it back in
-mod09st=read.csv("valid.csv",header=F)[,-c(1,2)]
-
-colnames(mod09st)=c(names(mod09)[-1],"id")
-mod09stl=melt(mod09st,id.vars=c("id","sd"))
+mod09st=read.csv("valid.csv",header=F)[,-c(1)]
+colnames(mod09st)=c(names(mod09),"id","type")
+mod09stl=melt(mod09st,id.vars=c("id","type"))
 mod09stl[,c("year","month")]=do.call(rbind,strsplit(sub("X","",mod09stl$variable),"[.]"))[,1:2]
 mod09stl$value[mod09stl$value<0]=NA
+mod09stl=cast(mod09stl,id+year+month~type,value="value")
 
 ## add it to cld
-cldm$mod09=mod09stl$value[match(paste(cldm$StaID,cldm$month),paste(mod09stl$id,as.numeric(mod09stl$month)))]
+cldm$mod09=mod09stl$mean[match(paste(cldm$StaID,cldm$month),paste(mod09stl$id,as.numeric(mod09stl$month)))]
+cldm$mod09sd=mod09stl$sd[match(paste(cldm$StaID,cldm$month),paste(mod09stl$id,as.numeric(mod09stl$month)))]
 
 
 ## LULC
@@ -121,52 +124,10 @@ colnames(lulcst)=c("id","lulc")
 cldm$lulc=lulcst$lulc[match(cldm$StaID,lulcst$id)]
 cldm$lulcc=IGBP$class[match(cldm$lulc,IGBP$ID)]
 
-## update cld column names
-colnames(cldm)[grep("Amt",colnames(cldm))]="cld"
-cldm$cld=cldm$cld/100
-cldm[,c("lat","lon")]=coordinates(st)[match(cldm$StaID,st$id),c("lat","lon")]
-
-## calculate means and sds
-#cldm=do.call(rbind.data.frame,by(cld,list(month=as.factor(cld$month),StaID=as.factor(cld$StaID)),function(x){
-#  data.frame(
-#             month=x$month[1],
-#             lulc=x$lulc[1],
-#             StaID=x$StaID[1],
-#             mod09=mean(x$mod09,na.rm=T),
-#             mod09sd=sd(x$mod09,na.rm=T),
-#             cld=mean(x$cld[x$Nobs>50],na.rm=T),
-#             cldsd=sd(x$cld[x$Nobs>50],na.rm=T))}))
-#cldm[,c("lat","lon")]=coordinates(st)[match(cldm$StaID,st$id),c("lat","lon")]
-
-## means by year
-#cldy=do.call(rbind.data.frame,by(cld,list(year=as.factor(cld$YR),StaID=as.factor(cld$StaID)),function(x){
-#  data.frame(
-#             year=x$YR[1],
-#             StaID=x$StaID[1],
-#             lulc=x$lulc[1],
-#             mod09=mean(x$mod09,na.rm=T),
-#             mod09sd=sd(x$mod09,na.rm=T),
-#             cld=mean(x$cld[x$Nobs>50]/100,na.rm=T),
-#             cldsd=sd(x$cld[x$Nobs>50]/100,na.rm=T))}))
-#cldy[,c("lat","lon")]=coordinates(st)[match(cldy$StaID,st$id),c("lat","lon")]
-
-## overall mean
-clda=do.call(rbind.data.frame,by(cldm,list(StaID=as.factor(cldm$StaID)),function(x){
-  data.frame(
-             StaID=x$StaID[1],
-             lulc=x$lulc[1],
-             mod09=mean(x$mod09,na.rm=T),
-             mod09sd=sd(x$mod09,na.rm=T),
-             cld=mean(x$cld,na.rm=T),
-             cldsd=sd(x$cld,na.rm=T))}))
-clda[,c("lat","lon")]=coordinates(st)[match(clda$StaID,st$id),c("lat","lon")]
-
 
 ## write out the tables
 write.csv(cld,file="cld.csv",row.names=F)
-#write.csv(cldy,file="cldy.csv",row.names=F)
 write.csv(cldm,file="cldm.csv",row.names=F)
-write.csv(clda,file="clda.csv",row.names=F)
 
 #########################################################################
 
