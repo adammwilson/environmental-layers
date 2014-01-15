@@ -139,11 +139,28 @@ system(paste("cdo  -f nc4c -O mergetime  data/cloud_ymonsd_1-6.nc  data/cloud_ym
 # Regressions through time by season
 s=c("DJF","MAM","JJA","SON")
 
-system(paste("cdo  -f nc4c -O regres -selseas,",s[1]," data/cloud_monthly.nc data/slope_",s[1],".nc &",sep=""))
-system(paste("cdo  -f nc4c -O regres -selseas,",s[2]," data/cloud_monthly.nc data/slope_",s[2],".nc &",sep=""))
-system(paste("cdo  -f nc4c -O regres -selseas,",s[3]," data/cloud_monthly.nc data/slope_",s[3],".nc &",sep=""))
-system(paste("cdo  -f nc4c -O regres -selseas,",s[4]," data/cloud_monthly.nc data/slope_",s[4],".nc &",sep=""))
+system(paste("cdo  -f nc4c -O regres -selseas,",s[1]," data/cloud_monthly.nc data/slope_",s[1],".nc",sep=""))
+system(paste("cdo  -f nc4c -O regres -selseas,",s[2]," data/cloud_monthly.nc data/slope_",s[2],".nc",sep=""))
+system(paste("cdo  -f nc4c -O regres -selseas,",s[3]," data/cloud_monthly.nc data/slope_",s[3],".nc",sep=""))
+system(paste("cdo  -f nc4c -O regres -selseas,",s[4]," data/cloud_monthly.nc data/slope_",s[4],".nc",sep=""))
 
+
+
+## Daily animations
+regs=list(
+    Venezuela=extent(c(-69,-59,0,7)),
+    Cascades=extent(c(-122.8,-118,44.9,47)),
+    Hawaii=extent(c(-156.5,-154,18.75,20.5)),
+    Boliva=extent(c(-71,-63,-20,-15)),
+    CFR=extent(c(17.75,22.5,-34.8,-32.6)),
+    Madagascar=extent(c(46,52,-17,-12))
+    )
+
+r=1
+
+system(paste("cdo  -f nc4c -O inttime,2012-01-15,12:00:00,1day  -sellonlatbox,",
+             paste(regs[[r]]@xmin,regs[[r]]@xmax,regs[[r]]@ymin,regs[[r]]@ymax,sep=","),
+             "  data/cloud_monthly.nc data/daily_",names(regs[r]),".nc",sep=""))
 
 
 

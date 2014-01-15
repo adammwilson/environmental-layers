@@ -1,4 +1,5 @@
 ### Script to download and process the NDP-026D station cloud dataset
+### to validate MODIS cloud frequencies
 
 setwd("~/acrobates/adamw/projects/cloud/data/NDP026D")
 
@@ -125,9 +126,27 @@ cldm$lulc=lulcst$lulc[match(cldm$StaID,lulcst$id)]
 cldm$lulcc=IGBP$class[match(cldm$lulc,IGBP$ID)]
 
 
+### Add biome data
+if(!file.exists("../teow/biomes.shp")){
+    teow=readOGR("/mnt/data/jetzlab/Data/environ/global/teow/official/","wwf_terr_ecos")
+    teow=teow[teow$BIOME<90,]
+    biome=unionSpatialPolygons(teow,teow$BIOME, threshold=5)
+    biomeid=read.csv("/mnt/data/jetzlab/Data/environ/global/teow/official/biome.csv",stringsAsFactors=F)
+    biome=SpatialPolygonsDataFrame(biome,data=biomeid[as.numeric(row.names(biome)),])
+    writeOGR(biome,"../teow","biomes",driver="ESRI Shapefile",overwrite=T)
+}
+biome=readOGR("../teow/","biomes")
+projection(biome)=projection(st)
+#st$biome=over(st,biome,returnList=F)$BiomeID
+dists=apply(gDistance(st,biome,byid=T),2,which.min)
+st$biome=biome$BiomeID[dists]
+
+cldm$biome=st$biome[match(cldm$StaID,st$id)]
+
+
 ## write out the tables
 write.csv(cld,file="cld.csv",row.names=F)
 write.csv(cldm,file="cldm.csv",row.names=F)
-
+writeOGR(st,dsn=".",layer="stations",driver="ESRI Shapefile",overwrite_layer=T)
 #########################################################################
 
