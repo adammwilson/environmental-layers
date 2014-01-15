@@ -1,0 +1,1 @@
+This folder holds scripts related to work on Google Earth Engine, primarily for processing MODIS cloud data.
