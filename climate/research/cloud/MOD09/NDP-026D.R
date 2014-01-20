@@ -8,7 +8,8 @@ library(doMC)
 library(rasterVis)
 library(rgdal)
 library(reshape)
-
+library(maptools)
+library(rgeos)
 
 ## Data available here http://cdiac.ornl.gov/epubs/ndp/ndp026d/ndp026d.html
 
@@ -51,6 +52,14 @@ cld[,c("lat","lon")]=coordinates(st)[match(cld$StaID,st$id),]
 cld=cld[,!grepl("Fq|AWP|NC",colnames(cld))]
 cld$Amt[cld$Amt<0]=NA
 cld$Amt=cld$Amt/100
+cld=cld[!is.na(cld$Amt),]
+
+## table of stations with > 20 observations per month
+cast(cld,StaID~YR,value="Nobs")
+mtab=ddply(cld,c('StaID','month'),function(df){ data.frame(count=sum(df$Nobs>20,na.rm=T))})
+mtab2=mtab[
+    table(mtab$count>10)
+stem(mtab$count)
 
 ## calculate means and sds for full record (1970-2009)
 Nobsthresh=20 #minimum number of observations to include 
@@ -61,9 +70,12 @@ cldm=do.call(rbind.data.frame,by(cld,list(month=as.factor(cld$month),StaID=as.fa
       StaID=x$StaID[1],
       cld_all=mean(x$Amt[x$Nobs>=Nobsthresh],na.rm=T),  # full record
       cldsd_all=sd(x$Amt[x$Nobs>=Nobsthresh],na.rm=T),
+      cldn_all=length(x$Amt[x$Nobs>=Nobsthresh]),
       cld=mean(x$Amt[x$YR>=2000&x$Nobs>=Nobsthresh],na.rm=T), #only MODIS epoch
-      cldsd=sd(x$Amt[x$YR>=2000&x$Nobs>=Nobsthresh],na.rm=T))}))
-cldm[,c("lat","lon")]=coordinates(st)[match(cldm$StaID,st$id),c("lat","lon")]
+      cldsd=sd(x$Amt[x$YR>=2000&x$Nobs>=Nobsthresh],na.rm=T),
+      cldn=length(x$Amt[x$YR>=2000&x$Nobs>=Nobsthresh]))}))
+
+    cldm[,c("lat","lon")]=coordinates(st)[match(cldm$StaID,st$id),c("lat","lon")]
 
 
 
@@ -130,17 +142,27 @@ cldm$lulcc=IGBP$class[match(cldm$lulc,IGBP$ID)]
 if(!file.exists("../teow/biomes.shp")){
     teow=readOGR("/mnt/data/jetzlab/Data/environ/global/teow/official/","wwf_terr_ecos")
     teow=teow[teow$BIOME<90,]
-    biome=unionSpatialPolygons(teow,teow$BIOME, threshold=5)
+    biome=unionSpatialPolygons(teow,paste(teow$REALM,teow$BIOME,sep="_"), threshold=5)
     biomeid=read.csv("/mnt/data/jetzlab/Data/environ/global/teow/official/biome.csv",stringsAsFactors=F)
-    biome=SpatialPolygonsDataFrame(biome,data=biomeid[as.numeric(row.names(biome)),])
+    realmid=read.csv("/mnt/data/jetzlab/Data/environ/global/teow/official/realm.csv",stringsAsFactors=F,na.strings = "TTTT")
+    dt=data.frame(code=row.names(biome),stringsAsFactors=F)
+    dt[,c("realmid","biomeid")]=do.call(rbind,strsplit(sub(" ","",dt$code),"_"))
+    dt$realm=realmid$realm[match(dt$realmid,realmid$realmid)]
+    dt$biome=biomeid$BiomeID[match(dt$biomeid,biomeid$Biome)]
+    row.names(dt)=row.names(biome)
+    biome=SpatialPolygonsDataFrame(biome,data=dt)
     writeOGR(biome,"../teow","biomes",driver="ESRI Shapefile",overwrite=T)
 }
 biome=readOGR("../teow/","biomes")
 projection(biome)=projection(st)
 #st$biome=over(st,biome,returnList=F)$BiomeID
 dists=apply(gDistance(st,biome,byid=T),2,which.min)
-st$biome=biome$BiomeID[dists]
+st$biomec=biome$code[dists]
+st$realm=biome$realm[dists]
+st$biome=biome$biome[dists]
 
+cldm$biomec=st$biomec[match(cldm$StaID,st$id)]
+cldm$realm=st$relam[match(cldm$StaID,st$id)]
 cldm$biome=st$biome[match(cldm$StaID,st$id)]
 
 

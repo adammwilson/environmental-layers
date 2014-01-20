@@ -158,7 +158,7 @@ regs=list(
 
 r=1
 
-system(paste("cdo  -f nc4c -O inttime,2012-01-15,12:00:00,1day  -sellonlatbox,",
+system(paste("cdo  -f nc4c -O inttime,2012-01-15,12:00:00,7day  -sellonlatbox,",
              paste(regs[[r]]@xmin,regs[[r]]@xmax,regs[[r]]@ymin,regs[[r]]@ymax,sep=","),
              "  data/cloud_monthly.nc data/daily_",names(regs[r]),".nc",sep=""))
 
