@@ -139,20 +139,6 @@ cldm$lulcc=IGBP$class[match(cldm$lulc,IGBP$ID)]
 
 
 ### Add biome data
-if(!file.exists("../teow/biomes.shp")){
-    teow=readOGR("/mnt/data/jetzlab/Data/environ/global/teow/official/","wwf_terr_ecos")
-    teow=teow[teow$BIOME<90,]
-    biome=unionSpatialPolygons(teow,paste(teow$REALM,teow$BIOME,sep="_"), threshold=5)
-    biomeid=read.csv("/mnt/data/jetzlab/Data/environ/global/teow/official/biome.csv",stringsAsFactors=F)
-    realmid=read.csv("/mnt/data/jetzlab/Data/environ/global/teow/official/realm.csv",stringsAsFactors=F,na.strings = "TTTT")
-    dt=data.frame(code=row.names(biome),stringsAsFactors=F)
-    dt[,c("realmid","biomeid")]=do.call(rbind,strsplit(sub(" ","",dt$code),"_"))
-    dt$realm=realmid$realm[match(dt$realmid,realmid$realmid)]
-    dt$biome=biomeid$BiomeID[match(dt$biomeid,biomeid$Biome)]
-    row.names(dt)=row.names(biome)
-    biome=SpatialPolygonsDataFrame(biome,data=dt)
-    writeOGR(biome,"../teow","biomes",driver="ESRI Shapefile",overwrite=T)
-}
 biome=readOGR("../teow/","biomes")
 projection(biome)=projection(st)
 #st$biome=over(st,biome,returnList=F)$BiomeID

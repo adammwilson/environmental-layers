@@ -4,65 +4,85 @@ library(raster)
 library(doMC)
 library(multicore)
 library(foreach)
-#library(doMPI)
 registerDoMC(4)
-#beginCluster(4)
 
-wd="~/acrobates/adamw/projects/cloud"
-setwd(wd)
-
-tempdir="tmp"
-if(!file.exists(tempdir)) dir.create(tempdir)
+setwd("~/acrobates/adamw/projects/cloud")
 
 ##  Get list of available files
-df=data.frame(path=list.files("/mnt/data2/projects/cloud/mod09",pattern="*.tif$",full=T,recur=T),stringsAsFactors=F)
-df[,c("region","year","month")]=do.call(rbind,strsplit(basename(df$path),"_|[.]"))[,c(1,2,3)]
-df$date=as.Date(paste(df$year,"_",df$month,"_15",sep=""),"%Y_%m_%d")
+df=data.frame(path=list.files("data/mod09cloud",pattern="*.tif$",full=T,recur=T),stringsAsFactors=F)
+df[,c("month")]=do.call(rbind,strsplit(basename(df$path),"_|[.]|-"))[,c(6)]
+df$date=as.Date(paste(2013,"_",df$month,"_15",sep=""),"%Y_%m_%d")
 
-## add stats to test for missing data
-addstats=F
-if(addstats){
-    df[,c("max","min","mean","sd")]=do.call(rbind.data.frame,mclapply(1:nrow(df),function(i) as.numeric(sub("^.*[=]","",grep("STATISTICS",system(paste("gdalinfo -stats",df$path[i]),inter=T),value=T)))))
-    table(df$sd==0)
+## use ramdisk?
+tmpfs=tempdir()
+
+ramdisk=T
+if(ramdisk) {
+    system("sudo mkdir -p /mnt/ram")
+    system("sudo mount -t ramfs -o size=30g ramfs /mnt/ram")
+    system("sudo chmod a+w /mnt/ram")
+    tmpfs="/mnt/ram"
 }
 
-## subset to testtiles?
-#df=df[df$region%in%testtiles,]
-#df=df[df$month==1,]
-table(df$year,df$month)
+#i=2
+for(i in 1:nrow(df)){
+## Define output and check if it already exists
+    temptffile=paste(tmpfs,"/modcf_",df$month[i],".tif",sep="")
+    tffile=paste("data/mod09cloud2/modcf_",df$month[i],".tif",sep="")
+    ncfile=paste("data/mod09cloud2/modcf_",df$month[i],".nc",sep="")
 
-writeLines(paste("Tiling options will produce",nrow(tiles),"tiles and ",nrow(jobs),"tile-months.  Current todo list is ",length(todo)))
+                                        #    if(file.exists(tffile)) next
+    ## warp to wgs84
+    ops=paste("-t_srs 'EPSG:4326' -multi -r bilinear -te -180 -90 180 90 -tr 0.008333333333333 -0.008333333333333",
+        "-co BIGTIFF=YES -ot Byte --config GDAL_CACHEMAX 300000 -wm 300000 -wo NUM_THREADS:10 -wo SOURCE_EXTRA=5")
+    system(paste("gdalwarp -overwrite ",ops," ",df$path[i]," ",temptffile))
+    ## update metadata
+    tags=c(paste("TIFFTAG_IMAGEDESCRIPTION='Cloud Frequency extracted from Collection 5 MYD09GA and MOD09GA (PGE11) internal cloud mask algorithm (embedded in M*D09GA state_1km bit 10).",
+        " Band 1 represents the overall 2000-2013 mean cloud frequency for month ",df$month[i],
+        ".  Band 2 is the four times the standard deviation of the mean monthly cloud frequencies over 2000-2013.'",sep=""),
+        "TIFFTAG_DOCUMENTNAME='MODCF: MODIS Cloud Frequency'",
+        paste("TIFFTAG_DATETIME='2013-",df$month[i],"-15'",sep=""),
+        "TIFFTAG_ARTIST='Adam M. Wilson (adam.wilson@yale.edu)'")
+    ## compress
+#    trans_ops=paste(" -co COMPRESS=LZW -stats -co BLOCKXSIZE=256 -co BLOCKYSIZE=256 -co PREDICTOR=2 -co FORMAT=NC4C")
+#    system(paste("gdal_translate ",trans_ops," ",paste("-mo ",tags,sep="",collapse=" ")," ",temptffile," ",tffile," ",sep=""))
+
+    trans_ops=paste(" -co COMPRESS=DEFLATE -stats -co PREDICTOR=2 -co FORMAT=NC4C -co ZLEVEL=9")
+    system(paste("gdal_translate ",trans_ops," ",temptffile," ",ncfile," ",sep=""))
+file.remove(temptffile)
+}
 
 
-## drop some if not complete
-#df=df[df$month%in%1:9&df$year%in%c(2001:2012),]
+if(ramdisk) {
+    ## unmount the ram disk
+    system(paste("sudo umount ",tmpfs)
+}
+
+
 rerun=F  # set to true to recalculate all dates even if file already exists
 
-## Loop over existing months to build composite netcdf files
-foreach(date=unique(df$date)) %dopar% {
-    ## get date
-  print(date)
-  ## Define output and check if it already exists
-  vrtfile=paste(tempdir,"/mod09_",date,".vrt",sep="")
-  ncfile=paste(tempdir,"/mod09_",date,".nc",sep="")
-  tffile=paste(tempdir,"/mod09_",date,".tif",sep="")
-
-  if(!rerun&file.exists(ncfile)) return(NA)
-  ## merge regions to a new netcdf file
-#  system(paste("gdal_merge.py -o ",tffile," -init -32768  -n -32768.000 -ot Int16 ",paste(df$path[df$date==date],collapse=" ")))
-  system(paste("gdalbuildvrt -overwrite -srcnodata -32768 -vrtnodata -32768 ",vrtfile," ",paste(df$path[df$date==date],collapse=" ")))
-  ## Warp to WGS84 grid and convert to netcdf
-  ##ops="-t_srs 'EPSG:4326' -multi -r cubic -te -180 0 180 10 -tr 0.008333333333333 -0.008333333333333 -wo SOURCE_EXTRA=50" #-wo SAMPLE_GRID=YES -wo SAMPLE_STEPS=100
-  ops="-t_srs 'EPSG:4326' -multi -r cubic -te -180 -90 180 90 -tr 0.008333333333333 -0.008333333333333  -wo SOURCE_EXTRA=50"
-
-  system(paste("gdalwarp -overwrite ",ops," -et 0 -srcnodata -32768 -dstnodata -32768 ",vrtfile," ",tffile," -ot Int16"))
-  system(paste("gdal_translate -of netCDF ",tffile," ",ncfile))
-                                        #  system(paste("gdalwarp -overwrite ",ops," -srcnodata -32768 -dstnodata -32768 -of netCDF ",vrtfile," ",tffile," -ot Int16"))
-  file.remove(tffile)
-  setwd(wd)
-  system(paste("ncecat -O -u time ",ncfile," ",ncfile,sep=""))
-## create temporary nc file with time information to append to MOD06 data
-  cat(paste("
+    ## Loop over existing months to build composite netcdf files
+    foreach(date=unique(df$date)) %dopar% {
+        ## get date
+        print(date)
+        ## Define output and check if it already exists
+        temptffile=paste(tmpfs,"/modcf_",df$month[i],".tif",sep="")
+        ncfile=paste("data/mod09cloud2/modcf_",df$month[i],".nc",sep="")
+        ## check if output already exists
+        if(!rerun&file.exists(ncfile)) return(NA)
+        
+        ## warp to wgs84
+        ops=paste("-t_srs 'EPSG:4326' -multi -r bilinear -te -180 -90 180 90 -tr 0.008333333333333 -0.008333333333333",
+            "-co BIGTIFF=YES -ot Byte --config GDAL_CACHEMAX 300000 -wm 300000 -wo NUM_THREADS:10 -wo SOURCE_EXTRA=5")
+        system(paste("gdalwarp -overwrite ",ops," ",df$path[i]," ",temptffile))
+        
+        ## Warp to WGS84 grid and convert to netcdf
+        trans_ops=paste(" -co COMPRESS=DEFLATE -stats -co FORMAT=NC4C -co ZLEVEL=9")
+        system(paste("gdal_translate -of netCDF ",trans_ops," ",temptffile," ",ncfile))
+        ## file.remove(temptffile)
+        system(paste("ncecat -O -u time ",ncfile," ",ncfile,sep=""))
+        ## create temporary nc file with time information to append to CF data
+        cat(paste("
     netcdf time {
       dimensions:
         time = 1 ;
@@ -73,35 +93,48 @@ foreach(date=unique(df$date)) %dopar% {
       time:long_name = \"time of observation\"; 
     data:
       time=",as.integer(date-as.Date("2000-01-01")),";
-    }"),file=paste(tempdir,"/",date,"_time.cdl",sep=""))
-system(paste("ncgen -o ",tempdir,"/",date,"_time.nc ",tempdir,"/",date,"_time.cdl",sep=""))
-system(paste("ncks -A ",tempdir,"/",date,"_time.nc ",ncfile,sep=""))
-## add other attributes
-  system(paste("ncrename -v Band1,CF ",ncfile,sep=""))
-  system(paste("ncatted ",
-               " -a units,CF,o,c,\"%\" ",
-#               " -a valid_range,CF,o,b,\"0,100\" ",
-               " -a scale_factor,CF,o,f,\"0.1\" ",
-               " -a _FillValue,CF,o,f,\"-32768\" ",
-               " -a long_name,CF,o,c,\"Cloud Frequency(%)\" ",
-               " -a NETCDF_VARNAME,CF,o,c,\"Cloud Frequency(%)\" ",
-               " -a title,global,o,c,\"Cloud Climatology from MOD09 Cloud Mask\" ",
-               " -a institution,global,o,c,\"Jetz Lab, EEB, Yale University, New Haven, CT\" ",
-               " -a source,global,o,c,\"Derived from MOD09GA Daily Data\" ",
-               " -a comment,global,o,c,\"Developed by Adam M. Wilson (adam.wilson@yale.edu / http://adamwilson.us)\" ",
-               ncfile,sep=""))
+    }"),file=paste(tempdir(),"/",date,"_time.cdl",sep=""))
+        system(paste("ncgen -o ",tempdir(),"/",date,"_time.nc ",tempdir(),"/",date,"_time.cdl",sep=""))
+        ## add time dimension to ncfile and compress (deflate)
+        system(paste("ncks --fl_fmt=netcdf4_classic -L 9 -A ",tempdir(),"/",date,"_time.nc ",ncfile,sep=""))
+        ## add other attributes
+        system(paste("ncrename -v Band1,CF ",ncfile,sep=""))
+        system(paste("ncrename -v Band2,CFsd ",ncfile,sep=""))
+        system(paste("ncatted ",
+                     ## CF Mean
+                     " -a units,CF,o,c,\"%\" ",
+                     " -a valid_range,CF,o,b,\"0,100\" ",
+                                        #               " -a scale_factor,CF,o,b,\"0.1\" ",
+                     " -a _FillValue,CF,o,b,\"255\" ",
+                     " -a missing_value,CF,o,b,\"255\" ",
+                     " -a long_name,CF,o,c,\"Cloud Frequency (%)\" ",
+                     " -a NETCDF_VARNAME,CF,o,c,\"Cloud Frequency (%)\" ",
+                     ## CF Standard Deviation
+                     " -a units,CFsd,o,c,\"SD\" ",
+                     " -a valid_range,CFsd,o,b,\"0,200\" ",
+                     " -a scale_factor,CFsd,o,f,\"0.25\" ",
+                     " -a _FillValue,CFsd,o,b,\"255\" ",
+                     " -a missing_value,CFsd,o,b,\"255\" ",
+                     " -a long_name,CFsd,o,c,\"Cloud Frequency (%) Intra-month (2000-2013) Standard Deviation\" ",
+                     " -a NETCDF_VARNAME,CFsd,o,c,\"Cloud Frequency (%) Intra-month (2000-2013) Standard Deviation\" ",
+                     ## global
+                     " -a title,global,o,c,\"Cloud Climatology from MOD09 Cloud Mask\" ",
+                     " -a institution,global,o,c,\"Jetz Lab, EEB, Yale University, New Haven, CT\" ",
+                     " -a source,global,o,c,\"Derived from MOD09GA Daily Data\" ",
+                     " -a comment,global,o,c,\"Developed by Adam M. Wilson (adam.wilson@yale.edu / http://adamwilson.us)\" ",
+                     ncfile,sep=""))
 
-               ## add the fillvalue attribute back (without changing the actual values)
-#system(paste("ncatted -a _FillValue,CF,o,b,-32768 ",ncfile,sep=""))
-
-if(as.numeric(system(paste("cdo -s ntime ",ncfile),intern=T))<1) {
-  print(paste(ncfile," has no time, deleting"))
-  file.remove(ncfile)
-}
-  print(paste(basename(ncfile)," Finished"))
-
-
-}
+        ## add the fillvalue attribute back (without changing the actual values)
+                                        #system(paste("ncatted -a _FillValue,CF,o,b,-32768 ",ncfile,sep=""))
+        
+        if(as.numeric(system(paste("cdo -s ntime ",ncfile),intern=T))<1) {
+            print(paste(ncfile," has no time, deleting"))
+            file.remove(ncfile)
+        }
+        print(paste(basename(ncfile)," Finished"))
+        
+        
+    }
 
 
 ### merge all the tiles to a single global composite
@@ -122,18 +155,17 @@ system(paste("cdo  -f nc4c -O -yseasmean data/cloud_monthly.nc data/cloud_yseasm
 system(paste("cdo  -f nc4c -O -yseasstd data/cloud_monthly.nc data/cloud_yseasstd.nc"))
 
 ## standard deviations, had to break to limit memory usage
-system(paste("cdo  -f nc4c -O -chname,CF,CF_sd -ymonstd -selmon,1,2,3,4,5,6 data/cloud_monthly.nc data/cloud_ymonsd_1-6.nc"))
-system(paste("cdo  -f nc4c -O -chname,CF,CF_sd -ymonstd -selmon,7,8,9,10,11,12 data/cloud_monthly.nc data/cloud_ymonsd_7-12.nc"))
-system(paste("cdo  -f nc4c -O mergetime  data/cloud_ymonsd_1-6.nc  data/cloud_ymonsd_7-12.nc data/cloud_ymonstd.nc"))
+system(paste("cdo  -f nc4c -z zip -O -chname,CF,CF_sd -ymonstd -selmon,1,2,3,4,5,6 data/cloud_monthly.nc data/cloud_ymonsd_1-6.nc"))
+system(paste("cdo  -f nc4c -z zip -O -chname,CF,CF_sd -ymonstd -selmon,7,8,9,10,11,12 data/cloud_monthly.nc data/cloud_ymonsd_7-12.nc"))
+system(paste("cdo  -f nc4c -z zip -O mergetime  data/cloud_ymonsd_1-6.nc  data/cloud_ymonsd_7-12.nc data/cloud_ymonstd.nc"))
 
+system("cdo -f nc4c -z zip  timmin data/cloud_ymonmean.nc data/cloud_min.nc")
+system("cdo -f nc4c -z zip  timmax data/cloud_ymonmean.nc data/cloud_max.nc")
 
-#if(!file.exists("data/mod09_metrics.nc")) {
-    system("cdo -f nc4c  timmin data/cloud_ymonmean.nc data/cloud_min.nc")
-    system("cdo -f nc4c  timmax data/cloud_ymonmean.nc data/cloud_max.nc")
-    system("cdo -f nc4c -chname,CF,CFsd -timstd data/cloud_ymonmean.nc data/cloud_std.nc")
-#    system("cdo -f nc2 merge data/mod09_std.nc data/mod09_min.nc data/cloud_max.nc data/cloud_metrics.nc")
-#    system("cdo merge -chname,CF,CFmin -timmin data/cloud_ymonmean.nc -chname,CF,CFmax -timmax data/cloud_ymonmean.nc  -chname,CF,CFsd -timstd data/cloud_ymonmean.nc  data/cloud_metrics.nc")
-#}
+## standard deviation of mean monthly values give intra-annual variability
+system("cdo -f nc4c -z zip -chname,CF,CFsd -timstd data/cloud_ymonmean.nc data/cloud_std_intra.nc")
+## mean of monthly standard deviations give inter-annual variability 
+system("cdo -f nc4c -z zip -chname,CF,CFsd -timmean data/cloud_ymonstd.nc data/cloud_std_inter.nc")
 
 
 # Regressions through time by season

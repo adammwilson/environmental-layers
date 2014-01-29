@@ -30,6 +30,13 @@ st=read.csv("data/NDP026D/stations.csv")
 #cld$month2=factor(cld$month,labels=month.name)
 cldm$month2=factor(cldm$month,labels=month.name)
 
+### Drop valitation station-months with fewer than 20 years of data for full record or less than 10 years for MODIS-era record
+cldm$cld_all[cldm$cldn_all<20]=NA
+cldm$cldsd_all[cldm$cldn_all<20]=NA
+
+cldm$cld[cldm$cldn<10]=NA
+cldm$cldsd[cldm$cldn<10]=NA
+
 coordinates(st)=c("lon","lat")
 projection(st)=CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
 
@@ -49,6 +56,59 @@ mod09max=brick("data/cloud_max.nc",varname="CF")
 mod09sd=brick("data/cloud_std.nc",varname="CFsd")
 mod09metrics=stack(mod09a,mod09min,mod09max,mod09sd)
 names(mod09metrics)=c("Mean","Minimum","Maximum","Standard Deviation")
+
+mod09inter=brick("data/cloud_std_inter.nc",varname="CF_sd")
+mod09intra=brick("data/cloud_std_intra.nc",varname="CFsd")
+
+## get stratified sample of points from biomes for illustration
+ if(!file.exists("output/biomesamplepoints.csv")){
+     biome=readOGR("data/teow/","biomes")
+     n_biomesamples=1000
+     library(multicore)
+     biomesample=do.call(rbind.data.frame,mclapply(1:length(biome),function(i)
+         data.frame(code=biome$code[i],coordinates(spsample(biome[i,],n=n_biomesamples,type="stratified",nsig=2)))))
+     colnames(biomesample)[2:3]=c("lon","lat")
+     biomesample[,c("biome","realm")]=biome@data[match(biomesample$code,biome$code),c("biome","realm")]
+     write.csv(biomesample,"output/biomesamplepoints.csv",row.names=F)
+ }
+
+     ## Extract data for points
+ if(!file.exists("output/biomesamplepoints_cloud.csv")){
+     biomesample=read.csv("output/biomesamplepoints.csv")
+     biomep=raster::extract(mod09c,biomesample,sp=T)
+     biomep$lon=biomesample$lon
+     biomep@data[,c("lon","lat")]=coordinates(biomep)
+     write.csv(biomep@data,"output/biomesamplepoints_cloud.csv",row.names=F)
+}     
+biomep=read.csv("output/biomesamplepoints_cloud.csv")
+coordinates(biomep)=c("lon","lat")
+projection(biomep)="+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
+
+
+## get stratified sample of points from biomes for illustration
+ if(!file.exists("output/biomesamplepoints.csv")){
+     biome=readOGR("data/teow/","biomes")
+     n_biomesamples=1000
+     library(multicore)
+     biomesample=do.call(rbind.data.frame,mclapply(1:length(biome),function(i)
+         data.frame(code=biome$code[i],coordinates(spsample(biome[i,],n=n_biomesamples,type="stratified",nsig=2)))))
+     colnames(biomesample)[2:3]=c("lon","lat")
+     biomesample[,c("biome","realm")]=biome@data[match(biomesample$code,biome$code),c("biome","realm")]
+     write.csv(biomesample,"output/biomesamplepoints.csv",row.names=F)
+ }
+
+     ## Extract data for points
+ if(!file.exists("output/biomesamplepoints_cloud.csv")){
+     biomesample=read.csv("output/biomesamplepoints.csv")
+     biomep=raster::extract(mod09c,biomesample,sp=T)
+     biomep$lon=biomesample$lon
+     biomep@data[,c("lon","lat")]=coordinates(biomep)
+     write.csv(biomep@data,"output/biomesamplepoints_cloud.csv",row.names=F)
+}     
+biomep=read.csv("output/biomesamplepoints_cloud.csv")
+coordinates(biomep)=c("lon","lat")
+projection(biomep)="+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
+
 
 #plot(mod09a,layers=1,margin=F,maxpixels=100)
 
@@ -111,47 +171,61 @@ trellis.par.set(my.theme)
 #pdf("output/Figures.pdf",width=11,height=8.5)
 png("output/CF_Figures_%03d.png",width=5000,height=4000,res=600,pointsize=42,bg="white")
 
-res=1e4
+## set plotting parameters
+my.theme = trellis.par.get()
+my.theme$strip.background=list(col="transparent")
+trellis.par.set(my.theme)
+
+res=1e6
 greg=list(ylim=c(-60,84),xlim=c(-180,180))
     
 ## Figure 1: 4-panel summaries
 #- Annual average
-levelplot(mod09a,col.regions=colr(n),cuts=100,at=seq(0,100,len=100),colorkey=list(title="Cloud Frequency (%)",space="bottom",adj=1),
+levelplot(mod09a,col.regions=colr(n),cuts=100,at=seq(0,100,len=100),colorkey=list(space="bottom",adj=1),
   margin=F,maxpixels=res,ylab="",xlab="",useRaster=T,ylim=greg$ylim)+
-  layer(sp.lines(coast,col="black"),under=F)
+    layer(panel.polygon(x=c(-180,-180,180,180),y=c(-90,90,90,-90),col="black"),under=T)+
+    layer(sp.lines(coast,col="black"),under=F)
 ## Mean annual with validation stations
 levelplot(mod09a,col.regions=colr(n),cuts=100,at=seq(0,100,len=100),colorkey=list(title="Cloud Frequency (%)",space="bottom",adj=1),
   margin=F,maxpixels=res,ylab="",xlab="",useRaster=T,ylim=greg$ylim)+
-  layer(panel.xyplot(lon,lat,pch=16,cex=.3,col="black"),data=data.frame(coordinates(st)))+
+    layer(panel.polygon(x=c(-180,-180,180,180),y=c(-90,90,90,-90),col="black"),under=T)+
+    layer(panel.xyplot(lon,lat,pch=16,cex=.3,col="black"),data=data.frame(coordinates(st)))+
   layer(sp.lines(coast,col="black"),under=F)
 
 ## Seasonal Means
 levelplot(mod09s,col.regions=colr(n),cuts=100,at=seq(0,100,len=100),colorkey=list(title="Cloud Frequency (%)", space="bottom",adj=2),
   margin=F,maxpixels=res,ylab="",xlab="",useRaster=T,ylim=greg$ylim)+
-  layer(sp.lines(coast,col="black"),under=F)
+    layer(panel.polygon(x=c(-180,-180,180,180),y=c(-90,90,90,-90),col="black"),under=T)+
+    layer(sp.lines(coast,col="black"),under=F)
 
-## four metics
-levelplot(mod09metrics,col.regions=colr(n),cuts=100,at=seq(0,100,len=100),colorkey=list(title="Cloud Frequency (%)", space="bottom",adj=2),
-  margin=F,maxpixels=res,ylab="",xlab="",useRaster=T,ylim=greg$ylim)+
-  layer(sp.lines(coast,col="black"),under=F)
 
 ## Monthly Means
 levelplot(mod09c,col.regions=colr(n),cuts=100,at=seq(0,100,len=100),colorkey=list(title="Cloud Frequency (%)", space="bottom",adj=1), 
   margin=F,maxpixels=res,ylab="Latitude",xlab="Longitude",useRaster=T,ylim=greg$ylim)+
-  layer(sp.lines(coast,col="black"),under=F)
+    layer(panel.polygon(x=c(-180,-180,180,180),y=c(-90,90,90,-90),col="black"),under=T)+
+    layer(sp.lines(coast,col="black"),under=F)
 
 #- Monthly minimum
 #- Monthly maximum
 #- STDEV or Min-Max
-p_mac=levelplot(mod09a,col.regions=colr(n),cuts=99,at=seq(0,100,length=100),margin=F,maxpixels=res/10,colorkey=list(title="Cloud Frequency (%)", space="bottom",height=.75),xlab="",ylab="",useRaster=T)+
-      layer(sp.lines(coast,col="black"),under=F)
-p_min=levelplot(mod09min,col.regions=colr(n),cuts=99,margin=F,maxpixels=res/10,colorkey=list(title="Cloud Frequency (%)", space="bottom",height=.75),useRaster=T)+
-      layer(sp.lines(coast,col="black"),under=F)
-p_max=levelplot(mod09max,col.regions=colr(n),cuts=99,margin=F,maxpixels=res/10,colorkey=list(space="bottom",height=.75),useRaster=T)+
-      layer(sp.lines(coast,col="black"),under=F)
-p_sd=levelplot(mod09sd,col.regions=colr(n),cuts=99,at=seq(0,100,length=100),margin=F,maxpixels=res/10,colorkey=list(space="bottom",height=.75),useRaster=T)+
-      layer(sp.lines(coast,col="black"),under=F)
-p3=c("Mean Cloud Frequency (%)"=p_mac,"Max Cloud Frequency (%)"=p_max,"Min Cloud Frequency (%)"=p_min,"Cloud Frequency Variability (SD)"=p_sd,x.same=T,y.same=T,merge.legends=T,layout=c(2,2))
+p_mac=levelplot(mod09a,col.regions=colr(n),cuts=99,at=seq(0,100,length=100),margin=F,
+    ylim=greg$ylim,maxpixels=res/10,colorkey=list(title="Cloud Frequency (%)", space="top",height=.75),xlab="",ylab="",useRaster=T)+
+    layer(panel.polygon(x=c(-180,-180,180,180),y=c(-90,90,90,-90),col="black"),under=T)+
+    layer(sp.lines(coast,col="black"),under=F)
+p_max=levelplot(mod09max,col.regions=colr(n),cuts=99,at=seq(0,100,length=100),margin=F,maxpixels=res/10,
+    ylim=greg$ylim,colorkey=list(space="bottom",height=.75),useRaster=T)+
+    layer(panel.polygon(x=c(-180,-180,180,180),y=c(-90,90,90,-90),col="black"),under=T)+
+    layer(sp.lines(coast,col="black"),under=F)
+p_intra=levelplot(mod09intra,col.regions=colr(n),cuts=99,at=seq(0,40,length=100),margin=F,maxpixels=res/100,
+    ylim=greg$ylim,colorkey=list(space="bottom",height=.75),useRaster=T)+
+    layer(panel.polygon(x=c(-180,-180,180,180),y=c(-90,90,90,-90),col="black"),under=T)+
+    layer(sp.lines(coast,col="black"),under=F)
+p_inter=levelplot(mod09inter,col.regions=colr(n),cuts=99,at=seq(0,15,length=100),margin=F,maxpixels=res/100,
+    ylim=greg$ylim,colorkey=list(title="Cloud Frequency (%)", space="top",height=.75),useRaster=T)+
+    layer(panel.polygon(x=c(-180,-180,180,180),y=c(-90,90,90,-90),col="black"),under=T)+
+    layer(sp.lines(coast,col="black"),under=F)
+
+p3=c("Mean Cloud Frequency (%)"=p_mac,"Max Cloud Frequency (%)"=p_max,"Interannual Variability (sd)"=p_inter,"Intraannual Variability (sd)"=p_intra,x.same=T,y.same=F,merge.legends=T,layout=c(2,2))
 print(p3)
 
 bgr=function(x,n=100,br=0,c1=c("darkblue","blue","grey"),c2=c("grey","red","purple")){
@@ -161,9 +235,12 @@ bgr=function(x,n=100,br=0,c1=c("darkblue","blue","grey"),c2=c("grey","red","purp
     return(list(at=at,col=c(bg(sum(at<br)),gr(sum(at>=br)))))
 }
 
-colat=bgr(cldm$difm)
-phist=histogram(cldm$difm,breaks=colat$at,border=NA,col=colat$col,xlim=c(-50,40),type="count",xlab="Difference (MOD09-NDP026D)")#,seq(0,1,len=6),na.rm=T)
-pmap=xyplot(lat~lon|month2,data=cldm,groups=cut(cldm$difm,rev(colat$at)),
+cldm$resid=NA
+# get residuals of simple linear model
+cldm$resid[!is.na(cldm$cld_all)&!is.na(cldm$mod09)]=residuals(lm(mod09~cld_all,data=cldm))
+colat=bgr(cldm$resid)
+phist=histogram(cldm$resid,breaks=colat$at,border=NA,col=colat$col,xlim=c(-30,30),type="count",xlab="MODCF Residuals")#,seq(0,1,len=6),na.rm=T)
+pmap=xyplot(lat~lon|month2,data=cldm,groups=cut(cldm$resid,rev(colat$at)),
        par.settings=list(superpose.symbol=list(col=colat$col)),pch=16,cex=.25,
        auto.key=F,#list(space="right",title="Difference\n(MOD09-NDP026D)",cex.title=1),asp=1,
        ylab="Latitude",xlab="Longitude")+
@@ -174,7 +251,7 @@ print(pmap,position=c(0,0,1,.78))
 ### heatmap of mod09 vs. NDP for all months
 hmcols=colorRampPalette(c("grey","blue","red","purple"))
 #hmcols=colorRampPalette(c(grey(.8),grey(.3),grey(.2)))
-tr=c(0,80)
+tr=c(0,66)
 colkey <- draw.colorkey(list(col = hmcols(tr[2]), at = tr[1]:tr[2],height=.25))
 
 xyplot(cld_all~mod09|month2,data=cldm,panel=function(x,y,subscripts){
@@ -190,31 +267,13 @@ xyplot(cld_all~mod09|month2,data=cldm,panel=function(x,y,subscripts){
 #  panel.abline(0,1,col="black",lwd=2)
   panel.abline(lm(y ~ x),col="black",lwd=2)
 #  panel.ablineq(lm(y ~ x), r.sq = TRUE,at = 0.6,pos=1, offset=0,digits=2,col="blue")
-  panel.text(70,10,bquote(paste(R^2,"=",.(round(summary(lm(y ~ x))$r.squared,2)))),cex=1.2)
+  panel.text(70,10,bquote(paste(R^2,"=",.(round(summary(lm(y ~ x))$r.squared,2)))),cex=1)
 },asp=1,scales=list(at=seq(0,100,len=6),useRaster=T,colorkey=list(width=.5,title="Number of Stations")),
-          ylab="NDP Mean Cloud Amount (%)",xlab="MOD09 Cloud Frequency (%)",
+          ylab="NDP Mean Cloud Amount (%)",xlab="MODCF Cloud Frequency (%)",
               legend= list(right = list(fun = colkey)))#+ layer(panel.abline(0,1,col="black",lwd=2))
 
 
-## Monthly Climatologies
-## for(i in 1:2){
-##  p1=xyplot(cld~mod09|month2,data=cldm,cex=.2,pch=16,subscripts=T,ylab="NDP Mean Cloud Amount",xlab="MOD09 Cloud Frequency (%)")+
-##   layer(panel.lines(1:100,predict(lm(y~x),newdata=data.frame(x=1:100)),col="green"))+
-##   layer(panel.lines(1:100,predict(lm(y~x+I(x^2)),newdata=data.frame(x=1:100)),col="blue"))+
-##   layer(panel.abline(0,1,col="red"))
-##     if(i==2){
-##      p1=p1+layer(panel.segments(mod09[subscripts],cld[subscripts]-cldsd[subscripts],mod09[subscripts],cld[subscripts]+cldsd[subscripts],subscripts=subscripts,col="grey"),data=cldm,under=T,magicdots=T)
-##      p1=p1+layer(panel.segments(mod09[subscripts]-mod09sd[subscripts],cld[subscripts],mod09[subscripts]+mod09sd[subscripts],cld[subscripts],subscripts=subscripts,col="grey"),data=cldm,under=T,magicdots=T) 
-##        }
-## print(p1)
-## }
-
 bwplot(lulcc~difm,data=cldm,horiz=T,xlab="Difference (MOD09-Observed)",varwidth=T,notch=T)+layer(panel.abline(v=0))
-bwplot(biome~difm,data=cldm,horiz=T,xlab="Difference (MOD09-Observed)",varwidth=T,notch=T)+layer(panel.abline(v=0))
-
-#library(BayesFactor)
-#coplot(difm~month2|lulcc,data=cldm[!is.na(cldm$dif)&!is.na(cldm$lulcc),],panel = panel.smooth)
-
 
 dev.off()
 
@@ -223,6 +282,7 @@ dev.off()
 ## Compare with worldclim and NPP
 #wc=stack(as.list(paste("/mnt/data/jetzlab/Data/environ/global/worldclim/prec_",1:12,".bil",sep="")))
 wc_map=stack(as.list(paste("/mnt/data/jetzlab/Data/environ/global/worldclim/bio_12.bil",sep="")))
+wc_dem=stack(as.list(paste("/mnt/data/jetzlab/Data/environ/global/worldclim/alt.bil",sep="")))
 
 regs=list(
   Cascades=extent(c(-122.8,-118,44.9,47)),
@@ -235,21 +295,6 @@ regs=list(
   )
 
 
-#pdf("output/mod09_worldclim.pdf",width=11,height=8.5)
-#for(r in 1:length(regs)){
-#tmap=crop(wc_map,regs[[r]])
-#p_map=levelplot(tmap,col.regions=grey(seq(0,1,len=100)),cuts=100,at=seq(tmap@data@min,tmap@data@max,len=100),margin=F,maxpixels=1e5,colorkey=list(space="bottom",height=.75),xlab="",ylab="",main=names(regs)[r],useRaster=T)
-#tmac=crop(mod09a,regs[[r]])
-#p_mac=levelplot(tmac,col.regions=grey(seq(0,1,len=100)),cuts=100,at=seq(tmac@data@min,tmac@data@max,len=100),margin=F,maxpixels=1e5,colorkey=list(space="bottom",height=.75),useRaster=T)
-#p_npp=levelplot(crop(npp,regs[[r]]),col.regions=grey(seq(0,1,len=100)),cuts=99,margin=F,maxpixels=1e5,colorkey=list(space="bottom",height=.5),zscaleLog=T,useRaster=T)  #"NPP"=p_npp,
-#p3=c("MOD09 Cloud Frequency (%)"=p_mac,"WorldClim Mean Annual Precip (mm)"=p_map,x.same=T,y.same=T,merge.legends=T,layout=c(2,1))
-#print(p3)
-#}
-#dev.off()
-
-
-## reduced resolution
-
 ## read in GEWEX 1-degree data
 gewex=mean(brick("data/gewex/CA_PATMOSX_NOAA.nc",varname="a_CA"))
 names(gewex)="PATMOS-x GEWEX AVHRR"
@@ -258,26 +303,38 @@ names(gewex)="PATMOS-x GEWEX AVHRR"
 #MOD_gewex=gewex
 #MOD_gewex@data@values=1:length(MOD_gewex@data@values)
 #MOD_gewex2=zonal(mod09a,MOD_gewex,fun='mean')
-png("output/Resolution_Figures_%03d.png",width=5500,height=2000,res=600,pointsize=36,bg="white")
+png("output/Resolution_Figures_%03d.png",width=5500,height=4000,res=600,pointsize=36,bg="white")
 trellis.par.set(my.theme)
 #pdf("output/mod09_resolution.pdf",width=11,height=8.5)
 
 r="Venezuela"
 # ylab.right = "Cloud Frequency (%)",par.settings = list(layout.widths = list(axis.key.padding = 0.1,axis.left=0.6,ylab.right = 3,right.padding=2)),
+pars=list(layout.heights=list(key.bottom=2,key.top=1),layout.widths = list(axis.key.padding = 3,axis.left=0.6))
 p1=levelplot(crop(mod09a,regs[[r]]),col.regions=grey(seq(0,1,len=100)),at=seq(45,100,len=99),
-    colorkey=list(space="bottom",width=1,height=1,labels=list(labels=c(50,75,100),at=c(50,75,100))),
-    cuts=99,margin=F,max.pixels=1e5,par.settings = list(layout.heights=list(key.bottom=4),layout.widths = list(axis.key.padding = 0,axis.left=0.6)))
-p2=levelplot(crop(gewex,regs[[r]]),col.regions=grey(seq(0,1,len=100)),at=seq(.45,1,len=99),cuts=99,margin=F,max.pixels=1e5,colorkey=F)
+    colorkey=list(space="top",width=1,height=.75,labels=list(labels=c(50,75,100),at=c(50,75,100))),
+    cuts=99,margin=F,max.pixels=1e6,par.settings = pars)
+p2=levelplot(crop(gewex,regs[[r]]),col.regions=grey(seq(0,1,len=100)),at=seq(.45,1,len=99),cuts=99,margin=F,max.pixels=1e6,
+    colorkey=list(space="top",width=1,height=.75,labels=list(labels=c(50,75,100),at=c(.50,.75,1))),
+    par.settings = pars)
 tmap=crop(wc_map,regs[[r]])
-p3=levelplot(tmap,col.regions=grey(seq(0,1,len=100)),cuts=100,at=seq(tmap@data@min,tmap@data@max,len=100),margin=F,maxpixels=1e5,
-    colorkey=list(space="bottom",height=.33,width=1,labels=list(labels=c(1000,4000),at=c(1000,4000))),xlab="",ylab="",main=names(regs)[r],useRaster=T)
-print(c("MODCF (%)"=p1,"PATMOS-x GEWEX (%)"=p2,"WorldClim Precip (mm)"=p3,x.same=T,y.same=T,merge.legends=T,layout=c(3,1)))
+p3=levelplot(tmap,col.regions=grey(seq(0,1,len=100)),cuts=100,at=seq(tmap@data@min,tmap@data@max,len=100),margin=F,maxpixels=1e6,
+    colorkey=list(space="bottom",height=.75,width=1),xlab="",ylab="",main=names(regs)[r],useRaster=T,
+    par.settings = pars)
+p4=levelplot(crop(wc_dem,regs[[r]]),col.regions=grey(seq(0,1,len=100)),cuts=99,margin=F,max.pixels=1e6,
+    colorkey=list(space="bottom",height=.75,width=1),
+    par.settings = pars)#,labels=list(labels=c(1000,4000),at=c(1000,4000))))
+print(c("MODCF (%)"=p1,"PATMOS-x GEWEX (%)"=p2,"WorldClim Precip (mm)"=p3,"Elevation (m)"=p4,x.same=T,y.same=T,merge.legends=T,layout=c(2,2)))
+
 
 dev.off()
 
 
 #########################################
 ### Some stats for paper
+
+## number of stations retained
+length(unique(cldm$StaID[!is.na(cldm$cld_all)]))
+length(unique(cldm$StaID[!is.na(cldm$cld)]))
 
 # approximate size of mod09ga archive - get total size for one day from the USGS website
 size=scan("http://e4ftl01.cr.usgs.gov/MOLT/MOD09GA.005/2000.04.30/",what="char")
@@ -292,12 +349,7 @@ quantile(cldm$difm,na.rm=T)
 
 summary(lm(cld_all~mod09+lat,data=cldm))
 
-
-
-               
-## assess latitude bias
-cldm$abslat=abs(cldm$lat)
-cldm$absdif=abs(cldm$difm)
+              
 
 ###################################################################
 ### summary by biome
@@ -392,11 +444,7 @@ beta.1 <- beta[,grep("mod09", colnames(beta))]
 
 
 
-
-
-
-
-
+### Compare time periods
 library(texreg)
  extract.lm <- function(model) {
      s <- summary(model)
@@ -405,7 +453,7 @@ library(texreg)
      se <- s$coef[, 2]
      pval <- s$coef[, 4]
      rs <- s$r.squared
-     n <- nobs(model)
+     n <- as.integer(nobs(model))
      rmse=sqrt(mean((residuals(s)^2)))
      gof <- c(rs, rmse, n)
      gof.names <- c("R-Squared","RMSE","n")
@@ -420,20 +468,26 @@ lm_all=lm(cld_all~mod09+lat,data=cldm[!is.na(cldm$cld),])
 
 
 ### Compare two time periods
-lm_all1=lm(cld_all~mod09,data=cldm[!is.na(cldm$cld),])
-lm_mod=lm(cld~mod09,data=cldm)
-mods=list("1970-2000 complete"=lm_all1,"2000-2009"=lm_mod)
+lm_all1=lm(cld_all~mod09,data=cldm[!is.na(cldm$cld)&cldm$cldn_all>=10,])
 
-screenreg(mods,digits=2,single.row=T,custom.model.names=names(mods))
+lm_mod=lm(cld~mod09,data=cldm[cldm$cldn==10,])
+mods=list("1970-2009"=lm_all1,"2000-2009"=lm_mod)
+
+screenreg(mods,digits=2,single.row=T,custom.model.names=names(mods),custom.coef.names = c("Intercept", "MODCF"))
+
 htmlreg(mods,file = "output/tempstab.doc",
         custom.model.names = names(mods),
         single.row = T, inline.css = FALSE,doctype = TRUE, html.tag = TRUE, head.tag = TRUE, body.tag = TRUE)
 
 
+## assess latitude bias
+cldm$abslat=abs(cldm$lat)
+cldm$absdif=abs(cldm$difm)
+abslm=lm(absdif~abslat*I(abslat^2),data=cldm[cldm$cldn_all>30,])
 
-abslm=lm(absdif~abslat:I(abslat^2),data=cldm)
+xyplot(absdif~abslat|month2,type=c("p","smooth"),data=cldm,cex=.25,pch=16)
 
-plot(absdif~abslat,data=cldm,cex=.25,pch=16)
+plot(absdif~abslat,data=cldm[cldm$cldn_all>30,],cex=.25,pch=16)
 lines(0:90,predict(abslm,newdata=data.frame(abslat=0:90),type="response"),col="red")
 
 bf=anovaBF(dif~lulcc+month2,data=cldm[!is.na(cldm$dif)&!is.na(cldm$lulcc),])
