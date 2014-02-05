@@ -9,9 +9,10 @@ registerDoMC(4)
 setwd("~/acrobates/adamw/projects/cloud")
 
 ##  Get list of available files
-df=data.frame(path=list.files("data/mod09cloud",pattern="*.tif$",full=T,recur=T),stringsAsFactors=F)
-df[,c("month")]=do.call(rbind,strsplit(basename(df$path),"_|[.]|-"))[,c(6)]
+df=data.frame(path=list.files("data/mcd09",pattern="*.tif$",full=T,recur=T),stringsAsFactors=F)
+df[,c("month","sensor")]=do.call(rbind,strsplit(basename(df$path),"_|[.]|-"))[,c(5,4)]
 df$date=as.Date(paste(2013,"_",df$month,"_15",sep=""),"%Y_%m_%d")
+
 
 ## use ramdisk?
 tmpfs=tempdir()
@@ -24,52 +25,24 @@ if(ramdisk) {
     tmpfs="/mnt/ram"
 }
 
-#i=2
-for(i in 1:nrow(df)){
-## Define output and check if it already exists
-    temptffile=paste(tmpfs,"/modcf_",df$month[i],".tif",sep="")
-    tffile=paste("data/mod09cloud2/modcf_",df$month[i],".tif",sep="")
-    ncfile=paste("data/mod09cloud2/modcf_",df$month[i],".nc",sep="")
 
-                                        #    if(file.exists(tffile)) next
-    ## warp to wgs84
-    ops=paste("-t_srs 'EPSG:4326' -multi -r bilinear -te -180 -90 180 90 -tr 0.008333333333333 -0.008333333333333",
-        "-co BIGTIFF=YES -ot Byte --config GDAL_CACHEMAX 300000 -wm 300000 -wo NUM_THREADS:10 -wo SOURCE_EXTRA=5")
-    system(paste("gdalwarp -overwrite ",ops," ",df$path[i]," ",temptffile))
-    ## update metadata
-    tags=c(paste("TIFFTAG_IMAGEDESCRIPTION='Cloud Frequency extracted from Collection 5 MYD09GA and MOD09GA (PGE11) internal cloud mask algorithm (embedded in M*D09GA state_1km bit 10).",
-        " Band 1 represents the overall 2000-2013 mean cloud frequency for month ",df$month[i],
-        ".  Band 2 is the four times the standard deviation of the mean monthly cloud frequencies over 2000-2013.'",sep=""),
-        "TIFFTAG_DOCUMENTNAME='MODCF: MODIS Cloud Frequency'",
-        paste("TIFFTAG_DATETIME='2013-",df$month[i],"-15'",sep=""),
-        "TIFFTAG_ARTIST='Adam M. Wilson (adam.wilson@yale.edu)'")
-    ## compress
-#    trans_ops=paste(" -co COMPRESS=LZW -stats -co BLOCKXSIZE=256 -co BLOCKYSIZE=256 -co PREDICTOR=2 -co FORMAT=NC4C")
-#    system(paste("gdal_translate ",trans_ops," ",paste("-mo ",tags,sep="",collapse=" ")," ",temptffile," ",tffile," ",sep=""))
-
-    trans_ops=paste(" -co COMPRESS=DEFLATE -stats -co PREDICTOR=2 -co FORMAT=NC4C -co ZLEVEL=9")
-    system(paste("gdal_translate ",trans_ops," ",temptffile," ",ncfile," ",sep=""))
-file.remove(temptffile)
-}
-
-
-if(ramdisk) {
-    ## unmount the ram disk
-    system(paste("sudo umount ",tmpfs)
-}
-
-
-rerun=F  # set to true to recalculate all dates even if file already exists
+rerun=T  # set to true to recalculate all dates even if file already exists
 
     ## Loop over existing months to build composite netcdf files
-    foreach(date=unique(df$date)) %dopar% {
+    foreach(i=1:nrow(df)) %dopar% {
         ## get date
+        date=df$date[i]
         print(date)
         ## Define output and check if it already exists
+#        vrtfile=paste(tmpfs,"/modcf_",df$month[i],".vrt",sep="")
         temptffile=paste(tmpfs,"/modcf_",df$month[i],".tif",sep="")
+        temptffile2=paste(tmpfs,"/modcf_",df$month[i],".tif",sep="")
         ncfile=paste("data/mod09cloud2/modcf_",df$month[i],".nc",sep="")
         ## check if output already exists
         if(!rerun&file.exists(ncfile)) return(NA)
+        ## Develop mask
+#        nObs=
+#        system(paste("pksetmask -i ",temptffile," -m ",nObs," --operator='<' --msknodata 1 --nodata 255 --operator='>' --msknodata 10 --nodata 10 -o ",temptiffile2,sep=""))
         
         ## warp to wgs84
         ops=paste("-t_srs 'EPSG:4326' -multi -r bilinear -te -180 -90 180 90 -tr 0.008333333333333 -0.008333333333333",
@@ -135,6 +108,11 @@ rerun=F  # set to true to recalculate all dates even if file already exists
         
         
     }
+
+if(ramdisk) {
+    ## unmount the ram disk
+    system(paste("sudo umount ",tmpfs)
+}
 
 
 ### merge all the tiles to a single global composite
