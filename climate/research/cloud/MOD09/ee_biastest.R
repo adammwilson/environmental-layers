@@ -12,6 +12,7 @@ library(sampling)
 
 setwd("~/acrobates/adamw/projects/cloud")
 
+
 ## set raster options
 rasterOptions(maxmemory=1e8) 
 
@@ -31,7 +32,13 @@ reg=extent(c(-12020769.9608, 10201058.231,  -3682105.25271, 3649806.08382))  #la
 #reg=extent(c(-151270.082307, 557321.958761, 1246351.8356, 1733123.75947))
 
 d=crop(stack("data/mcd09/2014113_combined_20002013_MOD09_1-img-0000000000-0000000000.tif"),reg)
+d=crop(stack("/Users/adamw/GoogleDrive/EarthEngineOutput/ee_combined/2014113_combined_20002013_MOD09_1-img-0000000000-0000000000.tif"),reg)
+
 names(d)=c("cf","cfsd","nobs","pobs")
+cd=coordinates(d)
+cdr=rasterFromXYZ(cbind(cd,cd))
+names(cdr)
+d=stack(d,cdr)
 #obs=crop(raster("data/mcd09/2014113_combined_20002013_MOD09_1-img-0000000000-0000000000.tif",band=4),reg)
 #levelplot(stack(obs,d))
 
@@ -51,27 +58,22 @@ pts=pts[pts$nobs>0,]  #drop data from missing tiles
 
 lm1=bam(cf~s(x,y,pobs),data=pts@data)
 summary(lm1)
-beta=coef(lm1)["pobs"]; beta
+#beta=coef(lm1)["pobs"]; beta
+d2=d
+d2[["pobs"]]=100
 
-#lm1=bam(as.vector(d[["cf"]]) ~ as.vector(d[["pobs"]]))
-#fun <- function(x) { bam(x[["cf"]] ~ x[["pobs"]])$coefficients["obs"] }
-#bias <- calc(d, fun)
-
-#pred=interpolate(d,lm1)
-
-getbias=function(x) return((100-x)*beta)
-
-
-getbias(beta,87)
+pred1=raster::predict(d,lm1,file=paste("data/bias/pred1.tif",sep=""),format="GTiff",dataType="INT1U",overwrite=T,NAflag=255)#lm1=bam(as.vector(d[["cf"]]) ~ as.vector(d[["pobs"]]))
+pred2=raster::predict(d2,lm1,file=paste("data/bias/pred2.tif",sep=""),format="GTiff",dataType="INT1U",overwrite=T,NAflag=255)#lm1=bam(as.vector(d[["cf"]]) ~ as.vector(d[["pobs"]]))
+pred3=overlay(pred1,pred2,function(x,y) x-y,file="data/bias/pred3.tif",overwrite=T)
+biasc=overlay(d[["cf"]], pred3,fun=sum,file="data/bias/biasc.tif",overwrite=T)
 
 
-bias=calc(d[["pobs"]],getbias,file=paste("data/bias/bias.tif",sep=""),format="GTiff",dataType="INT1U",overwrite=T,NAflag=255)
-
-dc=overlay(d[["cf"]],bias,fun=function(x,y) x+y,
-    file=paste("data/bias/biasc.tif",sep=""),
-    format="GTiff",dataType="INT1U",overwrite=T,NAflag=255) #,options=c("COMPRESS=LZW","ZLEVEL=9"))
-
-
+#getbias=function(x) return((100-x)*beta)
+#getbias(beta,87)
+#bias=calc(d[["pobs"]],getbias,file=paste("data/bias/bias.tif",sep=""),format="GTiff",dataType="INT1U",overwrite=T,NAflag=255)
+#dc=overlay(d[["cf"]],bias,fun=function(x,y) x+y,
+#    file=paste("data/bias/biasc.tif",sep=""),
+#    format="GTiff",dataType="INT1U",overwrite=T,NAflag=255) #,options=c("COMPRESS=LZW","ZLEVEL=9"))
 #levelplot(stack(d,dc))
 
 
