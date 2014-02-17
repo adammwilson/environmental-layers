@@ -4,7 +4,12 @@ library(raster)
 library(doMC)
 library(multicore)
 library(foreach)
-registerDoMC(4)
+library(mgcv)
+registerDoMC(2)
+
+
+## start raster cluster
+#beginCluster(10)
 
 setwd("~/acrobates/adamw/projects/cloud")
 
@@ -15,9 +20,10 @@ df$date=as.Date(paste(2013,"_",df$month,"_15",sep=""),"%Y_%m_%d")
 
 
 ## use ramdisk?
-tmpfs=tempdir()
+tmpfs="tmp/"#tempdir()
 
-ramdisk=T
+
+ramdisk=F
 if(ramdisk) {
     system("sudo mkdir -p /mnt/ram")
     system("sudo mount -t ramfs -o size=30g ramfs /mnt/ram")
@@ -25,33 +31,90 @@ if(ramdisk) {
     tmpfs="/mnt/ram"
 }
 
+rasterOptions(tmpdir=tmpfs,overwrite=T, format="GTiff",maxmemory=1e9)
+
 
 rerun=T  # set to true to recalculate all dates even if file already exists
 
-    ## Loop over existing months to build composite netcdf files
-    foreach(i=1:nrow(df)) %dopar% {
-        ## get date
-        date=df$date[i]
+
+jobs=expand.grid(month=1:12,sensor=c("MOD09","MYD09"))
+## Loop over existing months to build composite netcdf files
+    foreach(i=1:nrow(jobs)) %dopar% {
+        ## get month
+        m=jobs$month[i]
+        date=df$date[df$month==m][1]
         print(date)
+        ## get sensor
+        s=jobs$sensor[i]
         ## Define output and check if it already exists
-#        vrtfile=paste(tmpfs,"/modcf_",df$month[i],".vrt",sep="")
-        temptffile=paste(tmpfs,"/modcf_",df$month[i],".tif",sep="")
-        temptffile2=paste(tmpfs,"/modcf_",df$month[i],".tif",sep="")
-        ncfile=paste("data/mod09cloud2/modcf_",df$month[i],".nc",sep="")
+        tvrt=paste(tmpfs,"/",s,"_",m,".vrt",sep="")
+        ttif1=paste(tmpfs,"/",s,"_",m,".tif",sep="")
+        ttif2=paste(tmpfs,"/",s,"_",m,"_wgs84.tif",sep="")
+        ncfile=paste("data/mcd09nc/",s,"_",m,".nc",sep="")
+
         ## check if output already exists
         if(!rerun&file.exists(ncfile)) return(NA)
-        ## Develop mask
-#        nObs=
-#        system(paste("pksetmask -i ",temptffile," -m ",nObs," --operator='<' --msknodata 1 --nodata 255 --operator='>' --msknodata 10 --nodata 10 -o ",temptiffile2,sep=""))
+        ## build VRT to merge tiles
+        system(paste("gdalbuildvrt ",tvrt," ",paste(df$path[df$month==m&df$sensor==s],collapse=" ")))
+        
+        ## 
+        mod=stack(tvrt)
+        names(mod)=c("cf","cfsd","nobs","pobs")
+        #################################
+        ## correct for orbital artifacts
+
+        ## sample points to fit correction model
+        reg=extent(-20016036,20016036, -4295789.46149, 4134293.61707)  #banding region
+        cmod=crop(mod,reg)
+        names(cmod)=c("cf","cfsd","nobs","pobs")
+        modpts=sampleRandom(cmod, size=10000, na.rm=TRUE, xy=T, sp=T)
+        modpts=modpts[modpts$nobs>0,]  #drop data from missing tiles
+        ### fit popbs correctionmodel (accounting for spatial variation in cf)
+        modlm1=bam(cf~s(x,y)+pobs,data=modpts@data)
+        summary(modlm1)
+        modbeta1=coef(modlm1)["pobs"]
+
+
+        #modlm2=bam(cf~s(x,y),data=modpts@data)
+        #resid=residuals(modlm2)#,newdata=data.frame(x=modpts$x,y=modpts$y,pobs=100))
+        #pred=predict(modlm1,newdata=data.frame(x=modpts$x,y=modpts$y,pobs=100))
+        #plot(resid~pobs,data=modpts@data);abline(lm(resid~modpts$pobs))
+        #plot(modlm1);points(modpts)
+
+        #writeLines(paste(date,"       slope:",round(modbeta1,4)))
+
+        ## mask no data regions (with less than 1 observation per day within that month)
+        ## use model above to correct for orbital artifacts
+        biasf=function(cf,cfsd,nobs,pobs) {
+            ## drop data in areass with nobs<1
+            drop=nobs<0|pobs<=50
+            cf[drop]=NA
+            cfsd[drop]=NA
+            nobs[drop]=NA
+            pobs[drop]=NA
+            bias=round((100-pobs)*modbeta1)
+            cfc=cf+bias
+            return(c(cf=cf,cfsd=cfsd,bias=bias,cfc=cfc,nobs=nobs,pobs=pobs))}
+        
+#        treg=extent(c(-1434564.00523,1784892.95369, 564861.173869, 1880991.3772))
+#        treg=extent(c(-2187230.72881, 4017838.07688,  -339907.592509, 3589340.63805))  #all sahara
+
+        mod2=overlay(cmod,fun=biasf,unstack=TRUE,filename=ttif1,format="GTiff",
+            dataType="INT1U",overwrite=T,NAflag=255, options=c("COMPRESS=LZW", "BIGTIFF=YES"))
+                
+#        system(paste("pksetmask -i ",modvrt," -m ",nObs,
+#                     " --operator='<' --msknodata 1 --nodata 255 --operator='>' --msknodata 10 --nodata 10 -o ",modtif1,sep=""))
         
         ## warp to wgs84
-        ops=paste("-t_srs 'EPSG:4326' -multi -r bilinear -te -180 -90 180 90 -tr 0.008333333333333 -0.008333333333333",
-            "-co BIGTIFF=YES -ot Byte --config GDAL_CACHEMAX 300000 -wm 300000 -wo NUM_THREADS:10 -wo SOURCE_EXTRA=5")
-        system(paste("gdalwarp -overwrite ",ops," ",df$path[i]," ",temptffile))
+        ops=paste("-t_srs 'EPSG:4326' -multi -srcnodata 255 -dstnodata 255 -r bilinear -te -180 -90 180 90 -tr 0.008333333333333 -0.008333333333333",
+            "-co BIGTIFF=YES -ot Byte --config GDAL_CACHEMAX 500 -wm 500 -wo NUM_THREADS:10 -wo SOURCE_EXTRA=5")
+#        ops=paste("-t_srs 'EPSG:4326' -srcnodata 255 -dstnodata 255 -multi -r bilinear -tr 0.008333333333333 -0.008333333333333",
+#            "-co BIGTIFF=YES -ot Byte --config GDAL_CACHEMAX 300000 -wm 300000 -wo NUM_THREADS:10 -wo SOURCE_EXTRA=5")
+        system(paste("gdalwarp -overwrite ",ops," ",ttif1," ",ttif2))
         
-        ## Warp to WGS84 grid and convert to netcdf
-        trans_ops=paste(" -co COMPRESS=DEFLATE -stats -co FORMAT=NC4C -co ZLEVEL=9")
-        system(paste("gdal_translate -of netCDF ",trans_ops," ",temptffile," ",ncfile))
+        ##  convert to netcdf, subset to mean/sd bands
+        trans_ops=paste(" -co COMPRESS=DEFLATE -a_nodata 255 -stats -co FORMAT=NC4 -co ZLEVEL=9 -b 4 -b 2")
+        system(paste("gdal_translate -of netCDF ",trans_ops," ",ttif2," ",ncfile))
         ## file.remove(temptffile)
         system(paste("ncecat -O -u time ",ncfile," ",ncfile,sep=""))
         ## create temporary nc file with time information to append to CF data
@@ -61,7 +124,7 @@ rerun=T  # set to true to recalculate all dates even if file already exists
         time = 1 ;
       variables:
         int time(time) ;
-      time:units = \"days since 2000-01-01 00:00:00\" ;
+      time:units = \"days since 2000-01-01 ",ifelse(s=="MOD09","10:30:00","13:30:00"),"\" ;
       time:calendar = \"gregorian\";
       time:long_name = \"time of observation\"; 
     data:
@@ -69,25 +132,28 @@ rerun=T  # set to true to recalculate all dates even if file already exists
     }"),file=paste(tempdir(),"/",date,"_time.cdl",sep=""))
         system(paste("ncgen -o ",tempdir(),"/",date,"_time.nc ",tempdir(),"/",date,"_time.cdl",sep=""))
         ## add time dimension to ncfile and compress (deflate)
-        system(paste("ncks --fl_fmt=netcdf4_classic -L 9 -A ",tempdir(),"/",date,"_time.nc ",ncfile,sep=""))
+        system(paste("ncks --fl_fmt=netcdf4 -L 9 -A ",tempdir(),"/",date,"_time.nc ",ncfile,sep=""))
         ## add other attributes
         system(paste("ncrename -v Band1,CF ",ncfile,sep=""))
         system(paste("ncrename -v Band2,CFsd ",ncfile,sep=""))
+        ## build correction factor explanation
         system(paste("ncatted ",
                      ## CF Mean
                      " -a units,CF,o,c,\"%\" ",
-                     " -a valid_range,CF,o,b,\"0,100\" ",
+                     " -a valid_range,CF,o,ub,\"0,100\" ",
                                         #               " -a scale_factor,CF,o,b,\"0.1\" ",
-                     " -a _FillValue,CF,o,b,\"255\" ",
-                     " -a missing_value,CF,o,b,\"255\" ",
+                     " -a _FillValue,CF,o,ub,\"255\" ",
+                     " -a missing_value,CF,o,ub,\"255\" ",
                      " -a long_name,CF,o,c,\"Cloud Frequency (%)\" ",
+                     " -a correction_factor_description,CF,o,c,\"To account for variable observation frequency, CF in each pixel was adjusted by the proportion of days with at least one MODIS observation\" ",
+                     " -a correction_factor,CF,o,f,\"",round(modbeta1,4),"\" ",
                      " -a NETCDF_VARNAME,CF,o,c,\"Cloud Frequency (%)\" ",
                      ## CF Standard Deviation
                      " -a units,CFsd,o,c,\"SD\" ",
-                     " -a valid_range,CFsd,o,b,\"0,200\" ",
+                     " -a valid_range,CFsd,o,ub,\"0,200\" ",
                      " -a scale_factor,CFsd,o,f,\"0.25\" ",
-                     " -a _FillValue,CFsd,o,b,\"255\" ",
-                     " -a missing_value,CFsd,o,b,\"255\" ",
+                     " -a _FillValue,CFsd,o,ub,\"255\" ",
+                     " -a missing_value,CFsd,o,ub,\"255\" ",
                      " -a long_name,CFsd,o,c,\"Cloud Frequency (%) Intra-month (2000-2013) Standard Deviation\" ",
                      " -a NETCDF_VARNAME,CFsd,o,c,\"Cloud Frequency (%) Intra-month (2000-2013) Standard Deviation\" ",
                      ## global
