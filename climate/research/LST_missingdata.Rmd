@@ -1,17 +1,19 @@
 LST Climatology Evaluation
 ====
-Adam M. Wilson
-```{r}
+```{r,echo=FALSE,message=FALSE}
 ## get repo info
 githash=system("git --git-dir /Users/adamw/work/environmental-layers/.git log --pretty=format:'%h' -n 1",intern=T)
-print(paste("Compiled on",date()," using code version (git hash):",githash))
+ghead=paste("Compiled on",date()," using code version (git hash):",githash)
 ```
+
+### Adam M. Wilson (`r ghead`)
 
 A short script to visualize and explore the updated Land Surface Climatology algorithm that 'lowers the standards' in some areas to increase the number of available observations.  
 
 ```{r,echo=FALSE,results="hide",message=FALSE}
 ## some setup
-opts_knit$set(progress = TRUE, verbose = TRUE, cache=TRUE,root.dir="~/Downloads/nasa/")
+opts_knit$set(progress = TRUE, verbose = TRUE,root.dir="~/Downloads/nasa/", upload.fun = imgur_upload, base.url = NULL) # upload all images to imgur.com
+opts_chunk$set(fig.width=5, fig.height=5, cache=TRUE)
 library(rasterVis)
 library(rgdal)
 library(xtable)
@@ -102,7 +104,7 @@ bwplot(value~month,data=lst_tnobs,ylab="Number of availble observations",xlab="M
 
 Map of the Quality Assessment (QA) level used to fill the pixels. It goes from 0 (highest quality) to 3(low). For h08v05 all pixels are filled with either 0 or 1. So red indicates areas with the lower quality data (most of the tile).
 ```{r, message=FALSE, fig.width=11, fig.height=8}
-levelplot(lst_qa[[1]],col.regions=c("grey","red"),at=c(-0.5,0.5,1.5),cuts=2,
+levelplot(lst_qa,col.regions=c("grey","red"),at=c(-0.5,0.5,1.5),cuts=2,
           main="Quality Assessment Filter",sub="Tile H08v05 (California and Northern Mexico)")
 ```
 
