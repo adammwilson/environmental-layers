@@ -1,0 +1,128 @@
+LST Climatology Evaluation
+====
+```{r,echo=FALSE,message=FALSE}
+## get repo info
+githash=system("git --git-dir /Users/adamw/work/environmental-layers/.git log --pretty=format:'%h' -n 1",intern=T)
+ghead=paste("Compiled on",date()," using code version (git hash):",githash)
+```
+
+### Adam M. Wilson (`r ghead`)
+
+A short script to visualize and explore the updated Land Surface Climatology algorithm that 'lowers the standards' in some areas to increase the number of available observations.  
+
+```{r,echo=FALSE,results="hide",message=FALSE}
+## some setup
+opts_knit$set(progress = TRUE, verbose = TRUE,root.dir="~/Downloads/nasa/", upload.fun = imgur_upload, base.url = NULL) # upload all images to imgur.com
+opts_chunk$set(fig.width=5, fig.height=5, cache=TRUE)
+library(rasterVis)
+library(rgdal)
+library(xtable)
+library(reshape)
+setwd("~/Downloads/nasa/")
+````
+
+
+## Download data from ECOcast and convert to raster stacks
+```{r}
+download=F
+if(download) system("wget -e robots=off -L -r -np -nd -p 20140304_LST -nc -A tif http://ecocast.arc.nasa.gov/data/pub/climateLayers/LST_new/")
+
+## organize file names
+f=data.frame(full=T,path=list.files("20140304_LST",pattern="tif$",full=T),stringsAsFactors=F)
+f$month=as.numeric(do.call(rbind,strsplit(basename(f$path),"_|[.]"))[,7])
+f$type=do.call(rbind,strsplit(basename(f$path),"_|[.]"))[,1]
+f=f[order(f$month),]
+f$mn=month.name[f$month]
+
+## create raster stacks
+lst_mean=stack(f$path[f$type=="mean"])
+names(lst_mean)=f$mn[f$type=="mean"]
+NAvalue(lst_mean)=0
+
+lst_nobs=stack(f$path[f$type=="nobs"])
+names(lst_nobs)=f$mn[f$type=="nobs"]
+
+lst_qa=stack(f$path[f$type=="qa"])
+names(lst_qa)=f$mn[f$type=="qa"]
+
+## define a function to summarize data
+fst=function(x,na.rm=T) c("mean"=mean(x,na.rm=T),"min"=min(x,na.rm=T),"max"=max(x,na.rm=T))
+rfst=function(r) cellStats(r,fst)
+```
+
+## Mean Monthly LST
+
+Map of LST by month (with white indicating missing data).  Note that many inland regions have missing data (white) in some months (mostly winter).
+```{r, message=FALSE, fig.width=11, fig.height=8}
+colramp=colorRampPalette(c("blue","orange","red"))
+dt_mean=rfst(lst_mean)
+levelplot(lst_mean,col.regions=c(colramp(99)),at=seq(0,65,len=99),main="Mean Land Surface Temperature",sub="Tile H08v05 (California and Northern Mexico)")
+```
+
+
+Table of mean, min, and maximum LST for this tile by month.
+```{r,results="asis"}
+print(xtable(dt_mean), type = "html")
+```
+
+###  Boxplot of Monthly Mean LST
+```{r, message=FALSE, fig.width=11, fig.height=8}
+lst_tmean=melt(unlist(as.matrix(lst_mean)))
+colnames(lst_tmean)=c("cell","month","value")
+lst_tmean=lst_tmean[!is.na(lst_tmean$value),]
+lst_tmean$month=factor(lst_tmean$month,levels=month.name,ordered=T)
+bwplot(value~month,data=lst_tmean,ylab="Mean LST (c)",xlab="Month")
+```
+
+
+## Total number of available observations
+
+This section details the spatial and temporal distribution of the number of LST observations that were not masked by quality control (see section below).  Note that the regions with no data in the map above have missing data (nobs=0) here as well, but also the areas surrounding those regions have low numbers of observations in some months (blue colors).  
+```{r, message=FALSE, fig.width=11, fig.height=8}
+dt_nobs=rfst(lst_nobs)
+levelplot(lst_nobs,col.regions=c("grey",colramp(99)),at=c(-0.5,0.5,seq(1,325,len=99)),
+          main="Sum Available Observations",sub="Tile H08v05 (California and Northern Mexico) \n Grey indicates zero observations")
+```
+
+Table of mean, min, and maximum number of observations for this tile by month.
+```{r,results="asis", echo=FALSE}
+print(xtable(dt_nobs), type = "html")
+```
+
+###  Boxplot of Number of Observations
+The seasonal cycle of missing data is quite noisy, though there tend to be fewer observations in winter months (DJF).  
+```{r, message=FALSE, fig.width=11, fig.height=8}
+lst_tnobs=melt(unlist(as.matrix(lst_nobs)))
+colnames(lst_tnobs)=c("cell","month","value")
+lst_tnobs=lst_tnobs[!is.na(lst_tnobs$value),]
+lst_tnobs$month=factor(lst_tnobs$month,levels=month.name,ordered=T)
+bwplot(value~month,data=lst_tnobs,ylab="Number of availble observations",xlab="Month")
+```
+
+
+## Quality Assessment level used
+
+Map of the Quality Assessment (QA) level used to fill the pixels. It goes from 0 (highest quality) to 3(low). For h08v05 all pixels are filled with either 0 or 1. So red indicates areas with the lower quality data (most of the tile).
+```{r, message=FALSE, fig.width=11, fig.height=8}
+levelplot(lst_qa,col.regions=c("grey","red"),at=c(-0.5,0.5,1.5),cuts=2,
+          main="Quality Assessment Filter",sub="Tile H08v05 (California and Northern Mexico)")
+```
+
+
+Proportion of cells in each month with QA=1 (including cells in the Pacific Ocean)
+```{r,results="asis", echo=FALSE}
+dt_qa=t(data.frame("ProportionQA_1"=cellStats(lst_qa,"mean")))
+print(xtable(dt_qa), type = "html")
+```
+
+
+## Questions
+
+A few open questions/comments (in my mind):
+
+  1. Why are there only two QA classes for this tile (0 and 1) rather than 4 (0-3)?  There are still missing data in some months, is the plan to do it or was there another reason to not consider all classes for this tile?
+  2. How exactly are the different QA levels selected?  If QA=0 results in <33 obs, go to QA=1, etc.?  
+  3.  Please name monthly output in a way that it sorts chronologically  (e.g. mean_LST_Day_1km_h08v05_04.tif instead of mean_LST_Day_1km_h08v05_apr_4.tif )  
+  4.  Please name directories on ECOcast with dates rather than "new".  E.g. LST/20140304/*   That will make it easier to see which is the new version.
+  5.  Should we consider also saving the SD of the observations in each pixel (in addition to the mean and n of observations)?
+
