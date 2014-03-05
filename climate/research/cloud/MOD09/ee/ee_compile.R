@@ -5,11 +5,11 @@ library(doMC)
 library(multicore)
 library(foreach)
 library(mgcv)
-registerDoMC(2)
+registerDoMC(12)
 
 
 ## start raster cluster
-#beginCluster(10)
+#beginCluster(5)
 
 setwd("~/acrobates/adamw/projects/cloud")
 
@@ -38,7 +38,12 @@ rerun=T  # set to true to recalculate all dates even if file already exists
 
 
 jobs=expand.grid(month=1:12,sensor=c("MOD09","MYD09"))
-## Loop over existing months to build composite netcdf files
+i=1
+
+#jobs=jobs[jobs$sensor=="MYD09",]
+
+
+## Loop over data to mosaic tifs and remove problematic data at poles 
     foreach(i=1:nrow(jobs)) %dopar% {
         ## get month
         m=jobs$month[i]
@@ -47,41 +52,89 @@ jobs=expand.grid(month=1:12,sensor=c("MOD09","MYD09"))
         ## get sensor
         s=jobs$sensor[i]
         ## Define output and check if it already exists
-        tvrt=paste(tmpfs,"/",s,"_",m,".vrt",sep="")
-        ttif1=paste(tmpfs,"/",s,"_",m,".tif",sep="")
+        tvrt=paste(tmpfs,"/",s,"_",sprintf("%02d", m),".vrt",sep="")
+        ttif1=paste("data/mcd09tif/",s,"_",sprintf("%02d", m),".tif",sep="")
+
+        ## check if output already exists
+        if(!rerun&file.exists(ttif1)) return(NA)
+        ## build VRT to merge tiles
+        system(paste("gdalbuildvrt ",tvrt," ",paste(df$path[df$month==m&df$sensor==s],collapse=" ")))
+
+       ## 
+        mod=stack(tvrt)
+        names(mod)=c("cf","cfsd","nobs","pobs")
+
+        ## mask no data regions (with less than 1 observation per day within that month)
+        biasf=function(cf,cfsd,nobs,pobs) {
+            ## drop data in areass with nobs<1 or pobs<=50 or where sd=0 and cf=0 or 50 (some polar regions)
+            drop=nobs<=0|pobs<=50|(cf==0&cfsd==0)|(cf==50&cfsd==0)
+            cf[drop]=NA
+            cfsd[drop]=NA
+            return(c(cf=cf,cfsd=cfsd,nobs=nobs,pobs=pobs))}
+
+                
+        mod2=overlay(mod,fun=biasf,unstack=TRUE,filename=ttif1,format="GTiff",
+            dataType="INT1U",overwrite=T,NAflag=255, options=c("COMPRESS=LZW","BIGTIFF=YES"))
+
+        tags=c(paste("TIFFTAG_IMAGEDESCRIPTION='Monthly Cloud Frequency for 2000-2013 extracted from C5 MODIS ",s,"GA PGE11 internal cloud mask algorithm (embedded in state_1km bit 10).",
+            "The daily cloud mask time series were summarized to mean cloud frequency (CF) by calculating the proportion of cloudy days. ",
+            "Band Descriptions: 1) Mean Monthly Cloud Frequency 2) Four Times the Standard Deviation of Mean Monthly Cloud Frequency",
+            " 3) Mean number of daily observations for each pixel 4) Proportion of days with at least one observation '"),
+              "TIFFTAG_DOCUMENTNAME='Collection 5 ",s," Cloud Frequency'",
+              paste("TIFFTAG_DATETIME='2013",sprintf("%02d", m),"15'",sep=""),
+              "TIFFTAG_ARTIST='Adam M. Wilson (adam.wilson@yale.edu)'")
+        system(paste("/usr/local/src/gdal-1.10.0/swig/python/scripts/gdal_edit.py ",ttif1," ",paste("-mo ",tags,sep="",collapse=" "),sep=""))
+        
+        rm(mod,mod2)
+        writeLines(paste("Month:",m," Sensor:",s," Finished"))
+
+    }
+
+
+## Create combined (MOD+MYD) uncorrected mean CF
+#    foreach(i=1:12) %dopar% {
+#        ## get files
+#        f=list.files("/mnt/data2/projects/cloud/mcd09tif",pattern=paste(".*[O|Y].*_",i,"[.]tif$",sep=""),full=T)
+#        ## Define output and check if it already exists
+#        tmcd=paste("/mnt/data2/projects/cloud/mcd09tif/MCD09_",sprintf("%02d", i),".tif",sep="")
+#        ## check if output already exists
+#        ops=paste("-t_srs 'EPSG:4326' -multi -srcnodata 255 -dstnodata 255 -r bilinear -te -180 -90 180 90 -tr 0.008333333333333 -0.008333333333333",
+#            "-co BIGTIFF=YES -ot Byte --config GDAL_CACHEMAX 500 -wm 500 -wo NUM_THREADS:10 -wo SOURCE_EXTRA=5")
+#        system(paste("gdalwarp -overwrite -r average -co COMPRESS=LZW -co ZLEVEL=9  ",ops," ",paste(f,collapse=" ")," ",tmcd))
+#        ## update metadata
+#        tags=c(paste("TIFFTAG_IMAGEDESCRIPTION='Monthly Cloud Frequency for 2000-2013 extracted from C5 MODIS MOD09GA and MYD09GA PGE11 internal cloud mask algorithm (embedded in state_1km bit 10).",
+#            "The daily cloud mask time series were summarized to mean cloud frequency (CF) by calculating the proportion of cloudy days. ",
+#            "Band Descriptions: 1) Mean Monthly Cloud Frequency 2) Four Times the Standard Deviation of Mean Monthly Cloud Frequency",
+#            " 3) Mean number of daily observations for each pixel 4) Proportion of days with at least one observation '"),
+#            "TIFFTAG_DOCUMENTNAME='Collection 5 MCD09 Cloud Frequency'",
+#            paste("TIFFTAG_DATETIME='2013",sprintf("%02d", i),"15'",sep=""),
+#              "TIFFTAG_ARTIST='Adam M. Wilson (adam.wilson@yale.edu)'")
+#        system(paste("/usr/local/src/gdal-1.10.0/swig/python/scripts/gdal_edit.py ",tmcd," ",paste("-mo ",tags,sep="",collapse=" "),sep=""))
+#        writeLines(paste("Finished month",i))
+#    }
+
+
+### Perform bias correction
+foreach(i=1:nrow(jobs)) %dopar% {
+        ## get month
+        m=jobs$month[i]
+        date=df$date[df$month==m][1]
+        print(date)
+
         ttif2=paste(tmpfs,"/",s,"_",m,"_wgs84.tif",sep="")
         ncfile=paste("data/mcd09nc/",s,"_",m,".nc",sep="")
 
-        ## check if output already exists
-        if(!rerun&file.exists(ncfile)) return(NA)
-        ## build VRT to merge tiles
-        system(paste("gdalbuildvrt ",tvrt," ",paste(df$path[df$month==m&df$sensor==s],collapse=" ")))
-        
-        ## 
-        mod=stack(tvrt)
-        names(mod)=c("cf","cfsd","nobs","pobs")
-        #################################
-        ## correct for orbital artifacts
-
-        ## sample points to fit correction model
-        reg=extent(-20016036,20016036, -4295789.46149, 4134293.61707)  #banding region
-        cmod=crop(mod,reg)
-        names(cmod)=c("cf","cfsd","nobs","pobs")
         modpts=sampleRandom(cmod, size=10000, na.rm=TRUE, xy=T, sp=T)
+        rm(cmod)  #remove temporary raster to save space
         modpts=modpts[modpts$nobs>0,]  #drop data from missing tiles
         ### fit popbs correctionmodel (accounting for spatial variation in cf)
         modlm1=bam(cf~s(x,y)+pobs,data=modpts@data)
         summary(modlm1)
         modbeta1=coef(modlm1)["pobs"]
 
-
-        #modlm2=bam(cf~s(x,y),data=modpts@data)
-        #resid=residuals(modlm2)#,newdata=data.frame(x=modpts$x,y=modpts$y,pobs=100))
-        #pred=predict(modlm1,newdata=data.frame(x=modpts$x,y=modpts$y,pobs=100))
-        #plot(resid~pobs,data=modpts@data);abline(lm(resid~modpts$pobs))
-        #plot(modlm1);points(modpts)
-
-        #writeLines(paste(date,"       slope:",round(modbeta1,4)))
+        writeLines(paste(date,"       slope:",round(modbeta1,4)))
+        ## Smooth data to remove large-grain variability
+#        system(paste("pkfilter -f mean -dx 99 -dy 99 -ot Byte -i ",df$path[df$month==m&df$sensor==s][1]," -o ",ttif1))
 
         ## mask no data regions (with less than 1 observation per day within that month)
         ## use model above to correct for orbital artifacts
@@ -101,10 +154,7 @@ jobs=expand.grid(month=1:12,sensor=c("MOD09","MYD09"))
 
         mod2=overlay(cmod,fun=biasf,unstack=TRUE,filename=ttif1,format="GTiff",
             dataType="INT1U",overwrite=T,NAflag=255, options=c("COMPRESS=LZW", "BIGTIFF=YES"))
-                
-#        system(paste("pksetmask -i ",modvrt," -m ",nObs,
-#                     " --operator='<' --msknodata 1 --nodata 255 --operator='>' --msknodata 10 --nodata 10 -o ",modtif1,sep=""))
-        
+
         ## warp to wgs84
         ops=paste("-t_srs 'EPSG:4326' -multi -srcnodata 255 -dstnodata 255 -r bilinear -te -180 -90 180 90 -tr 0.008333333333333 -0.008333333333333",
             "-co BIGTIFF=YES -ot Byte --config GDAL_CACHEMAX 500 -wm 500 -wo NUM_THREADS:10 -wo SOURCE_EXTRA=5")
