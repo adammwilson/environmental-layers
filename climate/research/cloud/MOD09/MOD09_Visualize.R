@@ -84,13 +84,14 @@ names(gewex)=month.name#"1-degree Cloud Frequency (PATMOS-x GEWEX AVHRR)"
 r="Venezuela"
 
 ## print global map with box for region
+png(paste("output/CF_mean_regbox.png",sep=""),width=1920,height=round(1920*d1),res=300,pointsize=46,bg="white")
 print(levelplot(mc[[1]],col.regions=cols(100),at=seq(1,100,len=100),margin=F,maxpixels=2.1e6,ylim=c(extent(coast2)@ymin,extent(coast2)@ymax),
                 main=paste(month.name[i]),cex.main=3,scales=list(draw=F),cuts=99,ylab="",xlab="")+
       layer(panel.polygon(c(extent(world)@xmin,extent(world)@xmin,extent(world)@xmax,extent(world)@xmax),y=c(extent(world)@ymin,extent(world)@ymax,extent(world)@ymax,extent(world)@ymin),col="black"),under=T)+
       layer(sp.lines(coast2,col="black"),under=F)+
       layer(sp.lines(world,col="black"),under=F)+
-      layer(sp.lines(regs[[r]],col="blue",lwd=2),under=F))
-
+      layer(sp.lines(as(regs2[[r]],"SpatialLines"),col="blue",lwd=2),under=F))
+dev.off()
 
                                         # ylab.right = "Cloud Frequency (%)",par.settings = list(layout.widths = list(axis.key.padding = 0.1,axis.left=0.6,ylab.right = 3,right.padding=2)),
 

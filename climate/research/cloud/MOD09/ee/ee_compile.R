@@ -66,12 +66,11 @@ i=1
 
         ## mask no data regions (with less than 1 observation per day within that month)
         biasf=function(cf,cfsd,nobs,pobs) {
-            ## drop data in areass with nobs<1 or pobs<=50 or where sd=0 and cf=0 or 50 (some polar regions)
+            ## drop data in areas with nobs<1 or pobs<=50 or where sd=0 and cf=0 or 50 (some polar regions)
             drop=nobs<=0|pobs<=50|(cf==0&cfsd==0)|(cf==50&cfsd==0)
             cf[drop]=NA
             cfsd[drop]=NA
             return(c(cf=cf,cfsd=cfsd,nobs=nobs,pobs=pobs))}
-
                 
         mod2=overlay(mod,fun=biasf,unstack=TRUE,filename=ttif1,format="GTiff",
             dataType="INT1U",overwrite=T,NAflag=255, options=c("COMPRESS=LZW","BIGTIFF=YES"))
@@ -124,6 +123,13 @@ foreach(i=1:nrow(jobs)) %dopar% {
         ttif2=paste(tmpfs,"/",s,"_",m,"_wgs84.tif",sep="")
         ncfile=paste("data/mcd09nc/",s,"_",m,".nc",sep="")
 
+        ## set up processing chunks
+        nrw=nrow(mod)
+        nby=20
+        nrwg=seq(1,nrw,by=nby)
+        writeLines(paste("Processing ",length(nrwg)," groups and",nrw,"lines"))
+
+
         modpts=sampleRandom(cmod, size=10000, na.rm=TRUE, xy=T, sp=T)
         rm(cmod)  #remove temporary raster to save space
         modpts=modpts[modpts$nobs>0,]  #drop data from missing tiles
@@ -133,8 +139,6 @@ foreach(i=1:nrow(jobs)) %dopar% {
         modbeta1=coef(modlm1)["pobs"]
 
         writeLines(paste(date,"       slope:",round(modbeta1,4)))
-        ## Smooth data to remove large-grain variability
-#        system(paste("pkfilter -f mean -dx 99 -dy 99 -ot Byte -i ",df$path[df$month==m&df$sensor==s][1]," -o ",ttif1))
 
         ## mask no data regions (with less than 1 observation per day within that month)
         ## use model above to correct for orbital artifacts
