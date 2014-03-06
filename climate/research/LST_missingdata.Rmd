@@ -12,7 +12,9 @@ A short script to visualize and explore the updated Land Surface Climatology alg
 
 ```{r,echo=FALSE,results="hide",message=FALSE}
 ## some setup
-opts_knit$set(progress = TRUE, verbose = TRUE,root.dir="~/Downloads/nasa/", upload.fun = imgur_upload, base.url = NULL) # upload all images to imgur.com
+uploadimages=F # upload all images to imgur.com for easy viewing on github
+opts_knit$set(progress = TRUE, verbose = TRUE,root.dir="~/Downloads/nasa/", 
+              upload.fun = ifelse(uploadimages,imgur_upload,NULL), base.url = NULL) 
 opts_chunk$set(fig.width=5, fig.height=5, cache=TRUE)
 library(rasterVis)
 library(rgdal)
