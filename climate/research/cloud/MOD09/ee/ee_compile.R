@@ -16,10 +16,6 @@ setwd("~/acrobates/adamw/projects/cloud")
 
 datadir="/mnt/data2/projects/cloud/"
 
-mpath="/home/adamw/acrobates/adamw/projects/environmental-layers/climate/research/cloud/MOD09/vsnr/"
-.O$addpath(mpath)
-## download data from google drive
-
 
 
 ##  Get list of available files
@@ -94,98 +90,6 @@ i=1
     }
 
 
-#########################################
-####  Bias correction functions
-
-fgabor=function(d,theta=-15,x=200,y=5){
-    thetaR=(theta*pi)/180
-    cds=expand.grid(x=(1:nrow(d))-round(nrow(d)/2),y=(1:ncol(d))-round(ncol(d)/2))
-    sigma_x=x
-    sigma_y=y
-    lambda=0
-    tpsi=0
-    x_theta=cds[,"x"]*cos(thetaR)+cds[,"y"]*sin(thetaR);
-    y_theta=-cds[,"x"]*sin(thetaR)+cds[,"y"]*cos(thetaR);
-    n=max(cds)
-    gb= 1/(2*pi*sigma_x *sigma_y) * exp(-.5*(x_theta^2/sigma_x^2+y_theta^2/sigma_y^2))*cos(2*pi/n*lambda*x_theta+tpsi);
-    gb2=1e-2*gb/max(gb); #Normalization
-    psi=d
-    values(psi)=matrix(gb2,ncol=ncol(d))
-    return(psi)
-}
-  
-     
-vsnr=function(d,gabor,alpha=10,p=2,epsilon=0,prec=5e-3,maxit=100,C1=1){
-    ## Process with VSNR
-    dt=.O$VSNR(as.matrix(d),epsilon,p,as.matrix(gabor),alpha,maxit+1,prec,1,argout = c("u", "Gap", "Primal","Dual","EstP","EstD"));
-    ## Create spatial objects from VSNR output
-    dc=d;
-    values(dc)=round(as.vector(t(dt$u)))
-    dc[dc<0]=0
-#    EstP=d;
-#    values(EstP)=as.numeric(t(dt$EstP))
-#    EstD1=d;
-#    values(EstD1)=as.numeric(t(dt$EstD[,,1]))
-#    EstD2=d;
-#    values(EstD2)=as.numeric(t(dt$EstD[,,2]))
-    dif=d-dc#overlay(d,dc,fun=function(x,y) as.integer(x-y))
-    res=stack(list(d=d,dc=dc,dif=dif)) #,EstP=EstP,EstD1=EstD1,EstD2=EstD2
-#    rm(dt,dc,EstP,dif)
-    return(res)
-}
-
-
-######################################
-## Run the correction functions
-###  Subset equitorial region to correct orbital banding
-
-df2=list.files(paste(datadir,"/mcd09tif",sep=""),full=T,pattern="[0-9][.]tif$")
-i=1
-
-### build table of tiles to process
-tsize=10
-exts=data.frame(expand.grid(xmin=seq(-180,180-tsize,by=tsize),ymin=seq(-30,30-tsize,by=tsize)))
-exts=data.frame(expand.grid(xmin=seq(-20,50-tsize,by=tsize),ymin=seq(-30,30-tsize,by=tsize)))
-#exts=data.frame(expand.grid(xmin=seq(-10,20-tsize,by=tsize),ymin=seq(0,30-tsize,by=tsize)))
-
-exts$xmax=exts$xmin+tsize
-exts$ymax=exts$ymin+tsize
-
-getbias=function(file=df2[i],extent,writefile=NULL,...){
-    ## extract the tile
-    d=crop(raster(file),extent)
-    ## skip null tiles
-    if(is.null(d@data@values)) return(NULL)
-    ## make the gabor kernel
-    psi=fgabor(d,theta=-15,x=500,y=3)
-    ## run the correction
-    res=vsnr(d,gabor=psi,alpha=1,p=2,epsilon=1,prec=5e-3,maxit=100,C=1)
-    if(!is.null(writefile)) writeRaster(res,file=writefile,overwrite=T,datatype='INT1S',options=c("COMPRESS=LZW", "PREDICTOR=2"),NAflag=-127)
-    return(res)
-}
-
-### Process the tiles
-foreach(ti=1:nrow(exts)) %dopar% {
-    writeLines(paste("Starting: ",ti))
-    textent=extent(exts$xmin[ti],exts$xmax[ti],exts$ymin[ti],exts$ymax[ti])
-    res=getbias(df2[i],extent=textent,writefile=paste("tmp/test_",ti,".tif",sep=""))
-}
-
-
-## mosaic the tiles
-system("ls tmp/test_[0-9]*[.]tif")
-system("rm tmp/test2.tif; gdal_merge.py -n 255 -ot Byte -co COMPRESS=LZW -co PREDICTOR=2 'tmp/test_[0-9]*[.]tif' -o tmp/test2.tif")
-
-res=brick("tmp/test2.tif")
-names(res)=c("d","dc","dif")
-
-p2=levelplot(res[["dif"]],col.regions=rainbow(100,start=.2),cuts=99,margin=F,maxpixels=1e6);print(p2)
-
-p1=levelplot(stack(list(Original=res[["d"]],Corrected=res[["dc"]])),col.regions=grey.colors(100,start=0),cuts=99,maxPixels=1e7);print(p1)
-
-
-        
-    print(c(p1,p2,merge.legends=T))
 
 
        
