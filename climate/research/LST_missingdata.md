@@ -3,11 +3,18 @@ LST Climatology Evaluation
 
 
 
-### Adam M. Wilson (Compiled on Tue Mar  4 14:31:08 2014  using code version (git hash): f41365c)
+### Adam M. Wilson (Compiled on Tue Mar  4 14:57:04 2014  using code version (git hash): 0b07113)
 
 A short script to visualize and explore the updated Land Surface Climatology algorithm that 'lowers the standards' in some areas to increase the number of available observations.  
 
 
+```
+## Warning: 'x' is NULL so the result will be NULL
+```
+
+```
+## Error: replacement has length zero
+```
 
 
 
