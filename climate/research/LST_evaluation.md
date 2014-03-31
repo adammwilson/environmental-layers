@@ -4,7 +4,7 @@ LST Temporal Aggregation Evaluation
 
 
 
-### Adam M. Wilson and Giuseppe Amatulli (Compiled on Mon Mar 31 16:40:57 2014  using code hash: 53eb9ee)
+### Adam M. Wilson and Giuseppe Amatulli (Compiled on Mon Mar 31 16:44:18 2014  using code hash: 74499e1)
 
 A short script to explore the implications of a 3-month moving window Land Surface Temperature Climatology.
 

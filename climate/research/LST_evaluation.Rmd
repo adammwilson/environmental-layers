@@ -13,7 +13,7 @@ A short script to explore the implications of a 3-month moving window Land Surfa
 
 ```{r,echo=FALSE,results="hide",message=FALSE}
 ## some setup
-uploadimages=F # upload all images to imgur.com for easy viewing on github
+uploadimages=T # upload all images to imgur.com for easy viewing on github
 opts_knit$set(progress = TRUE, verbose = TRUE,root.dir="~/Downloads")
 if(uploadimages) opts_knit$set(upload.fun = imgur_upload,base.url = NULL) 
 
