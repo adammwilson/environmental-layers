@@ -11,12 +11,10 @@ ghead=paste("Compiled on",date()," using code hash:",githash)
 
 A short script to explore the implications of a 3-month moving window Land Surface Temperature Climatology.
 
-```{r,echo=FALSE,results="hide",message=FALSE}
+```{r,echo=FALSE,results='hide',message=F}
 ## some setup
-uploadimages=T # upload all images to imgur.com for easy viewing on github
-opts_knit$set(progress = TRUE, verbose = TRUE,root.dir="~/Downloads")
-if(uploadimages) opts_knit$set(upload.fun = imgur_upload,base.url = NULL) 
-
+uploadimages=F  # upload all images to imgur.com for easy viewing on github
+opts_knit$set(progress = TRUE, verbose = TRUE,root.dir="~/Downloads",upload.fun =ifelse(uploadimages,imgur_upload,function(x) x),base.url = NULL) 
 opts_chunk$set(fig.width=12, fig.height=8, cache=TRUE)
 
 ### libraries

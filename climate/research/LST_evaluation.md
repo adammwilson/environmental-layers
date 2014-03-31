@@ -4,11 +4,165 @@ LST Temporal Aggregation Evaluation
 
 
 
-### Adam M. Wilson and Giuseppe Amatulli (Compiled on Mon Mar 31 16:44:18 2014  using code hash: 74499e1)
+### Adam M. Wilson and Giuseppe Amatulli (Compiled on Mon Mar 31 16:57:05 2014  using code hash: 3af3057)
 
 A short script to explore the implications of a 3-month moving window Land Surface Temperature Climatology.
 
 
+```
+## $eval
+## [1] TRUE
+## 
+## $echo
+## [1] TRUE
+## 
+## $results
+## [1] "markup"
+## 
+## $tidy
+## [1] TRUE
+## 
+## $cache
+## [1] FALSE
+## 
+## $dependson
+## NULL
+## 
+## $cache.path
+## [1] "cache/"
+## 
+## $cache.vars
+## NULL
+## 
+## $ref.label
+## NULL
+## 
+## $child
+## NULL
+## 
+## $engine
+## [1] "R"
+## 
+## $prompt
+## [1] FALSE
+## 
+## $comment
+## [1] "##"
+## 
+## $autodep
+## [1] FALSE
+## 
+## $fig.keep
+## [1] "high"
+## 
+## $fig.show
+## [1] "asis"
+## 
+## $fig.align
+## [1] "default"
+## 
+## $fig.path
+## [1] "figure/"
+## 
+## $fig.ext
+## NULL
+## 
+## $dev
+## [1] "png"
+## 
+## $dpi
+## [1] 72
+## 
+## $dev.args
+## NULL
+## 
+## $fig.width
+## [1] 12
+## 
+## $fig.height
+## [1] 8
+## 
+## $fig.env
+## [1] "figure"
+## 
+## $fig.cap
+## NULL
+## 
+## $fig.scap
+## NULL
+## 
+## $fig.lp
+## [1] "fig:"
+## 
+## $fig.pos
+## [1] ""
+## 
+## $out.width
+## NULL
+## 
+## $out.height
+## NULL
+## 
+## $out.extra
+## NULL
+## 
+## $resize.width
+## NULL
+## 
+## $resize.height
+## NULL
+## 
+## $external
+## [1] TRUE
+## 
+## $sanitize
+## [1] FALSE
+## 
+## $purl
+## [1] TRUE
+## 
+## $highlight
+## [1] TRUE
+## 
+## $size
+## [1] "normalsize"
+## 
+## $warning
+## [1] TRUE
+## 
+## $error
+## [1] TRUE
+## 
+## $message
+## [1] TRUE
+## 
+## $background
+## [1] "#F7F7F7"
+## 
+## $split
+## [1] FALSE
+## 
+## $include
+## [1] TRUE
+## 
+## $interval
+## [1] 1
+## 
+## $aniopts
+## [1] "controls,loop"
+```
+
+```
+## Loading required package: plyr
+## 
+## Attaching package: 'reshape'
+## 
+## The following objects are masked from 'package:plyr':
+## 
+## rename, round_any
+## 
+## Loading required package: RColorBrewer Loading required package: lattice
+```
 
 
 # Data
@@ -28,20 +182,20 @@ The following data were extracted from the shapefiles used to fit the tiled inte
 # TMax~LST relationship seasonal variability 
 
 First let's explore the variability of the TMax~LST relationship by month, grouped by tile.  In this plot grey lines indicate a Tmax~LST regression within each tile (stations may be present in multiple tiles). Variability among grey lines represents spatial variability in the fitted lapse rate and the heavy black line is overall mean relationship (by month).
-![plot of chunk unnamed-chunk-4](figure/unnamed-chunk-4.png) 
+![plot of chunk unnamed-chunk-4](http://i.imgur.com/ubD0LTM.png) 
 
 
 
 # Comparison of monthly means with 3-month moving window
 Here we compare the monthly means with a three month moving window (e.g. January mean LST with December-February mean LST).  Note that the relationship is very good (R^2 >0.95) but slightly weaker in winter months, likely due primarily to seasonal minimums.  Heavy black line is 1:1, and thin line is the fitted regression.
 
-![plot of chunk unnamed-chunk-5](figure/unnamed-chunk-5.png) 
+![plot of chunk unnamed-chunk-5](http://i.imgur.com/objPR16.png) 
 
 
 # Comparison of monthly means with 2-month moving window that does not include the month
 Here we compare the monthly means with a two month moving window that does not include the month of interest (e.g. January mean LST with December and February mean LST, but not including the January LST).  Heavy black line is 1:1, and thin line is the fitted regression.
 
-![plot of chunk unnamed-chunk-6](figure/unnamed-chunk-6.png) 
+![plot of chunk unnamed-chunk-6](http://i.imgur.com/XyLMM4e.png) 
 
 
 Now let's look at the differences between the 1-month and 2-month LST values.  These represent a measure of how wrong we would be if we only had data from the two surrounding months and not the month in question.  
@@ -51,7 +205,7 @@ Now let's look at the differences between the 1-month and 2-month LST values.  T
 histogram(dlst2$lst - dlst2$lst2m, col = "grey", xlab = "Anomolies (1 month - 2 month means)")
 ```
 
-![plot of chunk unnamed-chunk-7](figure/unnamed-chunk-7.png) 
+![plot of chunk unnamed-chunk-7](http://i.imgur.com/8EwDnLv.png) 
 
 The 95th quantile of that is only 4.2, so the differences are quite small. From this analysis, it appears that broadening the temporal window window will maintain relativly consistent estimate of LST (R^2 ranged from 0.88-0.9) even when using only data from the surrounding months.
 
@@ -65,7 +219,7 @@ ss = sample(dlst2l$station, 10)
 ```
 
 
-![plot of chunk unnamed-chunk-9](figure/unnamed-chunk-9.png) 
+![plot of chunk unnamed-chunk-9](http://i.imgur.com/hJpXINT.png) 
 
 
 
