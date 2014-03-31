@@ -9,3 +9,4 @@ tmp*
 *.jpg
 *.png
 *.pdf
+cache*

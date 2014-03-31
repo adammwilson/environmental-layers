@@ -39,10 +39,4 @@ write.csv(dlst.full,file="/nobackup/awilso10/interp/lst_tmax.csv")
 ## copy to acrobates
 system("scp /nobackup/awilso10/interp/lst_tmax.csv adamw@acrobates.eeb.yale.edu:/data/personal/adamw/projects/")
 
-## Write some plots
-
-xyplot (TMax~lst | c(as.factor(month)+as.factor(tile)) , data=dlst , ylab="Observations Tmax", xlab="LST"  )+layer(panel.abline(0,1))
-+layer(panel.abline(lm (y~x),col="red"))
-
-dev.off()
 
