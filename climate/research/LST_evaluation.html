@@ -181,7 +181,7 @@ hljs.initHighlightingOnLoad();
 <body>
 <h1>LST Temporal Aggregation Evaluation</h1>
 
-<h3>Adam M. Wilson and Giuseppe Amatulli (Compiled on Mon Mar 31 17:07:34 2014  using code hash: 4e82a75)</h3>
+<h3>Adam M. Wilson and Giuseppe Amatulli (Compiled on Mon Mar 31 17:18:07 2014  using code hash: fdf72e9)</h3>
 
 <p>A short script to explore the implications of a 3-month moving window Land Surface Temperature Climatology.</p>
 
@@ -259,28 +259,28 @@ hljs.initHighlightingOnLoad();
 <h1>TMax~LST relationship seasonal variability</h1>
 
 <p>First let&#39;s explore the variability of the TMax~LST relationship by month, grouped by tile.  In this plot grey lines indicate a Tmax~LST regression within each tile (stations may be present in multiple tiles). Variability among grey lines represents spatial variability in the fitted lapse rate and the heavy black line is overall mean relationship (by month).
-<img src="http://i.imgur.com/dLVOWhY.png" alt="plot of chunk unnamed-chunk-4"/> </p>
+<img src="http://i.imgur.com/fQUQNDv.png" alt="plot of chunk unnamed-chunk-4"/> </p>
 
 <h1>Comparison of monthly means with 3-month moving window</h1>
 
 <p>Here we compare the monthly means with a three month moving window (e.g. January mean LST with December-February mean LST).  Note that the relationship is very good (R<sup>2</sup> &gt;0.95) but slightly weaker in winter months, likely due primarily to seasonal minimums.  Heavy black line is 1:1, and thin line is the fitted regression.</p>
 
-<p><img src="http://i.imgur.com/FdyccKW.png" alt="plot of chunk unnamed-chunk-5"/> </p>
+<p><img src="http://i.imgur.com/d2tZz4H.png" alt="plot of chunk unnamed-chunk-5"/> </p>
 
 <h1>Comparison of monthly means with 2-month moving window that does not include the month</h1>
 
 <p>Here we compare the monthly means with a two month moving window that does not include the month of interest (e.g. January mean LST with December and February mean LST, but not including the January LST).  Heavy black line is 1:1, and thin line is the fitted regression.</p>
 
-<p><img src="http://i.imgur.com/PGSvyuj.png" alt="plot of chunk unnamed-chunk-6"/> </p>
+<p><img src="http://i.imgur.com/C79D3K2.png" alt="plot of chunk unnamed-chunk-6"/> </p>
 
 <p>Now let&#39;s look at the differences between the 1-month and 2-month LST values.  These represent a measure of how wrong we would be if we only had data from the two surrounding months and not the month in question.  </p>
 
 <pre><code class="r">histogram(dlst2$lst - dlst2$lst2m, col = &quot;grey&quot;, xlab = &quot;Anomolies (1 month - 2 month means)&quot;)
 </code></pre>
 
-<p><img src="http://i.imgur.com/60NdxK7.png" alt="plot of chunk unnamed-chunk-7"/> </p>
+<p><img src="http://i.imgur.com/TsHkdVv.png" alt="plot of chunk unnamed-chunk-7"/> </p>
 
-<p>The 95th quantile of that is only 4.2, so the differences are quite small. From this analysis, it appears that broadening the temporal window window will maintain relativly consistent estimate of LST (R<sup>2</sup> ranged from 0.88-0.9) even when using only data from the surrounding months.</p>
+<p>The 95th quantile of the absolute value is only 4.2, so the differences are quite small. From this analysis, it appears that broadening the temporal window will maintain a relatively consistent estimate of LST (R<sup>2</sup> ranged from 0.88-0.9) even when using only data from the surrounding months.</p>
 
 <p>Let&#39;s see how the seasonal cycle is represented by these proxies for a few randomly selected stations.  Here the red line is the observed TMax data, the heavy black line represents the mean LST in that month, and the green line is a three-month moving window, while the purple line is the 2-month window (not including the month of interest).</p>
 
@@ -289,7 +289,7 @@ hljs.initHighlightingOnLoad();
 ss = sample(dlst2l$station, 10)
 </code></pre>
 
-<p><img src="http://i.imgur.com/1JNQ2vn.png" alt="plot of chunk unnamed-chunk-9"/> </p>
+<p><img src="http://i.imgur.com/XvvNDr5.png" alt="plot of chunk unnamed-chunk-9"/> </p>
 
 <h1>Remaining Questions</h1>
 

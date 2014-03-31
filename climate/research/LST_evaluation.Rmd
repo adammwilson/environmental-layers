@@ -89,7 +89,7 @@ Now let's look at the differences between the 1-month and 2-month LST values.  T
 ```{r,fig.height=3}
 histogram(dlst2$lst-dlst2$lst2m,col="grey",xlab="Anomolies (1 month - 2 month means)")
 ```
-The 95th quantile of that is only `r round(quantile(abs(dlst2$lst-dlst2$lst2m),na.rm=T,0.95),1)`, so the differences are quite small. From this analysis, it appears that broadening the temporal window window will maintain relativly consistent estimate of LST (R^2 ranged from 0.88-0.9) even when using only data from the surrounding months.
+The 95th quantile of the absolute value is only `r round(quantile(abs(dlst2$lst-dlst2$lst2m),na.rm=T,0.95),1)`, so the differences are quite small. From this analysis, it appears that broadening the temporal window will maintain a relatively consistent estimate of LST (R^2 ranged from 0.88-0.9) even when using only data from the surrounding months.
 
 Let's see how the seasonal cycle is represented by these proxies for a few randomly selected stations.  Here the red line is the observed TMax data, the heavy black line represents the mean LST in that month, and the green line is a three-month moving window, while the purple line is the 2-month window (not including the month of interest).
 
