@@ -17,6 +17,10 @@ setwd("~/acrobates/adamw/projects/cloud")
 datadir="/mnt/data2/projects/cloud/"
 
 
+### Download files from google drive
+download=T
+if(download) system(paste("google docs get 2014032* ",datadir,"/mcd09ee",sep=""))
+
 
 ##  Get list of available files
 df=data.frame(path=list.files(paste(datadir,"mcd09ee",sep="/"),pattern="*.tif$",full=T,recur=T),stringsAsFactors=F)
@@ -67,18 +71,18 @@ i=1
         if(!rerun&file.exists(ttif1)) return(NA)
         ## build VRT to merge tiles
         proj="'+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs'"
-        system(paste("gdalbuildvrt -b 1 -b 2 ",tvrt," ",paste(df$path[df$month==m&df$sensor==s],collapse=" ")))
+        system(paste("gdalbuildvrt -b 1 -b 2 -srcnodata -32768 ",tvrt," ",paste(df$path[df$month==m&df$sensor==s],collapse=" ")))
         ## Merge to geotif in temporary directory
-        ## specify sourc projection because it gts it slightly wrong by default
-        ops=paste("-s_srs ",proj,"  -t_srs 'EPSG:4326' -multi -srcnodata 255 -ot Byte -srcnodata -128 -dstnodata 255 -r bilinear -te -180 -90 180 90 -tr 0.008333333333333 -0.008333333333333",
-            "-co BIGTIFF=YES -ot Byte --config GDAL_CACHEMAX 500 -wm 500 -wo NUM_THREADS:10 -co COMPRESS=LZW -co PREDICTOR=2")
+        ## specify sourc projection because it gts it slightly wrong by default #-ot Int16 -dstnodata -32768
+        ops=paste("-s_srs ",proj,"  -t_srs 'EPSG:4326' -multi -srcnodata -32768  -ot Int16 -dstnodata -32768 -r bilinear -te -180 -90 180 90 -tr 0.008333333333333 -0.008333333333333",
+            "-co BIGTIFF=YES --config GDAL_CACHEMAX 500 -wm 500 -wo NUM_THREADS:10 -co COMPRESS=LZW -co PREDICTOR=2")
         system(paste("gdalwarp -overwrite ",ops," ",tvrt," ",ttif1))
 
         ## Compress file and add metadata tags
-        ops2=paste("-ot Byte -co COMPRESS=LZW -co PREDICTOR=2 -stats")
+        ops2=paste("-ot Int16 -co COMPRESS=LZW -co PREDICTOR=2 -stats")
         tags=c(paste("TIFFTAG_IMAGEDESCRIPTION='Monthly Cloud Frequency for 2000-2013 extracted from C5 MODIS ",s,"GA PGE11 internal cloud mask algorithm (embedded in state_1km bit 10).",
             "The daily cloud mask time series were summarized to mean cloud frequency (CF) by calculating the proportion of cloudy days. ",
-            "Band Descriptions: 1) Mean Monthly Cloud Frequency 2) Standard Deviation of Mean Monthly Cloud'"),
+            "Band Descriptions: 1) Mean Monthly Cloud Frequency x 10000 2) Standard Deviation of Mean Monthly Cloud x 10000'"),
               "TIFFTAG_DOCUMENTNAME='Collection 5 ",s," Cloud Frequency'",
               paste("TIFFTAG_DATETIME='2013",sprintf("%02d", m),"15'",sep=""),
               "TIFFTAG_ARTIST='Adam M. Wilson (adam.wilson@yale.edu)'")
