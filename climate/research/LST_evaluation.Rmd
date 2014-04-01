@@ -5,16 +5,16 @@ LST Temporal Aggregation Evaluation
 ## get repo info
 githash=system("git --git-dir /Users/adamw/work/environmental-layers/.git log --pretty=format:'%h' -n 1",intern=T)
 ghead=paste("Compiled on",date()," using code hash:",githash)
+#(`r ghead`)
 ```
 
 ### Adam M. Wilson and Giuseppe Amatulli
-(`r ghead`)
 
 A short script to explore the implications of a 3-month moving window Land Surface Temperature Climatology.
 
 ```{r,echo=FALSE,results='hide',message=F}
 ## some setup
-uploadimages=F  # upload all images to imgur.com for easy viewing on github
+uploadimages=T  # upload all images to imgur.com for easy viewing on github
 opts_knit$set(progress = TRUE, verbose = TRUE,root.dir="~/Downloads",base.url = NULL)
 if(uploadimages) opts_knit$set(upload.fun =imgur_upload)
 
