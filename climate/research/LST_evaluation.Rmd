@@ -7,13 +7,14 @@ githash=system("git --git-dir /Users/adamw/work/environmental-layers/.git log --
 ghead=paste("Compiled on",date()," using code hash:",githash)
 ```
 
-### Adam M. Wilson and Giuseppe Amatulli (`r ghead`)
+### Adam M. Wilson and Giuseppe Amatulli
+(`r ghead`)
 
 A short script to explore the implications of a 3-month moving window Land Surface Temperature Climatology.
 
 ```{r,echo=FALSE,results='hide',message=F}
 ## some setup
-uploadimages=T  # upload all images to imgur.com for easy viewing on github
+uploadimages=F  # upload all images to imgur.com for easy viewing on github
 opts_knit$set(progress = TRUE, verbose = TRUE,root.dir="~/Downloads",base.url = NULL)
 if(uploadimages) opts_knit$set(upload.fun =imgur_upload)
 
@@ -108,8 +109,36 @@ xyplot (value~month|station, data=dlst2l[dlst2l$station%in%ss,], groups=variable
 
 ```
 
+# Processing Options
+
+## Solution 1 (relatively easy)
+
+1. Spatial interpolation: fill in LST when another observation is available within  some small distance (3? 5? 7? kilometers)
+2. Temporal interpolation: Estimate the monthly value at the 15th day by linear interpolation (in the temporal domain) considering the temporally closest observations in the previous and following month.
+
+This is more robust than the simple mean of 3 months.  For example, imagine using a simple mean in the following case:  
+* month -1: no observation 
+* month  0: no observation                                     
+* month +1: observation in the end of the month
+
+Would lead to a prediction = month +1.
+
+Or, alternatively, one in which:
+* month -1: has data for the full month
+* month 0: has no data
+* month +1: has only data near end of month
+
+In this case a mean would be 'pulled' towards the mean value of month-1.  Using a fixed number of observations in t-1 and t+1 and a linear interpolation that accounts for the time of those observations would prevent 
+
+## Solution 2 (complex - based on Kalman filter and ancillary model)
+
+We could also re-imagine the interpolation of daily missing pixel values based on the temporal trend of previous and future observation driven by an ancillary modelled data [http://dx.doi.org/10.1016/j.rse.2007.07.007].  The modelled data can be obtained from external climate models such as NCEP Reanalysis (at >0.5 degree of resolution). For example:
+
+![title](http://i.imgur.com/qZs0KZn.png)
+
+However, this would require a major reorganization of how we are approaching the problem.
 
 #  Remaining Questions  
 
 1. How does this variability compare to spatial variability (e.g. which is worse, spatial or temporal smoothing)?
-2. How do the 1-3 month differences vary spatially?
+2. How do the anomolies from different temporal windows vary spatially?  
