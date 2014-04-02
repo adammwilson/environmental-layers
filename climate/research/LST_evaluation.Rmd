@@ -14,7 +14,7 @@ A short script to explore the implications of a 3-month moving window Land Surfa
 
 ```{r,echo=FALSE,results='hide',message=F}
 ## some setup
-uploadimages=T  # upload all images to imgur.com for easy viewing on github
+ uploadimages=T  # upload all images to imgur.com for easy viewing on github
 opts_knit$set(progress = TRUE, verbose = TRUE,root.dir="~/Downloads",base.url = NULL)
 if(uploadimages) opts_knit$set(upload.fun =imgur_upload)
 
@@ -25,6 +25,7 @@ library(sp)
 library(reshape)
 library(plyr)
 library(latticeExtra)
+library(knitr)
 
 ## Import the data
 setwd("~")
@@ -94,15 +95,16 @@ The 95th quantile of the absolute value is only `r round(quantile(abs(dlst2$lst-
 
 Let's see how the seasonal cycle is represented by these proxies for a few randomly selected stations.  Here the red line is the observed TMax data, the heavy black line represents the mean LST in that month, and the green line is a three-month moving window, while the purple line is the 2-month window (not including the month of interest).
 
-```{r}
+```{rm,echo=FALSE}
+## subset to 10 stations
 dlst2l=melt(dlst2,id.vars=c("station","month"),measure.vars=c("TMax","lst","lst3m","lst2m"))
-ss=sample(dlst2l$station,10)
+dlst2ls=dlst2l[dlst2l$station%in%sample(unique(dlst2l$station),10),]
 ```
 
 ```{r,echo=FALSE}
 trellis.par.set(superpose.line = list(col = c("red","black","green","blue"),lwd=c(2,2,1,1)),
                 superpose.symbol = list(col = c("red","black","green","blue"),lwd=c(2,2,1,1)))
-xyplot (value~month|station, data=dlst2l[dlst2l$station%in%ss,], groups=variable,type="l",
+xyplot (value~month|station, data=dlst2ls, groups=variable,type="l",
         main="LST at station locations by month",
         ylab="LST (monthly)", xlab="LST (2-month Mean)",cex=.5,pch=16,auto.key=list(space="right"),scales=list(x=list(rot=45)),
         layout=c(2,5))
@@ -130,13 +132,110 @@ Or, alternatively, one in which:
 
 In this case a mean would be 'pulled' towards the mean value of month-1.  Using a fixed number of observations in t-1 and t+1 and a linear interpolation that accounts for the time of those observations would prevent 
 
-## Solution 2 (complex - based on Kalman filter and ancillary model)
+## New Solution 2 (also relatively easy)
 
-We could also re-imagine the interpolation of daily missing pixel values based on the temporal trend of previous and future observation driven by an ancillary modelled data [http://dx.doi.org/10.1016/j.rse.2007.07.007].  The modelled data can be obtained from external climate models such as NCEP Reanalysis (at >0.5 degree of resolution). For example:
+1. Create 12 monthly LST climatologies if at least 5 or 10 observations are available for each pixel-month.
+2. Fill in missing months using temporal interpolation:
+   * Fit function through all available months (rather than just +/- 1 month) to capture seasonal variabilty.
+   * Use some function that can capture the cyclical nature (sin, spline, polynomial, etc.)
 
-![title](http://i.imgur.com/qZs0KZn.png)
 
-However, this would require a major reorganization of how we are approaching the problem.
+Remember from above that the LST curves are fairly smooth (caveat: we've only looked at locations in the CONUS dataset).  So let's try fitting a simple sin function to estimate missing months:
+```{r,echo=T}
+### Curve fitting function
+### Set parameter starting values and limits
+parms=list(phi=5,A=.05)  #starting parameters
+low=list(phi=-999,A=0)  #lower bounds - constrain s3 to be positive 
+high=list(phi=999,A=999)  #lower bounds - constrain s3 to be positive
+
+## define a simple model estimating a sin function with variable shift and amplitude
+fit.model<-function(parms,x) {
+      fit=sin(parms[["phi"]]+(x*2*pi))*abs(parms[["A"]])
+      fit[fit==Inf]=.Machine$double.xmax  #if Inf, replace with maximum value
+      fit[fit==-Inf]=.Machine$double.xmin  #if Inf, replace with maximum value
+    list(fit=fit)
+  } 
+## function to minimize the RMSE of predictions
+ minimize.model<-function(parms,x,y) {
+    ss=sum((y-fit.model(parms,x)$fit)^2)
+    ss=min(ss,.Machine$double.xmax)  #if Inf, replace with maximum value
+    ss=max(ss,.Machine$double.xmin)  #if -Inf, replace with maximum value
+    list(ss=ss)
+  }
+
+## Process station data and make predictions for each month
+makepreds=function(dat,drop=NULL){
+  dat=na.omit(dat)
+  dat=dat[dat$variable=="lst",]
+  ## drop
+  if(nrow(dat)==0){ return(NULL)}
+  ## drop some proportion of data if drop is specified
+  if(!is.null(drop)) dat=dat[sample(1:nrow(dat),round(nrow(dat)*(1-drop))),]
+  dat=dat[order(dat$month),]
+  dat$time=(1:nrow(dat))/nrow(dat)
+  xbar=mean(dat$value,na.rm=T)
+  fit=optim(unlist(parms),minimize.model,
+            x=dat$time,y=dat$value-xbar,
+            control=list(trace=0,maxit=10000),method="L-BFGS-B",lower=low,upper=high)
+
+  dat$pred=xbar+sin(fit$par[["phi"]]+(dat$time*2*pi))*fit$par[["A"]]
+  dat$A=fit$par[["A"]]
+  dat$phi=fit$par[["phi"]]
+  dat
+}
+## apply the function
+d4=ddply(dlst2ls,.(station),.fun=makepreds)
+d4l=melt(d4,id.vars=c("station","month"),measure.vars=c("value","pred"))
+```
+
+Let's see what that looks  for the 10 example stations above. The blue line is the observed LST value and the pink line is the predicted LST from the sinusoidal function.
+```{r,echo=FALSE}
+xyplot (value~month|station, data=d4l, groups=variable,type="l",
+        main="LST at station locations by month",
+        ylab="LST (monthly)", xlab="LST (2-month Mean)",cex=.5,pch=16,auto.key=list(space="right"),scales=list(x=list(rot=45)))
+```
+And a histogram of the residuals for these stations:
+```{r,echo=FALSE,fig.height=3}
+d4$anomoly=d4$value-d4$pred
+hist(d4$anomoly,col="grey",main="Histogram of residuals for predictions from sinusoidal model",xlab="Degrees C")
+```
+
+Not bad... Now let's drop 25% of the observations from each station and do it again:
+```{r,echo=F}
+## apply the function
+d4a=ddply(dlst2ls,.(station),.fun=makepreds,drop=.25)
+d4a$anomoly=d4a$value-d4a$pred
+d4al=melt(d4a,id.vars=c("station","month"),measure.vars=c("value","pred"))
+
+xyplot (value~month|station, data=d4al, groups=variable,type="l",
+        main="LST at station locations by month",
+        ylab="LST (monthly)", xlab="LST (2-month Mean)",cex=.5,pch=16,auto.key=list(space="right"),scales=list(x=list(rot=45)))
+```
+
+And the  of residuals for these 10 stations with 25% of the observations removed:
+```{r,echo=FALSE,fig.height=3}
+hist(d4a$anomoly,col="grey",main="Histogram of residuals for predictions from sinusoidal model",xlab="Degrees C")
+```
+
+### Apply this function to the full CONUS dataset described above.
+Now look at the distributions of the residuals for the full conus dataset.
+```{r,echo=FALSE,fig.height=3}
+## apply the function
+d5=ddply(dlst2l,.(station),.fun=makepreds,drop=.25)
+d5$anomoly=d5$value-d5$pred
+hist(d5$anomoly,col="grey",main="Histogram of residuals for predictions from sinusoidal model",xlab="Degrees C")
+```
+And summarize the residuals into RMSE's by station:
+```{r, echo=FALSE,fig.height=3}
+d5_rmse=ddply(d5,.(station),.fun=function(dat){
+  sqrt(mean( (dat$pred - dat$value)^2, na.rm = TRUE))
+})
+hist(d5_rmse$V1,col="grey",main="Distribution of station RMSE's for predictions from sinusoidal model",xlab="RMSE")
+```
+So the vast majority of stations will have a RMSE of <5 using this simple method even if 25% of the data are missing.
+
+# Next steps  
+We should pick 3-4 problematic tiles and 1 tile with little missing data and explore how these various options differ in infilling LST.  It would also be ideal if we could complete the interpolation using these different datasets and compare the resulting estimates of TMax over these tiles. 
 
 #  Remaining Questions  
 
