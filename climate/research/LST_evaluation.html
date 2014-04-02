@@ -259,32 +259,32 @@ hljs.initHighlightingOnLoad();
 <h1>TMax~LST relationship seasonal variability</h1>
 
 <p>First let&#39;s explore the variability of the TMax~LST relationship by month, grouped by tile.  In this plot grey lines indicate a Tmax~LST regression within each tile (stations may be present in multiple tiles). Variability among grey lines represents spatial variability in the fitted lapse rate and the heavy black line is overall mean relationship (by month).
-<img src="http://i.imgur.com/RZbujnI.png" alt="plot of chunk unnamed-chunk-4"/> </p>
+<img src="http://i.imgur.com/KYSRkMV.png" alt="plot of chunk unnamed-chunk-4"/> </p>
 
 <h1>Comparison of monthly means with 3-month moving window</h1>
 
 <p>Here we compare the monthly means with a three month moving window (e.g. January mean LST with December-February mean LST).  Note that the relationship is very good (R<sup>2</sup> &gt;0.95) but slightly weaker in winter months, likely due primarily to seasonal minimums.  Heavy black line is 1:1, and thin line is the fitted regression.</p>
 
-<p><img src="http://i.imgur.com/aAmbMaz.png" alt="plot of chunk unnamed-chunk-5"/> </p>
+<p><img src="http://i.imgur.com/kInQcBr.png" alt="plot of chunk unnamed-chunk-5"/> </p>
 
 <h1>Comparison of monthly means with 2-month moving window that does not include the month</h1>
 
 <p>Here we compare the monthly means with a two month moving window that does not include the month of interest (e.g. January mean LST with December and February mean LST, but not including the January LST).  Heavy black line is 1:1, and thin line is the fitted regression.</p>
 
-<p><img src="http://i.imgur.com/AeJ0AFq.png" alt="plot of chunk unnamed-chunk-6"/> </p>
+<p><img src="http://i.imgur.com/8AfNmiq.png" alt="plot of chunk unnamed-chunk-6"/> </p>
 
 <p>Now let&#39;s look at the differences between the 1-month and 2-month LST values.  These represent a measure of how wrong we would be if we only had data from the two surrounding months and not the month in question.  </p>
 
 <pre><code class="r">histogram(dlst2$lst - dlst2$lst2m, col = &quot;grey&quot;, xlab = &quot;Anomolies (1 month - 2 month means)&quot;)
 </code></pre>
 
-<p><img src="http://i.imgur.com/qIlsdWo.png" alt="plot of chunk unnamed-chunk-7"/> </p>
+<p><img src="http://i.imgur.com/7E9SHnc.png" alt="plot of chunk unnamed-chunk-7"/> </p>
 
 <p>The 95th quantile of the absolute value is only 4.2, so the differences are quite small. From this analysis, it appears that broadening the temporal window will maintain a relatively consistent estimate of LST (R<sup>2</sup> ranged from 0.88-0.9) even when using only data from the surrounding months.</p>
 
 <p>Let&#39;s see how the seasonal cycle is represented by these proxies for a few randomly selected stations.  Here the red line is the observed TMax data, the heavy black line represents the mean LST in that month, and the green line is a three-month moving window, while the purple line is the 2-month window (not including the month of interest).</p>
 
-<p><img src="http://i.imgur.com/Ve0mC1C.png" alt="plot of chunk unnamed-chunk-8"/> </p>
+<p><img src="http://i.imgur.com/wOsUVGT.png" alt="plot of chunk unnamed-chunk-8"/> </p>
 
 <h1>Processing Options</h1>
 
@@ -378,25 +378,25 @@ d4 = ddply(dlst2ls, .(station), .fun = makepreds)
 d4l = melt(d4, id.vars = c(&quot;station&quot;, &quot;month&quot;), measure.vars = c(&quot;value&quot;, &quot;pred&quot;))
 </code></pre>
 
-<p>Let&#39;s see what that looks  for the 10 example stations above. The blue line is the observed LST value and the pink line is the predicted LST from the sinusoidal function.
-<img src="http://i.imgur.com/oNteXlf.png" alt="plot of chunk unnamed-chunk-10"/> </p>
+<p>Let&#39;s see what that looks  for the 10 example stations above. The red line is the observed LST value and the black line is the predicted LST from the sinusoidal function.
+<img src="http://i.imgur.com/WYgS7qx.png" alt="plot of chunk unnamed-chunk-10"/> </p>
 
 <p>And a histogram of the residuals for these stations:
-<img src="http://i.imgur.com/1z4IHQs.png" alt="plot of chunk unnamed-chunk-11"/> </p>
+<img src="http://i.imgur.com/qRekbih.png" alt="plot of chunk unnamed-chunk-11"/> </p>
 
 <p>Not bad&hellip; Now let&#39;s drop 25% of the observations from each station and do it again:
-<img src="http://i.imgur.com/6zkd5CB.png" alt="plot of chunk unnamed-chunk-12"/> </p>
+<img src="http://i.imgur.com/n6ZP6yB.png" alt="plot of chunk unnamed-chunk-12"/> </p>
 
 <p>And the  of residuals for these 10 stations with 25% of the observations removed:
-<img src="http://i.imgur.com/c1Wyh9J.png" alt="plot of chunk unnamed-chunk-13"/> </p>
+<img src="http://i.imgur.com/8Z1Niwd.png" alt="plot of chunk unnamed-chunk-13"/> </p>
 
 <h3>Apply this function to the full CONUS dataset described above.</h3>
 
 <p>Now look at the distributions of the residuals for the full conus dataset.
-<img src="http://i.imgur.com/od4iR2S.png" alt="plot of chunk unnamed-chunk-14"/> </p>
+<img src="http://i.imgur.com/iSdwpOe.png" alt="plot of chunk unnamed-chunk-14"/> </p>
 
 <p>And summarize the residuals into RMSE&#39;s by station:
-<img src="http://i.imgur.com/KIV2rBk.png" alt="plot of chunk unnamed-chunk-15"/> </p>
+<img src="http://i.imgur.com/M29nxV1.png" alt="plot of chunk unnamed-chunk-15"/> </p>
 
 <p>So the vast majority of stations will have a RMSE of &lt;5 using this simple method even if 25% of the data are missing.</p>
 

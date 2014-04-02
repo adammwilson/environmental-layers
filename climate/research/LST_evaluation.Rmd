@@ -188,7 +188,7 @@ d4=ddply(dlst2ls,.(station),.fun=makepreds)
 d4l=melt(d4,id.vars=c("station","month"),measure.vars=c("value","pred"))
 ```
 
-Let's see what that looks  for the 10 example stations above. The blue line is the observed LST value and the pink line is the predicted LST from the sinusoidal function.
+Let's see what that looks  for the 10 example stations above. The red line is the observed LST value and the black line is the predicted LST from the sinusoidal function.
 ```{r,echo=FALSE}
 xyplot (value~month|station, data=d4l, groups=variable,type="l",
         main="LST at station locations by month",
