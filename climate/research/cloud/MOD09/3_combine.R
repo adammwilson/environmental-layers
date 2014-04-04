@@ -1,97 +1,63 @@
-###  Script to compile the monthly cloud data from earth engine into a netcdf file for further processing
-
-library(rasterVis)
-library(doMC)
-library(multicore)
-library(foreach)
-library(mgcv)
-library(RcppOctave)
-registerDoMC(12)
-
-
-## start raster cluster
-#beginCluster(5)
-
-setwd("~/acrobates/adamw/projects/cloud")
+################################################################################
+###  calculate monthly means of terra and aqua
 
 datadir="/mnt/data2/projects/cloud/"
 
+# Create combined (MOD+MYD) corrected mean CF
+    foreach(i=1:12) %dopar% {
 
-### Download files from google drive
-download=T
-if(download) system(paste("google docs get 2014* ",datadir,"/mcd09ee",sep=""))
+        f=list.files(paste(datadir,"/mcd09ctif",sep=""),pattern=paste(".*[O|Y].*_",sprintf("%02d",i),"[.]tif$",sep=""),full=T)
+        ## Define output and check if it already exists
+        tmcd=paste(datadir,"/mcd09ctif/MCD09_",sprintf("%02d", i),".tif",sep="")
+        ## check if output already exists
+        ops=paste("-t_srs 'EPSG:4326' -multi -srcnodata -32768 -dstnodata -32768 -r bilinear -te -180 -90 180 90 -tr 0.008333333333333 -0.008333333333333",
+            "-co BIGTIFF=YES  --config GDAL_CACHEMAX 500 -wm 500 -wo NUM_THREADS:10 -wo SOURCE_EXTRA=5")
+        system(paste("gdalwarp -overwrite -r average -co COMPRESS=LZW -co ZLEVEL=9  ",ops," ",paste(f,collapse=" ")," ",tmcd))
+        ## update metadata
+        tags=c(paste("TIFFTAG_IMAGEDESCRIPTION='Monthly Cloud Frequency for 2000-2013 extracted from C5 MODIS MOD09GA and MYD09GA PGE11 internal cloud mask algorithm (embedded in state_1km bit 10).",
+            "The daily cloud mask time series were summarized to mean cloud frequency (CF) by calculating the proportion of cloudy days. ",
+            "Band Descriptions: 1) Mean Monthly Cloud Frequency 2) Four Times the Standard Deviation of Mean Monthly Cloud Frequency",
+            " 3) Mean number of daily observations for each pixel 4) Proportion of days with at least one observation '"),
+            "TIFFTAG_DOCUMENTNAME='Collection 5 MCD09 Cloud Frequency'",
+            paste("TIFFTAG_DATETIME='2013",sprintf("%02d", i),"15'",sep=""),
+              "TIFFTAG_ARTIST='Adam M. Wilson (adam.wilson@yale.edu)'")
+        system(paste("/usr/local/src/gdal-1.10.0/swig/python/scripts/gdal_edit.py ",tmcd," ",paste("-mo ",tags,sep="",collapse=" "),sep=""))
+        writeLines(paste("Finished month",i))
+    }
 
 
-##  Get list of available files
-version="g3"  #which version of data from EE?
-df=data.frame(path=list.files(paste(datadir,"mcd09ee",sep="/"),pattern=paste(".*",version,".*.tif$",sep=""),full=T,recur=T),stringsAsFactors=F)
-df[,c("month","sensor")]=do.call(rbind,strsplit(basename(df$path),"_|[.]|-"))[,c(5,4)]
-df$date=as.Date(paste(2013,"_",df$month,"_15",sep=""),"%Y_%m_%d")
 
-
-## use ramdisk?
-tmpfs="tmp/"#tempdir()
-
-ramdisk=F
-if(ramdisk) {
-    system("sudo mkdir -p /mnt/ram")
-    system("sudo mount -t ramfs -o size=30g ramfs /mnt/ram")
-    system("sudo chmod a+w /mnt/ram")
-    tmpfs="/mnt/ram"
+#################################################################################
+###### convert to 8-bit compressed file, add colors and other details
+for( i in 1:12){
+    f2=list.files(paste(datadir,"/mcd09ctif",sep=""),pattern=paste(".*MCD09_",sprintf("%02d",i),"[.]tif$",sep=""),full=T)
+    
+    outfile=paste(datadir,"/mcd09ctif/",basename(file),sep="")
+    outfile2=paste("data/mcd09tif/MCD09_",sprintf("%02d",i),".tif",sep="")
+    outfile2b=paste("data/mcd09tif/MCD09_",sprintf("%02d",i),"_sd.tif",sep="")
+    
+    ## convert to 8-bit compressed file
+    ops="-stats -scale 0 10000 0 100 -ot Byte -a_nodata 255 -co COMPRESS=LZW -co PREDICTOR=2 -co BIGTIFF=yes"
+    tags=c(paste("TIFFTAG_IMAGEDESCRIPTION='Monthly Cloud Frequency for 2000-2013 extracted from C5 MODIS M*D09GA PGE11 internal cloud mask algorithm (embedded in state_1km bit 10).",
+        "The daily cloud mask time series were summarized to mean cloud frequency (CF) by calculating the proportion of cloudy days. ",
+        "Band Descriptions: 1) Mean Monthly Cloud Frequency'"),
+        "TIFFTAG_DOCUMENTNAME='Collection 5 Cloud Frequency'",
+        paste("TIFFTAG_DATETIME='2014'",sep=""),
+        "TIFFTAG_ARTIST='Adam M. Wilson (adam.wilson@yale.edu)'")
+    system(paste("gdal_translate  ",ops," ",paste("-mo ",tags,sep="",collapse=" ")," ",outfile," ",outfile2))
+    ## Convert SD to 8-bit
+    system(paste("gdal_translate  -b 2 ",ops," ",paste("-mo ",tags,sep="",collapse=" ")," ",file," ",outfile2b))
 }
 
-rasterOptions(tmpdir=tmpfs,overwrite=T, format="GTiff",maxmemory=1e9)
 
-
-rerun=T  # set to true to recalculate all dates even if file already exists
-
-## define month-sensors to process
-jobs=unique(data.frame(month=df$month,sensor=df$sensor))
-
-i=1
-#jobs=jobs[jobs$sensor=="MYD09",]
-
-
-## Loop over data to mosaic tifs, compress, and add metadata
-    foreach(i=1:nrow(jobs)) %dopar% {
-        ## get month
-        m=jobs$month[i]
-        date=df$date[df$month==m][1]
-        print(date)
-        ## get sensor
-        s=jobs$sensor[i]
-        s2=sub("GA","",s)
-
-        ## Define output and check if it already exists
-        tvrt=paste(tmpfs,"/",s2,"_",sprintf("%02d", m),".vrt",sep="")
-        ttif1=paste(tmpfs,"/",s2,"_",sprintf("%02d", m),".tif",sep="")
-        ttif2=paste(datadir,"/mcd09tif/",s2,"_",sprintf("%02d", m),".tif",sep="")
-
-        ## check if output already exists
-        if(!rerun&file.exists(ttif1)) return(NA)
-        ## build VRT to merge tiles
-        proj="'+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs'"
-        system(paste("gdalbuildvrt -b 1 -b 2 -srcnodata -32768 ",tvrt," ",paste(df$path[df$month==m&df$sensor==s],collapse=" ")))
-        ## Merge to geotif in temporary directory
-        ## specify sourc projection because it gts it slightly wrong by default #-ot Int16 -dstnodata -32768
-        ops=paste("-s_srs ",proj,"  -t_srs 'EPSG:4326' -multi -srcnodata -32768  -ot Int16 -dstnodata -32768 -r bilinear -te -180 -90 180 90 -tr 0.008333333333333 -0.008333333333333",
-            "-co BIGTIFF=YES --config GDAL_CACHEMAX 500 -wm 500 -wo NUM_THREADS:10 -co COMPRESS=LZW -co PREDICTOR=2")
-        system(paste("gdalwarp -overwrite ",ops," ",tvrt," ",ttif1))
-
-        ## Compress file and add metadata tags
-        ops2=paste("-ot Int16 -co COMPRESS=LZW -co PREDICTOR=2 -stats")
-        tags=c(paste("TIFFTAG_IMAGEDESCRIPTION='Monthly Cloud Frequency for 2000-2013 extracted from C5 MODIS ",s,"GA PGE11 internal cloud mask algorithm (embedded in state_1km bit 10).",
-            "The daily cloud mask time series were summarized to mean cloud frequency (CF) by calculating the proportion of cloudy days. ",
-            "Band Descriptions: 1) Mean Monthly Cloud Frequency x 10000 2) Standard Deviation of Mean Monthly Cloud x 10000'"),
-              "TIFFTAG_DOCUMENTNAME='Collection 5 ",s," Cloud Frequency'",
-              paste("TIFFTAG_DATETIME='2013",sprintf("%02d", m),"15'",sep=""),
-              "TIFFTAG_ARTIST='Adam M. Wilson (adam.wilson@yale.edu)'")
-        system(paste("gdal_translate  ",ops2," ",paste("-mo ",tags,sep="",collapse=" ")," ",ttif1," ",ttif2))
-
-        ## delete temporary files
-        file.remove(tvrt,ttif1)
-        writeLines(paste("Month:",m," Sensor:",s," Finished"))
-    }
+tplot=F
+if(tplot){
+    gcol=colorRampPalette(c("blue","yellow","red"))
+    gcol=colorRampPalette(c("black","white"))
+    levelplot(res[["bias"]],col.regions=gcol(100),cuts=99,margin=F,maxpixels=1e6)
+    levelplot(stack(list(Original=res[["d"]],Corrected=res[["dc"]])),col.regions=gcol(100),cuts=99,maxpixels=1e6)
+    levelplot(stack(list(Original=res[["d"]],Corrected=res[["dc"]])),col.regions=gcol(100),cuts=99,maxpixels=1e6,ylim=c(10,13),xlim=c(-7,-1))
+}
 
 
 
@@ -175,36 +141,16 @@ system(paste("cdo -O  mergetime -setrtomiss,-32768,-1 ",paste(list.files(tempdir
 #  Overall mean
 system(paste("cdo -O  timmean data/cloud_monthly.nc  data/cloud_mean.nc"))
 
-### generate the monthly mean and sd
-#system(paste("cdo -P 10 -O merge -ymonmean data/mod09.nc -chname,CF,CF_sd -ymonstd data/mod09.nc data/mod09_clim.nc"))
-system(paste("cdo  -f nc4c -O -ymonmean data/cloud_monthly.nc data/cloud_ymonmean.nc"))
-
-
 ## Seasonal Means
 system(paste("cdo  -f nc4c -O -yseasmean data/cloud_monthly.nc data/cloud_yseasmean.nc"))
 system(paste("cdo  -f nc4c -O -yseasstd data/cloud_monthly.nc data/cloud_yseasstd.nc"))
 
-## standard deviations, had to break to limit memory usage
-system(paste("cdo  -f nc4c -z zip -O -chname,CF,CF_sd -ymonstd -selmon,1,2,3,4,5,6 data/cloud_monthly.nc data/cloud_ymonsd_1-6.nc"))
-system(paste("cdo  -f nc4c -z zip -O -chname,CF,CF_sd -ymonstd -selmon,7,8,9,10,11,12 data/cloud_monthly.nc data/cloud_ymonsd_7-12.nc"))
-system(paste("cdo  -f nc4c -z zip -O mergetime  data/cloud_ymonsd_1-6.nc  data/cloud_ymonsd_7-12.nc data/cloud_ymonstd.nc"))
-
-system("cdo -f nc4c -z zip  timmin data/cloud_ymonmean.nc data/cloud_min.nc")
-system("cdo -f nc4c -z zip  timmax data/cloud_ymonmean.nc data/cloud_max.nc")
 
 ## standard deviation of mean monthly values give intra-annual variability
 system("cdo -f nc4c -z zip -chname,CF,CFsd -timstd data/cloud_ymonmean.nc data/cloud_std_intra.nc")
 ## mean of monthly standard deviations give inter-annual variability 
 system("cdo -f nc4c -z zip -chname,CF,CFsd -timmean data/cloud_ymonstd.nc data/cloud_std_inter.nc")
 
-
-# Regressions through time by season
-s=c("DJF","MAM","JJA","SON")
-
-system(paste("cdo  -f nc4c -O regres -selseas,",s[1]," data/cloud_monthly.nc data/slope_",s[1],".nc",sep=""))
-system(paste("cdo  -f nc4c -O regres -selseas,",s[2]," data/cloud_monthly.nc data/slope_",s[2],".nc",sep=""))
-system(paste("cdo  -f nc4c -O regres -selseas,",s[3]," data/cloud_monthly.nc data/slope_",s[3],".nc",sep=""))
-system(paste("cdo  -f nc4c -O regres -selseas,",s[4]," data/cloud_monthly.nc data/slope_",s[4],".nc",sep=""))
 
 
 
@@ -267,3 +213,5 @@ mod09_seas=calc(mod09,seasconc,return.Pc=T,return.thetat=F,overwrite=T,filename=
 mod09_seas2=calc(mod09,seasconc,return.Pc=F,return.thetat=T,overwrite=T,filename="data/mod09_seas_theta.nc",datatype="INT1U")
 
 plot(mod09_seas)
+
+

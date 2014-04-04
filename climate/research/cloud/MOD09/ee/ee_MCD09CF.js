@@ -11,22 +11,28 @@
 
 //  Specify destination and run name
 var driveFolder="ee_mcd09cf";
-var run="g2"
+var run="g3"
 
 // limit overall date range  (only dates in this range will be included)
 var datestart=new Date("2000-01-01")  // default time zone is UTC
-var datestop=new Date("2014-02-28")
-
+var datestop=new Date("2014-03-31")
 
 // specify which months (within the date range above) to process
 var monthstart=1
 var monthstop=12
 
+//  Sensors to process
+var mcols = ['MOD09GA','MYD09GA'];
+
 // specify what happens
 var verbose=false       // print info about collections along the way (slows things down)
-var exportDrive=true  // add exports to task window
-var drawmap=false       // add image to map
+var drawmap=true       // add image to map
+var test1=false         // report on all images requested via dates above, but only add image below to map
+var exportDrive=!test1  // add exports to task window
 
+// set testing sensor and month, these only apply if test1==t above
+var testsensor='MYD09GA'
+var testmonth=1
 
 // define regions
 var globe = '[[-180, -89.95], [-180, 89.95], [180, 89.95], [180, -89.95]]';  
@@ -44,19 +50,13 @@ var region = globe
 var currentdate = new Date();
 var date= currentdate.getFullYear()+''+("0" + (currentdate.getMonth() + 1)).slice(-2)+''+currentdate.getDate();
 print(date)
-// identify start and stop years
-var yearstart=datestart.getUTCFullYear();
-var yearstop=datestop.getUTCFullYear();
 
-// get array of years to process
-var years=Array.apply(0, Array(yearstop-yearstart+1)).map(function (x, y) { return yearstart +y ; });
-var nYears=years.length;
-if(verbose){print('Processing '+years)}
+
 
 /////////////////////////////////////////////////////////////////////////////
 /// Functions
 
-//function to combine terra and aqua and limit by date
+//function to select terra or aqua and subset by date
 function getMCD09(modcol,datestart,datestop){
     var getdates=ee.Filter.date(datestart,datestop);
     return(ee.ImageCollection(modcol).filter(getdates));
@@ -136,6 +136,9 @@ var getprop=function(img) {
         select([0],['pObs'])};        // rename to nObs
 
 
+//function to return year+1
+var yearplus=function (x, y) { return yearstart +y ; }
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 //  Clip high-latitude nonsense
 //  For an unknown reason there are pixels at high latitudes with nobs>0 in winter (dark) months.
@@ -145,7 +148,7 @@ var getprop=function(img) {
 var monthbox=function(month) {
   // limits for each month (12 numbers correspond to jan-december limits)
     var ymin=[-90,-90,-90,-90,-70,-70,-70,-77,-77,-90,-90,-90];
-    var ymax=[ 77, 90, 90, 90, 90, 90, 90, 90, 90, 90, 77, 69];
+    var ymax=[ 75, 90, 90, 90, 90, 90, 90, 90, 90, 90, 77, 69];
   // draw the polygon, use month-1 because month is 1:12 and array is indexed 0:11
     var ind=month-1;
     var box = ee.Geometry.Rectangle(-180,ymin[ind],180,ymax[ind]);
@@ -158,19 +161,40 @@ var monthbox=function(month) {
 ////////////////////////////////////////////////////
 //  Start processing the data
 
-//var mcol='MOD09GA'
-//var  tmonth=1
 
 
 // loop over collections and months
-var mcols = ['MOD09GA','MYD09GA'];
 for (var c=0;c<mcols.length;c++) {
     var mcol=mcols[c];
     for (var tmonth = monthstart; tmonth <= monthstop; tmonth ++ ) {
 
+// if test1 is true, use only test settings 
+	if(test1){
+  var mcol=testsensor
+  var tmonth=testmonth
+	}
+
 	if(verbose){
 	    print('Starting processing for:'+ mcol+' month '+tmonth);
 	}
+
+// identify start and stop years
+	var yearstart=datestart.getUTCFullYear();
+	var yearstop=datestop.getUTCFullYear();
+
+// update startdates based on terra/aqua start dates
+// otherwise missing month-years will cause problems when compiling the mean
+// Terra (MOD) startdate: February 24, 2000
+	if(mcol=='MOD09GA'&tmonth==1&yearstart==2000) yearstart=2001
+/// Aqua (MYD) startdate: July 4, 2002
+	if(mcol=='MYD09GA'&tmonth<7&yearstart<=2002) yearstart=2003
+	if(mcol=='MYD09GA'&tmonth>=7&yearstart<=2002) yearstart=2002
+
+// get array of years to process
+	var years=Array.apply(0, Array(yearstop-yearstart+1)).map(yearplus);
+	var nYears=years.length;
+	if(verbose){print('Processing '+years)}
+
 
 
 // build a combined M*D09GA collection limited by start and stop dates
@@ -225,6 +249,8 @@ var MCD09=MCD09_mean.
 			 'region': region
 			});
 	}
+
+	if(test1) break;  // if running testing, dont complete the loop
 
     } // close loop through months
 } // close loop through collections

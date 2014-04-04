@@ -4,16 +4,18 @@ library(rasterVis)
 library(doMC)
 library(foreach)
 library(RcppOctave)
-registerDoMC(12)
+library(rgdal)
+registerDoMC(7)
 
 
-## start raster cluster
-#beginCluster(5)
-
+# final output will be written to data directory here:
 setwd("~/acrobates/adamw/projects/cloud")
 
+# temporary files will be written here:
 datadir="/mnt/data2/projects/cloud/"
 
+
+## Specify path to VSNR souce code and add it to RcppOctave path
 mpath="/home/adamw/acrobates/adamw/projects/environmental-layers/climate/research/cloud/MOD09/vsnr/"
 .O$addpath(mpath)
 
@@ -39,25 +41,29 @@ fgabor=function(d,theta=-15,x=200,y=5){
 }
   
      
-vsnr=function(d,gabor,alpha=10,p=2,epsilon=0,prec=5e-3,maxit=100,C1=1){
-#    d=d*1.0
+vsnr=function(d,gabor,alpha=2,p=2,epsilon=0,prec=5e-3,maxit=100,C1=1,full=F){
+    ## VSNR can't run with any missing values, set them to zero here then switch them back to NA later
+    d2=as.matrix(d)
+    d2[is.na(d2)]=0
     ## Process with VSNR
-    dt=.O$VSNR(as.matrix(d),epsilon,p,as.matrix(gabor),alpha,maxit+1,prec,1,argout = c("u", "Gap", "Primal","Dual","EstP","EstD"));
+    dt=.CallOctave("VSNR",d2,epsilon,p,as.matrix(gabor),alpha,maxit+1,prec,C1,argout ="u",verbose=T);
     ## Create spatial objects from VSNR output
-    bias=d
-    values(bias)=-as.numeric(t(convolve(dt$EstP,as.matrix(gabor))))
-    #bias[abs(bias)<5]=0  # set all bias<0.5 to zero to avoit minor adjustment and added striping in data
-    #bias=bias*10
-#    dc=d-bias  # Make 'corrected' version of data
-#    NAvalue(bias)=0  #set bias==0 to NA to facilate plotting, areas that are NA were not adjusted
-#    res=stack(list(dc=dc,d=d,bias=bias)) #,EstP=EstP,EstD1=EstD1,EstD2=EstD2
-    res=stack(list(bias=bias)) #,EstP=EstP,EstD1=EstD1,EstD2=EstD2
-#    rm(dt,dc)
-    rm(dt)
-    return(res)
+    dc=d
+    values(dc)=as.numeric(t(dt$u))  # Make 'corrected' version of data
+    ##  Set NA values in original data back to NA 
+    dc[is.na(d)]=NA
+    return(dc)
 }
 
+rmr=function(x){
+    ## function to truly delete raster and temporary files associated with them
+        if(class(x)=="RasterLayer"&grepl("^/tmp",x@file@name)&fromDisk(x)==T){
+            file.remove(x@file@name,sub("grd","gri",x@file@name))
+            rm(x)
+    }
+}
 
+                    
 ######################################
 ## Run the correction functions
 ###  Subset equitorial region to correct orbital banding
@@ -75,53 +81,92 @@ extf=function(xmin=-180,xmax=180,ymin=-30,ymax=30,size=10,overlap=0.5){
 
 df2=list.files(paste(datadir,"/mcd09tif",sep=""),full=T,pattern="[0-9][.]tif$")
 i=1
+ti=7
 
 ### Build the tiles
-exts=extf(xmin=-180,xmax=180,ymin=-30,ymax=30,size=10,overlap=0)
-#exts=extf(xmin=-10,xmax=20,ymin=0,ymax=30,size=10,overlap=0)
-#exts=extf(xmin=-60,xmax=60,ymin=-30,ymax=30,size=10,overlap=0)
+exts=extf(xmin=-180,xmax=180,ymin=-30,ymax=30,size=60,overlap=0)
+
+## add an extra tile to account for regions of reduced data availability for each sensor
+modexts=c(xmin=130,xmax=180,ymin=-50,ymax=0)
+mydexts=c(xmin=-170,xmax=-140,ymin=-30,ymax=55)
 
 
 ## loop over sensor-months to create full grid of corrected values
-for( i in 1:length(df2)){
-### Process the tiles
-foreach(ti=1:nrow(exts)) %dopar% {
-    textent=extent(exts$xmin[ti],exts$xmax[ti],exts$ymin[ti],exts$ymax[ti])
-    ## extract the tile
+for( i in 1:nrow(df2))){
     file=df2[i]
-    outfile=paste("tmp/",sub(".tif","",basename(file)),"_",sprintf("%03d",ti),".tif",sep="")
-    writeLines(paste("Starting: ",outfile," tile:",ti," ( out of ",nrow(exts),")"))
-    d=crop(raster(file),textent)
-    ## acount for scale of data is 10000*CF
-    d=d*.01
-    ## skip null tiles
-    if(is.null(d@data@values)) return(NULL)
-    ## make the gabor kernel
-    psi=fgabor(d,theta=-15,x=400,y=4) #3
-    ## run the correction
-    res=vsnr(d,gabor=psi,alpha=2,p=2,epsilon=1,prec=5e-6,maxit=50,C=1)
-    ## write the file
-    if(!is.null(outfile)) writeRaster(res,file=outfile,overwrite=T,datatype='INT2S',options=c("COMPRESS=LZW", "PREDICTOR=2"))#,NAflag=-127)
-    print(paste("Finished ",outfile))
-}
+    outfile=paste(datadir,"/mcd09ctif/",basename(file),sep="")
+#    outfile2=paste("data/mcd09tif/",basename(file),sep="")
+#    outfile2b=paste("data/mcd09tif/",sub("[.]tif","_sd.tif",basename(file)),sep="")
+
+## set sensor-specific parameters
+    ## add extra region for correction depending on which sensor is being processed
+    ## set angle of orbital artefacts to be corrected
+    sensor=ifelse(grepl("MOD",file),"MOD","MYD")
+    if(sensor=="MOD") {
+        exts=rbind(exts,modexts)
+        scanangle=-15
+    }
+    if(sensor=="MYD") {
+        exts=rbind(exts,mydexts)
+        scanangle=15
+    }
+
+    ## Process the tiles
+    foreach(ti=1:nrow(exts)) %dopar% {
+        textent=extent(exts$xmin[ti],exts$xmax[ti],exts$ymin[ti],exts$ymax[ti])
+        ## extract the tile
+        toutfile=paste("tmp/", sub(".tif","",basename(file)),"_",sprintf("%03d",ti),".tif",sep="")
+        writeLines(paste("Starting: ",toutfile," tile:",ti," ( out of ",nrow(exts),")"))
+        d=crop(raster(file),textent)
+        ## acount for scale of data is 10000*CF
+        d=d*.01
+        ## skip null tiles - will only have this if tiles are quite small (<10 degrees)
+        if(is.null(d@data@values)) return(NULL)
+        ## make the gabor kernel
+        ## this specifies the 'shape' of the noise we are trying to remove
+        psi=fgabor(d,theta=scanangle,x=400,y=4) #3
+#        psi=stack(lapply(scanangle,function(a) fgabor(d,theta=a,x=400,y=4))) #3
+
+        ## run the correction function.  
+        res=vsnr(d,gabor=psi,alpha=2,p=2,epsilon=1,prec=5e-6,maxit=50,C=1,full=F)
+        ## write the file
+        if(!is.null(outfile)) writeRaster(res*100,file=toutfile,overwrite=T,datatype='INT2S',options=c("COMPRESS=LZW", "PREDICTOR=2"),NAvalue=-32768)
+        ## remove temporary files
+        rmr(d);rmr(psi);rmr(res)
+        print(paste("Finished Temporary File: ",toutfile))
+    }
+## create VRT of first band of the full image 
+fvrt=sub("[.]tif","_cf.vrt",file)
+system(paste("gdalbuildvrt -b 1 ",fvrt," ",file))
+## mosaic the tiles with the original data (keeping the new data when available)
+tfiles=paste(c(fvrt,list.files("tmp",pattern=paste(sub("[.]tif","",basename(outfile)),"_[0-9]*[.]tif",sep=""),full=T)),collapse=" ")
+system(paste("gdal_merge.py -init -32768 -n -32768 -co COMPRESS=LZW -co PREDICTOR=2 -co BIGTIFF=yes  -o ",outfile," ",tfiles,sep="")) 
 }
 
-## mosaic the tiles
-system("ls tmp/test_[0-9]*[.]tif")
-system("rm tmp/test2.tif; gdal_merge.py -co COMPRESS=LZW -co PREDICTOR=2 -co BIGTIFF=yes 'tmp/test_[0-9]*[.]tif' -o tmp/test2.tif")
-#system("rm tmp/test2.tif; gdalwarp -multi -r average -dstnodata 255 -ot Byte -co COMPRESS=LZW -co PREDICTOR=2 `ls tmp/test_[0-9]*[.]tif` tmp/test2.tif")
 
-res=brick("tmp/test2.tif")
-names(res)=c("dc","d","bias")
-NAvalue(res)=-32768
+################################################################################
+###  calculate monthly means of terra and aqua
 
-tplot=F
-if(tplot){
-    gcol=colorRampPalette(c("blue","yellow","red"))
-    gcol=colorRampPalette(c("black","white"))
-    levelplot(res[["bias"]],col.regions=gcol(100),cuts=99,margin=F,maxpixels=1e6)
-    levelplot(stack(list(Original=res[["d"]],Corrected=res[["dc"]])),col.regions=gcol(100),cuts=99,maxpixels=1e6)
-    levelplot(stack(list(Original=res[["d"]],Corrected=res[["dc"]])),col.regions=gcol(100),cuts=99,maxpixels=1e6,ylim=c(10,13),xlim=c(-7,-1))
-}
+# Create combined (MOD+MYD) uncorrected mean CF
+    foreach(i=1:12) %dopar% {
+        ## get files
+        f=list.files(paste(datadir,"/mcd09ctif",sep=""),pattern=paste(".*[O|Y].*_",sprintf("%02d",i),"[.]tif$",sep=""),full=T)
+        ## Define output and check if it already exists
+        tmcd=paste(datadir,"/mcd09ctif/MCD09_",sprintf("%02d", i),".tif",sep="")
+        ## check if output already exists
+        ops=paste("-t_srs 'EPSG:4326' -multi -srcnodata -32768 -dstnodata -32768 -r bilinear -te -180 -90 180 90 -tr 0.008333333333333 -0.008333333333333",
+            "-co BIGTIFF=YES  --config GDAL_CACHEMAX 500 -wm 500 -wo NUM_THREADS:10 -wo SOURCE_EXTRA=5")
+        system(paste("gdalwarp -overwrite -r average -co COMPRESS=LZW -co ZLEVEL=9  ",ops," ",paste(f,collapse=" ")," ",tmcd))
+        ## update metadata
+        tags=c(paste("TIFFTAG_IMAGEDESCRIPTION='Monthly Cloud Frequency for 2000-2013 extracted from C5 MODIS MOD09GA and MYD09GA PGE11 internal cloud mask algorithm (embedded in state_1km bit 10).",
+            "The daily cloud mask time series were summarized to mean cloud frequency (CF) by calculating the proportion of cloudy days. ",
+            "Band Descriptions: 1) Mean Monthly Cloud Frequency 2) Four Times the Standard Deviation of Mean Monthly Cloud Frequency"'"),
+            "TIFFTAG_DOCUMENTNAME='Collection 5 MCD09 Cloud Frequency'",
+            paste("TIFFTAG_DATETIME='2013",sprintf("%02d", i),"15'",sep=""),
+              "TIFFTAG_ARTIST='Adam M. Wilson (adam.wilson@yale.edu)'")
+        system(paste("/usr/local/src/gdal-1.10.0/swig/python/scripts/gdal_edit.py ",tmcd," ",paste("-mo ",tags,sep="",collapse=" "),sep=""))
+        writeLines(paste("Finished month",i))
+    }
+
 
 

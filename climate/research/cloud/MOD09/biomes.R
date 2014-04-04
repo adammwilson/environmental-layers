@@ -26,8 +26,17 @@ if(!file.exists("data/teow/biomes.shp")){
     ## add area and centroid to each polygon
     biome$areakm=do.call(c,mclapply(1:length(biome),function(i) {print(i); return(areaPolygon(biome[i,])/1000000)}))
     biome@data[,c("lon","lat")]=coordinates(gCentroid(biome,byid=T))
+    ## add numeric biome code for rasterization
+    biome=biome[order(biome$realm,as.numeric(biome$biomeid)),]
+    biome$icode=1:nrow(biome)
+    ## write it to disk as shapefile
     writeOGR(biome,"data/teow","biomes",driver="ESRI Shapefile",overwrite=T)
 }
+
+## rasterize biome shapefile to standard 1km grid
+ops=paste(" -ot Byte  -at -a_nodata 255 -init 255 -a icode -te -180 -90 180 90 -tr 0.008333333333333 -0.008333333333333",
+            "-co BIGTIFF=yes -co COMPRESS=LZW -co PREDICTOR=1")
+system(paste("gdal_rasterize ",ops,"  -l biomes data/teow data/teow.tif"))
 
 
 biome=readOGR("data/teow/","biomes")
