@@ -4,11 +4,12 @@
 datadir="/mnt/data2/projects/cloud/"
 
 # Create combined (MOD+MYD) corrected mean CF
-    foreach(i=1:12) %dopar% {
+    foreach(i=1:2) %dopar% {
 
         f=list.files(paste(datadir,"/mcd09ctif",sep=""),pattern=paste(".*[O|Y].*_",sprintf("%02d",i),"[.]tif$",sep=""),full=T)
         ## Define output and check if it already exists
-        tmcd=paste(datadir,"/mcd09ctif/MCD09_",sprintf("%02d", i),".tif",sep="")
+        tmcd=paste(datadir,"/mcd09ctif/MCD09_",sprintf("%02d", i),"_uncompressed.tif",sep="")
+        tmcd2=paste(datadir,"/mcd09ctif/MCD09_",sprintf("%02d", i),".tif",sep="")
         ## check if output already exists
         ops=paste("-t_srs 'EPSG:4326' -multi -srcnodata -32768 -dstnodata -32768 -r bilinear -te -180 -90 180 90 -tr 0.008333333333333 -0.008333333333333",
             "-co BIGTIFF=YES  --config GDAL_CACHEMAX 500 -wm 500 -wo NUM_THREADS:10 -wo SOURCE_EXTRA=5")
@@ -22,6 +23,8 @@ datadir="/mnt/data2/projects/cloud/"
             paste("TIFFTAG_DATETIME='2013",sprintf("%02d", i),"15'",sep=""),
               "TIFFTAG_ARTIST='Adam M. Wilson (adam.wilson@yale.edu)'")
         system(paste("/usr/local/src/gdal-1.10.0/swig/python/scripts/gdal_edit.py ",tmcd," ",paste("-mo ",tags,sep="",collapse=" "),sep=""))
+        # create final fixed image
+        system(paste("gdal_translate  -a_nodata -32768 -co COMPRESS=LZW -co ZLEVEL=9 -co PREDICTOR=2 ",tmcd," ",tmcd2,sep=""))
         writeLines(paste("Finished month",i))
     }
 
@@ -29,24 +32,49 @@ datadir="/mnt/data2/projects/cloud/"
 
 #################################################################################
 ###### convert to 8-bit compressed file, add colors and other details
-for( i in 1:12){
-    f2=list.files(paste(datadir,"/mcd09ctif",sep=""),pattern=paste(".*MCD09_",sprintf("%02d",i),"[.]tif$",sep=""),full=T)
-    
-    outfile=paste(datadir,"/mcd09ctif/",basename(file),sep="")
-    outfile2=paste("data/mcd09tif/MCD09_",sprintf("%02d",i),".tif",sep="")
-    outfile2b=paste("data/mcd09tif/MCD09_",sprintf("%02d",i),"_sd.tif",sep="")
+f2=list.files(paste(datadir,"/mcd09ctif",sep=""),pattern=paste(".*MCD09_[0-9].[.]tif$",sep=""),full=T)
+
+for( i in 1:length(f2)){
+    file=f2[i]
+    outfilevrt=paste(datadir,"/mcd09ctif/",sub(".tif",".vrt",basename(file)),sep="")
+    outfile=paste("data/mcd09tif/MCD09_",sprintf("%02d",i),".tif",sep="")
+    outfilesd=paste("data/mcd09tif/MCD09_",sprintf("%02d",i),"_sd.tif",sep="")
+    ## create VRT and edit the color table
+    ## create the vrt to add a color table following https://trac.osgeo.org/gdal/wiki/FAQRaster#Howtocreateormodifyanimagecolortable
+    system(paste("gdal_translate  -scale 0 10000 0 100 -of VRT ",file," ",outfilevrt))
+    vrt=scan(outfilevrt,what="char")
+    hd=c("<ColorInterp>Palette</ColorInterp>","<ColorTable>")
+    ft="</ColorTable>"
+    colR=colorRampPalette(c("#08306b","#0d57a1","#2878b8","#4997c9","#72b2d7","#a2cbe2","#c7dcef","#deebf7","#f7fbff"))
+    cols=data.frame(t(col2rgb(colR(101))))
+    ct=paste("<Entry c1=\"",cols$red,"\" c2=\"",cols$green,"\" c3=\"",cols$blue,"\" c4=\"255\"/>")
+    cti=grep("ColorInterp",vrt)  # get index of current color table
+    vrt2=c(vrt[1:(cti-1)],hd,ct,ft,vrt[(cti+1):length(vrt)])
+    ## update missing data flag following http://lists.osgeo.org/pipermail/gdal-dev/2010-February/023541.html
+    csi=grep("<ComplexSource>",vrt2)  # get index of current color table
+    vrt2=c(vrt2[1:csi],"<NODATA>-327.68</NODATA>",vrt2[(csi+1):length(vrt2)])
+    write.table(vrt2,file=outfilevrt,col.names=F,row.names=F,quote=F)
+
+    #system(paste("gdal_translate  -of VRT -scale 0 10000 0 100  ",outfilevrt," ",outfilevrt2))
     
     ## convert to 8-bit compressed file
-    ops="-stats -scale 0 10000 0 100 -ot Byte -a_nodata 255 -co COMPRESS=LZW -co PREDICTOR=2 -co BIGTIFF=yes"
+    ## update vrt to correctly handle missing data
+    #vrt3=scan(outfilevrt2,what="char")
+    #csi=grep("<ComplexSource>",vrt3)  # get index of current color table
+    #vrt3=c(vrt[1:csi],"<NODATA>-32768</NODATA>",vrt[(csi+1):length(vrt)])
+    #write.table(vrt3,file=outfilevrt2,col.names=F,row.names=F,quote=F)
+
+                                        #    system(paste("pkreclass  -i ",outfilevrt," ",paste("-mo ",tags,sep="",collapse=" ")," ",outfilevrt," ",outfile2))
     tags=c(paste("TIFFTAG_IMAGEDESCRIPTION='Monthly Cloud Frequency for 2000-2013 extracted from C5 MODIS M*D09GA PGE11 internal cloud mask algorithm (embedded in state_1km bit 10).",
         "The daily cloud mask time series were summarized to mean cloud frequency (CF) by calculating the proportion of cloudy days. ",
         "Band Descriptions: 1) Mean Monthly Cloud Frequency'"),
         "TIFFTAG_DOCUMENTNAME='Collection 5 Cloud Frequency'",
         paste("TIFFTAG_DATETIME='2014'",sep=""),
         "TIFFTAG_ARTIST='Adam M. Wilson (adam.wilson@yale.edu)'")
-    system(paste("gdal_translate  ",ops," ",paste("-mo ",tags,sep="",collapse=" ")," ",outfile," ",outfile2))
+    system(paste("gdal_translate -ot Byte  -co COMPRESS=LZW -co PREDICTOR=2 ",paste("-mo ",tags,sep="",collapse=" ")," ",outfilevrt," ",outfile))
+
     ## Convert SD to 8-bit
-    system(paste("gdal_translate  -b 2 ",ops," ",paste("-mo ",tags,sep="",collapse=" ")," ",file," ",outfile2b))
+    system(paste("gdal_translate -b 2 ",ops," ",paste("-mo ",tags,sep="",collapse=" ")," ",file," ",outfilesd))
 }
 
 
