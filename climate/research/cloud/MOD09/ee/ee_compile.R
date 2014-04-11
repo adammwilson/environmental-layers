@@ -20,7 +20,7 @@ datadir="/mnt/data2/projects/cloud/"
 ### Download files from google drive
 ## This only works if google-cli is installed and has already been authenticated 
 download=T
-if(download) system(paste("google docs get 2014*_g3_* ",datadir,"/mcd09ee",sep=""))
+if(download) system(paste("google docs get 2014043_g3_* ",datadir,"/mcd09ee",sep=""))
 
 
 ##  Get list of available files
@@ -47,7 +47,7 @@ rasterOptions(tmpdir=tmpfs,overwrite=T, format="GTiff",maxmemory=1e9)
 rerun=T  # set to true to recalculate all dates even if file already exists
 
 ## define month-sensors to process
-jobs=unique(data.frame(month=df$month,sensor=df$sensor))
+jobs=unique(data.frame(month=as.numeric(df$month),sensor=df$sensor))
 
 i=1
 #jobs=jobs[jobs$sensor=="MYD09",]
@@ -64,8 +64,8 @@ i=1
         s2=sub("GA","",s)
 
         ## Define output and check if it already exists
-        tvrt=paste(tmpfs,"/",s2,"_",sprintf("%02d", m),".vrt",sep="")
-        ttif1=paste(tmpfs,"/",s2,"_",sprintf("%02d", m),".tif",sep="")
+        tvrt=paste(datadir,"/mcd09tif/",s2,"_",sprintf("%02d", m),".vrt",sep="")
+        ttif1=paste(datadir,"/mcd09tif/",s2,"_",sprintf("%02d", m),"_uncompressed.tif",sep="")
         ttif2=paste(datadir,"/mcd09tif/",s2,"_",sprintf("%02d", m),".tif",sep="")
 
         ## check if output already exists
@@ -76,7 +76,10 @@ i=1
         ## Merge to geotif in temporary directory
         ## specify sourc projection because it gts it slightly wrong by default #-ot Int16 -dstnodata -32768
         ops=paste("-s_srs ",proj,"  -t_srs 'EPSG:4326' -multi -srcnodata -32768  -ot Int16 -dstnodata -32768 -r bilinear -te -180 -90 180 90 -tr 0.008333333333333 -0.008333333333333",
-            "-co BIGTIFF=YES --config GDAL_CACHEMAX 500 -wm 500 -wo NUM_THREADS:10 -co COMPRESS=LZW -co PREDICTOR=2")
+            "-co BIGTIFF=YES --config GDAL_CACHEMAX 2000 -wm 2000 -wo NUM_THREADS:10 -co COMPRESS=LZW -co PREDICTOR=2")
+        ## if file exists, remove it avoid warping into existing file
+        if(file.exists(ttif1)) file.remove(ttif1)
+        ## run the warp
         system(paste("gdalwarp -overwrite ",ops," ",tvrt," ",ttif1))
 
         ## Compress file and add metadata tags

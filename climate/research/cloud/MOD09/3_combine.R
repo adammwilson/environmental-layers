@@ -4,27 +4,53 @@
 datadir="/mnt/data2/projects/cloud/"
 
 # Create combined (MOD+MYD) corrected mean CF
-    foreach(i=1:2) %dopar% {
-
+    foreach(i=1:12) %dopar% {
         f=list.files(paste(datadir,"/mcd09ctif",sep=""),pattern=paste(".*[O|Y].*_",sprintf("%02d",i),"[.]tif$",sep=""),full=T)
         ## Define output and check if it already exists
         tmcd=paste(datadir,"/mcd09ctif/MCD09_",sprintf("%02d", i),"_uncompressed.tif",sep="")
         tmcd2=paste(datadir,"/mcd09ctif/MCD09_",sprintf("%02d", i),".tif",sep="")
         ## check if output already exists
-        ops=paste("-t_srs 'EPSG:4326' -multi -srcnodata -32768 -dstnodata -32768 -r bilinear -te -180 -90 180 90 -tr 0.008333333333333 -0.008333333333333",
-            "-co BIGTIFF=YES  --config GDAL_CACHEMAX 500 -wm 500 -wo NUM_THREADS:10 -wo SOURCE_EXTRA=5")
+#        if(file.exists(tmcd2)){print(paste(tmcd2,"Exists, moving on..."));return(NULL)}
+        ## Take average between images
+        ## switch NA values to 32768 to facilitate recasting to 8-bit below, otherwise they are confounded with 0 cloud values
+        ops=paste("-t_srs 'EPSG:4326' -multi -srcnodata -32768 -dstnodata 32767 -r bilinear -te -180 -90 180 90 -tr 0.008333333333333 -0.008333333333333",
+            "-co BIGTIFF=YES  --config GDAL_CACHEMAX 20000 -wm 2000 -wo NUM_THREADS:10 -wo SOURCE_EXTRA=5")
         system(paste("gdalwarp -overwrite -r average -co COMPRESS=LZW -co ZLEVEL=9  ",ops," ",paste(f,collapse=" ")," ",tmcd))
         ## update metadata
         tags=c(paste("TIFFTAG_IMAGEDESCRIPTION='Monthly Cloud Frequency for 2000-2013 extracted from C5 MODIS MOD09GA and MYD09GA PGE11 internal cloud mask algorithm (embedded in state_1km bit 10).",
-            "The daily cloud mask time series were summarized to mean cloud frequency (CF) by calculating the proportion of cloudy days. ",
-            "Band Descriptions: 1) Mean Monthly Cloud Frequency 2) Four Times the Standard Deviation of Mean Monthly Cloud Frequency",
-            " 3) Mean number of daily observations for each pixel 4) Proportion of days with at least one observation '"),
+            "The daily cloud mask time series were summarized to mean cloud frequency (CF) by calculating the proportion of cloudy days.'"),
             "TIFFTAG_DOCUMENTNAME='Collection 5 MCD09 Cloud Frequency'",
             paste("TIFFTAG_DATETIME='2013",sprintf("%02d", i),"15'",sep=""),
               "TIFFTAG_ARTIST='Adam M. Wilson (adam.wilson@yale.edu)'")
         system(paste("/usr/local/src/gdal-1.10.0/swig/python/scripts/gdal_edit.py ",tmcd," ",paste("-mo ",tags,sep="",collapse=" "),sep=""))
         # create final fixed image
-        system(paste("gdal_translate  -a_nodata -32768 -co COMPRESS=LZW -co ZLEVEL=9 -co PREDICTOR=2 ",tmcd," ",tmcd2,sep=""))
+        system(paste("gdal_translate -co COMPRESS=LZW -co ZLEVEL=9 -co PREDICTOR=2 ",tmcd," ",tmcd2,sep=""))
+        writeLines(paste("Finished month",i))
+    }
+
+################################################
+# Create combined (MOD+MYD) corrected mean CF SD
+    foreach(i=1:12) %dopar% {
+        f=list.files(paste(datadir,"/mcd09tif",sep=""),pattern=paste(".*[O|Y].*_",sprintf("%02d",i),"[.]tif$",sep=""),full=T)
+        ## Define output and check if it already exists
+        tmcd=paste(datadir,"/mcd09ctif/MCD09sd_",sprintf("%02d", i),"_uncompressed.tif",sep="")
+        tmcd2=paste(datadir,"/mcd09ctif/MCD09sd_",sprintf("%02d", i),".tif",sep="")
+        ## check if output already exists
+        if(file.exists(tmcd2)){print(paste(tmcd2,"Exists, moving on..."));return(NULL)}
+        ## Take average between images
+        ops=paste("-t_srs 'EPSG:4326' -multi -srcnodata -32768 -dstnodata -32768 -r bilinear -te -180 -90 180 90 -tr 0.008333333333333 -0.008333333333333",
+            "-co BIGTIFF=YES  --config GDAL_CACHEMAX 20000 -wm 2000 -wo NUM_THREADS:10 -wo SOURCE_EXTRA=5")
+        system(paste("gdalwarp -overwrite -r average -co COMPRESS=LZW -co ZLEVEL=9  ",ops," ",paste(f,collapse=" ")," ",tmcd))
+        ## update metadata
+        tags=c(paste("TIFFTAG_IMAGEDESCRIPTION='Standard Deviation of the Monthly Cloud Frequency for 2000-2013 extracted from C5 MODIS",
+            " MOD09GA and MYD09GA PGE11 internal cloud mask algorithm (embedded in state_1km bit 10).",
+            "The daily cloud mask time series were summarized to mean cloud frequency (CF) by calculating the proportion of cloudy days"),
+            "TIFFTAG_DOCUMENTNAME='Collection 5 MCD09 SD of Cloud Frequency'",
+            paste("TIFFTAG_DATETIME='2013",sprintf("%02d", i),"15'",sep=""),
+              "TIFFTAG_ARTIST='Adam M. Wilson (adam.wilson@yale.edu)'")
+        system(paste("/usr/local/src/gdal-1.10.0/swig/python/scripts/gdal_edit.py ",tmcd," ",paste("-mo ",tags,sep="",collapse=" "),sep=""))
+        # create final fixed image
+        system(paste("gdal_translate -b 2 -a_nodata -32768 -co COMPRESS=LZW -co ZLEVEL=9 -co PREDICTOR=2 ",tmcd," ",tmcd2,sep=""))
         writeLines(paste("Finished month",i))
     }
 
@@ -46,23 +72,17 @@ for( i in 1:length(f2)){
     hd=c("<ColorInterp>Palette</ColorInterp>","<ColorTable>")
     ft="</ColorTable>"
     colR=colorRampPalette(c("#08306b","#0d57a1","#2878b8","#4997c9","#72b2d7","#a2cbe2","#c7dcef","#deebf7","#f7fbff"))
-    cols=data.frame(t(col2rgb(colR(101))))
+    cols=data.frame(t(col2rgb(colR(105))))
     ct=paste("<Entry c1=\"",cols$red,"\" c2=\"",cols$green,"\" c3=\"",cols$blue,"\" c4=\"255\"/>")
     cti=grep("ColorInterp",vrt)  # get index of current color table
     vrt2=c(vrt[1:(cti-1)],hd,ct,ft,vrt[(cti+1):length(vrt)])
     ## update missing data flag following http://lists.osgeo.org/pipermail/gdal-dev/2010-February/023541.html
     csi=grep("<ComplexSource>",vrt2)  # get index of current color table
-    vrt2=c(vrt2[1:csi],"<NODATA>-327.68</NODATA>",vrt2[(csi+1):length(vrt2)])
+    vrt2=c(vrt2[1:csi],"<NODATA>327</NODATA>",vrt2[(csi+1):length(vrt2)])
     write.table(vrt2,file=outfilevrt,col.names=F,row.names=F,quote=F)
 
     #system(paste("gdal_translate  -of VRT -scale 0 10000 0 100  ",outfilevrt," ",outfilevrt2))
-    
-    ## convert to 8-bit compressed file
-    ## update vrt to correctly handle missing data
-    #vrt3=scan(outfilevrt2,what="char")
-    #csi=grep("<ComplexSource>",vrt3)  # get index of current color table
-    #vrt3=c(vrt[1:csi],"<NODATA>-32768</NODATA>",vrt[(csi+1):length(vrt)])
-    #write.table(vrt3,file=outfilevrt2,col.names=F,row.names=F,quote=F)
+   
 
                                         #    system(paste("pkreclass  -i ",outfilevrt," ",paste("-mo ",tags,sep="",collapse=" ")," ",outfilevrt," ",outfile2))
     tags=c(paste("TIFFTAG_IMAGEDESCRIPTION='Monthly Cloud Frequency for 2000-2013 extracted from C5 MODIS M*D09GA PGE11 internal cloud mask algorithm (embedded in state_1km bit 10).",
@@ -71,10 +91,8 @@ for( i in 1:length(f2)){
         "TIFFTAG_DOCUMENTNAME='Collection 5 Cloud Frequency'",
         paste("TIFFTAG_DATETIME='2014'",sep=""),
         "TIFFTAG_ARTIST='Adam M. Wilson (adam.wilson@yale.edu)'")
-    system(paste("gdal_translate -ot Byte  -co COMPRESS=LZW -co PREDICTOR=2 ",paste("-mo ",tags,sep="",collapse=" ")," ",outfilevrt," ",outfile))
+    system(paste("gdal_translate -a_nodata 255 -ot Byte  -co COMPRESS=LZW -co PREDICTOR=2 ",paste("-mo ",tags,sep="",collapse=" ")," ",outfilevrt," ",outfile))
 
-    ## Convert SD to 8-bit
-    system(paste("gdal_translate -b 2 ",ops," ",paste("-mo ",tags,sep="",collapse=" ")," ",file," ",outfilesd))
 }
 
 

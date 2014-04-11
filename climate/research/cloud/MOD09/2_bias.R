@@ -5,7 +5,7 @@ library(doMC)
 library(foreach)
 library(RcppOctave)
 library(rgdal)
-registerDoMC(15)
+registerDoMC(12)
 
 
 # final output will be written to data directory here:
@@ -141,6 +141,8 @@ foreach( i=1:nrow(jobs)) %dopar% {
     writeRaster(res2,file=toutfile,overwrite=T,datatype='INT2S',options=c("COMPRESS=LZW", "PREDICTOR=2"),NAvalue=-32768)
     ## remove temporary files
     rmr(d);rmr(d2);rmr(psi);rmr(res);rmr(res2)
+    ## remove old temporary files older than x hours
+    removeTmpFiles(1)
     print(paste("Finished Temporary File: ",toutfile))
 }
 
@@ -153,7 +155,7 @@ foreach( i=1:nrow(jobs)) %dopar% {
 foreach( i=1:nrow(df2)) %dopar% {
     ifile=df2$path[i]
     outfile=paste(datadir,"/mcd09ctif/",df2$sensor[i],"_",df2$month[i],".tif",sep="")
-    if(file.exists(outfile)) next
+    if(file.exists(outfile)) {print(paste(outfile," exists, moving on...")); return(NULL)}
     ## create VRT of first band of the full image 
     fvrt=sub("[.]tif",".vrt",ifile)
     system(paste("gdalbuildvrt -b 1 ",fvrt," ",ifile))
@@ -163,6 +165,6 @@ foreach( i=1:nrow(df2)) %dopar% {
     system(paste("gdal_merge.py --config GDAL_CACHEMAX 10000 -init -32768 -n -32768 -co COMPRESS=LZW -co PREDICTOR=2 -co BIGTIFF=yes  -o ",outfile," ",tfiles,sep="")) 
     writeLines(paste("Finished ",outfile))
 }
-
+ 
 
 
