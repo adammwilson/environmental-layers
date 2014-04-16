@@ -11,6 +11,7 @@ datadir="/mnt/data2/projects/cloud/"
         tmcd2=paste(datadir,"/mcd09ctif/MCD09_",sprintf("%02d", i),".tif",sep="")
         ## check if output already exists
 #        if(file.exists(tmcd2)){print(paste(tmcd2,"Exists, moving on..."));return(NULL)}
+        if(file.exists(tmcd2)){print(paste(tmcd2,"Exists, deleting it..."));file.remove(tmcd,tmcd2)}
         ## Take average between images
         ## switch NA values to 32768 to facilitate recasting to 8-bit below, otherwise they are confounded with 0 cloud values
         ops=paste("-t_srs 'EPSG:4326' -multi -srcnodata -32768 -dstnodata 32767 -r bilinear -te -180 -90 180 90 -tr 0.008333333333333 -0.008333333333333",
@@ -33,6 +34,7 @@ datadir="/mnt/data2/projects/cloud/"
     foreach(i=1:12) %dopar% {
         f=list.files(paste(datadir,"/mcd09tif",sep=""),pattern=paste(".*[O|Y].*_",sprintf("%02d",i),"[.]tif$",sep=""),full=T)
         ## Define output and check if it already exists
+        tmcd=paste(datadir,"/mcd09ctif/MCD09sd_",sprintf("%02d", i),"_uncompressed.tif",sep="")
         tmcd=paste(datadir,"/mcd09ctif/MCD09sd_",sprintf("%02d", i),"_uncompressed.tif",sep="")
         tmcd2=paste(datadir,"/mcd09ctif/MCD09sd_",sprintf("%02d", i),".tif",sep="")
         ## check if output already exists
@@ -95,6 +97,17 @@ for( i in 1:length(f2)){
 
 }
 
+
+################
+### calculate inter vs. intra annual variability
+f3=list.files(paste(datadir,"/mcd09ctif",sep=""),pattern=paste(".*MCD09_[0-9].[.]tif$",sep=""),full=T)
+f3sd=list.files(paste(datadir,"/mcd09ctif",sep=""),pattern=paste(".*MCD09sd_[0-9].[.]tif$",sep=""),full=T)
+
+dmean=stack(as.list(f3))
+dsd=stack(as.list(f3sd))
+
+dinter=calc(dmean,sd,file=paste(datadir,"/mcd09ctif/inter.tif",sep=""),options=c("COMPRESS=LZW","ZLEVEL=9"))
+dintra=calc(dsd,mean,file=paste(datadir,"/mcd09ctif/intra.tif",sep=""),options=c("COMPRESS=LZW","ZLEVEL=9"))
 
 tplot=F
 if(tplot){

@@ -114,7 +114,7 @@ jobs$path=df2$path[match(paste(jobs$sensor,jobs$month),paste(df2$sensor,df2$mont
 foreach( i=1:nrow(jobs)) %dopar% {
     file=jobs$path[i]
     toutfile=paste(datadir,"mcd09bias/", sub(".tif","",basename(file)),"_",jobs$tile[i],".tif",sep="")
-    if(file.exists(toutfile)) {writeLines(paste(toutfile,"Exists, moving on"));next}
+#    if(file.exists(toutfile)) {writeLines(paste(toutfile,"Exists, moving on"));next}
     writeLines(paste("Starting: ",toutfile," tile:",jobs$tile[i]," ( ",i," out of ",nrow(jobs),")"))
     ## set sensor-specific parameters
     ## add extra region for correction depending on which sensor is being processed
@@ -154,15 +154,18 @@ foreach( i=1:nrow(jobs)) %dopar% {
 
 foreach( i=1:nrow(df2)) %dopar% {
     ifile=df2$path[i]
-    outfile=paste(datadir,"/mcd09ctif/",df2$sensor[i],"_",df2$month[i],".tif",sep="")
-    if(file.exists(outfile)) {print(paste(outfile," exists, moving on...")); return(NULL)}
+    outfile=paste(datadir,"/mcd09ctif/",df2$sensor[i],"_",df2$month[i],"_uncompressed.tif",sep="")
+    outfile2=paste(datadir,"/mcd09ctif/",df2$sensor[i],"_",df2$month[i],".tif",sep="")
+    ##    if(file.exists(outfile)) {print(paste(outfile," exists, moving on...")); return(NULL)}
     ## create VRT of first band of the full image 
     fvrt=sub("[.]tif",".vrt",ifile)
     system(paste("gdalbuildvrt -b 1 ",fvrt," ",ifile))
     ## mosaic the tiles with the original data (keeping the new data when available)
-    tfiles=paste(c(fvrt,list.files(paste(datadir,"/mcd09bias",sep=""),pattern=paste(sub("[.]tif","",basename(outfile)),"_[0-9]*[.]tif",sep=""),full=T)),collapse=" ")
-    if(file.exists(outfile)) file.remove(outfile)
-    system(paste("gdal_merge.py --config GDAL_CACHEMAX 10000 -init -32768 -n -32768 -co COMPRESS=LZW -co PREDICTOR=2 -co BIGTIFF=yes  -o ",outfile," ",tfiles,sep="")) 
+    tfiles=paste(c(fvrt,list.files(paste(datadir,"/mcd09bias",sep=""),pattern=paste(sub("[.]tif","",basename(outfile2)),"_[0-9]*[.]tif",sep=""),full=T)),collapse=" ")
+    if(file.exists(outfile)) file.remove(outfile2,outfile)
+    system(paste("gdal_merge.py --config GDAL_CACHEMAX 10000 -init -32768 -n -32768 -co BIGTIFF=yes  -o ",outfile," ",tfiles,sep="")) 
+    system(paste("gdal_translate -co COMPRESS=LZW -co ZLEVEL=9 -co PREDICTOR=2 ",outfile," ",outfile2,sep=""))
+    file.remove(fvrt,outfile)
     writeLines(paste("Finished ",outfile))
 }
  
