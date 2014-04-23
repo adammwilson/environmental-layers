@@ -1,7 +1,7 @@
 ### Script to download and process the NDP-026D station cloud dataset
 ### to validate MODIS cloud frequencies
 
-setwd("~/acrobates/adamw/projects/cloud/data/NDP026D")
+setwd("/mnt/data/personal/adamw/projects/cloud/")
 
 library(multicore)
 library(doMC)
@@ -13,9 +13,11 @@ library(rgeos)
 
 ## Data available here http://cdiac.ornl.gov/epubs/ndp/ndp026d/ndp026d.html
 
+download=F  #download data?
 ## Get station locations
-system("wget -N -nd http://cdiac.ornl.gov/ftp/ndp026d/cat01/01_STID -P data/")
-st=read.table("data/01_STID",skip=1)
+if(download)   system("wget -N -nd http://cdiac.ornl.gov/ftp/ndp026d/cat01/01_STID -P data/NDP026D/data/")
+
+st=read.table("data/NDP026D/data/01_STID",skip=1)
 colnames(st)=c("StaID","LAT","LON","ELEV","ny1","fy1","ly1","ny7","fy7","ly7","SDC","b5c")
 st$lat=st$LAT/100
 st$lon=st$LON/100
@@ -28,9 +30,10 @@ projection(st)="+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
 st@data[,c("lon","lat")]=coordinates(st)
 
 ## download data
-system("wget -N -nd ftp://cdiac.ornl.gov/pub/ndp026d/cat67_78/* -A '.tc.Z' -P data/")
-
-system("gunzip data/*.Z")
+if(download){
+    system("wget -N -nd ftp://cdiac.ornl.gov/pub/ndp026d/cat67_78/* -A '.tc.Z' -P data/NDP026D/data/")
+    system("gunzip data/*.Z")
+}
 
 ## define FWF widths
 f162=c(5,5,4,7,7,7,4) #format 162
@@ -38,7 +41,7 @@ c162=c("StaID","YR","Nobs","Amt","Fq","AWP","NC")
 
 ## use monthly timeseries
 cld=do.call(rbind.data.frame,mclapply(sprintf("%02d",1:12),function(m) {
-  d=read.fwf(list.files("data",pattern=paste("MNYDC.",m,".tc$",sep=""),full=T),skip=1,widths=f162)
+  d=read.fwf(list.files("data/NDP026D/data",pattern=paste("MNYDC.",m,".tc$",sep=""),full=T),skip=1,widths=f162)
   colnames(d)=c162
   d$month=as.numeric(m)
   print(m)
@@ -57,8 +60,7 @@ cld=cld[!is.na(cld$Amt),]
 ## table of stations with > 20 observations per month
 cast(cld,StaID~YR,value="Nobs")
 mtab=ddply(cld,c('StaID','month'),function(df){ data.frame(count=sum(df$Nobs>20,na.rm=T))})
-mtab2=mtab[
-    table(mtab$count>10)
+#mtab2=mtab[table(mtab$count>10)]
 stem(mtab$count)
 
 ## calculate means and sds for full record (1970-2009)
@@ -79,10 +81,10 @@ cldm=do.call(rbind.data.frame,by(cld,list(month=as.factor(cld$month),StaID=as.fa
 
 
 
-## add the MOD09 data to cld
-#### Evaluate MOD35 Cloud data
-mod09=brick("~/acrobates/adamw/projects/cloud/data/cloud_ymonmean.nc")
-mod09std=brick("~/acrobates/adamw/projects/cloud/data/cloud_ymonstd.nc")
+## add the EarthEnvCloud data to cld
+mod09=stack(list.files("data/mcd09tif/",pattern="MCD09_[0-9]*[.]tif",full=T))
+NAvalue(mod09)=255
+#mod09std=brick("~/acrobates/adamw/projects/cloud/data/cloud_ymonstd.nc")
 
 ## overlay the data with 32km diameter (16km radius) buffer
 ## buffer size from Dybbroe, et al. (2005) doi:10.1175/JAM-2189.1.

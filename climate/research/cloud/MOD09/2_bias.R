@@ -1,9 +1,9 @@
 ###  Script to compile the monthly cloud data from earth engine into a netcdf file for further processing
 
 library(rasterVis)
+library(multicore)
 library(doMC)
 library(foreach)
-library(RcppOctave)
 library(rgdal)
 registerDoMC(12)
 
@@ -16,6 +16,7 @@ datadir="/mnt/data2/projects/cloud/"
 
 
 ## Specify path to VSNR souce code and add it to RcppOctave path
+library(RcppOctave)
 mpath="/mnt/data/personal/adamw/projects/environmental-layers/climate/research/cloud/MOD09/vsnr/"
 .O$addpath(mpath)
 
@@ -23,7 +24,7 @@ mpath="/mnt/data/personal/adamw/projects/environmental-layers/climate/research/c
 #########################################
 ####  Bias correction functions
 
-fgabor=function(d,theta=-15,x=200,y=5){
+fgabor=function(d,theta,x=200,y=5){
     thetaR=(theta*pi)/180
     cds=expand.grid(x=(1:nrow(d))-round(nrow(d)/2),y=(1:ncol(d))-round(ncol(d)/2))
     sigma_x=x
@@ -102,22 +103,23 @@ mydexts=cbind.data.frame(sensor="MYD09",rbind.data.frame(
 allexts=rbind.data.frame(modexts,mydexts)
 
 ### assemble list of files to process
-df2=data.frame(path=list.files(paste(datadir,"/mcd09tif",sep=""),full=T,pattern="[0-9][.]tif$"),stringsAsFactors=F)
-df2[,c("sensor","month")]=do.call(rbind.data.frame,strsplit(basename(df2$path),"_|[.]"))[,c(1,2)]
+df2=data.frame(path=list.files(paste(datadir,"/mcd09tif",sep=""),full=T,pattern="[0-9]*[mean|sd].*tif$"),stringsAsFactors=F)
+df2[,c("sensor","month","type")]=do.call(rbind.data.frame,strsplit(basename(df2$path),"_|[.]"))[,c(1,2,3)]
 
 ## create a list of jobs to process
 jobs=data.frame(allexts,month=rep(sprintf("%02d",1:12),each=nrow(allexts)))
-jobs$path=df2$path[match(paste(jobs$sensor,jobs$month),paste(df2$sensor,df2$month))]
+jobs=rbind.data.frame(cbind.data.frame(type="mean",jobs),cbind.data.frame(type="sd",jobs))
+jobs$path=df2$path[match(paste(jobs$sensor,jobs$month,jobs$type),paste(df2$sensor,df2$month,df2$type))]
+## drop any jobs with no associated files
+jobs=jobs[!is.na(jobs$path),]
 
 
 ## loop over sensor-months to create full grid of corrected values
-foreach( i=1:nrow(jobs)) %dopar% {
+foreach( i=1:nrow(jobs), .options.multicore=list(preschedule=FALSE)) %dopar% {
     file=jobs$path[i]
     toutfile=paste(datadir,"mcd09bias/", sub(".tif","",basename(file)),"_",jobs$tile[i],".tif",sep="")
-#    if(file.exists(toutfile)) {writeLines(paste(toutfile,"Exists, moving on"));next}
+    if(file.exists(toutfile)) {writeLines(paste(toutfile,"Exists, moving on"));return(NULL)}
     writeLines(paste("Starting: ",toutfile," tile:",jobs$tile[i]," ( ",i," out of ",nrow(jobs),")"))
-    ## set sensor-specific parameters
-    ## add extra region for correction depending on which sensor is being processed
     ## set angle of orbital artefacts to be corrected
     sensor=jobs$sensor[i]
     if(sensor=="MOD09") scanangle=-15
@@ -138,7 +140,7 @@ foreach( i=1:nrow(jobs)) %dopar% {
     res=vsnr(d2,gabor=psi,alpha=2,p=2,epsilon=1,prec=5e-6,maxit=50,C=1,full=F)
     res2=res*100
     ## write the file
-    writeRaster(res2,file=toutfile,overwrite=T,datatype='INT2S',options=c("COMPRESS=LZW", "PREDICTOR=2"),NAvalue=-32768)
+    writeRaster(res2,file=toutfile,overwrite=T,datatype='INT2S',options=c("COMPRESS=LZW", "PREDICTOR=2"),NAvalue=32767)
     ## remove temporary files
     rmr(d);rmr(d2);rmr(psi);rmr(res);rmr(res2)
     ## remove old temporary files older than x hours
@@ -147,27 +149,54 @@ foreach( i=1:nrow(jobs)) %dopar% {
 }
 
 
-
 ############################################
 ## now mosaic the tiles with the original image to keep only the corrected data (when available) and the uncorrected data where there is no tile.
 ## this relies on df2 created above
+#tfs=list.files(paste(datadir,"/mcd09bias",sep=""),pattern="M.*_[0-9]._[0-9][.]tif",full=T)
+#file.rename(tfs,paste(substr(tfs,1,46),"mean_",substr(tfs,47,52),sep=""))
+
+## define color scale for mean and sd
+mkct=function(palette,vals,bit)
+    data.frame(id=0:(2^bit-1),t(col2rgb(c(palette(length(vals)+1),rep("#00000000",(2^bit)-length(vals)-1)),alpha=T)))
+
+colR=colorRampPalette(c("#08306b","#0d57a1","#2878b8","#4997c9","#72b2d7","#a2cbe2","#c7dcef","#deebf7","#f7fbff"))
+meancols=mkct(colR,vals=0:10000,bit=16)
+write.table(meancols,file="data/colors16_mean.txt",quote=F,row.names=F,col.names=F)
+
+colR2=colorRampPalette(c("#0000FF","#00FF80","#FF0080"))
+sdcols=mkct(colR2,vals=0:10000,bit=16)
+write.table(sdcols,file="data/colors16_sd.txt",quote=F,row.names=F,col.names=F)
+
 
 foreach( i=1:nrow(df2)) %dopar% {
     ifile=df2$path[i]
-    outfile=paste(datadir,"/mcd09ctif/",df2$sensor[i],"_",df2$month[i],"_uncompressed.tif",sep="")
-    outfile2=paste(datadir,"/mcd09ctif/",df2$sensor[i],"_",df2$month[i],".tif",sep="")
-    ##    if(file.exists(outfile)) {print(paste(outfile," exists, moving on...")); return(NULL)}
-    ## create VRT of first band of the full image 
-    fvrt=sub("[.]tif",".vrt",ifile)
-    system(paste("gdalbuildvrt -b 1 ",fvrt," ",ifile))
+    itype=df2$type[i]
+    outfile=paste(datadir,"/mcd09ctif/",sub(".tif",".vrt",basename(ifile)),sep="")
+    outfile2=paste(datadir,"/mcd09ctif/unmasked_",basename(ifile),sep="")
+    outfile3=paste(datadir,"/mcd09ctif/",basename(ifile),sep="")
+#    if(file.exists(outfile3)) {print(paste(outfile," exists, moving on...")); return(NULL)}
     ## mosaic the tiles with the original data (keeping the new data when available)
-    tfiles=paste(c(fvrt,list.files(paste(datadir,"/mcd09bias",sep=""),pattern=paste(sub("[.]tif","",basename(outfile2)),"_[0-9]*[.]tif",sep=""),full=T)),collapse=" ")
-    if(file.exists(outfile)) file.remove(outfile2,outfile)
-    system(paste("gdal_merge.py --config GDAL_CACHEMAX 10000 -init -32768 -n -32768 -co BIGTIFF=yes  -o ",outfile," ",tfiles,sep="")) 
-    system(paste("gdal_translate -co COMPRESS=LZW -co ZLEVEL=9 -co PREDICTOR=2 ",outfile," ",outfile2,sep=""))
-    file.remove(fvrt,outfile)
-    writeLines(paste("Finished ",outfile))
+    tfiles=paste(c(ifile,list.files(paste(datadir,"/mcd09bias",sep=""),pattern=paste(sub("[.]tif","",basename(outfile3)),"_[0-9]*[.]tif",sep=""),full=T)),collapse=" ")
+    system(paste("gdalbuildvrt -srcnodata 32767 -vrtnodata 32767 ",outfile," ",tfiles,sep="")) 
+    system(paste("gdal_translate -a_ullr -180 90 180 -90 -a_nodata 32767 -co COMPRESS=LZW -co ZLEVEL=9 -co PREDICTOR=2 ",outfile," ",outfile2,sep=""))
+    ## use pksetmask to set any values >100 (except the missing values) to 100
+    ## these exist due to the reprojection to wgs84 from sinusoidal, there are a few pixels with values slightly
+    ## greater than 100
+    ## also convert to an unsigned 16-bit integer to allow adding a color table
+    ict=ifelse(itype=="mean","data/colors16_mean.txt","data/colors16_sd.txt")
+    system(paste("pksetmask -i ",outfile2," -m ",outfile2," -ot UInt16 ",
+                 "--operator='>' --msknodata 20000 --nodata 65535  --operator='>' --msknodata 10000 --nodata 10000 --operator='<' --msknodata 0 --nodata 65535 ",
+                 " -ct ",ict,"  -co COMPRESS=LZW -co PREDICTOR=2 -o ",outfile3))
+    ## clean up temporary files
+    file.remove(outfile,outfile2)
+    writeLines(paste("#######################################             Finished ",outfile))
 }
- 
 
 
+## check output
+for(i in 1:nrow(df2)) {
+    ifile=df2$path[i]
+    outfile3=paste(datadir,"/mcd09ctif/",basename(ifile),sep="")
+    print(ifile)
+    system(paste("gdalinfo ",outfile3,"| grep 'Size is'"))
+}
