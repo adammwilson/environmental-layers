@@ -82,9 +82,14 @@ cldm=do.call(rbind.data.frame,by(cld,list(month=as.factor(cld$month),StaID=as.fa
 
 
 ## add the EarthEnvCloud data to cld
-mod09=stack(list.files("data/mcd09tif/",pattern="MCD09_[0-9]*[.]tif",full=T))
-NAvalue(mod09)=255
-#mod09std=brick("~/acrobates/adamw/projects/cloud/data/cloud_ymonstd.nc")
+mod09_mean=stack(list.files("data/mcd09tif/",pattern="MCD09_mean_[0-9]*[.]tif",full=T))
+NAvalue(mod09_mean)=255
+names(mod09_mean)=month.name
+
+mod09_sd=stack(list.files("data/mcd09tif/",pattern="MCD09_sd_[0-9]*[.]tif",full=T))
+NAvalue(mod09_sd)=255
+names(mod09_sd)=month.name
+
 
 ## overlay the data with 32km diameter (16km radius) buffer
 ## buffer size from Dybbroe, et al. (2005) doi:10.1175/JAM-2189.1.
@@ -92,14 +97,17 @@ buf=16000
 bins=cut(st$lat,10)
 rerun=F
 if(rerun&file.exists("valid.csv")) file.remove("valid.csv")
+
+beginCluster(12)
+
 mod09sta=lapply(levels(bins),function(lb) {
   l=which(bins==lb)
   ## mean
-  td=extract(mod09,st[l,],buffer=buf,fun=mean,na.rm=T,df=T)
+  td=extract(mod09_mean,st[l,],buffer=buf,fun=mean,na.rm=T,df=T)
   td$id=st$id[l]
   td$type="mean"
   ## std
-  td2=extract(mod09std,st[l,],buffer=buf,fun=mean,na.rm=T,df=T)
+  td2=extract(mod09_sd,st[l,],buffer=buf,fun=mean,na.rm=T,df=T)
   td2$id=st$id[l]
   td2$type="sd"
   print(lb)#as.vector(c(l,td[,1:4])))
@@ -107,23 +115,27 @@ mod09sta=lapply(levels(bins),function(lb) {
   td
 })#,mc.cores=3)
 
+endCluster()
+
 ## read it back in
 mod09st=read.csv("valid.csv",header=F)[,-c(1)]
-colnames(mod09st)=c(names(mod09),"id","type")
+colnames(mod09st)=c(names(mod09_mean),"id","type")
 mod09stl=melt(mod09st,id.vars=c("id","type"))
-mod09stl[,c("year","month")]=do.call(rbind,strsplit(sub("X","",mod09stl$variable),"[.]"))[,1:2]
+colnames(mod09stl)[grep("variable",colnames(mod09stl))]="month"
+#mod09stl[,c("year","month")]=do.call(rbind,strsplit(sub("X","",mod09stl$variable),"[.]"))[,1:2]
 mod09stl$value[mod09stl$value<0]=NA
-mod09stl=cast(mod09stl,id+year+month~type,value="value")
+mod09stl=cast(mod09stl,id+month~type,value="value")
 
 ## add it to cld
-cldm$mod09=mod09stl$mean[match(paste(cldm$StaID,cldm$month),paste(mod09stl$id,as.numeric(mod09stl$month)))]
-cldm$mod09sd=mod09stl$sd[match(paste(cldm$StaID,cldm$month),paste(mod09stl$id,as.numeric(mod09stl$month)))]
+cldm$monthname=month.name[cldm$month]
+cldm$mod09=mod09stl$mean[match(paste(cldm$StaID,cldm$monthname),paste(mod09stl$id,mod09stl$month))]
+cldm$mod09sd=mod09stl$sd[match(paste(cldm$StaID,cldm$monthname),paste(mod09stl$id,mod09stl$month))]
 
 
 ## LULC
 #system(paste("gdalwarp -r near -co \"COMPRESS=LZW\" -tr ",paste(res(mod09),collapse=" ",sep=""),
 #             "-tap -multi -t_srs \"",   projection(mod09),"\" /mnt/data/jetzlab/Data/environ/global/landcover/MODIS/MCD12Q1_IGBP_2005_v51.tif ../modis/mod12/MCD12Q1_IGBP_2005_v51.tif"))
-lulc=raster("~/acrobates/adamw/projects/interp/data/modis/mod12/MCD12Q1_IGBP_2005_v51.tif")
+lulc=raster("/mnt/data/personal/adamw/projects/interp/data/modis/mod12/MCD12Q1_IGBP_2005_v51.tif")
 require(plotKML); data(worldgrids_pal)  #load IGBP palette
 IGBP=data.frame(ID=0:16,col=worldgrids_pal$IGBP[-c(18,19)],stringsAsFactors=F)
 IGBP$class=rownames(IGBP);rownames(IGBP)=1:nrow(IGBP)
@@ -141,7 +153,7 @@ cldm$lulcc=IGBP$class[match(cldm$lulc,IGBP$ID)]
 
 
 ### Add biome data
-biome=readOGR("../teow/","biomes")
+biome=readOGR("data/teow/","biomes")
 projection(biome)=projection(st)
 #st$biome=over(st,biome,returnList=F)$BiomeID
 dists=apply(gDistance(st,biome,byid=T),2,which.min)
@@ -155,8 +167,8 @@ cldm$biome=st$biome[match(cldm$StaID,st$id)]
 
 
 ## write out the tables
-write.csv(cld,file="cld.csv",row.names=F)
-write.csv(cldm,file="cldm.csv",row.names=F)
-writeOGR(st,dsn=".",layer="stations",driver="ESRI Shapefile",overwrite_layer=T)
+write.csv(cld,file="data/validation/cld.csv",row.names=F)
+write.csv(cldm,file="data/validation/cldm.csv",row.names=F)
+writeOGR(st,dsn="data/validation/",layer="stations",driver="ESRI Shapefile",overwrite_layer=T)
 #########################################################################
 
