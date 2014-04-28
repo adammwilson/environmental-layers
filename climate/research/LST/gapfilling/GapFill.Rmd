@@ -1,0 +1,21 @@
+Assessment of gap-filling procedures
+========================================================
+
+
+
+```{r}
+library(reshape)
+library(knitr)
+
+d=read.csv("gapfillvalidation.csv")
+d$Month=factor(d$Month,levels=month.name[6:9],ordered=T)
+
+```
+
+
+```{r,results='asis'}
+kable(cast(d,Type~Month,value="value",fun.aggregate=function(x) paste("R2=",x[1]," (β=",x[2],")",sep="")),format="rst")
+
+```
+
+  
